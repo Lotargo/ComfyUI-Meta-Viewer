@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ComfyUI Meta Viewer</title>
+<style>
+:root {
+    --bg: #0f0f14;
+    --surface: #1a1a24;
+    --surface2: #22222e;
+    --border: #2e2e3e;
+    --text: #e0e0e8;
+    --text-dim: #8888a0;
+    --accent: #7c6aef;
+    --accent2: #5a4ad4;
+    --green: #4ade80;
+    --orange: #fb923c;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --pink: #f472b6;
+    --cyan: #22d3ee;
+    --radius: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+}
+
+.app-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.app-header h1 { font-size: 20px; font-weight: 600; white-space: nowrap; }
+.app-header h1 span { color: var(--accent); }
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    align-items: center;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.main-layout {
+    display: flex;
+    height: calc(100vh - 57px);
+}
+
+.sidebar {
+    width: 340px;
+    min-width: 340px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.sidebar-header h3 { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+
+.view-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-left: auto;
+}
+.view-toggle button {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 14px;
+    transition: all 0.15s;
+    line-height: 1;
+}
+.view-toggle button:hover { color: var(--text); }
+.view-toggle button.active { background: var(--accent); color: #fff; }
+
+.image-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.image-list.grid-mode {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 6px;
+    padding: 8px;
+}
+
+.image-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.1s;
+    margin-bottom: 2px;
+}
+.image-item:hover { background: var(--surface2); }
+.image-item.active { background: var(--accent); color: #fff; }
+.image-item.active .meta-hint { color: rgba(255,255,255,0.7); }
+
+.image-item img {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: var(--surface2);
+    flex-shrink: 0;
+}
+
+.image-item .name {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.image-item .meta-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.grid-mode .image-item {
+    flex-direction: column;
+    padding: 6px;
+    gap: 4px;
+    margin-bottom: 0;
+}
+
+.grid-mode .image-item img {
+    width: 100%;
+    height: 80px;
+    border-radius: 6px;
+}
+
+.grid-mode .image-item .name {
+    font-size: 10px;
+    text-align: center;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.grid-mode .image-item .meta-hint { display: none; }
+
+.content-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+/* ====== Drop zone ====== */
+.drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+    text-align: center;
+    transition: all 0.2s;
+    min-height: 400px;
+}
+.drop-zone.dragover { border-color: var(--accent); background: rgba(124,106,239,0.05); }
+.drop-zone .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+.drop-zone h2 { font-size: 18px; margin-bottom: 8px; color: var(--text-dim); }
+.drop-zone p { font-size: 13px; color: var(--text-dim); }
+.drop-zone .hint { margin-top: 16px; font-size: 12px; color: var(--text-dim); opacity: 0.6; }
+
+/* ====== Gallery ====== */
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    max-width: 1400px;
+}
+
+.gallery-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+.gallery-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.gallery-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+.gallery-card img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
+    background: var(--surface2);
+}
+
+.gallery-card .card-info {
+    padding: 8px 10px;
+}
+
+.gallery-card .card-name {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gallery-card .card-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+.gallery-card .card-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    backdrop-filter: blur(4px);
+}
+
+.gallery-card .card-error {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(248,113,113,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--red);
+    font-size: 24px;
+}
+
+/* ====== Lightbox ====== */
+.lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+.lightbox-overlay.open { opacity: 1; pointer-events: auto; }
+
+.lightbox-top {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    gap: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+}
+
+.lightbox-top .lb-title {
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lightbox-top .lb-counter {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.lb-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--text);
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    transition: all 0.15s;
+}
+.lb-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.lb-btn-icon { font-size: 18px; padding: 6px 10px; line-height: 1; }
+
+.lightbox-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.lightbox-image-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.lightbox-image-area img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+    user-select: none;
+    transition: opacity 0.15s;
+}
+
+.lb-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    cursor: pointer;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    z-index: 10;
+    backdrop-filter: blur(4px);
+}
+.lb-nav:hover { background: var(--accent); border-color: var(--accent); }
+.lb-nav.prev { left: 16px; }
+.lb-nav.next { right: 16px; }
+
+.lightbox-meta-panel {
+    width: 380px;
+    min-width: 380px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.lb-meta-section {
+    margin-bottom: 16px;
+}
+
+.lb-meta-section h4 {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lb-meta-row {
+    display: flex;
+    padding: 4px 0;
+    font-size: 12px;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.lb-meta-row .lb-key {
+    width: 110px;
+    min-width: 110px;
+    color: var(--text-dim);
+    font-weight: 500;
+}
+
+.lb-meta-row .lb-val {
+    flex: 1;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 11px;
+    word-break: break-word;
+    white-space: pre-wrap;
+    line-height: 1.4;
+}
+
+.lb-prompt-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.4;
+    max-height: 120px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+
+.lb-prompt-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* ====== Meta detail view ====== */
+.meta-view { max-width: 900px; }
+
+.meta-view-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.meta-view-header img {
+    width: 80px;
+    height: 80px;
+    border-radius: 10px;
+    object-fit: cover;
+    background: var(--surface2);
+}
+
+.meta-view-header .info h2 { font-size: 18px; margin-bottom: 4px; }
+.meta-view-header .info .details { font-size: 12px; color: var(--text-dim); }
+
+.category {
+    margin-bottom: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.category-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--surface2);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+}
+.category-header:hover { background: #2a2a3a; }
+
+.category-header .arrow {
+    font-size: 12px;
+    transition: transform 0.2s;
+    color: var(--text-dim);
+}
+.category-header .arrow.collapsed { transform: rotate(-90deg); }
+
+.category-header .cat-icon { font-size: 14px; }
+.category-header h3 { font-size: 14px; font-weight: 500; flex: 1; }
+
+.category-header .count {
+    font-size: 11px;
+    background: var(--accent);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.category-header .copy-all {
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.category-header:hover .copy-all { opacity: 1; }
+
+.category-body { padding: 0; }
+.category-body.collapsed { display: none; }
+
+.meta-row {
+    display: flex;
+    padding: 8px 16px;
+    border-top: 1px solid var(--border);
+    align-items: flex-start;
+    font-size: 13px;
+    transition: background 0.1s;
+}
+.meta-row:hover { background: rgba(124, 106, 239, 0.04); }
+
+.meta-row .key {
+    width: 180px;
+    min-width: 180px;
+    color: var(--text-dim);
+    font-weight: 500;
+    padding-right: 12px;
+    word-break: break-word;
+}
+
+.meta-row .value {
+    flex: 1;
+    word-break: break-word;
+    white-space: pre-wrap;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.meta-row .copy-btn {
+    opacity: 0;
+    transition: opacity 0.15s;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+.meta-row:hover .copy-btn { opacity: 1; }
+
+.copy-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    transition: all 0.15s;
+}
+.copy-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.node-block {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+}
+.node-block:first-child { border-top: none; }
+
+.node-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.node-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+.node-badge.Models { background: var(--accent); color: #fff; }
+.node-badge.Prompts { background: var(--green); color: #000; }
+.node-badge.Sampler { background: var(--orange); color: #000; }
+.node-badge.ImageSettings { background: var(--blue); color: #000; }
+.node-badge.PostProcessing { background: var(--pink); color: #000; }
+.node-badge.LoRA { background: var(--cyan); color: #000; }
+.node-badge.Other { background: var(--text-dim); color: #000; }
+
+.node-title { font-size: 13px; font-weight: 600; }
+.node-id { font-size: 11px; color: var(--text-dim); margin-left: auto; }
+
+.node-inputs { padding-left: 8px; }
+.node-inputs .meta-row { padding: 4px 0; }
+.node-inputs .meta-row .key { width: 140px; min-width: 140px; font-size: 12px; }
+
+.raw-block { padding: 12px 16px; border-top: 1px solid var(--border); }
+
+.raw-block pre {
+    background: var(--bg);
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--green);
+    color: #000;
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s;
+    pointer-events: none;
+    z-index: 1000;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-dim);
+}
+.empty-state .icon { font-size: 64px; margin-bottom: 16px; opacity: 0.3; }
+
+.hidden-input { display: none; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+@media (max-width: 800px) {
+    .sidebar { display: none; }
+    .lightbox-meta-panel { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-header">
+    <h1><span>Comfy</span>UI Meta Viewer</h1>
+    <div class="header-actions">
+        <label class="btn" for="file-input">Open Files</label>
+        <label class="btn" for="folder-input">Open Folder</label>
+        <button class="btn" id="btn-paste">Paste Path</button>
+    </div>
+</div>
+
+<input type="file" id="file-input" class="hidden-input" multiple accept="image/*">
+<input type="file" id="folder-input" class="hidden-input" webkitdirectory directory>
+
+<div class="main-layout">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3>Images</h3>
+            <span id="image-count" style="font-size:12px;color:var(--text-dim)"></span>
+            <div class="view-toggle">
+                <button id="btn-view-list" class="active" title="List view">&#9776;</button>
+                <button id="btn-view-grid" title="Grid view">&#9638;</button>
+                <button id="btn-view-gallery" title="Gallery view">&#9641;</button>
+            </div>
+            <button class="btn btn-sm" id="btn-clear">Clear</button>
+        </div>
+        <div class="image-list" id="image-list"></div>
+    </div>
+    <div class="content-area" id="content-area">
+        <div class="drop-zone" id="drop-zone">
+            <div class="icon">&#128444;</div>
+            <h2>Drop images here</h2>
+            <p>or use buttons above / paste path</p>
+            <div class="hint">Supports PNG, JPG, WEBP, BMP, TIFF</div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Lightbox -->
+<div class="lightbox-overlay" id="lightbox">
+    <div class="lightbox-top">
+        <span class="lb-title" id="lb-title"></span>
+        <span class="lb-counter" id="lb-counter"></span>
+        <button class="btn btn-sm" id="lb-copy" title="Copy all metadata">&#128203; Copy All</button>
+        <button class="lb-btn" id="lb-close" title="Close (Esc)">&#10005;</button>
+    </div>
+    <div class="lightbox-body">
+        <div class="lightbox-image-area">
+            <button class="lb-nav prev" id="lb-prev">&#8249;</button>
+            <img id="lb-img" src="" alt="">
+            <button class="lb-nav next" id="lb-next">&#8250;</button>
+        </div>
+        <div class="lightbox-meta-panel" id="lb-meta"></div>
+    </div>
+</div>
+
+<script>
+const contentArea = document.getElementById('content-area');
+const imageList = document.getElementById('image-list');
+const imageCount = document.getElementById('image-count');
+const fileInput = document.getElementById('file-input');
+const folderInput = document.getElementById('folder-input');
+const toast = document.getElementById('toast');
+const btnViewList = document.getElementById('btn-view-list');
+const btnViewGrid = document.getElementById('btn-view-grid');
+const btnViewGallery = document.getElementById('btn-view-gallery');
+
+const lightbox = document.getElementById('lightbox');
+const lbTitle = document.getElementById('lb-title');
+const lbCounter = document.getElementById('lb-counter');
+const lbImg = document.getElementById('lb-img');
+const lbMeta = document.getElementById('lb-meta');
+
+let images = [];
+let activeIndex = -1;
+let viewMode = 'list';
+let galleryActive = false;
+let lightboxIndex = -1;
+
+function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+async function copyText(text) {
+    await navigator.clipboard.writeText(text);
+    showToast('Copied!');
+}
+
+function escapeHtml(s) {
+    if (s === null || s === undefined) return '<null>';
+    const str = typeof s === 'object' ? JSON.stringify(s, null, 2) : String(s);
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatValue(v) {
+    if (v === null || v === undefined) return '<null>';
+    if (typeof v === 'object') return escapeHtml(JSON.stringify(v, null, 2));
+    return escapeHtml(String(v));
+}
+
+function getStringValue(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'object') return JSON.stringify(v, null, 2);
+    return String(v);
+}
+
+function setViewMode(mode) {
+    viewMode = mode;
+    btnViewList.classList.toggle('active', mode === 'list');
+    btnViewGrid.classList.toggle('active', mode === 'grid');
+    btnViewGallery.classList.toggle('active', mode === 'gallery');
+    imageList.classList.toggle('grid-mode', mode === 'grid');
+    galleryActive = (mode === 'gallery');
+    if (galleryActive) {
+        renderGallery();
+    } else {
+        renderSidebar();
+    }
+}
+
+function renderSidebar() {
+    if (galleryActive) return;
+    imageList.innerHTML = '';
+    imageCount.textContent = images.length ? `(${images.length})` : '';
+    const isGrid = viewMode === 'grid';
+
+    images.forEach((img, i) => {
+        const div = document.createElement('div');
+        div.className = 'image-item' + (i === activeIndex ? ' active' : '');
+        const thumbSrc = img.thumbnail || '';
+
+        if (isGrid) {
+            div.innerHTML = `<img src="${thumbSrc}" alt="">` +
+                `<div class="name" title="${escapeHtml(img.file)}">${escapeHtml(img.file)}</div>`;
+        } else {
+            div.innerHTML = `<img src="${thumbSrc}" alt="">` +
+                `<div style="flex:1;min-width:0">` +
+                    `<div class="name">${escapeHtml(img.file)}</div>` +
+                    `<div class="meta-hint">${img.format || ''} ${img.size ? img.size[0]+'x'+img.size[1] : ''}</div>` +
+                `</div>`;
+        }
+
+        div.onclick = () => selectImage(i);
+        imageList.appendChild(div);
+    });
+}
+
+function selectImage(idx) {
+    activeIndex = idx;
+    if (galleryActive) {
+        renderGallery();
+    } else {
+        renderSidebar();
+    }
+    renderMeta(images[idx]);
+}
+
+/* ====== Gallery ====== */
+function renderGallery() {
+    imageCount.textContent = images.length ? `(${images.length})` : '';
+    let html = '<div class="gallery-grid">';
+    images.forEach((img, i) => {
+        const thumbSrc = img.thumbnail || '';
+        const isActive = i === activeIndex ? ' active' : '';
+        const hasError = img.error ? '<div class="card-error">&#9888;</div>' : '';
+        const fmt = img.format || '';
+        const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
+        html += `<div class="gallery-card${isActive}" onclick="openLightbox(${i})">
+            <img src="${thumbSrc}" alt="${escapeHtml(img.file)}" loading="lazy">
+            ${hasError}
+            <div class="card-info">
+                <div class="card-name" title="${escapeHtml(img.file)}">${escapeHtml(img.file)}</div>
+                <div class="card-meta">${fmt} ${dims}</div>
+            </div>
+        </div>`;
+    });
+    html += '</div>';
+    contentArea.innerHTML = html;
+}
+
+/* ====== Lightbox ====== */
+function openLightbox(idx) {
+    if (idx < 0 || idx >= images.length) return;
+    lightboxIndex = idx;
+    lightbox.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    updateLightbox();
+}
+
+function closeLightbox() {
+    lightbox.classList.remove('open');
+    document.body.style.overflow = '';
+    lightboxIndex = -1;
+}
+
+function updateLightbox() {
+    const img = images[lightboxIndex];
+    if (!img) { closeLightbox(); return; }
+
+    activeIndex = lightboxIndex;
+    if (galleryActive) renderGallery(); else renderSidebar();
+
+    lbTitle.textContent = img.file;
+    lbCounter.textContent = `${lightboxIndex + 1} / ${images.length}`;
+    lbImg.src = img.thumbnail || '';
+
+    let html = '';
+
+    if (img.prompt_parameters) {
+        const pp = img.prompt_parameters;
+        if (pp.positive_prompt) {
+            html += `<div class="lb-meta-section">
+                <div class="lb-prompt-label">&#10003; Positive Prompt</div>
+                <div class="lb-prompt-box">${escapeHtml(pp.positive_prompt)}</div>
+            </div>`;
+        }
+        if (pp.negative_prompt) {
+            html += `<div class="lb-meta-section">
+                <div class="lb-prompt-label">&#10007; Negative Prompt</div>
+                <div class="lb-prompt-box">${escapeHtml(pp.negative_prompt)}</div>
+            </div>`;
+        }
+
+        const settings = {};
+        Object.entries(pp).forEach(([k, v]) => {
+            if (!['generation_settings','extra_settings','workflow_nodes','positive_prompt','negative_prompt'].includes(k)) {
+                settings[k] = v;
+            }
+        });
+        if (pp.generation_settings) Object.assign(settings, pp.generation_settings);
+
+        if (Object.keys(settings).length) {
+            html += '<div class="lb-meta-section"><h4>&#9881; Settings</h4>';
+            Object.entries(settings).forEach(([k, v]) => {
+                html += `<div class="lb-meta-row"><span class="lb-key">${escapeHtml(k)}</span><span class="lb-val">${escapeHtml(String(v))}</span></div>`;
+            });
+            html += '</div>';
+        }
+    }
+
+    if (img.workflow && img.workflow.workflow_nodes) {
+        const order = ['Models','Prompts','Sampler','Image Settings','Post Processing','LoRA','Other'];
+        order.forEach(catName => {
+            const nodes = img.workflow.workflow_nodes[catName];
+            if (!nodes || !nodes.length) return;
+            html += `<div class="lb-meta-section"><h4>${escapeHtml(catName)} (${nodes.length})</h4>`;
+            nodes.forEach(n => {
+                html += `<div style="margin-bottom:6px"><span class="lb-key" style="color:var(--accent);font-weight:600">${escapeHtml(n.class_type)}</span> <span style="font-size:10px;color:var(--text-dim)">#${n.node_id}</span></div>`;
+                Object.entries(n.inputs || {}).forEach(([k, v]) => {
+                    html += `<div class="lb-meta-row"><span class="lb-key">${escapeHtml(k)}</span><span class="lb-val">${escapeHtml(String(v))}</span></div>`;
+                });
+            });
+            html += '</div>';
+        });
+    }
+
+    if (img.exif && Object.keys(img.exif).length) {
+        html += '<div class="lb-meta-section"><h4>&#128196; EXIF</h4>';
+        Object.entries(img.exif).forEach(([k, v]) => {
+            html += `<div class="lb-meta-row"><span class="lb-key">${escapeHtml(k)}</span><span class="lb-val">${escapeHtml(String(v))}</span></div>`;
+        });
+        html += '</div>';
+    }
+
+    lbMeta.innerHTML = html || '<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">No metadata</div>';
+}
+
+function lbNav(dir) {
+    const next = lightboxIndex + dir;
+    if (next >= 0 && next < images.length) {
+        openLightbox(next);
+    }
+}
+
+document.getElementById('lb-close').addEventListener('click', closeLightbox);
+document.getElementById('lb-prev').addEventListener('click', () => lbNav(-1));
+document.getElementById('lb-next').addEventListener('click', () => lbNav(1));
+
+document.getElementById('lb-copy').addEventListener('click', () => {
+    const img = images[lightboxIndex];
+    if (img) copyText(JSON.stringify(img, null, 2));
+});
+
+lightbox.addEventListener('click', e => {
+    if (e.target === lightbox || e.target.classList.contains('lightbox-body')) {
+        closeLightbox();
+    }
+});
+
+document.addEventListener('keydown', e => {
+    if (!lightbox.classList.contains('open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') lbNav(-1);
+    if (e.key === 'ArrowRight') lbNav(1);
+});
+
+/* ====== Helpers ====== */
+function showLoading(msg) {
+    contentArea.innerHTML = `<div class="empty-state"><div class="icon">&#8987;</div><div>${escapeHtml(msg)}</div></div>`;
+}
+
+function showError(msg) {
+    contentArea.innerHTML = `<div class="empty-state"><div class="icon">&#9888;</div><div>${escapeHtml(msg)}</div></div>`;
+}
+
+function applyResults(data) {
+    if (data.images && data.images.length) {
+        images = data.images;
+        activeIndex = 0;
+        if (galleryActive) {
+            renderGallery();
+        } else {
+            renderSidebar();
+        }
+        renderMeta(images[0]);
+    } else {
+        showError('No images found');
+    }
+}
+
+async function loadFromPaths(paths) {
+    showLoading('Loading...');
+    try {
+        const resp = await fetch('/api/extract', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({paths})
+        });
+        const data = await resp.json();
+        applyResults(data);
+    } catch(e) {
+        showError('Error: ' + e.message);
+    }
+}
+
+async function loadFromFiles(files) {
+    const formData = new FormData();
+    for (const f of files) formData.append('files', f);
+    showLoading('Processing ' + files.length + ' files...');
+    try {
+        const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await resp.json();
+        applyResults(data);
+    } catch(e) {
+        showError('Error: ' + e.message);
+    }
+}
+
+async function loadFromDirectory(files) {
+    const exts = ['png','jpg','jpeg','webp','bmp','tiff'];
+    const imageFiles = Array.from(files).filter(f => exts.includes(f.name.split('.').pop().toLowerCase()));
+    if (!imageFiles.length) { showError('No images found in directory'); return; }
+    const formData = new FormData();
+    for (const f of imageFiles) formData.append('files', f);
+    showLoading('Processing ' + imageFiles.length + ' images from folder...');
+    try {
+        const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await resp.json();
+        applyResults(data);
+    } catch(e) {
+        showError('Error: ' + e.message);
+    }
+}
+
+function renderMeta(img) {
+    if (!img) {
+        contentArea.innerHTML = '<div class="empty-state"><div class="icon">&#128444;</div></div>';
+        return;
+    }
+    if (img.error) {
+        contentArea.innerHTML = `<div class="meta-view"><div class="category"><div class="category-header"><h3>Error reading ${escapeHtml(img.file)}</h3></div><div class="raw-block"><pre>${escapeHtml(img.error)}</pre></div></div></div>`;
+        return;
+    }
+    if (galleryActive) return;
+
+    let html = '<div class="meta-view">';
+    html += `<div class="meta-view-header">
+        <img src="${img.thumbnail || ''}" alt="">
+        <div class="info">
+            <h2>${escapeHtml(img.file)}</h2>
+            <div class="details">${escapeHtml(img.format || '')} | ${img.size ? img.size[0]+' x '+img.size[1] : ''} | ${escapeHtml(img.mode || '')}</div>
+        </div>
+        <button class="btn btn-sm" onclick="copyAllMeta()">Copy All</button>
+    </div>`;
+
+    const pp = img.prompt_parameters;
+    if (pp) {
+        html += renderCategory('Generation Settings', '&#9881;', 'settings', [
+            ...Object.entries(pp).filter(([k]) => !['generation_settings','extra_settings','workflow_nodes'].includes(k))
+                .map(([k, v]) => ({key: k, value: v})),
+            ...(pp.generation_settings ? Object.entries(pp.generation_settings).map(([k, v]) => ({key: k, value: v})) : []),
+        ]);
+    }
+
+    if (pp && pp.positive_prompt) {
+        html += renderCategory('Positive Prompt', '&#10003;', 'prompt_pos', [{key: 'Prompt', value: pp.positive_prompt}], true);
+    }
+    if (pp && pp.negative_prompt) {
+        html += renderCategory('Negative Prompt', '&#10007;', 'prompt_neg', [{key: 'Negative Prompt', value: pp.negative_prompt}], true);
+    }
+
+    const wf = img.workflow;
+    if (wf && wf.workflow_nodes) {
+        const catIcons = {
+            'Models': '&#128190;', 'Prompts': '&#128221;', 'Sampler': '&#127922;',
+            'Image Settings': '&#128444;', 'Post Processing': '&#128230;', 'LoRA': '&#128273;', 'Other': '&#128269;'
+        };
+        const catBadge = {
+            'Models': 'Models', 'Prompts': 'Prompts', 'Sampler': 'Sampler',
+            'Image Settings': 'ImageSettings', 'Post Processing': 'PostProcessing', 'LoRA': 'LoRA', 'Other': 'Other'
+        };
+        for (const [catName, nodes] of Object.entries(wf.workflow_nodes)) {
+            const rows = [];
+            nodes.forEach(node => rows.push({isNode: true, node, category: catBadge[catName] || 'Other'}));
+            html += renderNodeCategory(catName, catIcons[catName] || '&#128269;', rows);
+        }
+    }
+
+    if (pp && pp.extra_settings && Object.keys(pp.extra_settings).length > 0) {
+        html += renderCategory('Extra Settings', '&#9733;', 'extra',
+            Object.entries(pp.extra_settings).map(([k, v]) => ({key: k, value: v})));
+    }
+
+    if (img.exif && Object.keys(img.exif).length > 0) {
+        html += renderCategory('EXIF Data', '&#128196;', 'exif',
+            Object.entries(img.exif).map(([k, v]) => ({key: k, value: v})));
+    }
+
+    if (img.raw_chunks && Object.keys(img.raw_chunks).length > 0) {
+        html += renderCategory('Raw Chunks', '&#128193;', 'raw',
+            Object.entries(img.raw_chunks).map(([k, v]) => ({key: k, value: v})));
+    }
+
+    if (img.raw_parameters) {
+        html += renderCategory('Raw Parameters', '&#128196;', 'raw_params',
+            [{key: 'parameters', value: img.raw_parameters}], true);
+    }
+
+    html += '</div>';
+    contentArea.innerHTML = html;
+}
+
+function renderCategory(title, icon, id, rows, isLong) {
+    let html = `<div class="category">
+        <div class="category-header" onclick="toggleCategory('${id}')">
+            <span class="arrow" id="arrow-${id}">&#9660;</span>
+            <span class="cat-icon">${icon}</span>
+            <h3>${title}</h3>
+            <span class="count">${rows.length}</span>
+            <button class="btn btn-sm copy-all" onclick="event.stopPropagation();copyCategory('${id}')">Copy</button>
+        </div>
+        <div class="category-body" id="body-${id}">`;
+    rows.forEach(r => {
+        const valStr = getStringValue(r.value);
+        html += `<div class="meta-row">
+            <div class="key">${escapeHtml(r.key)}</div>
+            <div class="value">${formatValue(r.value)}</div>
+            <button class="btn btn-sm copy-btn" onclick="copyText(${JSON.stringify(escapeHtml(valStr))})">&#128203;</button>
+        </div>`;
+    });
+    html += '</div></div>';
+    return html;
+}
+
+function renderNodeCategory(title, icon, rows) {
+    let html = `<div class="category">
+        <div class="category-header" onclick="toggleCategory('node-${title}')">
+            <span class="arrow" id="arrow-node-${title}">&#9660;</span>
+            <span class="cat-icon">${icon}</span>
+            <h3>${escapeHtml(title)}</h3>
+            <span class="count">${rows.length}</span>
+        </div>
+        <div class="category-body" id="body-node-${title}">`;
+    rows.forEach(r => {
+        const n = r.node;
+        const fullText = `${n.class_type} #${n.node_id}\n` +
+            Object.entries(n.inputs || {}).map(([k,v]) => `  ${k}: ${getStringValue(v)}`).join('\n');
+        html += `<div class="node-block">
+            <div class="node-header">
+                <span class="node-badge ${r.category}">${escapeHtml(n.class_type)}</span>
+                <span class="node-title">${escapeHtml(n.title || n.class_type)}</span>
+                <span class="node-id">#${escapeHtml(n.node_id)}</span>
+                <button class="btn btn-sm copy-btn" style="margin-left:8px" onclick="copyText(${JSON.stringify(escapeHtml(fullText))})">&#128203; Copy</button>
+            </div>
+            <div class="node-inputs">`;
+        for (const [k, v] of Object.entries(n.inputs || {})) {
+            const valStr = getStringValue(v);
+            html += `<div class="meta-row">
+                <div class="key">${escapeHtml(k)}</div>
+                <div class="value">${formatValue(v)}</div>
+                <button class="btn btn-sm copy-btn" onclick="copyText(${JSON.stringify(escapeHtml(valStr))})">&#128203;</button>
+            </div>`;
+        }
+        html += '</div></div>';
+    });
+    html += '</div></div>';
+    return html;
+}
+
+function toggleCategory(id) {
+    const body = document.getElementById('body-' + id);
+    const arrow = document.getElementById('arrow-' + id);
+    if (!body) return;
+    body.classList.toggle('collapsed');
+    if (arrow) arrow.classList.toggle('collapsed');
+}
+
+function copyCategory(id) {
+    const body = document.getElementById('body-' + id);
+    if (!body) return;
+    const rows = body.querySelectorAll('.meta-row');
+    let text = '';
+    rows.forEach(r => {
+        const key = r.querySelector('.key')?.textContent || '';
+        const val = r.querySelector('.value')?.textContent || '';
+        text += `${key}: ${val}\n`;
+    });
+    copyText(text.trim());
+}
+
+function copyAllMeta() {
+    const img = images[activeIndex];
+    if (img) copyText(JSON.stringify(img, null, 2));
+    showToast('All metadata copied!');
+}
+
+/* ====== Events ====== */
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+    e.preventDefault();
+    if (e.dataTransfer.files.length) loadFromFiles(e.dataTransfer.files);
+});
+
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) loadFromFiles(fileInput.files);
+    fileInput.value = '';
+});
+
+folderInput.addEventListener('change', () => {
+    if (folderInput.files.length) loadFromDirectory(folderInput.files);
+    folderInput.value = '';
+});
+
+btnViewList.addEventListener('click', () => setViewMode('list'));
+btnViewGrid.addEventListener('click', () => setViewMode('grid'));
+btnViewGallery.addEventListener('click', () => setViewMode('gallery'));
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+    images = [];
+    activeIndex = -1;
+    galleryActive = false;
+    renderSidebar();
+    contentArea.innerHTML = `<div class="drop-zone" id="drop-zone">
+        <div class="icon">&#128444;</div>
+        <h2>Drop images here</h2>
+        <p>or use buttons above / paste path</p>
+        <div class="hint">Supports PNG, JPG, WEBP, BMP, TIFF</div>
+    </div>`;
+});
+
+document.getElementById('btn-paste').addEventListener('click', async () => {
+    const input = prompt('Enter file/folder path(s), separated by newlines:');
+    if (!input) return;
+    const paths = input.split('\n').map(s => s.trim()).filter(Boolean);
+    if (paths.length) loadFromPaths(paths);
+});
+
+document.addEventListener('paste', e => {
+    if (lightbox.classList.contains('open')) return;
+    const text = e.clipboardData?.getData('text');
+    if (text) {
+        const paths = text.split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('http'));
+        if (paths.length) loadFromPaths(paths);
+    }
+});
+</script>
+
+</body>
+</html>

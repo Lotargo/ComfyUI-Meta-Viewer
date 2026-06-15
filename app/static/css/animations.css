@@ -1,0 +1,95 @@
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes scaleOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.92); }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes staggerFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dropPulse {
+    0%, 100% { border-color: var(--accent); }
+    50% { border-color: var(--accent2); box-shadow: 0 0 20px rgba(124, 106, 239, 0.15); }
+}
+
+.anim-fade-in { animation: fadeIn 0.25s ease-out both; }
+.anim-fade-out { animation: fadeOut 0.2s ease-in both; }
+.anim-slide-up { animation: slideUp 0.3s ease-out both; }
+.anim-slide-down { animation: slideDown 0.3s ease-out both; }
+.anim-slide-in-left { animation: slideInLeft 0.3s ease-out both; }
+.anim-slide-in-right { animation: slideInRight 0.3s ease-out both; }
+.anim-scale-in { animation: scaleIn 0.25s ease-out both; }
+.anim-scale-out { animation: scaleOut 0.2s ease-in both; }
+.anim-shake { animation: shake 0.3s ease-in-out; }
+.anim-pulse { animation: pulse 1.5s ease-in-out infinite; }
+.anim-drop-pulse { animation: dropPulse 1.2s ease-in-out infinite; }
+
+.anim-stagger > * {
+    animation: staggerFadeIn 0.3s ease-out both;
+}
+.anim-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.anim-stagger > *:nth-child(2) { animation-delay: 30ms; }
+.anim-stagger > *:nth-child(3) { animation-delay: 60ms; }
+.anim-stagger > *:nth-child(4) { animation-delay: 90ms; }
+.anim-stagger > *:nth-child(5) { animation-delay: 120ms; }
+.anim-stagger > *:nth-child(6) { animation-delay: 150ms; }
+.anim-stagger > *:nth-child(7) { animation-delay: 180ms; }
+.anim-stagger > *:nth-child(8) { animation-delay: 210ms; }
+.anim-stagger > *:nth-child(9) { animation-delay: 240ms; }
+.anim-stagger > *:nth-child(10) { animation-delay: 270ms; }
+.anim-stagger > *:nth-child(n+11) { animation-delay: 300ms; }
+
+.lightbox-overlay.open .lightbox-image-area img {
+    animation: scaleIn 0.3s ease-out both;
+}
+
+.category-body:not(.collapsed) {
+    animation: slideDown 0.2s ease-out both;
+}

@@ -1,0 +1,26 @@
+.app-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.app-header h1 { font-size: 20px; font-weight: 600; white-space: nowrap; }
+.app-header h1 span { color: var(--accent); }
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    align-items: center;
+}
+
+.main-layout {
+    display: flex;
+    height: calc(100vh - 57px);
+}

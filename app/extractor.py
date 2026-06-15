@@ -512,3 +512,20 @@ def make_thumbnail_bytes(path: str | Path, max_size: int = 256) -> bytes | None:
         return None
     data, _ = result
     return data
+
+
+def make_thumbnail_bytes_from_bytes(data: bytes, max_size: int = 256) -> bytes | None:
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.thumbnail((max_size, max_size))
+        buf = io.BytesIO()
+        fmt = "JPEG" if img.mode == "RGB" else "PNG"
+        if img.mode in ("RGBA", "P", "LA"):
+            fmt = "PNG"
+        if img.mode not in ("RGB", "RGBA", "L", "P", "LA"):
+            img = img.convert("RGB")
+            fmt = "JPEG"
+        img.save(buf, format=fmt, quality=80)
+        return buf.getvalue()
+    except Exception:
+        return None

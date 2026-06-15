@@ -14,6 +14,7 @@ from . import database as db
 from .extractor import (
     extract_metadata,
     make_thumbnail_bytes,
+    make_thumbnail_bytes_from_bytes,
     make_thumbnail_b64,
     scan_directory,
     scan_paths,
@@ -21,7 +22,7 @@ from .extractor import (
 )
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
 
 @app.route("/")
@@ -151,6 +152,15 @@ def api_thumbnail(image_id: int):
     if thumb_path.exists():
         return Response(thumb_path.read_bytes(), mimetype="image/jpeg")
 
+    original = db.get_image_original_data(image_id)
+    if original:
+        thumb_data = make_thumbnail_bytes_from_bytes(original)
+        if thumb_data:
+            thumb_dir.mkdir(parents=True, exist_ok=True)
+            thumb_path.write_bytes(thumb_data)
+            return Response(thumb_data, mimetype="image/jpeg")
+        return jsonify({"error": "failed"}), 500
+
     img_path = db.get_image_path(image_id)
     if not img_path:
         return jsonify({"error": "not found"}), 404
@@ -160,6 +170,35 @@ def api_thumbnail(image_id: int):
     thumb_dir.mkdir(parents=True, exist_ok=True)
     thumb_path.write_bytes(thumb_data)
     return Response(thumb_data, mimetype="image/jpeg")
+
+
+MIME_MAP = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".tiff": "image/tiff",
+    ".tif": "image/tiff",
+}
+
+
+@app.route("/api/original/<int:image_id>")
+def api_original(image_id: int):
+    original = db.get_image_original_data(image_id)
+    if original:
+        fmt = db.get_image_format(image_id)
+        mime = MIME_MAP.get(f".{fmt}" if fmt else "", "application/octet-stream")
+        return Response(original, mimetype=mime)
+
+    img_path = db.get_image_path(image_id)
+    if not img_path:
+        return jsonify({"error": "not found"}), 404
+    p = Path(img_path)
+    if not p.is_file():
+        return jsonify({"error": "file not found"}), 404
+    mime = MIME_MAP.get(p.suffix.lower(), "application/octet-stream")
+    return Response(p.read_bytes(), mimetype=mime)
 
 
 @app.route("/api/extract", methods=["POST"])
@@ -183,8 +222,6 @@ def api_upload():
     if "files" not in request.files:
         return jsonify({"error": "No files"}), 400
     files = request.files.getlist("files")
-    upload_dir = Path(app.config["UPLOAD_FOLDER"])
-    upload_dir.mkdir(parents=True, exist_ok=True)
     results = []
     for f in files:
         if not f.filename:
@@ -192,27 +229,35 @@ def api_upload():
         suffix = Path(f.filename).suffix.lower()
         if suffix not in SUPPORTED:
             continue
-        safe_name = f.filename
-        tmp = upload_dir / safe_name
-        counter = 0
-        while tmp.exists():
-            counter += 1
-            stem = Path(safe_name).stem
-            ext = Path(safe_name).suffix
-            tmp = upload_dir / f"{stem}_{counter}{ext}"
         try:
-            f.save(str(tmp))
+            original_data = f.read()
+            upload_dir = Path(app.config["UPLOAD_FOLDER"])
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            safe_name = f.filename
+            tmp = upload_dir / safe_name
+            counter = 0
+            while tmp.exists():
+                counter += 1
+                stem = Path(safe_name).stem
+                ext = Path(safe_name).suffix
+                tmp = upload_dir / f"{stem}_{counter}{ext}"
+            tmp.write_bytes(original_data)
             meta = extract_metadata(tmp)
-            meta["thumbnail"] = make_thumbnail_b64(tmp)
+            thumbnail = make_thumbnail_b64(tmp)
+            tmp.unlink(missing_ok=True)
+            image_id, folder_id = db.insert_upload_image(
+                file_name=f.filename,
+                original_data=original_data,
+                metadata=meta,
+                thumbnail_b64=thumbnail,
+            )
+            meta["id"] = image_id
+            meta["folder_id"] = folder_id
+            meta["thumbnail"] = thumbnail
             results.append(meta)
         except Exception as e:
             tb = traceback.format_exc()
             results.append({"file": f.filename, "error": f"{e}\n{tb}"})
-        finally:
-            try:
-                tmp.unlink(missing_ok=True)
-            except Exception:
-                pass
     return jsonify({"images": results, "count": len(results)})
 
 

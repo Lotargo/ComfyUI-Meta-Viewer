@@ -53,6 +53,7 @@ def init_db() -> None:
             error TEXT,
             metadata_json TEXT,
             thumbnail_b64 TEXT,
+            original_data BLOB,
             created_at TEXT DEFAULT (datetime('now')),
             UNIQUE(folder_id, rel_path)
         );
@@ -60,6 +61,10 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
         CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
     """)
+    try:
+        conn.execute("ALTER TABLE images ADD COLUMN original_data BLOB")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 
@@ -207,6 +212,7 @@ def get_image_detail(image_id: int) -> dict[str, Any] | None:
         d.pop("file_mtime", None)
         d.pop("created_at", None)
         d.pop("thumbnail_b64", None)
+        d.pop("original_data", None)
         if d.get("width") and d.get("height"):
             d["size"] = [d.pop("width"), d.pop("height")]
         return d
@@ -223,5 +229,82 @@ def delete_folder(folder_id: int) -> None:
     except Exception:
         conn.rollback()
         raise
+    finally:
+        conn.close()
+
+
+def insert_upload_image(
+    file_name: str,
+    original_data: bytes,
+    metadata: dict[str, Any],
+    thumbnail_b64: str,
+) -> tuple[int, int]:
+    conn = get_conn()
+    try:
+        folder_row = conn.execute(
+            "SELECT id FROM folders WHERE path = '__uploads__'"
+        ).fetchone()
+        if not folder_row:
+            conn.execute(
+                "INSERT INTO folders (path, name) VALUES ('__uploads__', 'Uploads')"
+            )
+            folder_row = conn.execute(
+                "SELECT id FROM folders WHERE path = '__uploads__'"
+            ).fetchone()
+        folder_id = folder_row["id"]
+
+        cur = conn.execute(
+            """INSERT INTO images (folder_id, rel_path, file_name, file_size,
+                format, width, height, mode, error, metadata_json, thumbnail_b64, original_data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id""",
+            (
+                folder_id,
+                file_name,
+                file_name,
+                len(original_data),
+                metadata.get("format"),
+                metadata.get("size", [0, 0])[0] if metadata.get("size") else 0,
+                metadata.get("size", [0, 0])[1] if metadata.get("size") else 0,
+                metadata.get("mode"),
+                metadata.get("error"),
+                json.dumps(metadata, default=str),
+                thumbnail_b64,
+                original_data,
+            ),
+        )
+        row = cur.fetchone()
+        image_id = row["id"]
+        conn.commit()
+        return image_id, folder_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_image_original_data(image_id: int) -> bytes | None:
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT original_data FROM images WHERE id = ?", (image_id,)
+        ).fetchone()
+        if row and row["original_data"]:
+            return bytes(row["original_data"])
+        return None
+    finally:
+        conn.close()
+
+
+def get_image_format(image_id: int) -> str | None:
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT format FROM images WHERE id = ?", (image_id,)
+        ).fetchone()
+        if row:
+            return row["format"]
+        return None
     finally:
         conn.close()

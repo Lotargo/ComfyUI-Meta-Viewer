@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import io
 import json
 import re
 import struct
@@ -476,3 +478,37 @@ def scan_paths(paths: list[str]) -> list[dict[str, Any]]:
             except Exception as e:
                 results.append({"file": pp.name, "path": str(pp), "error": str(e)})
     return results
+
+
+def _thumbnail_image(path: str | Path, max_size: int = 256) -> tuple[bytes, str] | None:
+    try:
+        img = Image.open(str(path))
+        img.thumbnail((max_size, max_size))
+        buf = io.BytesIO()
+        fmt = "JPEG" if img.mode == "RGB" else "PNG"
+        if img.mode in ("RGBA", "P", "LA"):
+            fmt = "PNG"
+        if img.mode not in ("RGB", "RGBA", "L", "P", "LA"):
+            img = img.convert("RGB")
+            fmt = "JPEG"
+        img.save(buf, format=fmt, quality=80)
+        return buf.getvalue(), fmt.lower()
+    except Exception:
+        return None
+
+
+def make_thumbnail_b64(path: str | Path, max_size: int = 256) -> str | None:
+    result = _thumbnail_image(path, max_size)
+    if result is None:
+        return None
+    data, fmt = result
+    b64 = base64.b64encode(data).decode("ascii")
+    return f"data:image/{fmt};base64,{b64}"
+
+
+def make_thumbnail_bytes(path: str | Path, max_size: int = 256) -> bytes | None:
+    result = _thumbnail_image(path, max_size)
+    if result is None:
+        return None
+    data, _ = result
+    return data

@@ -679,6 +679,7 @@ body {
     <div class="sidebar">
         <div class="sidebar-header">
             <h3>Images</h3>
+            <span id="folder-name" style="font-size:11px;color:var(--accent);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
             <span id="image-count" style="font-size:12px;color:var(--text-dim)"></span>
             <div class="view-toggle">
                 <button id="btn-view-list" class="active" title="List view">&#9776;</button>
@@ -723,6 +724,7 @@ body {
 const contentArea = document.getElementById('content-area');
 const imageList = document.getElementById('image-list');
 const imageCount = document.getElementById('image-count');
+const folderNameEl = document.getElementById('folder-name');
 const fileInput = document.getElementById('file-input');
 const folderInput = document.getElementById('folder-input');
 const toast = document.getElementById('toast');
@@ -741,6 +743,14 @@ let activeIndex = -1;
 let viewMode = 'list';
 let galleryActive = false;
 let lightboxIndex = -1;
+
+let currentFolderId = null;
+let currentPage = 0;
+let totalImages = 0;
+let allLoaded = false;
+let isLoading = false;
+let detailCache = {};
+let scrollObserver = null;
 
 function showToast(msg) {
     toast.textContent = msg;
@@ -778,6 +788,7 @@ function setViewMode(mode) {
     btnViewGallery.classList.toggle('active', mode === 'gallery');
     imageList.classList.toggle('grid-mode', mode === 'grid');
     galleryActive = (mode === 'gallery');
+    saveState();
     if (galleryActive) {
         renderGallery();
     } else {
@@ -785,24 +796,29 @@ function setViewMode(mode) {
     }
 }
 
+function thumbUrl(img) {
+    return img.id ? `/api/thumbnail/${img.id}` : (img.thumbnail || '');
+}
+
 function renderSidebar() {
     if (galleryActive) return;
     imageList.innerHTML = '';
-    imageCount.textContent = images.length ? `(${images.length})` : '';
+    imageCount.textContent = totalImages ? `(${images.length}/${totalImages})` : '';
     const isGrid = viewMode === 'grid';
 
     images.forEach((img, i) => {
         const div = document.createElement('div');
         div.className = 'image-item' + (i === activeIndex ? ' active' : '');
-        const thumbSrc = img.thumbnail || '';
+        const src = thumbUrl(img);
+        const fileName = img.file_name || img.file || '';
 
         if (isGrid) {
-            div.innerHTML = `<img src="${thumbSrc}" alt="">` +
-                `<div class="name" title="${escapeHtml(img.file)}">${escapeHtml(img.file)}</div>`;
+            div.innerHTML = `<img src="${src}" alt="" loading="lazy">` +
+                `<div class="name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>`;
         } else {
-            div.innerHTML = `<img src="${thumbSrc}" alt="">` +
+            div.innerHTML = `<img src="${src}" alt="" loading="lazy">` +
                 `<div style="flex:1;min-width:0">` +
-                    `<div class="name">${escapeHtml(img.file)}</div>` +
+                    `<div class="name">${escapeHtml(fileName)}</div>` +
                     `<div class="meta-hint">${img.format || ''} ${img.size ? img.size[0]+'x'+img.size[1] : ''}</div>` +
                 `</div>`;
         }
@@ -810,45 +826,108 @@ function renderSidebar() {
         div.onclick = () => selectImage(i);
         imageList.appendChild(div);
     });
+
+    appendSentinel();
 }
 
-function selectImage(idx) {
-    activeIndex = idx;
-    if (galleryActive) {
-        renderGallery();
-    } else {
-        renderSidebar();
+function appendSentinel() {
+    if (scrollObserver) scrollObserver.disconnect();
+    const existing = document.getElementById('scroll-sentinel');
+    if (existing) existing.remove();
+    if (allLoaded) return;
+    const sentinel = document.createElement('div');
+    sentinel.id = 'scroll-sentinel';
+    sentinel.style.height = '1px';
+    imageList.appendChild(sentinel);
+    scrollObserver = new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) loadMore();
+    }, {root: imageList, threshold: 0.1});
+    scrollObserver.observe(sentinel);
+}
+
+async function loadMore() {
+    if (isLoading || allLoaded || !currentFolderId) return;
+    isLoading = true;
+    const nextPage = currentPage + 1;
+    try {
+        const resp = await fetch(`/api/images?folder_id=${currentFolderId}&page=${nextPage}&per_page=50`);
+        const data = await resp.json();
+        if (data.images && data.images.length) {
+            images = images.concat(data.images);
+            currentPage = nextPage;
+            totalImages = data.total;
+            allLoaded = images.length >= data.total;
+            saveState();
+            renderSidebar();
+        }
+    } catch(e) {
+        console.error('loadMore error:', e);
     }
-    renderMeta(images[idx]);
+    isLoading = false;
+}
+
+async function selectImage(idx) {
+    activeIndex = idx;
+    saveState();
+    renderSidebar();
+    const img = images[idx];
+    if (!img) return renderMeta(null);
+    if (galleryActive) return;
+    renderMeta(img);
+    if (img.id && !detailCache[img.id]) {
+        try {
+            const resp = await fetch(`/api/images/${img.id}`);
+            if (resp.ok) detailCache[img.id] = await resp.json();
+        } catch(e) { /* ignore */ }
+    }
 }
 
 /* ====== Gallery ====== */
 function renderGallery() {
-    imageCount.textContent = images.length ? `(${images.length})` : '';
+    imageCount.textContent = totalImages ? `(${images.length}/${totalImages})` : '';
     let html = '<div class="gallery-grid">';
     images.forEach((img, i) => {
-        const thumbSrc = img.thumbnail || '';
+        const src = thumbUrl(img);
         const isActive = i === activeIndex ? ' active' : '';
         const hasError = img.error ? '<div class="card-error">&#9888;</div>' : '';
         const fmt = img.format || '';
         const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
+        const fileName = img.file_name || img.file || '';
         html += `<div class="gallery-card${isActive}" onclick="openLightbox(${i})">
-            <img src="${thumbSrc}" alt="${escapeHtml(img.file)}" loading="lazy">
+            <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy">
             ${hasError}
             <div class="card-info">
-                <div class="card-name" title="${escapeHtml(img.file)}">${escapeHtml(img.file)}</div>
+                <div class="card-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
                 <div class="card-meta">${fmt} ${dims}</div>
             </div>
         </div>`;
     });
     html += '</div>';
     contentArea.innerHTML = html;
+    if (!allLoaded && currentFolderId) {
+        const sentinel = document.createElement('div');
+        sentinel.id = 'gallery-sentinel';
+        sentinel.style.height = '1px';
+        contentArea.appendChild(sentinel);
+        if (scrollObserver) scrollObserver.disconnect();
+        scrollObserver = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) loadMore();
+        }, {root: contentArea, threshold: 0.1});
+        scrollObserver.observe(sentinel);
+    }
 }
 
 /* ====== Lightbox ====== */
-function openLightbox(idx) {
+async function openLightbox(idx) {
     if (idx < 0 || idx >= images.length) return;
     lightboxIndex = idx;
+    const img = images[idx];
+    if (img && img.id && !detailCache[img.id]) {
+        try {
+            const resp = await fetch(`/api/images/${img.id}`);
+            if (resp.ok) detailCache[img.id] = await resp.json();
+        } catch(e) { /* ignore */ }
+    }
     lightbox.classList.add('open');
     document.body.style.overflow = 'hidden';
     updateLightbox();
@@ -860,16 +939,25 @@ function closeLightbox() {
     lightboxIndex = -1;
 }
 
-function updateLightbox() {
+function getDetailForLightbox() {
     const img = images[lightboxIndex];
+    if (!img) return null;
+    if (img.id && detailCache[img.id]) return detailCache[img.id];
+    return img;
+}
+
+function updateLightbox() {
+    const img = getDetailForLightbox();
     if (!img) { closeLightbox(); return; }
 
     activeIndex = lightboxIndex;
+    saveState();
     if (galleryActive) renderGallery(); else renderSidebar();
 
-    lbTitle.textContent = img.file;
-    lbCounter.textContent = `${lightboxIndex + 1} / ${images.length}`;
-    lbImg.src = img.thumbnail || '';
+    const fileName = img.file_name || img.file || '';
+    lbTitle.textContent = fileName;
+    lbCounter.textContent = `${lightboxIndex + 1} / ${totalImages || images.length}`;
+    lbImg.src = thumbUrl(img);
 
     let html = '';
 
@@ -944,7 +1032,7 @@ document.getElementById('lb-prev').addEventListener('click', () => lbNav(-1));
 document.getElementById('lb-next').addEventListener('click', () => lbNav(1));
 
 document.getElementById('lb-copy').addEventListener('click', () => {
-    const img = images[lightboxIndex];
+    const img = getDetailForLightbox();
     if (img) copyText(JSON.stringify(img, null, 2));
 });
 
@@ -970,19 +1058,41 @@ function showError(msg) {
     contentArea.innerHTML = `<div class="empty-state"><div class="icon">&#9888;</div><div>${escapeHtml(msg)}</div></div>`;
 }
 
-function applyResults(data) {
-    if (data.images && data.images.length) {
-        images = data.images;
-        activeIndex = 0;
+async function scanFolder(path) {
+    showLoading('Scanning folder...');
+    try {
+        const resp = await fetch('/api/scan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path})
+        });
+        const data = await resp.json();
+        if (data.error) { showError(data.error); return; }
+
+        currentFolderId = data.folder_id;
+        images = data.images || [];
+        totalImages = data.total || 0;
+        currentPage = 1;
+        allLoaded = images.length >= totalImages;
+        activeIndex = images.length > 0 ? 0 : -1;
+        detailCache = {};
+        folderNameEl.textContent = data.folder ? data.folder.name : '';
+        saveState();
         if (galleryActive) {
             renderGallery();
         } else {
             renderSidebar();
         }
-        renderMeta(images[0]);
-    } else {
-        showError('No images found');
+        if (activeIndex >= 0) selectImage(activeIndex);
+    } catch(e) {
+        showError('Error: ' + e.message);
     }
+}
+
+async function openFolder() {
+    const input = prompt('Enter folder path:');
+    if (!input) return;
+    await scanFolder(input.trim());
 }
 
 async function loadFromPaths(paths) {
@@ -994,7 +1104,21 @@ async function loadFromPaths(paths) {
             body: JSON.stringify({paths})
         });
         const data = await resp.json();
-        applyResults(data);
+        if (data.images && data.images.length) {
+            currentFolderId = null;
+            folderNameEl.textContent = '';
+            images = data.images;
+            totalImages = data.images.length;
+            currentPage = 1;
+            allLoaded = true;
+            activeIndex = 0;
+            detailCache = {};
+            saveState();
+            if (galleryActive) renderGallery(); else renderSidebar();
+            renderMeta(images[0]);
+        } else {
+            showError('No images found');
+        }
     } catch(e) {
         showError('Error: ' + e.message);
     }
@@ -1007,23 +1131,20 @@ async function loadFromFiles(files) {
     try {
         const resp = await fetch('/api/upload', { method: 'POST', body: formData });
         const data = await resp.json();
-        applyResults(data);
-    } catch(e) {
-        showError('Error: ' + e.message);
-    }
-}
-
-async function loadFromDirectory(files) {
-    const exts = ['png','jpg','jpeg','webp','bmp','tiff'];
-    const imageFiles = Array.from(files).filter(f => exts.includes(f.name.split('.').pop().toLowerCase()));
-    if (!imageFiles.length) { showError('No images found in directory'); return; }
-    const formData = new FormData();
-    for (const f of imageFiles) formData.append('files', f);
-    showLoading('Processing ' + imageFiles.length + ' images from folder...');
-    try {
-        const resp = await fetch('/api/upload', { method: 'POST', body: formData });
-        const data = await resp.json();
-        applyResults(data);
+        if (data.images && data.images.length) {
+            currentFolderId = null;
+            folderNameEl.textContent = '';
+            images = data.images;
+            totalImages = data.images.length;
+            currentPage = 1;
+            allLoaded = true;
+            activeIndex = 0;
+            detailCache = {};
+            if (galleryActive) renderGallery(); else renderSidebar();
+            renderMeta(images[0]);
+        } else {
+            showError('No images found');
+        }
     } catch(e) {
         showError('Error: ' + e.message);
     }
@@ -1035,22 +1156,25 @@ function renderMeta(img) {
         return;
     }
     if (img.error) {
-        contentArea.innerHTML = `<div class="meta-view"><div class="category"><div class="category-header"><h3>Error reading ${escapeHtml(img.file)}</h3></div><div class="raw-block"><pre>${escapeHtml(img.error)}</pre></div></div></div>`;
+        contentArea.innerHTML = `<div class="meta-view"><div class="category"><div class="category-header"><h3>Error reading ${escapeHtml(img.file_name || img.file)}</h3></div><div class="raw-block"><pre>${escapeHtml(img.error)}</pre></div></div></div>`;
         return;
     }
     if (galleryActive) return;
 
+    const detail = (img.id && detailCache[img.id]) || img;
+    const fileName = detail.file_name || detail.file || '';
+
     let html = '<div class="meta-view">';
     html += `<div class="meta-view-header">
-        <img src="${img.thumbnail || ''}" alt="">
+        <img src="${thumbUrl(detail)}" alt="">
         <div class="info">
-            <h2>${escapeHtml(img.file)}</h2>
-            <div class="details">${escapeHtml(img.format || '')} | ${img.size ? img.size[0]+' x '+img.size[1] : ''} | ${escapeHtml(img.mode || '')}</div>
+            <h2>${escapeHtml(fileName)}</h2>
+            <div class="details">${escapeHtml(detail.format || '')} | ${detail.size ? detail.size[0]+' x '+detail.size[1] : ''} | ${escapeHtml(detail.mode || '')}</div>
         </div>
         <button class="btn btn-sm" onclick="copyAllMeta()">Copy All</button>
     </div>`;
 
-    const pp = img.prompt_parameters;
+    const pp = detail.prompt_parameters;
     if (pp) {
         html += renderCategory('Generation Settings', '&#9881;', 'settings', [
             ...Object.entries(pp).filter(([k]) => !['generation_settings','extra_settings','workflow_nodes'].includes(k))
@@ -1066,7 +1190,7 @@ function renderMeta(img) {
         html += renderCategory('Negative Prompt', '&#10007;', 'prompt_neg', [{key: 'Negative Prompt', value: pp.negative_prompt}], true);
     }
 
-    const wf = img.workflow;
+    const wf = detail.workflow;
     if (wf && wf.workflow_nodes) {
         const catIcons = {
             'Models': '&#128190;', 'Prompts': '&#128221;', 'Sampler': '&#127922;',
@@ -1088,19 +1212,19 @@ function renderMeta(img) {
             Object.entries(pp.extra_settings).map(([k, v]) => ({key: k, value: v})));
     }
 
-    if (img.exif && Object.keys(img.exif).length > 0) {
+    if (detail.exif && Object.keys(detail.exif).length > 0) {
         html += renderCategory('EXIF Data', '&#128196;', 'exif',
-            Object.entries(img.exif).map(([k, v]) => ({key: k, value: v})));
+            Object.entries(detail.exif).map(([k, v]) => ({key: k, value: v})));
     }
 
-    if (img.raw_chunks && Object.keys(img.raw_chunks).length > 0) {
+    if (detail.raw_chunks && Object.keys(detail.raw_chunks).length > 0) {
         html += renderCategory('Raw Chunks', '&#128193;', 'raw',
-            Object.entries(img.raw_chunks).map(([k, v]) => ({key: k, value: v})));
+            Object.entries(detail.raw_chunks).map(([k, v]) => ({key: k, value: v})));
     }
 
-    if (img.raw_parameters) {
+    if (detail.raw_parameters) {
         html += renderCategory('Raw Parameters', '&#128196;', 'raw_params',
-            [{key: 'parameters', value: img.raw_parameters}], true);
+            [{key: 'parameters', value: detail.raw_parameters}], true);
     }
 
     html += '</div>';
@@ -1186,9 +1310,49 @@ function copyCategory(id) {
 }
 
 function copyAllMeta() {
-    const img = images[activeIndex];
-    if (img) copyText(JSON.stringify(img, null, 2));
+    const img = activeIndex >= 0 && images[activeIndex];
+    const detail = (img && img.id && detailCache[img.id]) || img;
+    if (detail) copyText(JSON.stringify(detail, null, 2));
     showToast('All metadata copied!');
+}
+
+/* ====== State persistence ====== */
+function saveState() {
+    try {
+        sessionStorage.setItem('cmv_state', JSON.stringify({
+            folderId: currentFolderId,
+            page: currentPage,
+            activeIndex: activeIndex,
+            viewMode: viewMode,
+            totalImages: totalImages,
+            allLoaded: allLoaded,
+            folderName: folderNameEl.textContent
+        }));
+    } catch(e) { /* ignore quota errors */ }
+}
+
+async function restoreState() {
+    try {
+        const saved = sessionStorage.getItem('cmv_state');
+        if (!saved) return;
+        const state = JSON.parse(saved);
+        if (!state.folderId) return;
+
+        currentFolderId = state.folderId;
+        currentPage = 0;
+        allLoaded = false;
+        images = [];
+        if (state.viewMode) setViewMode(state.viewMode);
+        if (state.folderName) folderNameEl.textContent = state.folderName;
+
+        await loadMore();
+
+        if (state.activeIndex >= 0 && state.activeIndex < images.length) {
+            selectImage(state.activeIndex);
+        }
+    } catch(e) {
+        console.warn('State restore failed:', e);
+    }
 }
 
 /* ====== Events ====== */
@@ -1204,7 +1368,11 @@ fileInput.addEventListener('change', () => {
 });
 
 folderInput.addEventListener('change', () => {
-    if (folderInput.files.length) loadFromDirectory(folderInput.files);
+    if (folderInput.files.length) {
+        const paths = Array.from(folderInput.files).map(f => (f as any).webkitRelativePath || f.name);
+        const dir = paths[0]?.split('/')[0];
+        if (dir) scanFolder(dir);
+    }
     folderInput.value = '';
 });
 
@@ -1213,9 +1381,17 @@ btnViewGrid.addEventListener('click', () => setViewMode('grid'));
 btnViewGallery.addEventListener('click', () => setViewMode('gallery'));
 
 document.getElementById('btn-clear').addEventListener('click', () => {
+    if (scrollObserver) scrollObserver.disconnect();
     images = [];
     activeIndex = -1;
     galleryActive = false;
+    currentFolderId = null;
+    currentPage = 0;
+    totalImages = 0;
+    allLoaded = false;
+    detailCache = {};
+    folderNameEl.textContent = '';
+    sessionStorage.removeItem('cmv_state');
     renderSidebar();
     contentArea.innerHTML = `<div class="drop-zone" id="drop-zone">
         <div class="icon">&#128444;</div>
@@ -1225,11 +1401,26 @@ document.getElementById('btn-clear').addEventListener('click', () => {
     </div>`;
 });
 
-document.getElementById('btn-paste').addEventListener('click', async () => {
-    const input = prompt('Enter file/folder path(s), separated by newlines:');
+document.querySelectorAll('.btn-paste').forEach(el => {
+    el.addEventListener('click', async () => {
+        const input = prompt('Enter file/folder path(s), separated by newlines:');
+        if (!input) return;
+        const paths = input.split('\n').map(s => s.trim()).filter(Boolean);
+        if (paths.length) {
+            if (paths.length === 1 && paths[0].length > 3) {
+                await scanFolder(paths[0]);
+            } else {
+                await loadFromPaths(paths);
+            }
+        }
+    });
+});
+
+document.getElementById('btn-paste').addEventListener('click', function() {
+    const input = prompt('Enter file/folder path:');
     if (!input) return;
-    const paths = input.split('\n').map(s => s.trim()).filter(Boolean);
-    if (paths.length) loadFromPaths(paths);
+    const path = input.trim();
+    if (path) scanFolder(path);
 });
 
 document.addEventListener('paste', e => {
@@ -1237,9 +1428,13 @@ document.addEventListener('paste', e => {
     const text = e.clipboardData?.getData('text');
     if (text) {
         const paths = text.split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('http'));
-        if (paths.length) loadFromPaths(paths);
+        if (paths.length) {
+            loadFromPaths(paths);
+        }
     }
 });
+
+restoreState();
 </script>
 
 </body>

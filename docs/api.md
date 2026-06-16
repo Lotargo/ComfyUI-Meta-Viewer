@@ -1,41 +1,22 @@
 # API Reference
 
-> REST API endpoints для Comfy Meta Viewer.
+> REST API reference for ComfyUI Meta Viewer.
 
-Базовый URL: `http://localhost:7860`
+Base URL: `http://localhost:7860`
+
+The API is intentionally local-first and single-user oriented. Responses are JSON unless an endpoint explicitly returns image bytes.
 
 ---
 
 ## Table of Contents
 
 - [Folders](#folders)
-  - [GET /api/folders](#get-apifolders)
-  - [DELETE /api/folders/{id}](#delete-apifoldersid)
-- [Scanning](#scanning)
-  - [POST /api/scan](#post-apiscan)
-  - [POST /api/extract](#post-apiextract)
-  - [POST /api/upload](#post-apiupload)
+- [Scanning and Uploads](#scanning-and-uploads)
 - [Images](#images)
-  - [GET /api/images](#get-apiimages)
-  - [GET /api/images/{id}](#get-apiimagesid)
-  - [DELETE /api/images/{id}](#delete-apiimagesid)
-- [Thumbnails & Originals](#thumbnails--originals)
-  - [GET /api/thumbnail/{id}](#get-apithumbnailid)
-  - [GET /api/original/{id}](#get-apioriginalid)
-- [Cutout](#cutout)
-  - [GET /api/cutout/{id}](#get-apicutoutid)
-  - [POST /api/cutout/{id}](#post-apicutoutid)
-  - [DELETE /api/cutout/{id}](#delete-apicutoutid)
-- [Sessions](#sessions)
-  - [GET /api/sessions](#get-apisessions)
-  - [POST /api/sessions](#post-apisessions)
-  - [GET /api/sessions/{id}](#get-apisessionsid)
-  - [PATCH /api/sessions/{id}](#patch-apisessionsid)
-  - [DELETE /api/sessions/{id}](#delete-apisessionsid)
+- [Thumbnails and Originals](#thumbnails-and-originals)
+- [Cutouts](#cutouts)
 - [System](#system)
-  - [POST /api/reset](#post-apireset)
-  - [GET /api/diagnostics](#get-apidiagnostics)
-- [Схемы данных](#схемы-данных)
+- [Data Models](#data-models)
 
 ---
 
@@ -43,70 +24,101 @@
 
 ### `GET /api/folders`
 
-Возвращает список всех просканированных папок.
+Returns all indexed folders, including the special `Uploads` folder when uploaded images exist.
 
 **Response:**
+
 ```json
-[
-  {
-    "id": 1,
-    "path": "/path/to/images",
-    "name": "images",
-    "image_count": 42,
-    "scanned_at": "2025-01-15T10:30:00"
-  }
-]
+{
+  "folders": [
+    {
+      "id": 1,
+      "path": "/path/to/images",
+      "name": "images",
+      "scanned_at": "2026-06-17 12:00:00",
+      "created_at": "2026-06-17 12:00:00",
+      "image_count": 42
+    }
+  ]
+}
 ```
 
 ---
 
-### `DELETE /api/folders/{id}`
+### `DELETE /api/folders/{folder_id}`
 
-Удаляет папку и все связанные изображения (каскадное удаление).
+Deletes a folder record and all related image rows.
 
 **Response:**
+
 ```json
 { "ok": true }
 ```
 
 ---
 
-## Scanning
+## Scanning and Uploads
 
 ### `POST /api/scan`
 
-Сканирует папку с изображениями. Инкрементально: проверяет `mtime` файлов, пропускает уже обработанные.
+Scans a local folder in-place. Existing rows are reused when the file `mtime` did not change.
 
 **Request:**
+
 ```json
 { "path": "/path/to/folder" }
 ```
 
 **Response:**
+
 ```json
 {
   "folder_id": 1,
-  "folder_name": "folder",
-  "images_count": 42,
+  "folder": {
+    "id": 1,
+    "path": "/path/to/folder",
+    "name": "folder",
+    "scanned_at": "2026-06-17 12:00:00",
+    "created_at": "2026-06-17 12:00:00",
+    "image_count": 42
+  },
   "page": 1,
-  "per_page": 50
+  "per_page": 50,
+  "total": 42,
+  "images": [
+    {
+      "id": 1,
+      "file_name": "image.png",
+      "format": "PNG",
+      "size": [1024, 768],
+      "mode": "RGBA",
+      "error": null,
+      "thumbnail": null,
+      "file": null,
+      "path": null
+    }
+  ],
+  "cached": 40,
+  "processed": 2
 }
 ```
 
 **Behavior:**
-- Рекурсивно обходит дерево директорий
-- Фильтрует по расширениям: `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.tiff`
-- Проверяет `mtime` для пропуска неизмененных файлов
-- Генерирует thumbnails
-- Сохраняет метаданные в SQLite
+
+- Scans files in the selected folder.
+- Supports `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.tiff`, and `.tif` when supported by the parser.
+- Skips unchanged files using stored `mtime` values.
+- Stores metadata in SQLite.
+- Returns the first paginated page of indexed images.
 
 ---
 
 ### `POST /api/extract`
 
-Извлекает метаданные по списку файлов (для drag-drop отдельных файлов).
+Extracts metadata from explicit local file paths without indexing them into the SQLite library.
 
 **Request:**
+
 ```json
 {
   "paths": [
@@ -117,18 +129,27 @@
 ```
 
 **Response:**
+
 ```json
 {
   "images": [
     {
-      "id": 1,
-      "file_name": "image1.png",
+      "file": "image1.png",
+      "path": "/path/to/image1.png",
       "format": "PNG",
-      "width": 1024,
-      "height": 768,
-      "metadata": { ... }
+      "size": [1024, 768],
+      "mode": "RGBA",
+      "error": null,
+      "exif": {},
+      "prompt_parameters": {},
+      "workflow": {},
+      "prompt_api_json": {},
+      "workflow_ui_json": {},
+      "raw_parameters": null,
+      "thumbnail": "data:image/jpeg;base64,..."
     }
-  ]
+  ],
+  "count": 1
 }
 ```
 
@@ -136,22 +157,31 @@
 
 ### `POST /api/upload`
 
-Загружает файлы через multipart form. Сохраняет `original_data` в БД как BLOB.
+Uploads image files through `multipart/form-data`. Uploaded originals are stored as SQLite BLOBs and grouped under the special `Uploads` folder.
 
-**Request:** `multipart/form-data` с полем `files`
+**Request:** `multipart/form-data` with one or more `files` fields.
 
 **Response:**
+
 ```json
 {
   "images": [
     {
-      "id": 1,
-      "file_name": "uploaded.png",
+      "file": "uploaded.png",
+      "path": ".comfy_meta_uploads/uploaded.png",
       "format": "PNG",
-      "width": 512,
-      "height": 512
+      "size": [512, 512],
+      "mode": "RGBA",
+      "error": null,
+      "prompt_parameters": {},
+      "workflow": {},
+      "id": 1,
+      "folder_id": 1,
+      "thumbnail": "data:image/jpeg;base64,..."
     }
-  ]
+  ],
+  "count": 1,
+  "folder_id": 1
 }
 ```
 
@@ -161,226 +191,153 @@
 
 ### `GET /api/images`
 
-Пагинированный список изображений.
+Returns a paginated list of images for a folder.
 
 **Query Parameters:**
 
-| Параметр | Тип | По умолчанию | Описание |
-|----------|-----|-------------|----------|
-| `folder_id` | int | -- | Фильтр по папке |
-| `page` | int | 1 | Номер страницы |
-| `per_page` | int | 50 | Изображений на страницу |
+| Parameter | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `folder_id` | int | -- | yes | Folder ID to load |
+| `page` | int | `1` | no | Page number |
+| `per_page` | int | `50` | no | Images per page |
 
 **Response:**
+
 ```json
 {
   "images": [
     {
       "id": 1,
       "file_name": "image.png",
-      "rel_path": "subfolder/image.png",
       "format": "PNG",
-      "width": 1024,
-      "height": 768,
-      "file_size": 2048000,
-      "error": null
+      "size": [1024, 768],
+      "mode": null,
+      "error": null,
+      "thumbnail": null,
+      "file": null,
+      "path": null
     }
   ],
-  "page": 1,
-  "per_page": 50,
   "total": 200,
-  "has_more": true
+  "page": 1,
+  "per_page": 50
 }
 ```
 
 ---
 
-### `GET /api/images/{id}`
+### `GET /api/images/{image_id}`
 
-Полная информация об изображении включая метаданные, workflow и EXIF.
+Returns full metadata for a single image.
 
 **Response:**
+
 ```json
 {
   "id": 1,
   "file_name": "image.png",
   "format": "PNG",
-  "width": 1024,
-  "height": 768,
+  "size": [1024, 768],
   "mode": "RGBA",
-  "file_size": 2048000,
-  "metadata": {
-    "prompt": "a beautiful landscape, masterpiece",
-    "negative_prompt": "ugly, blurry",
-    "settings": {
-      "steps": 20,
-      "sampler": "euler",
-      "cfg": 7.0,
-      "seed": 12345,
-      "model": "sd_xl_base_1.0",
-      "width": 1024,
-      "height": 768
-    },
-    "workflow": {
-      "nodes": [...],
-      "connections": [...]
-    },
-    "raw_chunks": {
-      "parameters": "Steps: 20, Sampler: euler, ...",
-      "tEXt": [...]
-    },
-    "exif": { ... }
+  "error": null,
+  "thumbnail": null,
+  "file": null,
+  "path": null,
+  "prompt_parameters": {
+    "positive_prompt": "a beautiful landscape",
+    "negative_prompt": "blurry",
+    "generation_settings": {
+      "Steps": 20,
+      "Sampler": "euler",
+      "CFG scale": 7.0,
+      "Seed": 12345
+    }
   },
-  "thumbnail_url": "/api/thumbnail/1",
-  "original_url": "/api/original/1"
+  "workflow": {},
+  "exif": {},
+  "raw_chunks": null,
+  "raw_parameters": null,
+  "raw_params": null,
+  "folder_id": null
 }
 ```
 
 ---
 
-### `DELETE /api/images/{id}`
+### `DELETE /api/images/{image_id}`
 
-Удаляет изображение из БД и связанные кэши (thumbnail, cutout).
+Deletes an image row and clears related thumbnail/cutout cache files.
 
 **Response:**
+
 ```json
 { "ok": true }
 ```
 
 ---
 
-## Thumbnails & Originals
+## Thumbnails and Originals
 
-### `GET /api/thumbnail/{id}`
+### `GET /api/thumbnail/{image_id}`
 
-Возвращает JPEG thumbnail. Генерируется лениво и кэшируется на диске.
+Returns a JPEG thumbnail. If the cached file is missing, the thumbnail is generated lazily from the uploaded BLOB or original scanned file.
 
 **Response:** `image/jpeg`
 
 ---
 
-### `GET /api/original/{id}`
+### `GET /api/original/{image_id}`
 
-Возвращает оригинальное изображение. Для uploaded файлов -- из BLOB в БД, для scanned -- с диска.
+Returns the original image bytes. Uploaded files are served from SQLite BLOB storage; scanned files are read from their original local path.
 
-**Response:** `image/{format}`
+**Response:** `image/png`, `image/jpeg`, `image/webp`, `image/bmp`, `image/tiff`, or `application/octet-stream`.
 
 ---
 
-## Cutout
+## Cutouts
 
-### `GET /api/cutout/{id}`
+### `GET /api/cutout/{image_id}`
 
-Возвращает cached transparent PNG cutout (если существует).
+Returns an existing transparent PNG cutout. If no cutout exists, the endpoint returns `404`.
+
+**Response:** `image/png`
+
+**Error:**
+
+```json
+{ "error": "Cutout not found" }
+```
+
+---
+
+### `POST /api/cutout/{image_id}`
+
+Generates a transparent PNG cutout or returns the cached result metadata when it already exists.
 
 **Response:**
+
 ```json
 {
-  "exists": true,
-  "url": "/api/cutout/1"
-}
-```
-или
-```json
-{ "exists": false }
-```
-
----
-
-### `POST /api/cutout/{id}`
-
-Генерирует transparent PNG cutout (автоматическое удаление фона). Если уже есть в кэше -- возвращает существующий.
-
-**Response:**
-```json
-{
-  "exists": true,
-  "url": "/api/cutout/1",
-  "cached": true
-}
-```
-
----
-
-### `DELETE /api/cutout/{id}`
-
-Очищает cutout кэш для изображения.
-
-**Response:**
-```json
-{ "ok": true }
-```
-
----
-
-## Sessions
-
-### `GET /api/sessions`
-
-Возвращает список всех сессий.
-
-**Response:**
-```json
-[
-  {
-    "id": 1,
-    "name": "My Project",
-    "folder_id": 1,
-    "created_at": "2025-01-15T10:30:00"
-  }
-]
-```
-
----
-
-### `POST /api/sessions`
-
-Создаёт новую сессию.
-
-**Request:**
-```json
-{
-  "name": "My Project",
-  "folder_id": 1
-}
-```
-
-**Response:**
-```json
-{
-  "id": 1,
-  "name": "My Project",
-  "folder_id": 1,
-  "created_at": "2025-01-15T10:30:00"
+  "ok": true,
+  "image_id": 1,
+  "cutout_url": "/api/cutout/1",
+  "cached": false
 }
 ```
 
 ---
 
-### `GET /api/sessions/{id}`
+### `DELETE /api/cutout/{image_id}`
 
-Возвращает детали сессии.
-
----
-
-### `PATCH /api/sessions/{id}`
-
-Переименовывает сессию.
-
-**Request:**
-```json
-{ "name": "New Name" }
-```
-
----
-
-### `DELETE /api/sessions/{id}`
-
-Удаляет сессию.
+Deletes the cached cutout file for an image.
 
 **Response:**
+
 ```json
-{ "ok": true }
+{
+  "ok": true,
+  "deleted": true
+}
 ```
 
 ---
@@ -389,93 +346,102 @@
 
 ### `POST /api/reset`
 
-Полная очистка: база данных + thumbnail cache + cutout cache.
+Clears the SQLite database and thumbnail/cutout caches.
 
 **Response:**
+
 ```json
-{
-  "ok": true,
-  "message": "Database and caches cleared"
-}
+{ "ok": true }
 ```
 
 ---
 
 ### `GET /api/diagnostics`
 
-Возвращает статистику системы.
+Returns local diagnostics and cache statistics.
 
 **Response:**
+
 ```json
 {
+  "db_path": ".comfy_meta_uploads/meta.db",
   "folders": 3,
   "images": 150,
-  "sessions": 2,
   "uploads": 12,
-  "thumbnails": 138,
-  "cutouts": 5,
-  "db_path": ".comfy_meta_uploads/meta.db",
-  "cache_path": "cache/"
+  "thumbnail_dir": "cache/thumbnails",
+  "thumbnail_count": 138,
+  "cutout_dir": "cache/cutouts",
+  "cutout_count": 5,
+  "upload_dir": ".comfy_meta_uploads"
 }
 ```
 
 ---
 
-## Схемы данных
+## Data Models
 
-### ImageListItem
+### `ImageMetadata`
 
 ```json
 {
-  "id": "int",
-  "file_name": "string",
-  "rel_path": "string",
-  "format": "string",
-  "width": "int | null",
-  "height": "int | null",
-  "file_size": "int | null",
-  "error": "string | null"
+  "file": "string",
+  "path": "string",
+  "format": "string | null",
+  "size": "int[] | null",
+  "mode": "string | null",
+  "error": "string | null",
+  "exif": "object | null",
+  "prompt_parameters": "object | null",
+  "workflow": "object | null",
+  "prompt_api_json": "object | null",
+  "workflow_ui_json": "object | null",
+  "raw_parameters": "string | null"
 }
 ```
 
-### ImageDetail
+### `ImageListItem`
 
 ```json
 {
-  "id": "int",
+  "id": "int | null",
   "file_name": "string",
-  "format": "string",
-  "width": "int",
-  "height": "int",
-  "mode": "string",
-  "file_size": "int",
-  "metadata": {
-    "prompt": "string",
-    "negative_prompt": "string",
-    "settings": "GenerationSettings",
-    "workflow": "WorkflowData | null",
-    "raw_chunks": "RawChunks",
-    "exif": "object | null"
-  },
-  "thumbnail_url": "string",
-  "original_url": "string"
+  "format": "string | null",
+  "size": "int[] | null",
+  "mode": "string | null",
+  "error": "string | null",
+  "thumbnail": "string | null",
+  "file": "string | null",
+  "path": "string | null"
 }
 ```
 
-### GenerationSettings
+### `ImageDetail`
+
+`ImageDetail` extends `ImageListItem` with:
 
 ```json
 {
-  "steps": "int",
-  "sampler": "string",
-  "scheduler": "string",
-  "cfg": "float",
-  "seed": "int",
-  "model": "string",
-  "width": "int",
-  "height": "int",
-  "denoise": "float",
-  "batch_size": "int",
-  "lora": ["string"]
+  "prompt_parameters": "object | null",
+  "workflow": "object | null",
+  "exif": "object | null",
+  "raw_chunks": "object | null",
+  "raw_parameters": "string | null",
+  "raw_params": "string | null",
+  "folder_id": "int | null"
+}
+```
+
+### `ScanResponse`
+
+```json
+{
+  "folder_id": "int",
+  "folder": "FolderInfo | null",
+  "page": "int",
+  "per_page": "int",
+  "total": "int",
+  "images": "ImageListItem[]",
+  "cached": "int",
+  "processed": "int"
 }
 ```

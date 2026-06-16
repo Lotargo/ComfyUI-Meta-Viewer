@@ -1,13 +1,15 @@
 # Features
 
-> Полное описание всех возможностей Comfy Meta Viewer.
+> Feature overview for ComfyUI Meta Viewer.
+
+ComfyUI Meta Viewer is a local-first metadata browser for AI-generated images. It focuses on practical workflows: scan a folder, inspect prompts/workflows, search across a library, and export useful image derivatives such as transparent cutouts.
 
 ---
 
 ## Table of Contents
 
 - [Metadata Extraction](#metadata-extraction)
-- [ComfyUI Workflow Visualization](#comfyui-workflow-visualization)
+- [ComfyUI Workflow Inspection](#comfyui-workflow-inspection)
 - [Folder Scanning](#folder-scanning)
 - [SQLite Persistence](#sqlite-persistence)
 - [Gallery View](#gallery-view)
@@ -15,453 +17,291 @@
 - [Fuzzy Search](#fuzzy-search)
 - [Object Cutout](#object-cutout)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
-- [Skeleton Loading](#skeleton-loading)
 - [Resizable Sidebar](#resizable-sidebar)
-- [Session Management](#session-management)
 - [Drag-and-Drop Upload](#drag-and-drop-upload)
-- [Thumbnails](#thumbnails)
+- [Thumbnails and Originals](#thumbnails-and-originals)
 - [Diagnostics](#diagnostics)
 - [Hard Reset](#hard-reset)
-- [Paste Path](#paste-path)
 - [Responsive Design](#responsive-design)
 
 ---
 
 ## Metadata Extraction
 
-**Файл:** `app/extractor.py` (540 строк)
+**Main file:** `app/extractor.py`
 
-Автоматическое извлечение метаданных из изображений, сгенерированных ComfyUI.
+The extractor reads image metadata and normalizes it into a Pydantic model used by both the REST API and the frontend.
 
-### Поддерживаемые форматы
+### Supported Formats
 
-| Формат | Источник метаданных | Поддержка |
-|--------|-------------------|-----------|
-| PNG | tEXt, iTXt chunks | Полная |
-| JPEG | EXIF + комментарии | Полная |
-| WEBP | EXIF | Базовая |
-| BMP | -- | Только размеры |
-| TIFF | EXIF | Базовая |
+| Format | Metadata Source | Support Level |
+|--------|-----------------|---------------|
+| PNG | `tEXt` / `iTXt` chunks, ComfyUI JSON | Full |
+| JPEG/JPG | EXIF and general image metadata | Basic |
+| WEBP | Pillow-dependent metadata | Basic |
+| BMP | Dimensions and image mode | Basic |
+| TIFF/TIF | EXIF when available | Basic |
 
-### Извлекаемые данные
+### Extracted Data
 
-| Категория | Поля |
-|-----------|------|
-| **Prompt** | Положительный промпт, негативный промпт |
-| **Settings** | Steps, Sampler, Scheduler, CFG, Seed, Denoise, Batch Size |
-| **Model** | Имя основной модели, VAE |
-| **LoRA** | Список используемых LoRA + weights |
-| **Resolution** | Width, Height |
-| **Workflow** | Полная структура нод ComfyUI |
-| **EXIF** | Camera, lens, ISO, shutter, aperture |
-| **Raw** | Оригинальные текстовые чанки |
-
-### Парсинг workflow
-
-Извлекает JSON workflow из PNG chunks в двух форматах:
-- **API format** (prompt JSON): `{node_id: {class_type, inputs}}`
-- **UI format** (с координатами нод): `{last_node_id, nodes[], links[]}`
+| Category | Examples |
+|----------|----------|
+| Prompts | Positive prompt, negative prompt, raw parameter text |
+| Generation settings | Steps, sampler, schedule, CFG, seed, model, VAE, denoise |
+| Workflow | ComfyUI API prompt JSON and UI workflow JSON |
+| Node summary | Model, prompt, sampler, image settings, LoRA, post-processing nodes |
+| EXIF | Camera/image metadata when present |
+| Raw data | Original text chunks and raw parameter strings |
 
 ---
 
-## ComfyUI Workflow Visualization
+## ComfyUI Workflow Inspection
 
-**Файл:** `app/static/js/features/workflow-graph.js` (289 строк)
+**Main file:** `app/static/js/features/workflow-graph.js`
 
-SVG-визуализация графа генерации ComfyUI.
+The Workflow tab renders parsed ComfyUI nodes as an SVG graph and groups known node types into readable categories.
 
-### Возможности
+### Capabilities
 
-- Интерактивный SVG-граф нод
-- Цветовая кодировка по категориям:
-  - **Models** -- фиолетовый
-  - **Prompts** -- зеленый
-  - **Sampler** -- оранжевый
-  - **Image Settings** -- синий
-  - **Post Processing** -- розовый
-  - **LoRA** -- желтый
-  - **Other** -- серый
-- Cubic bezier соединения между нодами
-- Pan/zoom для навигации
-- Выбор ноды для просмотра деталей
-- Подсветка при наведении
+- Interactive SVG node graph.
+- Color-coded node categories.
+- Pan/zoom navigation.
+- Node selection and parameter inspection.
+- Support for both ComfyUI API-style prompt JSON and UI workflow JSON where available.
 
-### Управление
+### Node Categories
 
-| Действие | Описание |
+| Category | Examples |
 |----------|----------|
-| Click на ноду | Выбор, показ деталей |
-| Drag | Pan графа |
-| Scroll | Zoom in/out |
+| Models | `CheckpointLoaderSimple`, `UNETLoader`, `VAELoader`, `CLIPLoader` |
+| Prompts | `CLIPTextEncode`, `CLIPTextEncodeSDXL`, `CLIPTextEncodeFlux` |
+| Sampler | `KSampler`, `KSamplerAdvanced`, `SamplerCustom`, schedulers |
+| Image Settings | Latent/image size and scaling nodes |
+| Post Processing | Decode, encode, save, preview, composite nodes |
+| LoRA | `LoraLoader`, `LoraLoaderModelOnly` |
+| Other | Nodes not covered by the known classifier |
 
 ---
 
 ## Folder Scanning
 
-**Файл:** `app/main.py` (POST /api/scan)
+**Main route:** `POST /api/scan`
 
-In-place сканирование папок без копирования файлов.
+Folder scanning indexes images in-place. Original files are not copied during a scan; the database stores metadata and references to their local paths.
 
-### Особенности
+### Behavior
 
-- Рекурсивный обход директорий
-- Фильтрация по расширениям: `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.tiff`
-- Инкрементальное сканирование через `mtime`
-- Автоматическая генерация thumbnails
-- Сохранение метаданных в SQLite
-
-### Алгоритм
-
-```
-1. Принять путь к папке
-2. Найти или создать запись в folders
-3. Рекурсивно обойти дерево
-4. Для каждого файла:
-   a. Проверить расширение
-   b. Сравнить mtime с сохраненным
-   c. Если новый/измененный:
-      - Извлечь метаданные
-      - Сгенерировать thumbnail
-      - Вставить в БД
-5. Вернуть folder_id + count
-```
+- Reads a local folder path.
+- Creates or updates a folder row.
+- Compares current file `mtime` values with cached database rows.
+- Reprocesses only new or changed files.
+- Stores normalized metadata in SQLite.
+- Returns the first paginated page of results.
 
 ---
 
 ## SQLite Persistence
 
-**Файл:** `app/database.py` (451 строк)
+**Main file:** `app/database.py`
 
-Хранение всех данных в SQLite с WAL mode.
+SQLite stores the local image index, folder list, metadata JSON, upload BLOBs, and cache-related references.
 
-### Таблицы
+### Tables
 
-| Таблица | Описание | Ключевые поля |
-|---------|----------|---------------|
-| `folders` | Папки с изображениями | id, path, name, scanned_at |
-| `images` | Изображения + метаданные | id, folder_id FK, rel_path, metadata_json, original_data BLOB |
-| `sessions` | Пользовательские сессии | id, name, folder_id FK |
+| Table | Purpose |
+|-------|---------|
+| `folders` | Indexed local folders and the special `Uploads` collection |
+| `images` | Image rows, metadata JSON, thumbnails, uploaded BLOBs |
 
-### Особенности
+### Notes
 
-- WAL mode для лучшей производительности
-- Foreign keys с CASCADE delete
-- Индексы для быстрого поиска
-- `original_data` BLOB для uploaded файлов
-- `metadata_json` TEXT для хранения полных метаданных
+- WAL mode is enabled for better local read/write behavior.
+- Foreign keys are enabled.
+- Folder deletion removes related image rows.
+- Uploaded images are stored as `original_data` BLOBs.
+- Scanned images remain on disk and are served from their original local paths.
 
 ---
 
 ## Gallery View
 
-**Файл:** `app/static/js/gallery.js`
+**Main file:** `app/static/js/gallery.js`
 
-Masonry layout для просмотра изображений.
+The gallery provides a visual browsing mode for indexed images.
 
-### Возможности
+### Capabilities
 
-- Masonry (waterfall) раскладка
-- Lazy loading через `IntersectionObserver`
-- Skeleton placeholders при загрузке
-- Infinite scroll
-- Переключение list/gallery views
+- Masonry-style layout.
+- Lazy thumbnail loading.
+- Infinite scrolling through paginated results.
+- List/gallery switching.
+- Quick preview through the lightbox flow.
 
 ---
 
 ## Lightbox
 
-**Файл:** `app/static/js/lightbox.js`
+**Main file:** `app/static/js/lightbox.js`
 
-Fullscreen просмотр изображений.
+The lightbox is the main inspection surface for a selected image.
 
-### Управление
+### Capabilities
 
-| Горячая клавиша | Действие |
-|----------------|----------|
-| `←` / `→` | Навигация между изображениями |
-| `+` / `-` | Zoom in / out |
-| `R` | Поворот на 90° |
-| `F` | Toggle fullscreen |
-| `Esc` | Закрыть |
-| Mouse wheel | Zoom |
-| Drag | Панорамирование (при zoom) |
-| Swipe (touch) | Навигация на мобильных |
-
-### Возможности
-
-- Zoom: 0.1x -- 10x
-- Поворот: 90° шаги
-- Touch swipe навигация
-- Метаданные panel toggle
-- Download
-- Copy all metadata
+- Fullscreen-style image viewing.
+- Previous/next navigation.
+- Zoom and rotation controls.
+- Metadata panel toggle.
+- Summary, Workflow, and Raw metadata tabs.
+- Touch-friendly navigation where supported by the browser.
 
 ---
 
 ## Fuzzy Search
 
-**Файл:** `app/static/js/components/search-bar.js`
+**Main file:** `app/static/js/components/search-bar.js`
 
-Нечёткий поиск через Fuse.js.
+Search is handled client-side with Fuse.js, vendored under `app/static/js/vendor/` for offline local use.
 
-### Поиск по полям
+### Typical Search Fields
 
-| Поле | Вес |
-|------|-----|
-| `file_name` | Высокий |
-| `format` | Средний |
-| `metadata.prompt` | Высокий |
-| `metadata.settings.model` | Средний |
-| `metadata.settings.sampler` | Средний |
-
-### Горячая клавиша
-
-`Ctrl+F` -- открыть поиск
+- Filename.
+- Format.
+- Prompt text.
+- Model/sampler fields when present in extracted metadata.
 
 ---
 
 ## Object Cutout
 
-**Файл:** `app/cutout.py` (103 строки) + `app/static/js/features/cutout.js` (149 строк)
+**Main files:** `app/cutout.py`, `app/static/js/features/cutout.js`
 
-Автоматическое удаление фона и экспорт transparent PNG.
+The cutout feature generates a transparent PNG from a selected image.
 
-### Алгоритм
+### Algorithm Overview
 
-```
-1. Проверить alpha-канал:
-   - Если < 10% transparent → fallback к background estimation
+1. Load the source image from either an uploaded BLOB or a scanned file path.
+2. Use alpha-channel information when available.
+3. Estimate background from border pixels when needed.
+4. Build a foreground mask using color distance.
+5. Smooth the mask and save a transparent PNG.
+6. Cache the generated cutout under `cache/cutouts/`.
 
-2. Background estimation:
-   - Взять полоски 10px по краям (top, bottom, left, right)
-   - Средний цвет = background color
+### User Flow
 
-3. Создать mask:
-   - Евклидово расстояние от background
-   - Threshold: расстояние > порога → foreground
-
-4. Морфологические фильтры:
-   - Закрытие (closing) для заполнения дыр
-   - Медианный фильтр для шума
-
-5. Gaussian blur для сглаживания краёв
-
-6. Применить mask → transparent PNG
-```
-
-### Кэширование
-
-- Cutout PNG кэшируются в `cache/cutouts/`
-- При повторном запросе -- мгновенная отдача
-- Очистка через `DELETE /api/cutout/{id}`
-
-### Просмотр
-
-- Checkerboard background для preview
-- Download transparent PNG
-- Regenerate (пересоздать)
+- Open/select an image.
+- Run cutout generation.
+- Preview the transparent result.
+- Download or delete the cached cutout.
 
 ---
 
 ## Keyboard Shortcuts
 
-**Файл:** `app/static/js/features/keyboard.js` (324 строки)
+**Main file:** `app/static/js/features/keyboard.js`
 
-14 горячих клавиш + Help Center.
+Keyboard shortcuts are designed for fast browsing and metadata inspection.
 
-### Shortcuts
-
-| Клавиша | Действие |
-|---------|----------|
-| `←` / `→` | Предыдущее/следующее изображение |
-| `↑` / `↓` | Scroll в sidebar |
-| `Enter` | Открыть lightbox |
-| `Escape` | Закрыть lightbox / панель |
-| `Delete` | Удалить изображение |
-| `Ctrl+F` | Поиск |
+| Key | Action |
+|-----|--------|
+| `←` / `→` | Navigate images |
+| `Enter` | Open lightbox |
+| `Escape` | Close lightbox or active panel |
+| `Delete` | Delete selected image |
+| `Ctrl+F` | Focus/open search |
 | `G` | Toggle gallery/list view |
-| `Ctrl+Shift+R` | Hard reset |
-| `?` | Help Center |
-| `1-3` | Switch meta tabs (Summary/Workflow/Raw) |
-| `D` | Toggle meta panel |
+| `?` | Open Help Center |
+| `1` / `2` / `3` | Switch metadata tabs |
+| `D` | Toggle metadata panel |
 | `S` | Toggle sidebar |
-
-### Help Center
-
-4 вкладки:
-1. **Shortcuts** -- все горячие клавиши
-2. **Workflow** -- как работает ComfyUI workflow graph
-3. **Storage** -- где хранятся данные
-4. **Diagnostics** -- статистика системы
-
----
-
-## Skeleton Loading
-
-**Файл:** `app/static/js/components/skeleton.js`
-
-Placeholder-ы при загрузке данных.
-
-### Типы
-
-- Sidebar items: прямоугольники с анимацией shimmer
-- Gallery cards: квадраты с анимацией
-- Meta view: строки текста
 
 ---
 
 ## Resizable Sidebar
 
-**Файл:** `app/static/js/features/sidebar.js` (211 строк)
+**Main file:** `app/static/js/features/sidebar.js`
 
-Sidebar с возможностью изменения ширины.
+The sidebar contains folder navigation, image lists, and pagination/infinite-scroll controls.
 
-### Параметры
+### Capabilities
 
-| Параметр | Значение |
-|----------|----------|
-| Min width | 280px |
-| Max width | 500px |
-| Default | 320px |
-| Handle width | 4px |
-
-### Содержимое
-
-- Image list с thumbnails
-- Folder browser (все просканированные папки)
-- Infinite scroll sentinel
-- Format/dimensions badges
-- Delete button
-
----
-
-## Session Management
-
-**Файл:** `app/static/jssessions.js`
-
-Группировка изображений по сессиям.
-
-### Возможности
-
-- Создание сессий с привязкой к папке
-- Переименование
-- Удаление
-- Sync с backend API
-- Сохранение в sessionStorage
+- Resizable width.
+- Folder browser.
+- Image list with thumbnails and metadata badges.
+- Delete actions.
+- Infinite scroll sentinel.
 
 ---
 
 ## Drag-and-Drop Upload
 
-**Файл:** `app/static/js/events.js`
+**Main files:** `app/static/js/events.js`, `POST /api/upload`
 
-Загрузка файлов через drag-and-drop.
+The app supports adding images through the browser UI.
 
-### Поддерживаемые способы
+### Supported Flows
 
-| Способ | Описание |
-|--------|----------|
-| Drag & Drop | Перетаскивание файлов на окно |
-| File Input | Кнопка "Choose Files" |
-| Folder Input | Кнопка "Choose Folder" |
-| Paste Path | Вставка пути из буфера обмена |
+- Drag and drop image files.
+- File input upload.
+- Folder selection where supported by the browser.
+- Local path extraction through the `/api/extract` flow.
 
-### Поведение
-
-- Множественная загрузка
-- Прогресс-индикация
-- Автоматическое извлечение метаданных
-- Сохранение original_data в БД
+Uploaded originals are stored as SQLite BLOBs and can be served later through `/api/original/{image_id}`.
 
 ---
 
-## Thumbnails
+## Thumbnails and Originals
 
-**Файл:** `app/extractor.py` + `app/main.py`
+**Main routes:** `GET /api/thumbnail/{image_id}`, `GET /api/original/{image_id}`
 
-Lazy generation + disk cache.
+### Thumbnails
 
-### Формат
+- Generated lazily.
+- Stored as JPEG files under `cache/thumbnails/`.
+- Served from cache on later requests.
 
-- JPEG quality: 85
-- Max dimension: 300px
-- Путь: `cache/thumbnails/{id}.jpg`
+### Originals
 
-### Поведение
-
-- Генерируются при первом запросе
-- Кэшируются на диске
-- При удалении изображения -- удаляется thumbnail
+- Uploaded images are served from SQLite BLOB storage.
+- Scanned images are served from their original filesystem path.
 
 ---
 
 ## Diagnostics
 
-**Файл:** Help Center → Diagnostics tab
+**Main route:** `GET /api/diagnostics`
 
-### Статистика
+Diagnostics expose basic local runtime information:
 
-| Метрика | Описание |
-|---------|----------|
-| Folders | Количество просканированных папок |
-| Images | Всего изображений в БД |
-| Sessions | Количество сессий |
-| Uploads | Загруженных файлов |
-| Thumbnails | Сгенерированных thumbnails |
-| Cutouts | Сгенерированных cutouts |
+- Database path.
+- Folder count.
+- Image count.
+- Uploaded image count.
+- Thumbnail cache path/count.
+- Cutout cache path/count.
+- Upload directory.
 
 ---
 
 ## Hard Reset
 
-**Файл:** `app/main.py` (POST /api/reset)
+**Main route:** `POST /api/reset`
 
-Полная очистка всех данных.
+Hard reset clears:
 
-### Что очищается
+- SQLite database tables.
+- Thumbnail cache files.
+- Cutout cache files.
 
-1. SQLite database (все таблицы)
-2. Thumbnail cache (`cache/thumbnails/`)
-3. Cutout cache (`cache/cutouts/`)
-4. Upload folder (`.comfy_meta_uploads/`)
-
-### Горячая клавиша
-
-`Ctrl+Shift+R`
-
----
-
-## Paste Path
-
-**Файл:** `app/static/js/events.js`
-
-Вставка пути к папке из буфера обмена.
-
-### Поведение
-
-- Ctrl+V → проверка содержит ли текст путь
-- Если путь к папке → сканирование
-- Если путь к файлам → извлечение метаданных
+It does not delete original scanned images from their source folders.
 
 ---
 
 ## Responsive Design
 
-**Файл:** `app/static/css/utils/responsive.css`
+The UI is built as a local desktop-first tool, but the CSS includes responsive rules for narrower screens. The main surfaces are:
 
-Адаптивный дизайн для всех размеров экрана.
-
-### Breakpoints
-
-| Breakpoint | Описание |
-|------------|----------|
-| < 768px | Mobile:collapsed sidebar, stacked layout |
-| 768-1024px | Tablet: resizable sidebar |
-| > 1024px | Desktop: full layout |
-
-### Адаптация
-
-- Sidebar: collapsed на mobile, toggle кнопкой
-- Gallery: fewer columns на маленьких экранах
-- Lightbox: touch swipe на mobile
-- Meta panel: bottom sheet на mobile
+- Sidebar.
+- Gallery/list area.
+- Lightbox.
+- Metadata panel.
+- Help/diagnostic panels.

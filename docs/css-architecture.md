@@ -1,101 +1,105 @@
 # CSS Architecture
 
-> Архитектура CSS стилей Comfy Meta Viewer.
+> Styling architecture for ComfyUI Meta Viewer.
+
+The CSS layer is built with plain CSS, custom properties, and modular files. There is no Sass/Less build step, which keeps the project simple and easy to run locally.
 
 ---
 
 ## Table of Contents
 
-- [Обзор](#обзор)
-- [Структура](#структура)
+- [Overview](#overview)
+- [Directory Structure](#directory-structure)
 - [Custom Properties](#custom-properties)
-- [Base](#base)
-- [Layout](#layout)
+- [Base Styles](#base-styles)
+- [Layout Styles](#layout-styles)
 - [Components](#components)
-- [Features](#features)
-- [Utils](#utils)
-- [Именование](#именование)
+- [Feature Styles](#feature-styles)
+- [Responsive Utilities](#responsive-utilities)
+- [Naming Guidelines](#naming-guidelines)
+- [Extension Guidelines](#extension-guidelines)
 
 ---
 
-## Обзор
+## Overview
 
-CSS построен на **Custom Properties** (CSS Variables) с модульной структурой. Нет препроцессоров (SASS/LESS) -- чистый CSS.
+Design principles:
 
-### Принципы
-
-1. **Custom Properties** для всего (цвета, spacing, typography)
-2. **Один файл = одна область** ответственности
-3. **Минимум !important**
-4. **Mobile-first** responsive design
+1. **Custom properties for shared values**: colors, spacing, typography, shadows, and z-index layers.
+2. **One file = one responsibility** where practical.
+3. **Readable selectors** with BEM-like naming.
+4. **No preprocessing requirement**: the app should run with static CSS files.
+5. **Minimal `!important`** and predictable cascade order.
 
 ---
 
-## Структура
+## Directory Structure
 
 ```
 app/static/css/
-├── base/                        # Базовые стили
+├── base/                        # Foundational styles
 │   ├── variables.css            # CSS custom properties
 │   ├── reset.css                # Normalize/reset
-│   ├── typography.css           # Шрифты, текст
-│   └── animations.css           # Кейфреймы
-├── layout/                      # Структура страницы
-│   ├── app-shell.css            # Главный контейнер
-│   ├── sidebar.css              # Sidebar
-│   └── content.css              # Основной контент
-├── components/                  # UI компоненты
-│   ├── buttons.css              # Кнопки
-│   ├── cards.css                # Карточки
-│   ├── inputs.css               # Инпуты
-│   ├── badges.css               # Бейджи
-│   ├── skeleton.css             # Skeleton loading
-│   ├── toast.css                # Уведомления
-│   ├── modal.css                # Модальные окна
-│   ├── shortcuts.css            # Keyboard shortcuts
+│   ├── typography.css           # Text styles
+│   └── animations.css           # Keyframes
+├── layout/                      # Page layout
+│   ├── app-shell.css            # Main app container
+│   ├── sidebar.css              # Sidebar layout
+│   └── content.css              # Main content area
+├── components/                  # Reusable UI components
+│   ├── buttons.css              # Buttons
+│   ├── cards.css                # Cards
+│   ├── inputs.css               # Inputs
+│   ├── badges.css               # Badges
+│   ├── skeleton.css             # Loading skeletons
+│   ├── toast.css                # Notifications
+│   ├── modal.css                # Modals
+│   ├── shortcuts.css            # Keyboard shortcut display
 │   └── search.css               # Search bar
-├── features/                    # Feature-специфичные стили
+├── features/                    # Feature-specific styles
 │   ├── meta-panel.css           # Metadata panel
 │   ├── workflow-graph.css       # Workflow SVG graph
 │   ├── gallery.css              # Masonry gallery
 │   ├── lightbox.css             # Fullscreen lightbox
 │   └── cutout.css               # Cutout panel
 └── utils/
-    └── responsive.css           # Media queries
+    └── responsive.css           # Media queries and responsive helpers
 ```
 
 ---
 
 ## Custom Properties
 
-### Цвета (`variables.css`)
+Shared values should live in `base/variables.css`.
+
+### Colors
 
 ```css
 :root {
-    /* Background */
     --color-bg-primary: #1a1a2e;
     --color-bg-secondary: #16213e;
     --color-bg-tertiary: #0f3460;
 
-    /* Text */
     --color-text-primary: #e6e6e6;
     --color-text-secondary: #a0a0a0;
     --color-text-muted: #666;
 
-    /* Accent */
     --color-accent: #4a90d9;
     --color-accent-hover: #5aa0e9;
 
-    /* Borders */
     --color-border: #333;
     --color-border-light: #444;
 
-    /* Status */
     --color-success: #27ae60;
     --color-warning: #f39c12;
     --color-error: #e74c3c;
+}
+```
 
-    /* Category colors (workflow graph) */
+### Workflow Category Colors
+
+```css
+:root {
     --color-model: #9b59b6;
     --color-prompt: #27ae60;
     --color-sampler: #e67e22;
@@ -136,7 +140,7 @@ app/static/css/
 }
 ```
 
-### Borders & Radius
+### Borders, Radius, Shadows, and Layers
 
 ```css
 :root {
@@ -145,24 +149,12 @@ app/static/css/
     --radius-md: 8px;
     --radius-lg: 12px;
     --radius-full: 9999px;
-}
-```
 
-### Shadows
-
-```css
-:root {
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.4);
     --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.5);
-}
-```
 
-### Z-Index
-
-```css
-:root {
     --z-sidebar: 100;
     --z-header: 200;
     --z-dropdown: 300;
@@ -174,11 +166,11 @@ app/static/css/
 
 ---
 
-## Base
+## Base Styles
+
+Base styles define browser resets, default typography, and shared animations.
 
 ### `reset.css`
-
-Базовый reset стилей:
 
 ```css
 *, *::before, *::after {
@@ -198,8 +190,6 @@ body {
 
 ### `typography.css`
 
-Типографика:
-
 ```css
 h1 { font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); }
 h2 { font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); }
@@ -209,50 +199,19 @@ code, pre {
     font-family: 'Fira Code', monospace;
     font-size: var(--font-size-sm);
 }
-
-a {
-    color: var(--color-accent);
-    text-decoration: none;
-}
-
-a:hover {
-    color: var(--color-accent-hover);
-}
 ```
 
 ### `animations.css`
 
-Кейфреймы:
-
-```css
-@keyframes shimmer {
-    0% { background-position: -200px 0; }
-    100% { background-position: calc(200px + 100%) 0; }
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes slideUp {
-    from { transform: translateY(10px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-```
+Common animations include shimmer loading, fade in/out, slide transitions, and spinner rotation.
 
 ---
 
-## Layout
+## Layout Styles
+
+Layout files define the app shell and major panes.
 
 ### `app-shell.css`
-
-Главный контейнер:
 
 ```css
 .app-shell {
@@ -265,8 +224,6 @@ a:hover {
 
 ### `sidebar.css`
 
-Sidebar:
-
 ```css
 .sidebar {
     width: var(--sidebar-width, 320px);
@@ -276,35 +233,15 @@ Sidebar:
     flex-direction: column;
     overflow: hidden;
 }
-
-.sidebar__resize-handle {
-    width: 4px;
-    cursor: col-resize;
-    background: transparent;
-    transition: background 0.2s;
-}
-
-.sidebar__resize-handle:hover {
-    background: var(--color-accent);
-}
 ```
 
 ### `content.css`
-
-Основной контент:
 
 ```css
 .content {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-}
-
-.content__header {
-    display: flex;
-    align-items: center;
-    padding: var(--spacing-md);
-    border-bottom: var(--border-width) solid var(--color-border);
 }
 
 .content__body {
@@ -318,7 +255,23 @@ Sidebar:
 
 ## Components
 
-### `buttons.css`
+Component files should define reusable UI pieces that can appear in multiple features.
+
+Examples:
+
+| File | Purpose |
+|------|---------|
+| `buttons.css` | Primary, secondary, danger, and icon buttons |
+| `cards.css` | Image/gallery cards |
+| `inputs.css` | Inputs, path boxes, form controls |
+| `badges.css` | Format/dimension/status labels |
+| `skeleton.css` | Loading placeholders |
+| `toast.css` | Notifications |
+| `modal.css` | Modal surfaces |
+| `shortcuts.css` | Shortcut key display |
+| `search.css` | Search bar |
+
+Example component:
 
 ```css
 .btn {
@@ -333,255 +286,81 @@ Sidebar:
     cursor: pointer;
     transition: all 0.2s;
 }
-
-.btn:hover {
-    background: var(--color-bg-tertiary);
-    border-color: var(--color-accent);
-}
-
-.btn--primary {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
-    color: white;
-}
-
-.btn--danger {
-    background: var(--color-error);
-    border-color: var(--color-error);
-    color: white;
-}
-```
-
-### `cards.css`
-
-```css
-.card {
-    background: var(--color-bg-secondary);
-    border: var(--border-width) solid var(--color-border);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    transition: all 0.2s;
-}
-
-.card:hover {
-    border-color: var(--color-accent);
-    box-shadow: var(--shadow-md);
-}
-
-.card__image {
-    width: 100%;
-    aspect-ratio: 1;
-    object-fit: cover;
-}
-
-.card__body {
-    padding: var(--spacing-md);
-}
-```
-
-### `badges.css`
-
-```css
-.badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px var(--spacing-sm);
-    border-radius: var(--radius-full);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-medium);
-}
-
-.badge--format {
-    background: var(--color-accent);
-    color: white;
-}
-
-.badge--dimensions {
-    background: var(--color-bg-tertiary);
-    color: var(--color-text-secondary);
-}
-```
-
-### `skeleton.css`
-
-```css
-.skeleton {
-    background: linear-gradient(
-        90deg,
-        var(--color-bg-secondary) 25%,
-        var(--color-bg-tertiary) 50%,
-        var(--color-bg-secondary) 75%
-    );
-    background-size: 200px 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: var(--radius-md);
-}
 ```
 
 ---
 
-## Features
+## Feature Styles
 
-### `meta-panel.css`
+Feature files style larger UI surfaces that map to application behavior.
 
-```css
-.meta-panel {
-    width: 380px;
-    background: var(--color-bg-secondary);
-    border-left: var(--border-width) solid var(--color-border);
-    display: flex;
-    flex-direction: column;
-}
+| File | Purpose |
+|------|---------|
+| `meta-panel.css` | Summary/Workflow/Raw metadata panel |
+| `workflow-graph.css` | SVG node graph and node details |
+| `gallery.css` | Gallery/grid browsing |
+| `lightbox.css` | Fullscreen image viewer |
+| `cutout.css` | Cutout preview and actions |
 
-.meta-panel__tabs {
-    display: flex;
-    border-bottom: var(--border-width) solid var(--color-border);
-}
-
-.meta-panel__tab {
-    flex: 1;
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: transparent;
-    border: none;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.meta-panel__tab--active {
-    color: var(--color-accent);
-    border-bottom: 2px solid var(--color-accent);
-}
-```
-
-### `gallery.css`
-
-```css
-.gallery {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: var(--spacing-md);
-}
-
-.gallery__item {
-    break-inside: avoid;
-    cursor: pointer;
-}
-
-.gallery__image {
-    width: 100%;
-    border-radius: var(--radius-md);
-    transition: transform 0.2s;
-}
-
-.gallery__image:hover {
-    transform: scale(1.02);
-}
-```
-
-### `lightbox.css`
-
-```css
-.lightbox {
-    position: fixed;
-    inset: 0;
-    z-index: var(--z-lightbox);
-    background: rgba(0, 0, 0, 0.95);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.lightbox__image {
-    max-width: 90vw;
-    max-height: 90vh;
-    object-fit: contain;
-    transition: transform 0.2s;
-}
-
-.lightbox__controls {
-    position: absolute;
-    bottom: var(--spacing-lg);
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: var(--spacing-sm);
-}
-```
+Feature CSS can compose component classes but should avoid redefining generic button/card/input rules.
 
 ---
 
-## Utils
+## Responsive Utilities
 
-### `responsive.css`
+`utils/responsive.css` contains media queries and responsive adjustments.
 
-```css
-/* Mobile */
-@media (max-width: 767px) {
-    .app-shell {
-        grid-template-columns: 1fr;
-    }
+Recommended behavior:
 
-    .sidebar {
-        position: fixed;
-        left: -100%;
-        z-index: var(--z-sidebar);
-        transition: left 0.3s;
-    }
-
-    .sidebar--open {
-        left: 0;
-    }
-
-    .meta-panel {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        width: 100%;
-        max-height: 60vh;
-    }
-}
-
-/* Tablet */
-@media (min-width: 768px) and (max-width: 1023px) {
-    .app-shell {
-        grid-template-columns: 280px 1fr;
-    }
-}
-
-/* Desktop */
-@media (min-width: 1024px) {
-    .app-shell {
-        grid-template-columns: var(--sidebar-width, 320px) 1fr;
-    }
-}
-```
+- Preserve desktop-first productivity layout.
+- Collapse or hide secondary panels on narrow screens.
+- Keep the lightbox usable on touch devices.
+- Avoid fixed-width assumptions outside major panes.
 
 ---
 
-## Именование
+## Naming Guidelines
 
-### BEM-like паттерн
+Use predictable, BEM-like naming:
 
 ```css
-.block {}                    /* Компонент */
-.block__element {}           /* Элемент */
-.block--modifier {}          /* Модификатор */
+.block {}
+.block__element {}
+.block--modifier {}
+```
 
-/* Примеры: */
+Examples:
+
+```css
 .sidebar {}
-.sidebar__header {}
 .sidebar__item {}
 .sidebar__item--active {}
-.sidebar__item--selected {}
+
+.meta-panel {}
+.meta-panel__tab {}
+.meta-panel__tab--active {}
+
+.workflow-node {}
+.workflow-node--model {}
 ```
 
-### State classes
+Guidelines:
 
-```css
-.is-active {}                /* Активное состояние */
-.is-loading {}               /* Загрузка */
-.is-hidden {}                /* Скрыто */
-.is-error {}                 /* Ошибка */
-```
+- Use nouns for blocks: `sidebar`, `lightbox`, `meta-panel`.
+- Use elements for internal parts: `__header`, `__body`, `__button`.
+- Use modifiers for state/variant: `--active`, `--disabled`, `--danger`.
+- Avoid overly deep selectors when a class would be clearer.
+
+---
+
+## Extension Guidelines
+
+When adding styles:
+
+1. Put shared values in `base/variables.css`.
+2. Put reusable UI rules in `components/`.
+3. Put feature-specific rules in `features/`.
+4. Keep layout rules in `layout/`.
+5. Add responsive adjustments in `utils/responsive.css` when possible.
+6. Reuse existing custom properties instead of hardcoding repeated values.
+7. Prefer adding a new class over chaining fragile descendant selectors.

@@ -2,6 +2,13 @@ import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoad
 import { createSession, getActiveSession, createSessionOnServer } from './sessions.js';
 import { escapeHtml, thumbUrl, showLoading, showError, customConfirm } from './utils.js';
 
+function switchToImagesTab() {
+    document.getElementById('tab-images')?.classList.add('active');
+    document.getElementById('tab-folders')?.classList.remove('active');
+    document.getElementById('panel-images')?.classList.add('active');
+    document.getElementById('panel-folders')?.classList.remove('active');
+}
+
 export async function scanFolder(path) {
     showLoading('Scanning folder...');
     try {
@@ -32,6 +39,7 @@ export async function scanFolder(path) {
             const { renderGallery } = await import('./gallery.js');
             renderGallery();
         } else {
+            switchToImagesTab();
             const { renderSidebar } = await import('./features/sidebar.js');
             renderSidebar();
         }
@@ -69,6 +77,7 @@ export async function loadFromPaths(paths) {
                 const { renderGallery } = await import('./gallery.js');
                 renderGallery();
             } else {
+                switchToImagesTab();
                 const { renderSidebar } = await import('./features/sidebar.js');
                 renderSidebar();
             }
@@ -106,6 +115,7 @@ export async function loadFromFiles(files) {
                 const { renderGallery } = await import('./gallery.js');
                 renderGallery();
             } else {
+                switchToImagesTab();
                 const { renderSidebar } = await import('./features/sidebar.js');
                 renderSidebar();
             }
@@ -270,6 +280,7 @@ export async function loadFolderImages(folderId, folderName) {
             const { renderGallery } = await import('./gallery.js');
             renderGallery();
         } else {
+            switchToImagesTab();
             const { renderSidebar } = await import('./features/sidebar.js');
             renderSidebar();
             if (activeIndex >= 0) {

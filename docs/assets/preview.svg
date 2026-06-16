@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f1a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a2e;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#7c6aef;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4ade80;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="card" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e1e30;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16162a;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="400" fill="url(#bg)" rx="12"/>
+
+  <!-- Grid pattern -->
+  <g opacity="0.05">
+    <line x1="0" y1="50" x2="800" y2="50" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="100" x2="800" y2="100" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="150" x2="800" y2="150" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="200" x2="800" y2="200" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="250" x2="800" y2="250" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="300" x2="800" y2="300" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="350" x2="800" y2="350" stroke="#fff" stroke-width="0.5"/>
+    <line x1="100" y1="0" x2="100" y2="400" stroke="#fff" stroke-width="0.5"/>
+    <line x1="200" y1="0" x2="200" y2="400" stroke="#fff" stroke-width="0.5"/>
+    <line x1="300" y1="0" x2="300" y2="400" stroke="#fff" stroke-width="0.5"/>
+    <line x1="400" y1="0" x2="400" y2="400" stroke="#fff" stroke-width="0.5"/>
+    <line x1="500" y1="0" x2="500" y2="400" stroke="#fff" stroke-width="0.5"/>
+    <line x1="600" y1="0" x2="600" y2="400" stroke="#fff" stroke-width="0.5"/>
+    <line x1="700" y1="0" x2="700" y2="400" stroke="#fff" stroke-width="0.5"/>
+  </g>
+
+  <!-- App window frame -->
+  <rect x="30" y="30" width="740" height="340" rx="8" fill="#12121e" stroke="#2a2a40" stroke-width="1" filter="url(#shadow)"/>
+
+  <!-- Title bar -->
+  <rect x="30" y="30" width="740" height="32" rx="8" fill="#1a1a28"/>
+  <rect x="30" y="54" width="740" height="8" fill="#1a1a28"/>
+  <circle cx="48" cy="46" r="5" fill="#ff5f57"/>
+  <circle cx="64" cy="46" r="5" fill="#ffbd2e"/>
+  <circle cx="80" cy="46" r="5" fill="#28ca41"/>
+  <text x="400" y="50" text-anchor="middle" fill="#8888a0" font-family="system-ui" font-size="11" font-weight="500">ComfyUI Meta Viewer</text>
+
+  <!-- Sidebar -->
+  <rect x="30" y="62" width="180" height="308" fill="#14142a"/>
+  <rect x="30" y="62" width="180" height="28" fill="#1c1c34"/>
+  <text x="50" y="80" fill="#e0e0e8" font-family="system-ui" font-size="11" font-weight="600">Folders</text>
+  <text x="130" y="80" fill="#e0e0e8" font-family="system-ui" font-size="11" font-weight="600">Images</text>
+
+  <!-- Sidebar items -->
+  <rect x="40" y="100" width="160" height="24" rx="4" fill="#2a2a44"/>
+  <text x="52" y="116" fill="#e0e0e8" font-family="system-ui" font-size="10">📁 outputs/batch_01</text>
+  <text x="184" y="116" fill="#7c6aef" font-family="system-ui" font-size="9" text-anchor="end">42</text>
+
+  <rect x="40" y="130" width="160" height="24" rx="4" fill="transparent"/>
+  <text x="52" y="146" fill="#8888a0" font-family="system-ui" font-size="10">📁 outputs/batch_02</text>
+  <text x="184" y="146" fill="#7c6aef" font-family="system-ui" font-size="9" text-anchor="end">28</text>
+
+  <rect x="40" y="160" width="160" height="24" rx="4" fill="transparent"/>
+  <text x="52" y="176" fill="#8888a0" font-family="system-ui" font-size="10">📁 uploads</text>
+  <text x="184" y="176" fill="#7c6aef" font-family="system-ui" font-size="9" text-anchor="end">12</text>
+
+  <!-- Sidebar separator -->
+  <line x1="40" y1="196" x2="190" y2="196" stroke="#2a2a40" stroke-width="1"/>
+
+  <!-- Session items -->
+  <text x="50" y="214" fill="#666680" font-family="system-ui" font-size="9" font-weight="600">SESSIONS</text>
+  <rect x="40" y="222" width="160" height="22" rx="4" fill="#1e1e36"/>
+  <text x="52" y="237" fill="#4ade80" font-family="system-ui" font-size="10">Session 1</text>
+
+  <!-- Content area - Gallery grid -->
+  <rect x="210" y="62" width="560" height="308" fill="#0f0f1a"/>
+
+  <!-- Gallery header -->
+  <rect x="210" y="62" width="560" height="36" fill="#14142a"/>
+  <text x="226" y="84" fill="#e0e0e8" font-family="system-ui" font-size="11" font-weight="500">outputs/batch_01</text>
+  <text x="720" y="84" fill="#666680" font-family="system-ui" font-size="10" text-anchor="end">42 images</text>
+
+  <!-- Gallery thumbnails -->
+  <g transform="translate(220, 108)">
+    <!-- Row 1 -->
+    <rect x="0" y="0" width="115" height="85" rx="6" fill="#2a2a44"/>
+    <rect x="8" y="8" width="99" height="55" rx="4" fill="#3a3a5a"/>
+    <text x="8" y="78" fill="#8888a0" font-family="system-ui" font-size="8">image_001.png</text>
+
+    <rect x="125" y="0" width="115" height="85" rx="6" fill="#2a2a44"/>
+    <rect x="133" y="8" width="99" height="55" rx="4" fill="#4a4a6a"/>
+    <text x="133" y="78" fill="#8888a0" font-family="system-ui" font-size="8">image_002.png</text>
+
+    <rect x="250" y="0" width="115" height="85" rx="6" fill="#2a2a44"/>
+    <rect x="258" y="8" width="99" height="55" rx="4" fill="#3a4a5a"/>
+    <text x="258" y="78" fill="#8888a0" font-family="system-ui" font-size="8">image_003.png</text>
+
+    <rect x="375" y="0" width="115" height="85" rx="6" fill="#2a2a44"/>
+    <rect x="383" y="8" width="99" height="55" rx="4" fill="#5a3a4a"/>
+    <text x="383" y="78" fill="#8888a0" font-family="system-ui" font-size="8">image_004.png</text>
+
+    <!-- Row 2 -->
+    <rect x="0" y="95" width="115" height="85" rx="6" fill="#2a2a44"/>
+    <rect x="8" y="103" width="99" height="55" rx="4" fill="#4a3a5a"/>
+    <text x="8" y="173" fill="#8888a0" font-family="system-ui" font-size="8">image_005.png</text>
+
+    <rect x="125" y="95" width="115" height="85" rx="6" fill="#2a2a44"/>
+    <rect x="133" y="103" width="99" height="55" rx="4" fill="#3a5a4a"/>
+    <text x="133" y="173" fill="#8888a0" font-family="system-ui" font-size="8">image_006.png</text>
+
+    <rect x="250" y="95" width="115" height="85" rx="6" fill="#2a2a44"/>
+    <rect x="258" y="103" width="99" height="55" rx="4" fill="#5a4a3a"/>
+    <text x="258" y="173" fill="#8888a0" font-family="system-ui" font-size="8">image_007.png</text>
+
+    <rect x="375" y="95" width="115" height="85" rx="6" fill="#2a2a44"/>
+    <rect x="383" y="103" width="99" height="55" rx="4" fill="#3a3a4a"/>
+    <text x="383" y="173" fill="#8888a0" font-family="system-ui" font-size="8">image_008.png</text>
+
+    <!-- Row 3 -->
+    <rect x="0" y="190" width="115" height="85" rx="6" fill="#2a2a44"/>
+    <rect x="8" y="198" width="99" height="55" rx="4" fill="#4a4a3a"/>
+    <text x="8" y="268" fill="#8888a0" font-family="system-ui" font-size="8">image_009.png</text>
+
+    <rect x="125" y="190" width="115" height="85" rx="6" fill="#2a2a44"/>
+    <rect x="133" y="198" width="99" height="55" rx="4" fill="#3a4a4a"/>
+    <text x="133" y="268" fill="#8888a0" font-family="system-ui" font-size="8">image_010.png</text>
+  </g>
+
+  <!-- Accent glow -->
+  <circle cx="400" cy="200" r="120" fill="url(#accent)" opacity="0.03"/>
+
+  <!-- Title text -->
+  <text x="400" y="300" text-anchor="middle" fill="url(#accent)" font-family="system-ui" font-size="18" font-weight="700" filter="url(#glow)">ComfyUI Meta Viewer</text>
+  <text x="400" y="322" text-anchor="middle" fill="#666680" font-family="system-ui" font-size="10">Extract metadata from AI-generated images</text>
+</svg>

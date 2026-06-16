@@ -21,6 +21,7 @@ from .extractor import (
     SUPPORTED,
 )
 from .schemas import (
+    CreateSessionRequest,
     ExtractRequest,
     FolderInfo,
     ImageInsertRow,
@@ -30,6 +31,8 @@ from .schemas import (
     OkResponse,
     ScanRequest,
     ScanResponse,
+    SessionInfo,
+    UpdateSessionRequest,
 )
 
 app = Flask(__name__)
@@ -146,6 +149,54 @@ def api_image_detail(image_id: int):
 @app.route("/api/folders/<int:folder_id>", methods=["DELETE"])
 def api_delete_folder(folder_id: int):
     db.delete_folder(folder_id)
+    return jsonify(OkResponse().model_dump())
+
+
+@app.route("/api/sessions", methods=["GET"])
+def api_get_sessions():
+    sessions = db.get_sessions()
+    return jsonify({"sessions": sessions})
+
+
+@app.route("/api/sessions", methods=["POST"])
+def api_create_session():
+    try:
+        req = CreateSessionRequest.model_validate(request.get_json(silent=True) or {})
+    except ValidationError as e:
+        return jsonify({"error": e.errors()[0]["msg"]}), 400
+
+    session_id = db.create_session(req.name, req.folder_id)
+    session = db.get_session(session_id)
+    return jsonify(session), 201
+
+
+@app.route("/api/sessions/<int:session_id>", methods=["GET"])
+def api_get_session(session_id: int):
+    session = db.get_session(session_id)
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+    return jsonify(session)
+
+
+@app.route("/api/sessions/<int:session_id>", methods=["PATCH"])
+def api_update_session(session_id: int):
+    try:
+        req = UpdateSessionRequest.model_validate(request.get_json(silent=True) or {})
+    except ValidationError as e:
+        return jsonify({"error": e.errors()[0]["msg"]}), 400
+
+    ok = db.update_session_name(session_id, req.name)
+    if not ok:
+        return jsonify({"error": "Session not found"}), 404
+    session = db.get_session(session_id)
+    return jsonify(session)
+
+
+@app.route("/api/sessions/<int:session_id>", methods=["DELETE"])
+def api_delete_session(session_id: int):
+    ok = db.delete_session(session_id)
+    if not ok:
+        return jsonify({"error": "Session not found"}), 404
     return jsonify(OkResponse().model_dump())
 
 

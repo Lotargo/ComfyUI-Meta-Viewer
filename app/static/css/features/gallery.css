@@ -1,0 +1,106 @@
+/* === Gallery Masonry Layout === */
+
+.gallery-masonry {
+    column-count: 4;
+    column-gap: var(--space-md);
+    max-width: 1400px;
+}
+
+.gallery-card {
+    break-inside: avoid;
+    margin-bottom: var(--space-md);
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all var(--transition);
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.gallery-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+}
+
+.gallery-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.gallery-card img {
+    width: 100%;
+    height: var(--card-height, 160px);
+    object-fit: cover;
+    display: block;
+    background: var(--surface2);
+}
+
+.gallery-card .card-info {
+    padding: var(--space-sm) var(--space-md);
+}
+
+.gallery-card .card-name {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gallery-card .card-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+.gallery-card .card-badge {
+    position: absolute;
+    top: var(--space-sm);
+    right: var(--space-sm);
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 10px;
+    padding: 2px var(--space-sm);
+    border-radius: var(--radius-sm);
+    backdrop-filter: blur(4px);
+}
+
+.gallery-card .card-error {
+    position: absolute;
+    inset: 0;
+    background: var(--red-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--red);
+    font-size: 24px;
+}
+
+/* Responsive columns */
+@media (max-width: 1200px) {
+    .gallery-masonry {
+        column-count: 3;
+    }
+}
+
+@media (max-width: 900px) {
+    .gallery-masonry {
+        column-count: 2;
+    }
+}
+
+@media (max-width: 600px) {
+    .gallery-masonry {
+        column-count: 1;
+    }
+}
+
+/* Skeleton in masonry */
+.gallery-masonry .skeleton-gallery-card {
+    break-inside: avoid;
+    margin-bottom: var(--space-md);
+    display: inline-block;
+    width: 100%;
+}

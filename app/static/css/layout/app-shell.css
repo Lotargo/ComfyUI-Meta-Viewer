@@ -1,0 +1,75 @@
+.app-header {
+    height: var(--header-height);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 var(--space-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--z-header);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-shrink: 0;
+}
+
+.header-logo {
+    font-size: 16px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.header-logo span {
+    color: var(--accent);
+}
+
+.header-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-shrink: 0;
+}
+
+.icon-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    font-size: 18px;
+    color: var(--text-dim);
+    transition: all var(--transition-fast);
+}
+
+.icon-btn:hover {
+    background: var(--surface2);
+    color: var(--text);
+}
+
+.icon-btn.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
+/* Main layout */
+.app-main {
+    display: flex;
+    height: calc(100vh - var(--header-height));
+    margin-top: var(--header-height);
+}

@@ -1,6 +1,7 @@
 import { dom, galleryActive, setViewModeValue, setGalleryActive, images, activeIndex, sessions, activeSessionId, currentFolderId, currentPage, totalImages, allLoaded, detailCache, scrollObserver, setImages, setActiveIndex, setSessions, setActiveSessionId, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setScrollObserver, saveState } from './state.js';
 import { loadFromFiles, loadFromPaths, scanFolder } from './api.js';
 import { renderSidebar } from './sidebar.js';
+import { createSession, createSessionOnServer } from './sessions.js';
 
 export function initEvents() {
     document.addEventListener('dragover', e => e.preventDefault());
@@ -32,8 +33,25 @@ export function initEvents() {
     dom.btnViewGrid.addEventListener('click', () => setViewMode('grid'));
     dom.btnViewGallery.addEventListener('click', () => setViewMode('gallery'));
 
-    document.getElementById('btn-clear').addEventListener('click', () => {
+    // New session button
+    document.getElementById('btn-new-session')?.addEventListener('click', async () => {
+        const name = prompt('Session name:');
+        if (name === null) return;
+        const session = createSession(name || undefined);
+        const srvSession = await createSessionOnServer(session.name);
+        if (srvSession) session.serverId = srvSession.id;
+        saveState();
+        renderSidebar();
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', async () => {
         if (scrollObserver) scrollObserver.disconnect();
+        // Delete all backend sessions
+        for (const s of sessions) {
+            if (s.serverId) {
+                try { await fetch(`/api/sessions/${s.serverId}`, { method: 'DELETE' }); } catch (e) { /* ignore */ }
+            }
+        }
         setImages([]);
         setSessions([]);
         setActiveSessionId(0);

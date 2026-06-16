@@ -1,0 +1,33 @@
+/* === Search results === */
+
+.search-match {
+    background: var(--accent-dim) !important;
+}
+
+.search-match .name {
+    color: var(--accent);
+}
+
+/* Search input focus */
+.search-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* Search hint */
+.search-hint {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-top: var(--space-xs);
+    padding: var(--space-sm);
+    font-size: 12px;
+    color: var(--text-dim);
+    z-index: var(--z-dropdown);
+    box-shadow: var(--shadow-lg);
+}

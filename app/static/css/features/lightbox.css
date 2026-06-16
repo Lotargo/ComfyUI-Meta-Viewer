@@ -1,0 +1,299 @@
+/* === Lightbox === */
+
+.lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.92);
+    z-index: var(--z-lightbox);
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    transition: opacity var(--transition);
+    pointer-events: none;
+}
+
+.lightbox-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Top bar */
+.lightbox-top {
+    display: flex;
+    align-items: center;
+    padding: var(--space-sm) var(--space-lg);
+    gap: var(--space-md);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.lightbox-top .lb-title {
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lightbox-top .lb-counter {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+/* Lightbox buttons */
+.lb-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text);
+    cursor: pointer;
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    transition: all var(--transition-fast);
+}
+
+.lb-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.lb-btn-icon {
+    font-size: 16px;
+    padding: var(--space-xs) var(--space-sm);
+    line-height: 1;
+}
+
+/* Body */
+.lightbox-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Image area */
+.lightbox-image-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.lightbox-image-area img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    user-select: none;
+    transition: opacity var(--transition);
+}
+
+.lightbox-image-area img.animating {
+    opacity: 0;
+}
+
+/* Navigation arrows */
+.lb-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    cursor: pointer;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    z-index: 10;
+    backdrop-filter: blur(4px);
+}
+
+.lb-nav:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.lb-nav.prev {
+    left: var(--space-md);
+}
+
+.lb-nav.next {
+    right: var(--space-md);
+}
+
+/* Metadata panel */
+.lightbox-meta-panel {
+    width: var(--meta-panel-width);
+    min-width: var(--meta-panel-width);
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: var(--space-lg);
+    transition: all var(--transition);
+}
+
+.lightbox-meta-panel:not(.open) {
+    width: 0;
+    min-width: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+/* Meta sections */
+.lb-meta-section {
+    margin-bottom: var(--space-lg);
+}
+
+.lb-meta-section h4 {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--space-sm);
+    padding-bottom: var(--space-xs);
+    border-bottom: 1px solid var(--border);
+}
+
+/* Meta rows */
+.lb-meta-row {
+    display: flex;
+    padding: var(--space-xs) 0;
+    font-size: 12px;
+    align-items: flex-start;
+    gap: var(--space-sm);
+}
+
+.lb-meta-row .lb-key {
+    width: 110px;
+    min-width: 110px;
+    color: var(--text-dim);
+    font-weight: 500;
+}
+
+.lb-meta-row .lb-val {
+    flex: 1;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 11px;
+    word-break: break-word;
+    white-space: pre-wrap;
+    line-height: 1.4;
+}
+
+/* Prompt boxes */
+.lb-prompt-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-sm) var(--space-md);
+    font-size: 11px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.4;
+    max-height: 120px;
+    overflow-y: auto;
+    margin-bottom: var(--space-sm);
+}
+
+.lb-prompt-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-bottom: var(--space-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* Node blocks in lightbox */
+.lb-node {
+    padding: var(--space-sm);
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.lb-node-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-xs);
+}
+
+.lb-node-type {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.lb-node-id {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+
+/* No metadata message */
+.lb-no-meta {
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: var(--space-xl);
+    text-align: center;
+}
+
+/* Animation */
+.lightbox-overlay.open .lightbox-image-area img {
+    animation: scaleIn 0.3s ease-out both;
+}
+
+@keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Zoom controls */
+.lb-zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+}
+
+.lb-zoom-controls .lb-btn {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 14px;
+    min-width: 28px;
+    text-align: center;
+}
+
+.lb-zoom-level {
+    font-size: 11px;
+    color: var(--text-dim);
+    min-width: 36px;
+    text-align: center;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    user-select: none;
+}
+
+.lb-separator {
+    width: 1px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.12);
+    margin: 0 var(--space-xs);
+}
+
+/* Image transform transition */
+.lightbox-image-area img {
+    transition: opacity var(--transition), transform 0.15s ease-out;
+    transform-origin: center center;
+    cursor: zoom-in;
+}

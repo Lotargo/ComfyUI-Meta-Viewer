@@ -1,0 +1,39 @@
+/* === Toast notification === */
+
+.toast {
+    position: fixed;
+    bottom: var(--space-xl);
+    right: var(--space-xl);
+    background: var(--green);
+    color: #000;
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all var(--transition);
+    pointer-events: none;
+    z-index: var(--z-toast);
+    box-shadow: var(--shadow-lg);
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-error {
+    background: var(--red);
+    color: #fff;
+}
+
+.toast-warning {
+    background: var(--orange);
+    color: #000;
+}
+
+.toast-info {
+    background: var(--blue);
+    color: #000;
+}

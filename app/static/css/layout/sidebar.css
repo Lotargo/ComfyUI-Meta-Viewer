@@ -1,0 +1,114 @@
+.sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-min);
+    max-width: var(--sidebar-max);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.sidebar.collapsed {
+    width: 0;
+    min-width: 0;
+    border-right: none;
+}
+
+.sidebar-header {
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-shrink: 0;
+}
+
+.sidebar-title {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sidebar-info {
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.sidebar-folder {
+    font-size: 11px;
+    color: var(--accent);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sidebar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-left: auto;
+}
+
+/* Resize handle */
+.sidebar-resize {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 1;
+    transition: background var(--transition-fast);
+}
+
+.sidebar-resize:hover,
+.sidebar-resize.active {
+    background: var(--accent);
+}
+
+/* Image list */
+.image-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-sm);
+}
+
+/* Grid mode */
+.image-list.grid-mode {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+}
+
+/* View toggle */
+.view-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.view-toggle button {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 14px;
+    color: var(--text-dim);
+    transition: all var(--transition-fast);
+    line-height: 1;
+}
+
+.view-toggle button:hover {
+    color: var(--text);
+}
+
+.view-toggle button.active {
+    background: var(--accent);
+    color: #fff;
+}

@@ -1,63 +1,90 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ComfyUI Meta Viewer</title>
-<link rel="stylesheet" href="/static/css/variables.css">
-<link rel="stylesheet" href="/static/css/reset.css">
-<link rel="stylesheet" href="/static/css/animations.css">
-<link rel="stylesheet" href="/static/css/layout.css">
-<link rel="stylesheet" href="/static/css/buttons.css">
-<link rel="stylesheet" href="/static/css/sidebar.css">
-<link rel="stylesheet" href="/static/css/content.css">
-<link rel="stylesheet" href="/static/css/sessions.css">
-<link rel="stylesheet" href="/static/css/gallery.css">
-<link rel="stylesheet" href="/static/css/lightbox.css">
-<link rel="stylesheet" href="/static/css/meta-view.css">
-<link rel="stylesheet" href="/static/css/toast.css">
-<link rel="stylesheet" href="/static/css/utilities.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyUI Meta Viewer</title>
+    <!-- Base -->
+    <link rel="stylesheet" href="/static/css/base/variables.css">
+    <link rel="stylesheet" href="/static/css/base/reset.css">
+    <link rel="stylesheet" href="/static/css/base/typography.css">
+    <!-- Layout -->
+    <link rel="stylesheet" href="/static/css/layout/app-shell.css">
+    <link rel="stylesheet" href="/static/css/layout/sidebar.css">
+    <link rel="stylesheet" href="/static/css/layout/content.css">
+    <!-- Components -->
+    <link rel="stylesheet" href="/static/css/components/buttons.css">
+    <link rel="stylesheet" href="/static/css/components/cards.css">
+    <link rel="stylesheet" href="/static/css/components/inputs.css">
+    <link rel="stylesheet" href="/static/css/components/badges.css">
+    <link rel="stylesheet" href="/static/css/components/skeleton.css">
+    <link rel="stylesheet" href="/static/css/components/toast.css">
+    <link rel="stylesheet" href="/static/css/components/shortcuts.css">
+    <link rel="stylesheet" href="/static/css/components/search.css">
+    <!-- Features -->
+    <link rel="stylesheet" href="/static/css/features/meta-panel.css">
+    <link rel="stylesheet" href="/static/css/features/workflow-graph.css">
+    <link rel="stylesheet" href="/static/css/features/gallery.css">
+    <link rel="stylesheet" href="/static/css/features/lightbox.css">
+    <!-- Legacy (пока оставляем) -->
+    <link rel="stylesheet" href="/static/css/sessions.css">
+    <link rel="stylesheet" href="/static/css/gallery.css">
+    <link rel="stylesheet" href="/static/css/lightbox.css">
+    <link rel="stylesheet" href="/static/css/animations.css">
+    <link rel="stylesheet" href="/static/css/utilities.css">
+    <!-- Utils -->
+    <link rel="stylesheet" href="/static/css/utils/responsive.css">
 </head>
 <body>
 
-<div class="app-header">
-    <h1><span>Comfy</span>UI Meta Viewer</h1>
-    <div class="header-actions">
+<header class="app-header">
+    <div class="header-left">
+        <button class="icon-btn" id="sidebar-toggle" title="Toggle sidebar (B)">&#9776;</button>
+        <div class="header-logo"><span>Comfy</span>UI Meta Viewer</div>
+    </div>
+    <div class="header-center">
+        <input type="text" class="search-input" id="search-input" placeholder="Search metadata... (Ctrl+F)">
+    </div>
+    <div class="header-right">
+        <div class="view-toggle">
+            <button id="btn-view-list" class="active" title="List view">&#9776;</button>
+            <button id="btn-view-grid" title="Grid view">&#9638;</button>
+            <button id="btn-view-gallery" title="Gallery view">&#9641;</button>
+        </div>
         <label class="btn" for="file-input">Open Files</label>
         <label class="btn" for="add-file-input">Add Files</label>
         <label class="btn" for="folder-input">Open Folder</label>
         <button class="btn" id="btn-paste">Paste Path</button>
+        <button class="icon-btn" id="shortcuts-btn" title="Keyboard shortcuts (?)">?</button>
     </div>
-</div>
+</header>
 
 <input type="file" id="file-input" class="hidden-input" multiple accept="image/*">
 <input type="file" id="add-file-input" class="hidden-input" multiple accept="image/*">
 <input type="file" id="folder-input" class="hidden-input" webkitdirectory directory>
 
-<div class="main-layout">
-    <div class="sidebar">
+<main class="app-main">
+    <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3>Images</h3>
-            <span id="folder-name" style="font-size:11px;color:var(--accent);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-            <span id="image-count" style="font-size:12px;color:var(--text-dim)"></span>
-            <div class="view-toggle">
-                <button id="btn-view-list" class="active" title="List view">&#9776;</button>
-                <button id="btn-view-grid" title="Grid view">&#9638;</button>
-                <button id="btn-view-gallery" title="Gallery view">&#9641;</button>
-            </div>
+            <span class="sidebar-title">Images</span>
+            <button class="btn btn-sm btn-new-session" id="btn-new-session" title="New session">+</button>
+            <span class="sidebar-folder" id="folder-name"></span>
+            <span class="sidebar-info" id="image-count"></span>
             <button class="btn btn-sm" id="btn-clear">Clear</button>
         </div>
         <div class="image-list" id="image-list"></div>
-    </div>
-    <div class="content-area" id="content-area">
+        <div class="sidebar-resize" id="sidebar-resize"></div>
+    </aside>
+
+    <section class="content-area" id="content-area">
         <div class="drop-zone" id="drop-zone">
-            <div class="icon">&#128444;</div>
+            <div class="drop-zone-icon">&#128444;</div>
             <h2>Drop images here</h2>
             <p>or use buttons above / paste path</p>
-            <div class="hint">Supports PNG, JPG, WEBP, BMP, TIFF</div>
+            <div class="drop-zone-hint">Supports PNG, JPG, WEBP, BMP, TIFF</div>
         </div>
-    </div>
-</div>
+    </section>
+</main>
 
 <div class="toast" id="toast"></div>
 
@@ -66,7 +93,18 @@
     <div class="lightbox-top">
         <span class="lb-title" id="lb-title"></span>
         <span class="lb-counter" id="lb-counter"></span>
-        <button class="btn btn-sm" id="lb-copy" title="Copy all metadata">&#128203; Copy All</button>
+        <div class="lb-zoom-controls">
+            <button class="lb-btn" id="lb-zoom-out" title="Zoom out (-)">&#8722;</button>
+            <span class="lb-zoom-level" id="lb-zoom-level">100%</span>
+            <button class="lb-btn" id="lb-zoom-in" title="Zoom in (+)">+</button>
+            <button class="lb-btn" id="lb-zoom-reset" title="Reset zoom (0)">1:1</button>
+            <div class="lb-separator"></div>
+            <button class="lb-btn" id="lb-rotate-ccw" title="Rotate left">&#8634;</button>
+            <button class="lb-btn" id="lb-rotate-cw" title="Rotate right">&#8635;</button>
+        </div>
+        <button class="lb-btn" id="lb-toggle-meta" title="Toggle metadata panel (M)">&#9776;</button>
+        <button class="lb-btn" id="lb-download" title="Download image">&#8615;</button>
+        <button class="btn btn-sm" id="lb-copy" title="Copy all metadata (C)">&#128203; Copy All</button>
         <button class="lb-btn" id="lb-close" title="Close (Esc)">&#10005;</button>
     </div>
     <div class="lightbox-body">
@@ -75,7 +113,44 @@
             <img id="lb-img" src="" alt="">
             <button class="lb-nav next" id="lb-next">&#8250;</button>
         </div>
-        <div class="lightbox-meta-panel" id="lb-meta"></div>
+        <div class="lightbox-meta-panel open" id="lb-meta"></div>
+    </div>
+</div>
+
+<!-- Keyboard shortcuts overlay -->
+<div class="shortcuts-overlay" id="shortcuts-overlay">
+    <div class="shortcuts-modal">
+        <div class="shortcuts-header">
+            <h3>Keyboard Shortcuts</h3>
+            <button class="icon-btn" id="shortcuts-close">&#10005;</button>
+        </div>
+        <div class="shortcuts-body">
+            <div class="shortcut-group">
+                <h4>Navigation</h4>
+                <div class="shortcut-row"><kbd>&#8592;</kbd><kbd>&#8594;</kbd> Previous / Next image</div>
+                <div class="shortcut-row"><kbd>Esc</kbd> Close lightbox</div>
+            </div>
+            <div class="shortcut-group">
+                <h4>View</h4>
+                <div class="shortcut-row"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Switch tabs</div>
+                <div class="shortcut-row"><kbd>B</kbd> Toggle sidebar</div>
+                <div class="shortcut-row"><kbd>F</kbd> Toggle fullscreen</div>
+                <div class="shortcut-row"><kbd>M</kbd> Toggle metadata panel</div>
+            </div>
+            <div class="shortcut-group">
+                <h4>Zoom</h4>
+                <div class="shortcut-row"><kbd>+</kbd><kbd>-</kbd> Zoom in / out</div>
+                <div class="shortcut-row"><kbd>0</kbd> Reset zoom</div>
+                <div class="shortcut-row">Scroll wheel to zoom</div>
+                <div class="shortcut-row">Double-click to reset</div>
+            </div>
+            <div class="shortcut-group">
+                <h4>Actions</h4>
+                <div class="shortcut-row"><kbd>/</kbd> or <kbd>Ctrl+F</kbd> Focus search</div>
+                <div class="shortcut-row"><kbd>C</kbd> Copy metadata</div>
+                <div class="shortcut-row"><kbd>?</kbd> Show this help</div>
+            </div>
+        </div>
     </div>
 </div>
 

@@ -1,0 +1,246 @@
+/* === Responsive Design === */
+
+/* Tablet (768px - 1024px) */
+@media (max-width: 1024px) {
+    :root {
+        --sidebar-width: 280px;
+        --meta-panel-width: 320px;
+    }
+
+    .header-center {
+        max-width: 320px;
+    }
+
+    .view-toggle {
+        display: none;
+    }
+}
+
+/* Mobile (< 768px) */
+@media (max-width: 768px) {
+    /* Header */
+    .app-header {
+        padding: 0 var(--space-sm);
+        gap: var(--space-sm);
+    }
+
+    .header-logo {
+        font-size: 14px;
+    }
+
+    .header-center {
+        display: none;
+    }
+
+    .header-right .btn {
+        display: none;
+    }
+
+    .header-right .btn:first-child {
+        display: inline-flex;
+    }
+
+    /* Sidebar */
+    .sidebar {
+        position: fixed;
+        top: var(--header-height);
+        left: 0;
+        bottom: 0;
+        z-index: var(--z-sidebar);
+        transform: translateX(-100%);
+        transition: transform var(--transition);
+        width: var(--sidebar-width);
+        min-width: 0;
+        max-width: 80vw;
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .sidebar.collapsed {
+        transform: translateX(-100%);
+    }
+
+    .sidebar-resize {
+        display: none;
+    }
+
+    /* Content */
+    .content-area {
+        padding: var(--space-md);
+    }
+
+    /* Meta view */
+    .meta-view-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .meta-thumb {
+        width: 60px;
+        height: 60px;
+    }
+
+    .card-row {
+        flex-direction: column;
+        gap: var(--space-xs);
+    }
+
+    .card-row .key {
+        width: 100%;
+        min-width: 0;
+        font-size: 11px;
+    }
+
+    .card-row .value {
+        font-size: 11px;
+    }
+
+    /* Tabs */
+    .content-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .content-tab {
+        white-space: nowrap;
+        font-size: 12px;
+        padding: var(--space-xs) var(--space-sm);
+    }
+
+    /* Workflow graph */
+    .workflow-graph {
+        min-height: 200px;
+        max-height: 300px;
+    }
+
+    /* Lightbox */
+    .lightbox-meta-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        max-width: 100%;
+        transform: translateX(100%);
+        transition: transform var(--transition);
+        z-index: var(--z-lightbox);
+    }
+
+    .lightbox-meta-panel.open {
+        transform: translateX(0);
+    }
+
+    .lb-nav {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+
+    .lb-nav.prev {
+        left: var(--space-sm);
+    }
+
+    .lb-nav.next {
+        right: var(--space-sm);
+    }
+
+    /* Shortcuts overlay */
+    .shortcuts-modal {
+        width: 90vw;
+        max-width: 400px;
+    }
+
+    /* Toast */
+    .toast {
+        left: var(--space-md);
+        right: var(--space-md);
+        bottom: var(--space-md);
+    }
+}
+
+/* Small mobile (< 480px) */
+@media (max-width: 480px) {
+    .header-right {
+        gap: var(--space-xs);
+    }
+
+    .icon-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 16px;
+    }
+
+    .content-area {
+        padding: var(--space-sm);
+    }
+
+    .drop-zone {
+        padding: var(--space-lg);
+        min-height: 250px;
+    }
+
+    .drop-zone-icon {
+        font-size: 40px;
+    }
+
+    .drop-zone h2 {
+        font-size: 14px;
+    }
+
+    .gallery-card img {
+        height: 120px;
+    }
+}
+
+/* Landscape mode on mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+    .app-header {
+        height: 44px;
+    }
+
+    .app-main {
+        height: calc(100vh - 44px);
+        margin-top: 44px;
+    }
+
+    .lightbox-top {
+        padding: var(--space-xs) var(--space-sm);
+    }
+
+    .lightbox-body {
+        flex-direction: row;
+    }
+}
+
+/* High DPI screens */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .skeleton::after {
+        background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.08),
+            transparent
+        );
+    }
+}
+
+/* Prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Dark mode only - but respect system preference for contrast */
+@media (prefers-contrast: high) {
+    :root {
+        --border: #444455;
+        --text-dim: #aaaaaa;
+    }
+}

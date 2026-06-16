@@ -1,0 +1,75 @@
+:root {
+    /* === Colors === */
+    --bg: #0f0f14;
+    --bg-elevated: #14141c;
+    --surface: #1a1a24;
+    --surface2: #22222e;
+    --surface3: #2a2a3a;
+    --border: #2e2e3e;
+    --border-subtle: #252535;
+
+    /* Text */
+    --text: #e0e0e8;
+    --text-dim: #8888a0;
+    --text-muted: #5a5a70;
+
+    /* Accent */
+    --accent: #7c6aef;
+    --accent-hover: #8d7ef5;
+    --accent-dim: rgba(124, 106, 239, 0.15);
+    --accent2: #5a4ad4;
+
+    /* Semantic */
+    --green: #4ade80;
+    --green-dim: rgba(74, 222, 128, 0.15);
+    --orange: #fb923c;
+    --orange-dim: rgba(251, 146, 60, 0.15);
+    --red: #f87171;
+    --red-dim: rgba(248, 113, 113, 0.15);
+    --blue: #60a5fa;
+    --blue-dim: rgba(96, 165, 250, 0.15);
+    --pink: #f472b6;
+    --pink-dim: rgba(244, 114, 182, 0.15);
+    --cyan: #22d3ee;
+    --cyan-dim: rgba(34, 211, 238, 0.15);
+
+    /* === Spacing === */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 12px;
+    --space-lg: 16px;
+    --space-xl: 24px;
+    --space-2xl: 32px;
+
+    /* === Radius === */
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-full: 9999px;
+
+    /* === Shadows === */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5);
+    --shadow-glow: 0 0 20px rgba(124, 106, 239, 0.2);
+
+    /* === Transitions === */
+    --transition-fast: 0.1s ease;
+    --transition: 0.15s ease;
+    --transition-slow: 0.25s ease;
+
+    /* === Z-index === */
+    --z-sidebar: 10;
+    --z-header: 100;
+    --z-dropdown: 200;
+    --z-lightbox: 500;
+    --z-toast: 1000;
+
+    /* === Layout === */
+    --header-height: 56px;
+    --sidebar-width: 340px;
+    --sidebar-min: 280px;
+    --sidebar-max: 500px;
+    --meta-panel-width: 380px;
+}

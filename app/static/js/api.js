@@ -1,5 +1,5 @@
 import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, sessions, activeSessionId, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setGalleryActive, setIsLoading, isLoading, saveState } from './state.js';
-import { createSession, getActiveSession } from './sessions.js';
+import { createSession, getActiveSession, createSessionOnServer } from './sessions.js';
 import { escapeHtml, thumbUrl, showLoading, showError } from './utils.js';
 
 export async function scanFolder(path) {
@@ -18,6 +18,9 @@ export async function scanFolder(path) {
         const session = createSession(data.folder ? data.folder.name : path.split(/[/\\]/).pop());
         session.images = newImages;
         for (const img of newImages) images.push(img);
+        // Sync with backend
+        const srvSession = await createSessionOnServer(session.name, data.folder_id);
+        if (srvSession) session.serverId = srvSession.id;
         setTotalImages(data.total || images.length);
         setCurrentPage(1);
         setAllLoaded(images.length >= totalImages);
@@ -54,6 +57,9 @@ export async function loadFromPaths(paths) {
             const session = createSession();
             session.images = data.images;
             for (const img of data.images) images.push(img);
+            // Sync with backend
+            const srvSession = await createSessionOnServer(session.name);
+            if (srvSession) session.serverId = srvSession.id;
             setTotalImages(images.length);
             if (activeIndex < 0) setActiveIndex(0);
             saveState();
@@ -86,6 +92,9 @@ export async function loadFromFiles(files) {
             const session = createSession();
             session.images = data.images;
             for (const img of data.images) images.push(img);
+            // Sync with backend
+            const srvSession = await createSessionOnServer(session.name, data.folder_id || null);
+            if (srvSession) session.serverId = srvSession.id;
             setTotalImages(images.length);
             if (activeIndex < 0) setActiveIndex(0);
             saveState();

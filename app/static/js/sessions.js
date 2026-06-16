@@ -34,7 +34,7 @@ export async function removeSession(sessionId) {
     setActiveIndex(newActiveIndex);
     setTotalImages(images.length);
     saveState();
-    const { renderSidebar } = await import('./sidebar.js');
+    const { renderSidebar } = await import('./features/sidebar.js');
     renderSidebar();
     const contentArea = document.getElementById('content-area');
     if (activeIndex >= 0) {
@@ -43,4 +43,46 @@ export async function removeSession(sessionId) {
     } else {
         contentArea.innerHTML = '<div class="empty-state anim-fade-in"><div class="icon">&#128444;</div><p>No images loaded</p></div>';
     }
+    // Sync with backend
+    if (session.serverId) {
+        try { await fetch(`/api/sessions/${session.serverId}`, { method: 'DELETE' }); } catch (e) { /* ignore */ }
+    }
+}
+
+export async function fetchSessionsFromServer() {
+    try {
+        const resp = await fetch('/api/sessions');
+        const data = await resp.json();
+        return data.sessions || [];
+    } catch (e) {
+        return [];
+    }
+}
+
+export async function createSessionOnServer(name, folderId) {
+    try {
+        const resp = await fetch('/api/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name || '', folder_id: folderId || null })
+        });
+        if (resp.ok) return await resp.json();
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+export async function deleteSessionOnServer(sessionId) {
+    try { await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' }); } catch (e) { /* ignore */ }
+}
+
+export async function renameSessionOnServer(sessionId, name) {
+    try {
+        const resp = await fetch(`/api/sessions/${sessionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        if (resp.ok) return await resp.json();
+    } catch (e) { /* ignore */ }
+    return null;
 }

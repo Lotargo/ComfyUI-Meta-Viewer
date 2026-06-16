@@ -1,0 +1,92 @@
+/* === Badge component === */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+}
+
+/* Category badges */
+.badge-models {
+    background: var(--accent);
+    color: #fff;
+}
+
+.badge-prompts {
+    background: var(--green);
+    color: #000;
+}
+
+.badge-sampler {
+    background: var(--orange);
+    color: #000;
+}
+
+.badge-image-settings {
+    background: var(--blue);
+    color: #000;
+}
+
+.badge-post-processing {
+    background: var(--pink);
+    color: #000;
+}
+
+.badge-lora {
+    background: var(--cyan);
+    color: #000;
+}
+
+.badge-other {
+    background: var(--text-dim);
+    color: #000;
+}
+
+/* Status badges */
+.badge-success {
+    background: var(--green-dim);
+    color: var(--green);
+}
+
+.badge-warning {
+    background: var(--orange-dim);
+    color: var(--orange);
+}
+
+.badge-error {
+    background: var(--red-dim);
+    color: var(--red);
+}
+
+/* Format badge */
+.badge-format {
+    background: var(--surface3);
+    color: var(--text-dim);
+}
+
+/* === Counter badge === */
+
+.counter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--accent);
+    color: #fff;
+    border-radius: var(--radius-full);
+}
+
+.counter-sm {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+}

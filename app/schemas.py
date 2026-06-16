@@ -119,3 +119,20 @@ class FolderListResponse(BaseModel):
 
 class OkResponse(BaseModel):
     ok: bool = True
+
+
+class SessionInfo(BaseModel):
+    id: int
+    name: str
+    folder_id: int | None = None
+    created_at: str | None = None
+    image_count: int = 0
+
+
+class CreateSessionRequest(BaseModel):
+    name: str = ""
+    folder_id: int | None = None
+
+
+class UpdateSessionRequest(BaseModel):
+    name: str = Field(..., min_length=1)

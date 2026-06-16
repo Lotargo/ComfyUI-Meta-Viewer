@@ -1,0 +1,106 @@
+/* === Workflow Graph === */
+
+.workflow-graph-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.workflow-graph-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md) var(--space-lg);
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+}
+
+.workflow-graph-header h4 {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.workflow-graph {
+    overflow: auto;
+    padding: var(--space-lg);
+    background: var(--bg);
+    min-height: 300px;
+    max-height: 500px;
+    cursor: grab;
+}
+
+.workflow-graph:active {
+    cursor: grabbing;
+}
+
+.workflow-svg {
+    display: block;
+    min-width: 100%;
+}
+
+/* Node styles */
+.workflow-node {
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.workflow-node:hover rect {
+    stroke-width: 3;
+}
+
+.workflow-node.selected rect {
+    stroke-width: 3;
+    stroke: #fff;
+}
+
+/* Connection styles */
+.workflow-connection {
+    transition: stroke 0.15s ease;
+}
+
+.workflow-connection:hover {
+    stroke: #7c6aef;
+    stroke-width: 3;
+}
+
+/* Node details panel */
+.workflow-node-details {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-lg);
+    margin-top: var(--space-lg);
+}
+
+.workflow-node-details h4 {
+    font-size: 14px;
+    margin-bottom: var(--space-md);
+}
+
+.workflow-node-details .node-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.workflow-node-details .node-input {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    background: var(--surface2);
+    border-radius: var(--radius-sm);
+}
+
+.workflow-node-details .node-input .key {
+    font-size: 12px;
+    color: var(--text-dim);
+    min-width: 100px;
+}
+
+.workflow-node-details .node-input .value {
+    font-size: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    flex: 1;
+}

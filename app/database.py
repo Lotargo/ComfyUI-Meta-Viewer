@@ -5,6 +5,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from .schemas import FolderInfo, ImageDetail, ImageInsertRow, ImageListItem, ImageMetadata, ImagesResponse
+
 _DB_PATH: str | None = None
 
 
@@ -96,7 +98,7 @@ def get_folder_mtimes(folder_id: int) -> dict[str, float]:
         conn.close()
 
 
-def insert_images(folder_id: int, images: list[dict[str, Any]]) -> None:
+def insert_images(folder_id: int, images: list[ImageInsertRow]) -> None:
     if not images:
         return
     conn = get_conn()
@@ -115,17 +117,17 @@ def insert_images(folder_id: int, images: list[dict[str, Any]]) -> None:
                     created_at=datetime('now')""",
                 (
                     folder_id,
-                    img.get("rel_path", ""),
-                    img.get("file_name", ""),
-                    img.get("file_size", 0),
-                    img.get("file_mtime", 0),
-                    img.get("format"),
-                    img.get("width", 0),
-                    img.get("height", 0),
-                    img.get("mode"),
-                    img.get("error"),
-                    img.get("metadata_json"),
-                    img.get("thumbnail_b64"),
+                    img.rel_path,
+                    img.file_name,
+                    img.file_size,
+                    img.file_mtime,
+                    img.format,
+                    img.width,
+                    img.height,
+                    img.mode,
+                    img.error,
+                    img.metadata_json,
+                    img.thumbnail_b64,
                 ),
             )
         conn.commit()
@@ -136,7 +138,7 @@ def insert_images(folder_id: int, images: list[dict[str, Any]]) -> None:
         conn.close()
 
 
-def get_folders() -> list[dict[str, Any]]:
+def get_folders() -> list[FolderInfo]:
     conn = get_conn()
     try:
         rows = conn.execute(
@@ -144,14 +146,14 @@ def get_folders() -> list[dict[str, Any]]:
             FROM folders f LEFT JOIN images i ON i.folder_id = f.id
             GROUP BY f.id ORDER BY f.scanned_at DESC"""
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [FolderInfo.model_validate(dict(r)) for r in rows]
     finally:
         conn.close()
 
 
 def get_images_page(
     folder_id: int, page: int = 1, per_page: int = 50
-) -> dict[str, Any]:
+) -> ImagesResponse:
     conn = get_conn()
     try:
         total_row = conn.execute(
@@ -168,10 +170,15 @@ def get_images_page(
         images = []
         for r in rows:
             d = dict(r)
-            if d.get("width") and d.get("height"):
-                d["size"] = [d["width"], d["height"]]
-            images.append(d)
-        return {"images": images, "total": total, "page": page, "per_page": per_page}
+            w, h = d.get("width"), d.get("height")
+            images.append(ImageListItem(
+                id=d.get("id"),
+                file_name=d.get("file_name", ""),
+                format=d.get("format"),
+                size=[w, h] if w and h else None,
+                error=d.get("error"),
+            ))
+        return ImagesResponse(images=images, total=total, page=page, per_page=per_page)
     finally:
         conn.close()
 
@@ -192,7 +199,7 @@ def get_image_path(image_id: int) -> str | None:
         conn.close()
 
 
-def get_image_detail(image_id: int) -> dict[str, Any] | None:
+def get_image_detail(image_id: int) -> ImageDetail | None:
     conn = get_conn()
     try:
         row = conn.execute("SELECT * FROM images WHERE id = ?", (image_id,)).fetchone()
@@ -200,22 +207,28 @@ def get_image_detail(image_id: int) -> dict[str, Any] | None:
             return None
         d = dict(row)
         meta_json = d.pop("metadata_json", None)
+        merged: dict[str, Any] = {}
         if meta_json:
             try:
-                meta = json.loads(meta_json)
-                d.update(meta)
+                merged = json.loads(meta_json)
             except (json.JSONDecodeError, TypeError):
                 pass
-        d.pop("folder_id", None)
-        d.pop("rel_path", None)
-        d.pop("file_size", None)
-        d.pop("file_mtime", None)
-        d.pop("created_at", None)
-        d.pop("thumbnail_b64", None)
-        d.pop("original_data", None)
-        if d.get("width") and d.get("height"):
-            d["size"] = [d.pop("width"), d.pop("height")]
-        return d
+
+        w, h = d.get("width"), d.get("height")
+        return ImageDetail(
+            id=d.get("id"),
+            file_name=d.get("file_name", ""),
+            format=merged.get("format") or d.get("format"),
+            size=[w, h] if w and h else merged.get("size"),
+            mode=merged.get("mode") or d.get("mode"),
+            error=d.get("error"),
+            prompt_parameters=merged.get("prompt_parameters"),
+            workflow=merged.get("workflow"),
+            exif=merged.get("exif"),
+            raw_chunks=merged.get("raw_chunks"),
+            raw_parameters=merged.get("raw_parameters"),
+            raw_params=merged.get("raw_parameters"),
+        )
     finally:
         conn.close()
 
@@ -236,7 +249,7 @@ def delete_folder(folder_id: int) -> None:
 def insert_upload_image(
     file_name: str,
     original_data: bytes,
-    metadata: dict[str, Any],
+    metadata: ImageMetadata,
     thumbnail_b64: str,
 ) -> tuple[int, int]:
     conn = get_conn()
@@ -263,12 +276,12 @@ def insert_upload_image(
                 file_name,
                 file_name,
                 len(original_data),
-                metadata.get("format"),
-                metadata.get("size", [0, 0])[0] if metadata.get("size") else 0,
-                metadata.get("size", [0, 0])[1] if metadata.get("size") else 0,
-                metadata.get("mode"),
-                metadata.get("error"),
-                json.dumps(metadata, default=str),
+                metadata.format,
+                metadata.size[0] if metadata.size else 0,
+                metadata.size[1] if metadata.size else 0,
+                metadata.mode,
+                metadata.error,
+                metadata.model_dump_json(),
                 thumbnail_b64,
                 original_data,
             ),

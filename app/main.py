@@ -8,6 +8,7 @@ import webbrowser
 import threading
 from pathlib import Path
 
+from pydantic import ValidationError
 from flask import Flask, Response, jsonify, render_template, request
 
 from . import database as db
@@ -16,9 +17,19 @@ from .extractor import (
     make_thumbnail_bytes,
     make_thumbnail_bytes_from_bytes,
     make_thumbnail_b64,
-    scan_directory,
     scan_paths,
     SUPPORTED,
+)
+from .schemas import (
+    ExtractRequest,
+    FolderInfo,
+    ImageInsertRow,
+    ImageListItem,
+    ImageMetadata,
+    ImagesResponse,
+    OkResponse,
+    ScanRequest,
+    ScanResponse,
 )
 
 app = Flask(__name__)
@@ -33,22 +44,21 @@ def index():
 @app.route("/api/folders", methods=["GET"])
 def api_folders():
     folders = db.get_folders()
-    return jsonify({"folders": folders})
+    return jsonify({"folders": [f.model_dump() for f in folders]})
 
 
 @app.route("/api/scan", methods=["POST"])
 def api_scan():
-    data = request.get_json(silent=True) or {}
-    path_str = data.get("path", "").strip()
-    if not path_str:
-        return jsonify({"error": "No path provided"}), 400
+    try:
+        req = ScanRequest.model_validate(request.get_json(silent=True) or {})
+    except ValidationError as e:
+        return jsonify({"error": e.errors()[0]["msg"]}), 400
 
-    folder_path = Path(path_str)
+    folder_path = Path(req.path)
     if not folder_path.is_dir():
-        return jsonify({"error": f"Not a directory: {path_str}"}), 400
+        return jsonify({"error": f"Not a directory: {req.path}"}), 400
 
-    folder_id = db.upsert_folder(path_str)
-
+    folder_id = db.upsert_folder(req.path)
     old_mtimes = db.get_folder_mtimes(folder_id)
 
     files = sorted(
@@ -57,7 +67,7 @@ def api_scan():
         if f.is_file() and f.suffix.lower() in SUPPORTED
     )
 
-    to_process = []
+    to_process: list[tuple[str, Path]] = []
     cached_count = 0
     for f in files:
         rel_path = f.name
@@ -68,55 +78,50 @@ def api_scan():
             to_process.append((rel_path, f))
 
     if to_process:
-        new_images = []
+        new_images: list[ImageInsertRow] = []
         for rel_path, f in to_process:
             try:
                 meta = extract_metadata(f)
                 stat = f.stat()
-                new_images.append(
-                    {
-                        "rel_path": rel_path,
-                        "file_name": f.name,
-                        "file_size": stat.st_size,
-                        "file_mtime": stat.st_mtime,
-                        "format": meta.get("format"),
-                        "width": meta.get("size", [0, 0])[0],
-                        "height": meta.get("size", [0, 0])[1],
-                        "mode": meta.get("mode"),
-                        "error": meta.get("error"),
-                        "metadata_json": json.dumps(meta, default=str),
-                    }
-                )
+                new_images.append(ImageInsertRow(
+                    rel_path=rel_path,
+                    file_name=f.name,
+                    file_size=stat.st_size,
+                    file_mtime=stat.st_mtime,
+                    format=meta.format,
+                    width=meta.size[0] if meta.size else 0,
+                    height=meta.size[1] if meta.size else 0,
+                    mode=meta.mode,
+                    error=meta.error,
+                    metadata_json=meta.model_dump_json(),
+                ))
             except Exception as e:
                 stat = f.stat()
-                new_images.append(
-                    {
-                        "rel_path": rel_path,
-                        "file_name": f.name,
-                        "file_size": stat.st_size,
-                        "file_mtime": stat.st_mtime,
-                        "error": str(e) + "\n" + traceback.format_exc(),
-                    }
-                )
+                new_images.append(ImageInsertRow(
+                    rel_path=rel_path,
+                    file_name=f.name,
+                    file_size=stat.st_size,
+                    file_mtime=stat.st_mtime,
+                    error=str(e) + "\n" + traceback.format_exc(),
+                ))
 
         db.insert_images(folder_id, new_images)
 
     first_page = db.get_images_page(folder_id, page=1, per_page=50)
     folder_info = db.get_folders()
-    current = next((f for f in folder_info if f["id"] == folder_id), None)
+    current = next((f for f in folder_info if f.id == folder_id), None)
 
-    return jsonify(
-        {
-            "folder_id": folder_id,
-            "folder": current,
-            "page": 1,
-            "per_page": 50,
-            "total": first_page["total"],
-            "images": first_page["images"],
-            "cached": cached_count,
-            "processed": len(to_process),
-        }
+    resp = ScanResponse(
+        folder_id=folder_id,
+        folder=current,
+        page=1,
+        per_page=50,
+        total=first_page.total,
+        images=first_page.images,
+        cached=cached_count,
+        processed=len(to_process),
     )
+    return jsonify(resp.model_dump())
 
 
 @app.route("/api/images", methods=["GET"])
@@ -127,7 +132,7 @@ def api_images():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 50, type=int)
     result = db.get_images_page(folder_id, page, per_page)
-    return jsonify(result)
+    return jsonify(result.model_dump())
 
 
 @app.route("/api/images/<int:image_id>", methods=["GET"])
@@ -135,13 +140,13 @@ def api_image_detail(image_id: int):
     detail = db.get_image_detail(image_id)
     if detail is None:
         return jsonify({"error": "Image not found"}), 404
-    return jsonify(detail)
+    return jsonify(detail.model_dump())
 
 
 @app.route("/api/folders/<int:folder_id>", methods=["DELETE"])
 def api_delete_folder(folder_id: int):
     db.delete_folder(folder_id)
-    return jsonify({"ok": True})
+    return jsonify(OkResponse().model_dump())
 
 
 @app.route("/api/thumbnail/<int:image_id>")
@@ -203,18 +208,20 @@ def api_original(image_id: int):
 
 @app.route("/api/extract", methods=["POST"])
 def api_extract():
-    data = request.get_json(silent=True) or {}
-    paths = data.get("paths", [])
-    if not paths:
-        return jsonify({"error": "No paths provided"}), 400
-    results = scan_paths(paths)
+    try:
+        req = ExtractRequest.model_validate(request.get_json(silent=True) or {})
+    except ValidationError as e:
+        return jsonify({"error": e.errors()[0]["msg"]}), 400
+
+    results = scan_paths(req.paths)
+    image_dicts = []
     for item in results:
-        if "error" in item:
-            continue
-        path = item.get("path", "")
-        if path and Path(path).is_file():
-            item["thumbnail"] = make_thumbnail_b64(path)
-    return jsonify({"images": results, "count": len(results)})
+        d = item.model_dump()
+        if not d.get("error") and d.get("path") and Path(d["path"]).is_file():
+            d["thumbnail"] = make_thumbnail_b64(d["path"])
+        image_dicts.append(d)
+
+    return jsonify({"images": image_dicts, "count": len(image_dicts)})
 
 
 @app.route("/api/upload", methods=["POST"])
@@ -222,7 +229,8 @@ def api_upload():
     if "files" not in request.files:
         return jsonify({"error": "No files"}), 400
     files = request.files.getlist("files")
-    results = []
+    results: list[dict] = []
+    folder_id: int | None = None
     for f in files:
         if not f.filename:
             continue
@@ -245,20 +253,25 @@ def api_upload():
             meta = extract_metadata(tmp)
             thumbnail = make_thumbnail_b64(tmp)
             tmp.unlink(missing_ok=True)
-            image_id, folder_id = db.insert_upload_image(
+            img_id, fid = db.insert_upload_image(
                 file_name=f.filename,
                 original_data=original_data,
                 metadata=meta,
                 thumbnail_b64=thumbnail,
             )
-            meta["id"] = image_id
-            meta["folder_id"] = folder_id
-            meta["thumbnail"] = thumbnail
-            results.append(meta)
+            folder_id = fid
+            result = meta.model_dump()
+            result["id"] = img_id
+            result["folder_id"] = fid
+            result["thumbnail"] = thumbnail
+            results.append(result)
         except Exception as e:
             tb = traceback.format_exc()
             results.append({"file": f.filename, "error": f"{e}\n{tb}"})
-    return jsonify({"images": results, "count": len(results)})
+    resp = {"images": results, "count": len(results)}
+    if folder_id is not None:
+        resp["folder_id"] = folder_id
+    return jsonify(resp)
 
 
 def open_browser(port: int):

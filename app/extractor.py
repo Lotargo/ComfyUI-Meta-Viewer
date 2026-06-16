@@ -12,6 +12,8 @@ from typing import Any
 from PIL import Image
 from PIL.ExifTags import TAGS
 
+from .schemas import ImageMetadata
+
 SUPPORTED = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"}
 
 
@@ -317,7 +319,7 @@ def parse_workflow_json(prompt_json: dict | None, workflow_json: dict | None) ->
     return result
 
 
-def extract_metadata(path: Path) -> dict[str, Any]:
+def extract_metadata(path: Path) -> ImageMetadata:
     meta: dict[str, Any] = {"file": path.name, "path": str(path)}
 
     img = Image.open(path)
@@ -367,7 +369,7 @@ def extract_metadata(path: Path) -> dict[str, Any]:
     if workflow_json:
         meta["workflow_ui_json"] = workflow_json
 
-    return meta
+    return ImageMetadata.model_validate(meta)
 
 
 def _generate_params_from_api(prompt_json: dict) -> dict[str, Any]:
@@ -452,8 +454,8 @@ def _generate_params_from_api(prompt_json: dict) -> dict[str, Any]:
     return result
 
 
-def scan_directory(dir_path: Path) -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
+def scan_directory(dir_path: Path) -> list[ImageMetadata]:
+    results: list[ImageMetadata] = []
     files = sorted(
         f for f in dir_path.iterdir()
         if f.is_file() and f.suffix.lower() in SUPPORTED
@@ -462,12 +464,12 @@ def scan_directory(dir_path: Path) -> list[dict[str, Any]]:
         try:
             results.append(extract_metadata(f))
         except Exception as e:
-            results.append({"file": f.name, "path": str(f), "error": str(e)})
+            results.append(ImageMetadata(file=f.name, path=str(f), error=str(e)))
     return results
 
 
-def scan_paths(paths: list[str]) -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
+def scan_paths(paths: list[str]) -> list[ImageMetadata]:
+    results: list[ImageMetadata] = []
     for p in paths:
         pp = Path(p)
         if pp.is_dir():
@@ -476,7 +478,7 @@ def scan_paths(paths: list[str]) -> list[dict[str, Any]]:
             try:
                 results.append(extract_metadata(pp))
             except Exception as e:
-                results.append({"file": pp.name, "path": str(pp), "error": str(e)})
+                results.append(ImageMetadata(file=pp.name, path=str(pp), error=str(e)))
     return results
 
 

@@ -5,30 +5,21 @@ interface ImageListItem {
   file_name: string;
   file?: string;
   path?: string;
-  format?: string;
-  size?: [number, number];
-  mode?: string;
+  format?: string | null;
+  size?: number[] | null;
+  mode?: string | null;
   error?: string | null;
-  thumbnail?: string;
-  width?: number;
-  height?: number;
+  thumbnail?: string | null;
 }
 
 interface ImageDetail extends ImageListItem {
-  prompt_parameters?: PromptParameters;
-  workflow?: { workflow_nodes: Record<string, WorkflowNode[]> };
-  exif?: Record<string, string>;
-  raw_chunks?: Record<string, unknown>;
-  raw_parameters?: string;
-  folder_id?: number;
-}
-
-interface PromptParameters {
-  positive_prompt?: string;
-  negative_prompt?: string;
-  generation_settings?: Record<string, unknown>;
-  extra_settings?: Record<string, unknown>;
-  [key: string]: unknown;
+  prompt_parameters?: Record<string, unknown> | null;
+  workflow?: { workflow_nodes: Record<string, WorkflowNode[]> } | null;
+  exif?: Record<string, string> | null;
+  raw_chunks?: Record<string, unknown> | null;
+  raw_parameters?: string | null;
+  raw_params?: string | null;
+  folder_id?: number | null;
 }
 
 interface WorkflowNode {
@@ -36,6 +27,15 @@ interface WorkflowNode {
   class_type: string;
   title?: string;
   inputs?: Record<string, unknown>;
+}
+
+interface FolderInfo {
+  id: number;
+  path: string;
+  name: string;
+  scanned_at?: string | null;
+  created_at?: string | null;
+  image_count: number;
 }
 
 interface Session {
@@ -66,7 +66,9 @@ interface AppState {
 
 interface ScanResponse {
   folder_id: number;
-  folder: { id: number; path: string; name: string } | null;
+  folder: FolderInfo | null;
+  page: number;
+  per_page: number;
   total: number;
   images: ImageListItem[];
   cached: number;
@@ -92,4 +94,8 @@ interface ImageDetailResponse extends ImageDetail {}
 interface ExtractResponse {
   images: Array<ImageDetail | { file: string; error: string }>;
   count: number;
+}
+
+interface FolderListResponse {
+  folders: FolderInfo[];
 }

@@ -3,7 +3,7 @@
 .shortcuts-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(6, 6, 12, 0.85);
+    background: rgba(6, 9, 12, 0.86);
     backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
@@ -20,14 +20,14 @@
 }
 
 .shortcuts-modal {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-glow);
-    border-radius: var(--radius-lg);
-    width: 680px;
+    background: color-mix(in srgb, var(--bg-elevated) 92%, var(--surface));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    width: 780px;
     max-width: 92%;
     max-height: 85vh;
     overflow: hidden;
-    box-shadow: var(--shadow-lg), var(--shadow-glow);
+    box-shadow: var(--shadow-lg);
     display: flex;
     flex-direction: column;
     transform: scale(0.95);
@@ -42,7 +42,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-lg) var(--space-xl);
+    padding: 18px 20px;
     border-bottom: 1px solid var(--border);
 }
 
@@ -52,24 +52,63 @@
     font-weight: 700;
 }
 
-.shortcuts-content {
+.help-subtitle {
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.help-tabs {
     display: flex;
-    padding: var(--space-xl);
-    gap: var(--space-xl);
+    gap: 6px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    overflow-x: auto;
+}
+
+.help-tab {
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 650;
+    white-space: nowrap;
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.help-tab:hover {
+    color: var(--text);
+    background: var(--surface2);
+    border-color: var(--border);
+}
+
+.help-tab.active {
+    color: var(--text);
+    background: var(--accent-dim);
+    border-color: var(--accent);
+}
+
+.shortcuts-content {
+    display: block;
+    padding: 20px;
     overflow-y: auto;
 }
 
-.shortcuts-column {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-    min-width: 0;
+.help-panel {
+    display: none;
 }
 
-.shortcuts-column:first-child {
-    border-right: 1px solid var(--border);
-    padding-right: var(--space-xl);
+.help-panel.active {
+    display: block;
+}
+
+.help-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
 }
 
 .help-text {
@@ -99,7 +138,12 @@
 .shortcut-group {
     display: flex;
     flex-direction: column;
-    gap: var(--space-xs);
+    gap: 8px;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
 }
 
 .shortcut-group h4 {
@@ -114,10 +158,16 @@
 .shortcut-row {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 28px;
     padding: 2px 0;
     font-size: 12.5px;
     color: var(--text-dim);
+}
+
+.shortcut-row span:last-child {
+    text-align: right;
 }
 
 kbd {
@@ -134,4 +184,86 @@ kbd {
     font-size: 11px;
     font-weight: 600;
     color: var(--text);
+}
+
+.diagnostics-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.diagnostics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.diagnostic-card {
+    min-height: 72px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.diagnostic-card span,
+.diagnostics-paths span {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.diagnostic-card strong {
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 750;
+}
+
+.diagnostics-paths {
+    display: grid;
+    gap: 8px;
+}
+
+.diagnostics-paths div {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+}
+
+.diagnostics-paths code {
+    color: var(--text-dim);
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+    .help-grid,
+    .diagnostics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .diagnostics-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .diagnostics-paths div {
+        grid-template-columns: 1fr;
+    }
 }

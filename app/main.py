@@ -228,6 +228,22 @@ def api_reset():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/diagnostics", methods=["GET"])
+def api_diagnostics():
+    thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
+    thumb_count = 0
+    if thumb_dir.exists() and thumb_dir.is_dir():
+        thumb_count = sum(1 for f in thumb_dir.iterdir() if f.is_file())
+
+    diagnostics = db.get_diagnostics()
+    diagnostics.update({
+        "thumbnail_dir": str(thumb_dir),
+        "thumbnail_count": thumb_count,
+        "upload_dir": str(Path(app.config["UPLOAD_FOLDER"])),
+    })
+    return jsonify(diagnostics)
+
+
 @app.route("/api/thumbnail/<int:image_id>")
 
 def api_thumbnail(image_id: int):

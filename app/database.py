@@ -280,6 +280,27 @@ def delete_image(image_id: int) -> bool:
         conn.close()
 
 
+def get_diagnostics() -> dict[str, Any]:
+    conn = get_conn()
+    try:
+        folders_row = conn.execute("SELECT COUNT(*) AS c FROM folders").fetchone()
+        images_row = conn.execute("SELECT COUNT(*) AS c FROM images").fetchone()
+        uploads_row = conn.execute(
+            "SELECT COUNT(*) AS c FROM images WHERE original_data IS NOT NULL"
+        ).fetchone()
+        sessions_row = conn.execute("SELECT COUNT(*) AS c FROM sessions").fetchone()
+
+        return {
+            "db_path": get_db_path(),
+            "folders": folders_row["c"] if folders_row else 0,
+            "images": images_row["c"] if images_row else 0,
+            "uploads": uploads_row["c"] if uploads_row else 0,
+            "sessions": sessions_row["c"] if sessions_row else 0,
+        }
+    finally:
+        conn.close()
+
+
 def insert_upload_image(
     file_name: str,
     original_data: bytes,

@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/flask-3.1-000000?style=flat-square&logo=flask&logoColor=white" alt="Flask">
   <img src="https://img.shields.io/badge/sqlite-WAL-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite">
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/license-GPLv3-blue?style=flat-square" alt="License">
 </p>
 
 <p align="center">
@@ -101,8 +101,34 @@ Comfy Meta Viewer is a local web application for viewing, organizing, and analyz
 
 ## Screenshots
 
+### Gallery View
+
+Masonry grid layout with thumbnails and quick metadata preview on hover.
+
 <p align="center">
-  <em>Screenshots coming soon</em>
+  <img src="docs/assets/gallery-view.png" alt="Gallery View" width="100%">
+</p>
+
+### Lightbox with Metadata
+
+Click any image to open the lightbox — prompts, generation parameters, and model info at a glance.
+
+<p align="center">
+  <img src="docs/assets/lightbox-detail.png" alt="Lightbox Detail" width="100%">
+</p>
+
+### Demo
+
+Smooth scrolling through large galleries with lazy-loaded thumbnails.
+
+<p align="center">
+  <img src="docs/assets/gallery-scroll.gif" alt="Gallery Scroll" width="100%">
+</p>
+
+Interactive ComfyUI workflow graph — zoom, pan, and inspect individual node parameters.
+
+<p align="center">
+  <img src="docs/assets/lightbox-workflow.gif" alt="Lightbox Workflow" width="100%">
 </p>
 
 ---
@@ -281,7 +307,7 @@ See [Development Guide](docs/development.md) for setup instructions and code sty
 
 ## License
 
-MIT License
+GNU General Public License v3.0
 
 ---
 

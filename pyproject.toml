@@ -2,7 +2,8 @@
 name = "comfy-meta-viewer"
 version = "1.0.0"
 description = "ComfyUI image metadata viewer"
-authors = ["You"]
+authors = ["Lotargo"]
+license = "GPL-3.0-only"
 readme = "README.md"
 
 [tool.poetry.dependencies]

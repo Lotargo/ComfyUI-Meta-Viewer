@@ -87,9 +87,19 @@
 .anim-stagger > *:nth-child(n+11) { animation-delay: 300ms; }
 
 .lightbox-overlay.open .lightbox-image-area img {
-    animation: scaleIn 0.3s ease-out both;
+    animation: fadeIn 0.25s ease-out both;
 }
 
 .category-body:not(.collapsed) {
     animation: slideDown 0.2s ease-out both;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.anim-spin {
+    animation: spin 1s linear infinite;
+    display: inline-block;
 }

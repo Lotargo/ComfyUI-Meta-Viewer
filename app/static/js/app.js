@@ -2,12 +2,13 @@ import { saveState, dom, images, setImages, sessions, setSessions, setActiveSess
 import { createSession, fetchSessionsFromServer } from './sessions.js';
 import { initEvents, setViewMode } from './events.js';
 import { initLightboxEvents } from './lightbox.js';
-import { renderSidebar, initSidebarResize, toggleSidebar } from './features/sidebar.js';
+import { renderSidebar, initSidebarResize, toggleSidebar, renderFoldersList } from './features/sidebar.js';
 import { initSearch } from './components/search-bar.js';
 import { initKeyboardShortcuts } from './features/keyboard.js';
 
 async function restoreState() {
     try {
+        await renderFoldersList();
         const serverSessions = await fetchSessionsFromServer();
         if (!serverSessions.length) {
             // Try legacy sessionStorage restore
@@ -60,6 +61,8 @@ async function restoreState() {
                         const { renderMeta } = await import('./meta-view.js');
                         renderMeta(images[activeIndex]);
                     }
+                    const { switchSidebarTab } = await import('./events.js');
+                    switchSidebarTab('images');
                     return;
                 }
             }
@@ -109,6 +112,10 @@ async function restoreState() {
         if (activeIndex >= 0 && images[activeIndex]) {
             const { renderMeta } = await import('./meta-view.js');
             renderMeta(images[activeIndex]);
+        }
+        if (images.length > 0) {
+            const { switchSidebarTab } = await import('./events.js');
+            switchSidebarTab('images');
         }
     } catch (e) {
         console.warn('State restore failed:', e);

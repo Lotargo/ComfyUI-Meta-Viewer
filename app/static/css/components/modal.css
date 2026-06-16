@@ -1,0 +1,83 @@
+/* === Custom HSL Modal Dialogs === */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 6, 12, 0.82);
+    backdrop-filter: blur(10px);
+    z-index: var(--z-toast); /* higher than lightbox */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition);
+}
+
+.modal-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-content {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 440px;
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-lg), var(--shadow-glow);
+    transform: translateY(24px) scale(0.96);
+    transition: transform var(--transition);
+}
+
+.modal-overlay.open .modal-content {
+    transform: translateY(0) scale(1);
+    border-color: var(--accent-glow);
+}
+
+.modal-title {
+    font-family: var(--font-title);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: var(--space-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.modal-message {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: var(--space-lg);
+    line-height: 1.5;
+}
+
+.modal-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    padding: var(--space-sm) var(--space-md);
+    font-size: 13px;
+    margin-bottom: var(--space-lg);
+    outline: none;
+    transition: all var(--transition-fast);
+}
+
+.modal-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-md);
+}
+
+.modal-actions .btn {
+    min-width: 80px;
+}

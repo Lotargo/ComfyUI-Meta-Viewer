@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from PIL import Image
+from PIL import Image, ImageOps
 from PIL.ExifTags import TAGS
 
 from .schemas import ImageMetadata
@@ -323,6 +323,11 @@ def extract_metadata(path: Path) -> ImageMetadata:
     meta: dict[str, Any] = {"file": path.name, "path": str(path)}
 
     img = Image.open(path)
+    try:
+        from PIL import ImageOps
+        img = ImageOps.exif_transpose(img)
+    except Exception:
+        pass
     meta["format"] = img.format
     meta["size"] = list(img.size)
     meta["mode"] = img.mode
@@ -482,9 +487,10 @@ def scan_paths(paths: list[str]) -> list[ImageMetadata]:
     return results
 
 
-def _thumbnail_image(path: str | Path, max_size: int = 256) -> tuple[bytes, str] | None:
+def _thumbnail_image(path: str | Path, max_size: int = 1024) -> tuple[bytes, str] | None:
     try:
         img = Image.open(str(path))
+        img = ImageOps.exif_transpose(img)
         img.thumbnail((max_size, max_size))
         buf = io.BytesIO()
         fmt = "JPEG" if img.mode == "RGB" else "PNG"
@@ -493,13 +499,13 @@ def _thumbnail_image(path: str | Path, max_size: int = 256) -> tuple[bytes, str]
         if img.mode not in ("RGB", "RGBA", "L", "P", "LA"):
             img = img.convert("RGB")
             fmt = "JPEG"
-        img.save(buf, format=fmt, quality=80)
+        img.save(buf, format=fmt, quality=90)
         return buf.getvalue(), fmt.lower()
     except Exception:
         return None
 
 
-def make_thumbnail_b64(path: str | Path, max_size: int = 256) -> str | None:
+def make_thumbnail_b64(path: str | Path, max_size: int = 1024) -> str | None:
     result = _thumbnail_image(path, max_size)
     if result is None:
         return None
@@ -508,7 +514,7 @@ def make_thumbnail_b64(path: str | Path, max_size: int = 256) -> str | None:
     return f"data:image/{fmt};base64,{b64}"
 
 
-def make_thumbnail_bytes(path: str | Path, max_size: int = 256) -> bytes | None:
+def make_thumbnail_bytes(path: str | Path, max_size: int = 1024) -> bytes | None:
     result = _thumbnail_image(path, max_size)
     if result is None:
         return None
@@ -516,9 +522,10 @@ def make_thumbnail_bytes(path: str | Path, max_size: int = 256) -> bytes | None:
     return data
 
 
-def make_thumbnail_bytes_from_bytes(data: bytes, max_size: int = 256) -> bytes | None:
+def make_thumbnail_bytes_from_bytes(data: bytes, max_size: int = 1024) -> bytes | None:
     try:
         img = Image.open(io.BytesIO(data))
+        img = ImageOps.exif_transpose(img)
         img.thumbnail((max_size, max_size))
         buf = io.BytesIO()
         fmt = "JPEG" if img.mode == "RGB" else "PNG"
@@ -527,7 +534,7 @@ def make_thumbnail_bytes_from_bytes(data: bytes, max_size: int = 256) -> bytes |
         if img.mode not in ("RGB", "RGBA", "L", "P", "LA"):
             img = img.convert("RGB")
             fmt = "JPEG"
-        img.save(buf, format=fmt, quality=80)
+        img.save(buf, format=fmt, quality=90)
         return buf.getvalue()
     except Exception:
         return None

@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ComfyUI Meta Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Base -->
     <link rel="stylesheet" href="/static/css/base/variables.css">
     <link rel="stylesheet" href="/static/css/base/reset.css">
@@ -20,6 +23,7 @@
     <link rel="stylesheet" href="/static/css/components/skeleton.css">
     <link rel="stylesheet" href="/static/css/components/toast.css">
     <link rel="stylesheet" href="/static/css/components/shortcuts.css">
+    <link rel="stylesheet" href="/static/css/components/modal.css">
     <link rel="stylesheet" href="/static/css/components/search.css">
     <!-- Features -->
     <link rel="stylesheet" href="/static/css/features/meta-panel.css">
@@ -39,7 +43,7 @@
 
 <header class="app-header">
     <div class="header-left">
-        <button class="icon-btn" id="sidebar-toggle" title="Toggle sidebar (B)">&#9776;</button>
+        <button class="icon-btn" id="sidebar-toggle" title="Toggle sidebar (B)"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
         <div class="header-logo"><span>Comfy</span>UI Meta Viewer</div>
     </div>
     <div class="header-center">
@@ -47,16 +51,16 @@
     </div>
     <div class="header-right">
         <div class="view-toggle">
-            <button id="btn-view-list" class="active" title="List view">&#9776;</button>
-            <button id="btn-view-grid" title="Grid view">&#9638;</button>
-            <button id="btn-view-gallery" title="Gallery view">&#9641;</button>
+            <button id="btn-view-list" class="active" title="List view"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg></button>
+            <button id="btn-view-grid" title="Grid view"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></button>
+            <button id="btn-view-gallery" title="Gallery view"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>
         </div>
         <label class="btn" for="file-input">Open Files</label>
         <label class="btn" for="add-file-input">Add Files</label>
         <label class="btn" for="folder-input">Open Folder</label>
         <button class="btn" id="btn-paste">Paste Path</button>
         <button class="btn btn-danger" id="btn-hard-reset" title="Hard reset database and cache">Hard Reset</button>
-        <button class="icon-btn" id="shortcuts-btn" title="Keyboard shortcuts (?)">?</button>
+        <button class="icon-btn" id="shortcuts-btn" title="Keyboard shortcuts (?)"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></button>
     </div>
 </header>
 
@@ -66,20 +70,36 @@
 
 <main class="app-main">
     <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <span class="sidebar-title">Images</span>
-            <button class="btn btn-sm btn-new-session" id="btn-new-session" title="New session">+</button>
-            <span class="sidebar-folder" id="folder-name"></span>
-            <span class="sidebar-info" id="image-count"></span>
-            <button class="btn btn-sm" id="btn-clear">Clear</button>
+        <div class="sidebar-tabs">
+            <button class="sidebar-tab active" id="tab-folders" data-tab="folders">Folders</button>
+            <button class="sidebar-tab" id="tab-images" data-tab="images">Images</button>
         </div>
-        <div class="image-list" id="image-list"></div>
+        
+        <div class="sidebar-panel active" id="panel-folders">
+            <div class="sidebar-header">
+                <span class="sidebar-title">Scanned Folders</span>
+                <span class="sidebar-info" id="folders-count"></span>
+            </div>
+            <div class="folder-list" id="folder-list"></div>
+        </div>
+
+        <div class="sidebar-panel" id="panel-images">
+            <div class="sidebar-header">
+                <button class="btn btn-sm btn-new-session" id="btn-new-session" title="New session"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+                <span class="sidebar-folder" id="folder-name"></span>
+                <span class="sidebar-info" id="image-count"></span>
+                <button class="btn btn-sm" id="btn-clear"><svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>Clear</button>
+            </div>
+            <div class="image-list" id="image-list"></div>
+        </div>
         <div class="sidebar-resize" id="sidebar-resize"></div>
     </aside>
 
     <section class="content-area" id="content-area">
         <div class="drop-zone" id="drop-zone">
-            <div class="drop-zone-icon">&#128444;</div>
+            <div class="drop-zone-icon">
+                <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            </div>
             <h2>Drop images here</h2>
             <p>or use buttons above / paste path</p>
             <div class="drop-zone-hint">Supports PNG, JPG, WEBP, BMP, TIFF</div>
@@ -95,24 +115,46 @@
         <span class="lb-title" id="lb-title"></span>
         <span class="lb-counter" id="lb-counter"></span>
         <div class="lb-zoom-controls">
-            <button class="lb-btn" id="lb-zoom-out" title="Zoom out (-)">&#8722;</button>
+            <button class="lb-btn" id="lb-zoom-out" title="Zoom out (-)">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
             <span class="lb-zoom-level" id="lb-zoom-level">100%</span>
-            <button class="lb-btn" id="lb-zoom-in" title="Zoom in (+)">+</button>
-            <button class="lb-btn" id="lb-zoom-reset" title="Reset zoom (0)">1:1</button>
+            <button class="lb-btn" id="lb-zoom-in" title="Zoom in (+)">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <button class="lb-btn" id="lb-zoom-reset" title="Reset zoom (0)">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
             <div class="lb-separator"></div>
-            <button class="lb-btn" id="lb-rotate-ccw" title="Rotate left">&#8634;</button>
-            <button class="lb-btn" id="lb-rotate-cw" title="Rotate right">&#8635;</button>
+            <button class="lb-btn" id="lb-rotate-ccw" title="Rotate left">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
+            </button>
+            <button class="lb-btn" id="lb-rotate-cw" title="Rotate right">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline></svg>
+            </button>
         </div>
-        <button class="lb-btn" id="lb-toggle-meta" title="Toggle metadata panel (M)">&#9776;</button>
-        <button class="lb-btn" id="lb-download" title="Download image">&#8615;</button>
-        <button class="btn btn-sm" id="lb-copy" title="Copy all metadata (C)">&#128203; Copy All</button>
-        <button class="lb-btn" id="lb-close" title="Close (Esc)">&#10005;</button>
+        <button class="lb-btn" id="lb-toggle-meta" title="Toggle metadata panel (M)">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+        </button>
+        <button class="lb-btn" id="lb-download" title="Download image">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        </button>
+        <button class="btn btn-sm" id="lb-copy" title="Copy all metadata (C)">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>Copy All
+        </button>
+        <button class="lb-btn" id="lb-close" title="Close (Esc)">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
     </div>
     <div class="lightbox-body">
         <div class="lightbox-image-area">
-            <button class="lb-nav prev" id="lb-prev">&#8249;</button>
+            <button class="lb-nav prev" id="lb-prev" title="Previous image">
+                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
             <img id="lb-img" src="" alt="">
-            <button class="lb-nav next" id="lb-next">&#8250;</button>
+            <button class="lb-nav next" id="lb-next" title="Next image">
+                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
         </div>
         <div class="lightbox-meta-panel open" id="lb-meta"></div>
     </div>
@@ -122,34 +164,53 @@
 <div class="shortcuts-overlay" id="shortcuts-overlay">
     <div class="shortcuts-modal">
         <div class="shortcuts-header">
-            <h3>Keyboard Shortcuts</h3>
-            <button class="icon-btn" id="shortcuts-close">&#10005;</button>
+            <h3>ComfyUI Meta Viewer - Help & Shortcuts</h3>
+            <button class="icon-btn" id="shortcuts-close"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
         </div>
-        <div class="shortcuts-body">
-            <div class="shortcut-group">
-                <h4>Navigation</h4>
-                <div class="shortcut-row"><kbd>&#8592;</kbd><kbd>&#8594;</kbd> Previous / Next image</div>
-                <div class="shortcut-row"><kbd>Esc</kbd> Close lightbox</div>
+        <div class="shortcuts-content">
+            <div class="shortcuts-column">
+                <div class="shortcut-group">
+                    <h4>About CMV</h4>
+                    <p class="help-text">CMV is a metadata extraction tool specifically designed for images generated with <strong>ComfyUI</strong> and <strong>Stable Diffusion WebUI</strong>. It extracts embedded positive/negative prompts, sampler parameters, models, and visualizes the complete node generation workflow graph.</p>
+                </div>
+                
+                <div class="shortcut-group">
+                    <h4>Features</h4>
+                    <ul class="features-list">
+                        <li>📂 <strong>Folder Browser:</strong> Scan and store folder paths directly inside the SQLite database.</li>
+                        <li>💾 <strong>Originals Storage:</strong> Supports drag-and-drop file uploads cached on the server.</li>
+                        <li>📊 <strong>Interactive Graph:</strong> Navigate and inspect active workflow generation nodes.</li>
+                        <li>🔍 <strong>EXIF extraction:</strong> Extracts raw metadata chunks from PNG, JPEG, WEBP files.</li>
+                    </ul>
+                </div>
+                
+                <div class="shortcut-group">
+                    <h4>How to use</h4>
+                    <p class="help-text">Drag & drop images anywhere, or click <strong>Open Folder</strong> to scan directory paths. Use the <strong>Hard Reset</strong> button to clear cached data and start fresh.</p>
+                </div>
             </div>
-            <div class="shortcut-group">
-                <h4>View</h4>
-                <div class="shortcut-row"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Switch tabs</div>
-                <div class="shortcut-row"><kbd>B</kbd> Toggle sidebar</div>
-                <div class="shortcut-row"><kbd>F</kbd> Toggle fullscreen</div>
-                <div class="shortcut-row"><kbd>M</kbd> Toggle metadata panel</div>
-            </div>
-            <div class="shortcut-group">
-                <h4>Zoom</h4>
-                <div class="shortcut-row"><kbd>+</kbd><kbd>-</kbd> Zoom in / out</div>
-                <div class="shortcut-row"><kbd>0</kbd> Reset zoom</div>
-                <div class="shortcut-row">Scroll wheel to zoom</div>
-                <div class="shortcut-row">Double-click to reset</div>
-            </div>
-            <div class="shortcut-group">
-                <h4>Actions</h4>
-                <div class="shortcut-row"><kbd>/</kbd> or <kbd>Ctrl+F</kbd> Focus search</div>
-                <div class="shortcut-row"><kbd>C</kbd> Copy metadata</div>
-                <div class="shortcut-row"><kbd>?</kbd> Show this help</div>
+            
+            <div class="shortcuts-column">
+                <div class="shortcut-group">
+                    <h4>Navigation & View</h4>
+                    <div class="shortcut-row"><kbd>←</kbd> <kbd>→</kbd> Prev / Next image</div>
+                    <div class="shortcut-row"><kbd>Esc</kbd> Close Lightbox / Dialogs</div>
+                    <div class="shortcut-row"><kbd>B</kbd> Toggle Sidebar Panel</div>
+                    <div class="shortcut-row"><kbd>F</kbd> Toggle Fullscreen</div>
+                </div>
+                <div class="shortcut-group">
+                    <h4>Tabs & Panel</h4>
+                    <div class="shortcut-row"><kbd>1</kbd> Switch to Summary Tab</div>
+                    <div class="shortcut-row"><kbd>2</kbd> Switch to Workflow Graph</div>
+                    <div class="shortcut-row"><kbd>3</kbd> Switch to Raw Chunks</div>
+                    <div class="shortcut-row"><kbd>M</kbd> Toggle Lightbox Meta Panel</div>
+                </div>
+                <div class="shortcut-group">
+                    <h4>Image Controls</h4>
+                    <div class="shortcut-row"><kbd>+</kbd> <kbd>-</kbd> Zoom In / Out</div>
+                    <div class="shortcut-row"><kbd>0</kbd> Reset Zoom to 1:1</div>
+                    <div class="shortcut-row"><kbd>C</kbd> Copy Active Metadata</div>
+                </div>
             </div>
         </div>
     </div>

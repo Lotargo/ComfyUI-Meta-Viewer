@@ -1,4 +1,4 @@
-import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, sessions, activeSessionId, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setGalleryActive, setIsLoading, isLoading, saveState } from './state.js';
+import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, sessions, activeSessionId, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setGalleryActive, setIsLoading, isLoading, saveState, setSessions, setActiveSessionId } from './state.js';
 import { createSession, getActiveSession, createSessionOnServer } from './sessions.js';
 import { escapeHtml, thumbUrl, showLoading, showError } from './utils.js';
 
@@ -61,6 +61,8 @@ export async function loadFromPaths(paths) {
             const srvSession = await createSessionOnServer(session.name);
             if (srvSession) session.serverId = srvSession.id;
             setTotalImages(images.length);
+            setAllLoaded(true);
+            setCurrentPage(1);
             if (activeIndex < 0) setActiveIndex(0);
             saveState();
             if (galleryActive) {
@@ -96,6 +98,8 @@ export async function loadFromFiles(files) {
             const srvSession = await createSessionOnServer(session.name, data.folder_id || null);
             if (srvSession) session.serverId = srvSession.id;
             setTotalImages(images.length);
+            setAllLoaded(true);
+            setCurrentPage(1);
             if (activeIndex < 0) setActiveIndex(0);
             saveState();
             if (galleryActive) {
@@ -140,3 +144,82 @@ export async function loadMore() {
     }
     setIsLoading(false);
 }
+
+export async function getFolders() {
+    try {
+        const resp = await fetch('/api/folders');
+        const data = await resp.json();
+        return data.folders || [];
+    } catch (e) {
+        console.error('Failed to fetch folders:', e);
+        return [];
+    }
+}
+
+export async function deleteFolderFromServer(folderId) {
+    try {
+        const resp = await fetch(`/api/folders/${folderId}`, { method: 'DELETE' });
+        return resp.ok;
+    } catch (e) {
+        console.error('Failed to delete folder:', e);
+        return false;
+    }
+}
+
+export async function loadFolderImages(folderId, folderName) {
+    showLoading('Loading folder images...');
+    try {
+        setCurrentFolderId(folderId);
+        setImages([]);
+        setSessions([]);
+        setActiveSessionId(0);
+        
+        let page = 1;
+        let total = 0;
+        const loadedImages = [];
+        
+        do {
+            const resp = await fetch(`/api/images?folder_id=${folderId}&page=${page}&per_page=100`);
+            const data = await resp.json();
+            if (data.images && data.images.length) {
+                loadedImages.push(...data.images);
+                total = data.total || 0;
+                page++;
+            } else {
+                break;
+            }
+        } while (loadedImages.length < total);
+        
+        setImages(loadedImages);
+        setTotalImages(loadedImages.length);
+        setCurrentPage(page - 1);
+        setAllLoaded(true);
+        
+        if (loadedImages.length > 0) {
+            setActiveIndex(0);
+            const session = createSession(folderName || 'Folder');
+            session.images = [...loadedImages];
+            const srvSession = await createSessionOnServer(session.name, folderId);
+            if (srvSession) session.serverId = srvSession.id;
+        } else {
+            setActiveIndex(-1);
+        }
+        
+        saveState();
+        
+        if (galleryActive) {
+            const { renderGallery } = await import('./gallery.js');
+            renderGallery();
+        } else {
+            const { renderSidebar } = await import('./features/sidebar.js');
+            renderSidebar();
+            if (activeIndex >= 0) {
+                const { renderMeta } = await import('./meta-view.js');
+                renderMeta(images[activeIndex]);
+            }
+        }
+    } catch(e) {
+        showError('Error loading folder: ' + e.message);
+    }
+}
+

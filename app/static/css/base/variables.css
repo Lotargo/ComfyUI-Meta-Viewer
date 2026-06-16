@@ -1,37 +1,51 @@
 :root {
     /* === Colors === */
-    --bg: #0f0f14;
-    --bg-elevated: #14141c;
-    --surface: #1a1a24;
-    --surface2: #22222e;
-    --surface3: #2a2a3a;
-    --border: #2e2e3e;
-    --border-subtle: #252535;
+    --h-primary: 250; /* Hue for primary neon accent (purple) */
+    --h-secondary: 190; /* Hue for secondary neon accent (cyan) */
+    
+    --bg: hsl(240, 16%, 8%);
+    --bg-elevated: hsl(240, 16%, 11%);
+    --surface: hsla(240, 15%, 15%, 0.75);
+    --surface-glass: hsla(240, 15%, 12%, 0.5);
+    --surface2: hsl(240, 12%, 18%);
+    --surface3: hsl(240, 12%, 24%);
+    
+    --border: hsla(240, 10%, 25%, 0.45);
+    --border-subtle: hsla(240, 10%, 20%, 0.3);
+    --border-glow: hsla(var(--h-primary), 70%, 60%, 0.3);
 
     /* Text */
-    --text: #e0e0e8;
-    --text-dim: #8888a0;
-    --text-muted: #5a5a70;
+    --text: hsl(240, 10%, 94%);
+    --text-dim: hsl(240, 8%, 74%);
+    --text-muted: hsl(240, 6%, 54%);
 
     /* Accent */
-    --accent: #7c6aef;
-    --accent-hover: #8d7ef5;
-    --accent-dim: rgba(124, 106, 239, 0.15);
-    --accent2: #5a4ad4;
+    --accent: hsl(var(--h-primary), 75%, 65%);
+    --accent-hover: hsl(var(--h-primary), 85%, 70%);
+    --accent-dim: hsla(var(--h-primary), 75%, 65%, 0.15);
+    --accent-glow: hsla(var(--h-primary), 75%, 65%, 0.35);
+    
+    --accent2: hsl(var(--h-secondary), 90%, 48%);
+    --accent2-hover: hsl(var(--h-secondary), 100%, 55%);
+    --accent2-dim: hsla(var(--h-secondary), 90%, 48%, 0.15);
 
     /* Semantic */
-    --green: #4ade80;
-    --green-dim: rgba(74, 222, 128, 0.15);
-    --orange: #fb923c;
-    --orange-dim: rgba(251, 146, 60, 0.15);
-    --red: #f87171;
-    --red-dim: rgba(248, 113, 113, 0.15);
-    --blue: #60a5fa;
-    --blue-dim: rgba(96, 165, 250, 0.15);
-    --pink: #f472b6;
-    --pink-dim: rgba(244, 114, 182, 0.15);
-    --cyan: #22d3ee;
-    --cyan-dim: rgba(34, 211, 238, 0.15);
+    --green: hsl(142, 72%, 48%);
+    --green-dim: hsla(142, 72%, 48%, 0.15);
+    --orange: hsl(24, 95%, 58%);
+    --orange-dim: hsla(24, 95%, 58%, 0.15);
+    --red: hsl(0, 88%, 62%);
+    --red-dim: hsla(0, 88%, 62%, 0.15);
+    --blue: hsl(217, 92%, 62%);
+    --blue-dim: hsla(217, 92%, 62%, 0.15);
+    --pink: hsl(330, 85%, 62%);
+    --pink-dim: hsla(330, 85%, 62%, 0.15);
+    --cyan: hsl(188, 90%, 45%);
+    --cyan-dim: hsla(188, 90%, 45%, 0.15);
+
+    /* Typography */
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-title: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
 
     /* === Spacing === */
     --space-xs: 4px;
@@ -43,21 +57,21 @@
 
     /* === Radius === */
     --radius-sm: 6px;
-    --radius: 10px;
-    --radius-lg: 14px;
-    --radius-xl: 20px;
+    --radius: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 22px;
     --radius-full: 9999px;
 
     /* === Shadows === */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5);
-    --shadow-glow: 0 0 20px rgba(124, 106, 239, 0.2);
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+    --shadow-glow: 0 0 24px hsla(var(--h-primary), 75%, 65%, 0.25);
 
     /* === Transitions === */
-    --transition-fast: 0.1s ease;
-    --transition: 0.15s ease;
-    --transition-slow: 0.25s ease;
+    --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 
     /* === Z-index === */
     --z-sidebar: 10;
@@ -67,9 +81,9 @@
     --z-toast: 1000;
 
     /* === Layout === */
-    --header-height: 56px;
-    --sidebar-width: 340px;
+    --header-height: 60px;
+    --sidebar-width: 350px;
     --sidebar-min: 280px;
     --sidebar-max: 500px;
-    --meta-panel-width: 380px;
+    --meta-panel-width: 400px;
 }

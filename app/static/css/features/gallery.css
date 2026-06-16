@@ -10,7 +10,7 @@
     break-inside: avoid;
     margin-bottom: var(--space-md);
     background: var(--surface);
-    border: 2px solid var(--border);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     overflow: hidden;
     cursor: pointer;
@@ -18,41 +18,66 @@
     position: relative;
     display: inline-block;
     width: 100%;
+    box-shadow: var(--shadow-sm);
 }
 
 .gallery-card:hover {
     border-color: var(--accent);
-    transform: translateY(-2px);
+    transform: translateY(-4px) scale(1.015);
+    box-shadow: var(--shadow-lg), var(--shadow-glow);
 }
 
 .gallery-card.active {
     border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent);
+    box-shadow: var(--shadow-glow), 0 0 0 2px var(--accent);
 }
 
 .gallery-card img {
     width: 100%;
-    height: var(--card-height, 160px);
-    object-fit: cover;
+    height: auto;
+    object-fit: contain;
     display: block;
     background: var(--surface2);
+    transition: transform var(--transition-slow);
+}
+
+.gallery-card:hover img {
+    transform: scale(1.04);
 }
 
 .gallery-card .card-info {
-    padding: var(--space-sm) var(--space-md);
+    padding: var(--space-md);
+    background: linear-gradient(to top, rgba(11, 11, 16, 0.95) 0%, rgba(11, 11, 16, 0.7) 60%, transparent 100%);
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    color: #fff;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: all var(--transition);
+    backdrop-filter: blur(8px);
+}
+
+.gallery-card:hover .card-info {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .gallery-card .card-name {
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .gallery-card .card-meta {
     font-size: 10px;
     color: var(--text-dim);
-    margin-top: 2px;
+    margin-top: 4px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .gallery-card .card-badge {

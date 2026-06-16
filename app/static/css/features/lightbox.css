@@ -52,6 +52,9 @@
     border-radius: var(--radius-sm);
     font-size: 13px;
     transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .lb-btn:hover {
@@ -252,13 +255,14 @@
 
 /* Animation */
 .lightbox-overlay.open .lightbox-image-area img {
-    animation: scaleIn 0.3s ease-out both;
+    animation: fadeIn 0.25s ease-out both;
 }
 
-@keyframes scaleIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
+
 
 /* Zoom controls */
 .lb-zoom-controls {

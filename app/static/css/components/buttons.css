@@ -126,6 +126,9 @@
     font-size: 11px;
     transition: all var(--transition-fast);
     opacity: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .meta-row:hover .copy-btn,

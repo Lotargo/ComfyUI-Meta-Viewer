@@ -24,16 +24,13 @@ export function renderGallery() {
     images.forEach((img, i) => {
         const src = thumbUrl(img);
         const isActive = i === activeIndex ? ' active' : '';
-        const hasError = img.error ? '<div class="card-error">&#9888;</div>' : '';
+        const hasError = img.error ? '<div class="card-error"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>' : '';
         const fmt = img.format || '';
         const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
         const fileName = img.file_name || img.file || '';
 
-        // Random height for masonry effect
-        const heightVar = 140 + (i % 5) * 20;
-
         html += `
-            <div class="gallery-card${isActive}" data-index="${i}" style="--card-height: ${heightVar}px">
+            <div class="gallery-card${isActive}" data-index="${i}">
                 <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy">
                 ${hasError}
                 <div class="card-info">

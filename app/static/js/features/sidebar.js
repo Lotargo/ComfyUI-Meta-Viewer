@@ -3,7 +3,7 @@
  */
 
 import { images, activeIndex, viewMode, galleryActive, currentFolderId, allLoaded, detailCache, scrollObserver, sessions, totalImages, dom, setActiveIndex, setScrollObserver, saveState } from '../state.js';
-import { escapeHtml, thumbUrl } from '../utils.js';
+import { escapeHtml, thumbUrl, customConfirm } from '../utils.js';
 import { createSidebarItem, createSessionHeader } from '../components/sidebar-item.js';
 
 export function renderSidebar() {
@@ -121,3 +121,79 @@ export function toggleSidebar() {
         sidebar.classList.toggle('collapsed');
     }
 }
+
+export async function renderFoldersList() {
+    const folderListEl = document.getElementById('folder-list');
+    const foldersCountEl = document.getElementById('folders-count');
+    if (!folderListEl) return;
+    
+    folderListEl.innerHTML = '<div style="padding: 12px; color: var(--text-dim)">Loading folders...</div>';
+    
+    const { getFolders } = await import('../api.js');
+    const folders = await getFolders();
+    
+    if (foldersCountEl) {
+        foldersCountEl.textContent = `(${folders.length})`;
+    }
+    
+    if (folders.length === 0) {
+        folderListEl.innerHTML = `
+            <div style="padding: 24px; text-align: center; color: var(--text-muted)">
+                <div style="font-size: 24px; margin-bottom: 8px;">📁</div>
+                <p style="font-size: 12px;">No scanned folders yet.</p>
+                <p style="font-size: 11px; margin-top: 4px;">Click "Open Folder" in the top bar to scan a directory.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    folderListEl.innerHTML = '';
+    folders.forEach(folder => {
+        const div = document.createElement('div');
+        div.className = 'folder-item' + (folder.id === currentFolderId ? ' active' : '');
+        
+        const dateStr = folder.scanned_at ? new Date(folder.scanned_at).toLocaleString() : '';
+        
+        div.innerHTML = `
+            <div class="folder-item-content">
+                <div class="folder-item-name" title="${escapeHtml(folder.name)}">📁 ${escapeHtml(folder.name)}</div>
+                <div class="folder-item-path" title="${escapeHtml(folder.path)}">${escapeHtml(folder.path)}</div>
+                <div class="folder-item-meta">
+                    <span>${folder.image_count} images</span>
+                    <span>•</span>
+                    <span style="font-size: 10px;">${escapeHtml(dateStr)}</span>
+                </div>
+            </div>
+            <button class="folder-delete-btn" title="Delete from database">&times;</button>
+        `;
+        
+        div.onclick = async () => {
+            const { loadFolderImages } = await import('../api.js');
+            await loadFolderImages(folder.id, folder.name);
+        };
+        
+        const deleteBtn = div.querySelector('.folder-delete-btn');
+        deleteBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const ok = await customConfirm('Delete Folder', `Are you sure you want to remove folder "${folder.name}" from the database? This does not delete any files from your disk.`);
+            if (ok) {
+                const { deleteFolderFromServer } = await import('../api.js');
+                const ok = await deleteFolderFromServer(folder.id);
+                if (ok) {
+                    const { setImages, setTotalImages, setCurrentFolderId } = await import('../state.js');
+                    if (currentFolderId === folder.id) {
+                        setImages([]);
+                        setTotalImages(0);
+                        setCurrentFolderId(null);
+                    }
+                    await renderFoldersList();
+                    const { showToast } = await import('../state.js');
+                    showToast('Folder deleted from database');
+                }
+            }
+        };
+        
+        folderListEl.appendChild(div);
+    });
+}
+

@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/flask-3.1-000000?style=flat-square&logo=flask&logoColor=white" alt="Flask">
   <img src="https://img.shields.io/badge/sqlite-WAL-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite">
-  <img src="https://img.shields.io/badge/license-GPLv3-blue?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/license-AGPLv3-blue?style=flat-square" alt="License">
 </p>
 
 <p align="center">
@@ -321,7 +321,7 @@ See [Development Guide](docs/development.md) for setup instructions and code sty
 
 ## License
 
-GNU General Public License v3.0
+GNU Affero General Public License v3.0 only. See [LICENSE](LICENSE).
 
 ---
 

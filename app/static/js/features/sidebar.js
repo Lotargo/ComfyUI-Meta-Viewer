@@ -2,46 +2,24 @@
  * Sidebar component - handles image list rendering and resize
  */
 
-import { images, activeIndex, galleryActive, currentFolderId, allLoaded, detailCache, scrollObserver, sessions, totalImages, dom, setActiveIndex, setScrollObserver, saveState } from '../state.js';
-import { escapeHtml, thumbUrl, customConfirm } from '../utils.js';
-import { createSidebarItem, createSessionHeader } from '../components/sidebar-item.js';
+import { images, activeIndex, galleryActive, currentFolderId, allLoaded, detailCache, scrollObserver, totalImages, dom, setActiveIndex, setScrollObserver, saveState } from '../state.js';
+import { escapeHtml, customConfirm } from '../utils.js';
+import { createSidebarItem } from '../components/sidebar-item.js';
 
 export function renderSidebar() {
     if (galleryActive) return;
     dom.imageList.innerHTML = '';
     dom.imageCount.textContent = totalImages ? `(${images.length}/${totalImages})` : '';
 
-    if (sessions.length > 0) {
-        for (const session of sessions) {
-            const hdr = createSessionHeader(session);
-            hdr.querySelector('.session-remove').addEventListener('click', (e) => {
-                e.stopPropagation();
-                import('../sessions.js').then(m => m.removeSession(session.id));
-            });
-            dom.imageList.appendChild(hdr);
-            session.images.forEach(img => {
-                const i = images.indexOf(img);
-                if (i < 0) return;
-                const div = createSidebarItem(img, i, i === activeIndex);
-                div.onclick = () => selectImage(i);
-                div.querySelector('.sidebar-delete')?.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    import('../api.js').then(m => m.deleteImageAt(i));
-                });
-                dom.imageList.appendChild(div);
-            });
-        }
-    } else {
-        images.forEach((img, i) => {
-            const div = createSidebarItem(img, i, i === activeIndex);
-            div.onclick = () => selectImage(i);
-            div.querySelector('.sidebar-delete')?.addEventListener('click', (e) => {
-                e.stopPropagation();
-                import('../api.js').then(m => m.deleteImageAt(i));
-            });
-            dom.imageList.appendChild(div);
+    images.forEach((img, i) => {
+        const div = createSidebarItem(img, i, i === activeIndex);
+        div.onclick = () => selectImage(i);
+        div.querySelector('.sidebar-delete')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            import('../api.js').then(m => m.deleteImageAt(i));
         });
-    }
+        dom.imageList.appendChild(div);
+    });
 
     appendSentinel();
 }

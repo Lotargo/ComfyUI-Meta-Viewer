@@ -1,7 +1,6 @@
-import { dom, galleryActive, setViewModeValue, setGalleryActive, images, activeIndex, sessions, activeSessionId, currentFolderId, currentPage, totalImages, allLoaded, detailCache, scrollObserver, setImages, setActiveIndex, setSessions, setActiveSessionId, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setScrollObserver, saveState } from './state.js';
+import { dom, galleryActive, setViewModeValue, setGalleryActive, images, activeIndex, scrollObserver, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, saveState } from './state.js';
 import { loadFromFiles, loadFromPaths, scanFolder } from './api.js';
 import { renderSidebar } from './features/sidebar.js';
-import { createSession, createSessionOnServer } from './sessions.js';
 import { customConfirm, customPrompt } from './utils.js';
 
 export function initEvents() {
@@ -33,28 +32,9 @@ export function initEvents() {
     dom.btnViewList.addEventListener('click', () => setViewMode('list'));
     dom.btnViewGallery.addEventListener('click', () => setViewMode('gallery'));
 
-    // New session button
-    document.getElementById('btn-new-session')?.addEventListener('click', async () => {
-        const name = await customPrompt('New Session', 'Enter session name:');
-        if (name === null) return;
-        const session = createSession(name || undefined);
-        const srvSession = await createSessionOnServer(session.name);
-        if (srvSession) session.serverId = srvSession.id;
-        saveState();
-        renderSidebar();
-    });
-
     document.getElementById('btn-clear').addEventListener('click', async () => {
         if (scrollObserver) scrollObserver.disconnect();
-        // Delete all backend sessions
-        for (const s of sessions) {
-            if (s.serverId) {
-                try { await fetch(`/api/sessions/${s.serverId}`, { method: 'DELETE' }); } catch (e) { /* ignore */ }
-            }
-        }
         setImages([]);
-        setSessions([]);
-        setActiveSessionId(0);
         setActiveIndex(-1);
         setGalleryActive(false);
         setCurrentFolderId(null);
@@ -96,8 +76,6 @@ export function initEvents() {
             }
 
             setImages([]);
-            setSessions([]);
-            setActiveSessionId(0);
             setActiveIndex(-1);
             setGalleryActive(false);
             setCurrentFolderId(null);

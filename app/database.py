@@ -60,13 +60,6 @@ def init_db() -> None:
             UNIQUE(folder_id, rel_path)
         );
 
-        CREATE TABLE IF NOT EXISTS sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL DEFAULT '',
-            folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
-
         CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
         CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
     """)
@@ -288,14 +281,11 @@ def get_diagnostics() -> dict[str, Any]:
         uploads_row = conn.execute(
             "SELECT COUNT(*) AS c FROM images WHERE original_data IS NOT NULL"
         ).fetchone()
-        sessions_row = conn.execute("SELECT COUNT(*) AS c FROM sessions").fetchone()
-
         return {
             "db_path": get_db_path(),
             "folders": folders_row["c"] if folders_row else 0,
             "images": images_row["c"] if images_row else 0,
             "uploads": uploads_row["c"] if uploads_row else 0,
-            "sessions": sessions_row["c"] if sessions_row else 0,
         }
     finally:
         conn.close()
@@ -378,74 +368,3 @@ def get_image_format(image_id: int) -> str | None:
         conn.close()
 
 
-# ── Sessions ────────────────────────────────────────────────────
-
-
-def create_session(name: str, folder_id: int | None = None) -> int:
-    conn = get_conn()
-    try:
-        cur = conn.execute(
-            "INSERT INTO sessions (name, folder_id) VALUES (?, ?)",
-            (name, folder_id),
-        )
-        session_id = cur.lastrowid
-        conn.commit()
-        return session_id
-    finally:
-        conn.close()
-
-
-def get_sessions() -> list[dict]:
-    conn = get_conn()
-    try:
-        rows = conn.execute(
-            """SELECT s.id, s.name, s.folder_id, s.created_at,
-                      COUNT(i.id) AS image_count
-               FROM sessions s
-               LEFT JOIN images i ON i.folder_id = s.folder_id
-               GROUP BY s.id
-               ORDER BY s.created_at DESC"""
-        ).fetchall()
-        return [dict(r) for r in rows]
-    finally:
-        conn.close()
-
-
-def get_session(session_id: int) -> dict | None:
-    conn = get_conn()
-    try:
-        row = conn.execute(
-            """SELECT s.id, s.name, s.folder_id, s.created_at,
-                      COUNT(i.id) AS image_count
-               FROM sessions s
-               LEFT JOIN images i ON i.folder_id = s.folder_id
-               WHERE s.id = ?
-               GROUP BY s.id""",
-            (session_id,),
-        ).fetchone()
-        return dict(row) if row else None
-    finally:
-        conn.close()
-
-
-def update_session_name(session_id: int, name: str) -> bool:
-    conn = get_conn()
-    try:
-        cur = conn.execute(
-            "UPDATE sessions SET name = ? WHERE id = ?",
-            (name, session_id),
-        )
-        conn.commit()
-        return cur.rowcount > 0
-    finally:
-        conn.close()
-
-
-def delete_session(session_id: int) -> bool:
-    conn = get_conn()
-    try:
-        cur = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
-        conn.commit()
-        return cur.rowcount > 0
-    finally:
-        conn.close()

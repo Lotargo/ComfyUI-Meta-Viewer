@@ -93,12 +93,15 @@
 }
 
 .cutout-actions {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
 }
 
 .cutout-actions .btn {
-    flex: 1;
+    min-width: 0;
+    padding-inline: 10px;
+    white-space: nowrap;
 }
 
 @media (max-width: 900px) {
@@ -109,5 +112,9 @@
         min-width: 0;
         z-index: calc(var(--z-lightbox) + 1);
         box-shadow: var(--shadow-lg);
+    }
+
+    .cutout-actions {
+        grid-template-columns: 1fr;
     }
 }

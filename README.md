@@ -83,9 +83,9 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
       <sub>14 shortcuts + Help Center</sub>
     </td>
     <td>
-      <img src="docs/icons/session.svg" width="20" alt="Session">
-      <strong>Session Management</strong><br>
-      <sub>Group images by project</sub>
+      <img src="docs/icons/folder.svg" width="20" alt="Folders">
+      <strong>Local Folder Index</strong><br>
+      <sub>Single-user library, no sessions</sub>
     </td>
     <td>
       <img src="docs/icons/diagnostic.svg" width="20" alt="Diagnostics">

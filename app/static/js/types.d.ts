@@ -38,20 +38,6 @@ interface FolderInfo {
   image_count: number;
 }
 
-interface Session {
-  id: number;
-  name: string;
-  images: ImageListItem[];
-  startIdx: number;
-}
-
-interface SavedSession {
-  id: number;
-  name: string;
-  startIdx: number;
-  imageCount: number;
-}
-
 interface AppState {
   folderId: number | null;
   page: number;
@@ -60,8 +46,6 @@ interface AppState {
   totalImages: number;
   allLoaded: boolean;
   folderName: string;
-  sessions: SavedSession[];
-  activeSessionId: number;
 }
 
 interface ScanResponse {

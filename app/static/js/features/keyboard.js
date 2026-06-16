@@ -2,7 +2,7 @@
  * Keyboard shortcuts handler
  */
 
-import { images, activeIndex, detailCache, dom, totalImages, sessions, currentFolderId, showToast } from '../state.js';
+import { images, activeIndex, detailCache, dom, totalImages, currentFolderId, showToast } from '../state.js';
 import { toggleSidebar } from './sidebar.js';
 import { copyText } from '../utils.js';
 
@@ -151,7 +151,7 @@ function initHelpCenter() {
             <div class="shortcuts-header">
                 <div>
                     <h3 id="help-center-title">Help Center</h3>
-                    <p class="help-subtitle">Shortcuts, metadata notes, storage rules, and quick diagnostics.</p>
+                    <p class="help-subtitle">Shortcuts, metadata notes, cutout workflow, local storage rules, and quick diagnostics.</p>
                 </div>
                 <button class="icon-btn" id="shortcuts-close" title="Close help">
                     <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -203,6 +203,10 @@ function initHelpCenter() {
                             <h4>Missing Metadata</h4>
                             <p class="help-text">Some images have no embedded workflow or prompt chunks. CMV still shows file info and available EXIF/raw metadata, but generation details may be empty.</p>
                         </div>
+                        <div class="shortcut-group">
+                            <h4>Object Cutout</h4>
+                            <p class="help-text">Open an image in the lightbox and use Select Object to create a transparent PNG. The MVP uses a lightweight local background estimate, so simple subjects work best and source images stay unchanged.</p>
+                        </div>
                     </div>
                 </section>
                 <section class="help-panel" data-help-panel="storage" role="tabpanel">
@@ -217,7 +221,7 @@ function initHelpCenter() {
                         </div>
                         <div class="shortcut-group">
                             <h4>Cache And Reset</h4>
-                            <p class="help-text">Thumbnails are cached on disk for speed. Hard Reset clears folders, image records, sessions, and thumbnail cache, but it does not delete source images from scanned folders.</p>
+                            <p class="help-text">Thumbnails and object cutouts are cached on disk for speed. Hard Reset clears folders, image records, thumbnail cache, and cutout cache, but it does not delete source images from scanned folders.</p>
                         </div>
                     </div>
                 </section>
@@ -230,7 +234,6 @@ function initHelpCenter() {
                         <div class="diagnostic-card"><span>Folders</span><strong id="diag-folders">-</strong></div>
                         <div class="diagnostic-card"><span>Images</span><strong id="diag-images">-</strong></div>
                         <div class="diagnostic-card"><span>Uploads</span><strong id="diag-uploads">-</strong></div>
-                        <div class="diagnostic-card"><span>Sessions</span><strong id="diag-sessions">-</strong></div>
                         <div class="diagnostic-card"><span>Thumbnails</span><strong id="diag-thumbnails">-</strong></div>
                         <div class="diagnostic-card"><span>Cutouts</span><strong id="diag-cutouts">-</strong></div>
                         <div class="diagnostic-card"><span>Loaded Now</span><strong id="diag-loaded">-</strong></div>
@@ -239,6 +242,7 @@ function initHelpCenter() {
                         <div><span>Database</span><code id="diag-db-path">-</code></div>
                         <div><span>Uploads</span><code id="diag-upload-dir">-</code></div>
                         <div><span>Thumbnail Cache</span><code id="diag-thumb-dir">-</code></div>
+                        <div><span>Cutout Cache</span><code id="diag-cutout-dir">-</code></div>
                     </div>
                 </section>
             </div>
@@ -285,7 +289,6 @@ async function getDiagnostics() {
         total_images: totalImages,
         active_index: activeIndex,
         current_folder_id: currentFolderId,
-        local_sessions: sessions.length,
         view: document.querySelector('.view-toggle button.active')?.id || 'unknown',
     };
 }
@@ -301,13 +304,13 @@ async function refreshDiagnostics() {
         setText('diag-folders', data.folders);
         setText('diag-images', data.images);
         setText('diag-uploads', data.uploads);
-        setText('diag-sessions', data.sessions);
         setText('diag-thumbnails', data.thumbnail_count);
         setText('diag-cutouts', data.cutout_count);
         setText('diag-loaded', `${data.loaded_images}/${data.total_images || data.loaded_images}`);
         setText('diag-db-path', data.db_path || '-');
         setText('diag-upload-dir', data.upload_dir || '-');
         setText('diag-thumb-dir', data.thumbnail_dir || '-');
+        setText('diag-cutout-dir', data.cutout_dir || '-');
     } catch (e) {
         setText('diag-db-path', 'Diagnostics unavailable');
     }

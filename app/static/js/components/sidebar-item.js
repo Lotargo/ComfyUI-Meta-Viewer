@@ -29,14 +29,3 @@ export function createSidebarItem(img, index, isActive) {
 
     return div;
 }
-
-export function createSessionHeader(session) {
-    const hdr = document.createElement('div');
-    hdr.className = 'session-header';
-    hdr.innerHTML = `
-        <span class="session-name">${escapeHtml(session.name)}</span>
-        <span class="session-count">${session.images.length}</span>
-        <button class="btn btn-sm btn-ghost session-remove" data-session-id="${session.id}">&times;</button>
-    `;
-    return hdr;
-}

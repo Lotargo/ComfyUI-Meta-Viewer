@@ -1,6 +1,5 @@
-import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, sessions, activeSessionId, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setGalleryActive, setIsLoading, isLoading, saveState, setSessions, setActiveSessionId, showToast } from './state.js';
-import { createSession, getActiveSession, createSessionOnServer } from './sessions.js';
-import { escapeHtml, thumbUrl, showLoading, showError, customConfirm } from './utils.js';
+import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setIsLoading, isLoading, saveState, showToast } from './state.js';
+import { showLoading, showError, customConfirm } from './utils.js';
 
 function switchToImagesTab() {
     document.getElementById('tab-images')?.classList.add('active');
@@ -22,16 +21,11 @@ export async function scanFolder(path) {
 
         setCurrentFolderId(data.folder_id);
         const newImages = data.images || [];
-        const session = createSession(data.folder ? data.folder.name : path.split(/[/\\]/).pop());
-        session.images = newImages;
-        for (const img of newImages) images.push(img);
-        // Sync with backend
-        const srvSession = await createSessionOnServer(session.name, data.folder_id);
-        if (srvSession) session.serverId = srvSession.id;
+        setImages(newImages);
         setTotalImages(data.total || images.length);
         setCurrentPage(1);
         setAllLoaded(images.length >= totalImages);
-        if (activeIndex < 0) setActiveIndex(images.length > 0 ? 0 : -1);
+        setActiveIndex(images.length > 0 ? 0 : -1);
         setDetailCache({});
         dom.folderNameEl.textContent = data.folder ? data.folder.name : '';
         saveState();
@@ -62,12 +56,7 @@ export async function loadFromPaths(paths) {
         });
         const data = await resp.json();
         if (data.images && data.images.length) {
-            const session = createSession();
-            session.images = data.images;
             for (const img of data.images) images.push(img);
-            // Sync with backend
-            const srvSession = await createSessionOnServer(session.name);
-            if (srvSession) session.serverId = srvSession.id;
             setTotalImages(images.length);
             setAllLoaded(true);
             setCurrentPage(1);
@@ -100,12 +89,7 @@ export async function loadFromFiles(files) {
         const data = await resp.json();
         if (data.images && data.images.length) {
             if (data.folder_id) setCurrentFolderId(data.folder_id);
-            const session = createSession();
-            session.images = data.images;
             for (const img of data.images) images.push(img);
-            // Sync with backend
-            const srvSession = await createSessionOnServer(session.name, data.folder_id || null);
-            if (srvSession) session.serverId = srvSession.id;
             setTotalImages(images.length);
             setAllLoaded(true);
             setCurrentPage(1);
@@ -137,10 +121,8 @@ export async function loadMore() {
         const resp = await fetch(`/api/images?folder_id=${currentFolderId}&page=${nextPage}&per_page=50`);
         const data = await resp.json();
         if (data.images && data.images.length) {
-            const session = getActiveSession();
             for (const img of data.images) {
                 images.push(img);
-                if (session) session.images.push(img);
             }
             setCurrentPage(nextPage);
             setTotalImages(data.total);
@@ -199,12 +181,6 @@ export async function deleteImageAt(index) {
         }
 
         images.splice(index, 1);
-        for (const session of sessions) {
-            const sessionIndex = session.images.indexOf(img);
-            if (sessionIndex >= 0) session.images.splice(sessionIndex, 1);
-        }
-
-        setSessions(sessions.filter(session => session.images.length > 0 || sessions.length === 1));
         setTotalImages(Math.max(0, totalImages - 1));
 
         if (images.length === 0) {
@@ -240,8 +216,6 @@ export async function loadFolderImages(folderId, folderName) {
     try {
         setCurrentFolderId(folderId);
         setImages([]);
-        setSessions([]);
-        setActiveSessionId(0);
         
         let page = 1;
         let total = 0;
@@ -266,10 +240,6 @@ export async function loadFolderImages(folderId, folderName) {
         
         if (loadedImages.length > 0) {
             setActiveIndex(0);
-            const session = createSession(folderName || 'Folder');
-            session.images = [...loadedImages];
-            const srvSession = await createSessionOnServer(session.name, folderId);
-            if (srvSession) session.serverId = srvSession.id;
         } else {
             setActiveIndex(-1);
         }

@@ -1,6 +1,6 @@
 # Sprint: Object Cutout
 
-**Status:** In progress  
+**Status:** MVP complete  
 **Start:** 2026-06-16  
 **Goal:** Add an Object Cutout workflow so a user can isolate a generated subject/object and reuse it as a transparent PNG or future generation input.
 
@@ -34,8 +34,9 @@ Target workflow:
 - Keep original images safe. Cutout generation must not mutate the source image.
 - Store generated cutouts in a local cache folder so repeat downloads are fast.
 
-### Next Iteration
+### Next Iteration / Optional Advanced Mode
 
+- Optional rembg/U2Net integration if the user installs the dependency.
 - Click-to-select object by point.
 - Positive/negative selection points.
 - Mask preview overlay on the original image.
@@ -53,14 +54,14 @@ Use a backend API that accepts an image id and returns a transparent PNG cutout.
 Initial strategy options:
 
 1. **Local rembg/U2Net-style foreground extraction**
-   - Best MVP if dependency is acceptable.
+   - Best quality upgrade if dependency is acceptable.
    - Strong for central characters/products.
    - Weak when multiple objects overlap or background is complex.
 
 2. **Fallback heuristic segmentation**
    - No heavy dependency.
    - Use image alpha if present; otherwise simple edge/border/background estimate.
-   - Good as a graceful fallback, not as the primary quality target.
+   - Good as the dependency-light MVP and graceful fallback, not as the final quality target.
 
 3. **SAM-style click segmentation**
    - Best long-term UX.
@@ -108,23 +109,23 @@ Suggested updated files:
 
 ### MVP Done
 
-- [ ] Lightbox has a `Select Object` button.
-- [ ] Clicking it shows a cutout panel with loading state.
-- [ ] Backend generates transparent PNG for image ids stored in DB.
-- [ ] Cutout preview renders on checkerboard background.
-- [ ] User can download the cutout PNG.
-- [ ] Repeated cutout requests reuse cache.
-- [ ] Errors are visible and non-destructive.
-- [ ] Source image file/data remains unchanged.
+- [x] Lightbox has a `Select Object` button.
+- [x] Clicking it shows a cutout panel with loading state.
+- [x] Backend generates transparent PNG for image ids stored in DB.
+- [x] Cutout preview renders on checkerboard background.
+- [x] User can download the cutout PNG.
+- [x] Repeated cutout requests reuse cache.
+- [x] Errors are visible and non-destructive.
+- [x] Source image file/data remains unchanged.
 
 ### Verification
 
-- [ ] `python -m compileall app` passes.
-- [ ] `/api/cutout/<image_id>` returns `404` before generation or if source is missing.
-- [ ] `POST /api/cutout/<image_id>` returns JSON with `cutout_url`.
-- [ ] In-app browser: button opens panel, preview appears, download link is valid.
-- [ ] Works for uploaded images stored as DB blobs.
-- [ ] Works for scanned images loaded from disk.
+- [x] `python -m compileall app` passes.
+- [x] `/api/cutout/<image_id>` returns `404` before generation or if source is missing.
+- [x] `POST /api/cutout/<image_id>` returns JSON with `cutout_url`.
+- [x] In-app browser: button opens panel, preview appears, download link is valid.
+- [x] Works for uploaded images stored as DB blobs.
+- [x] Works for scanned images loaded from disk.
 
 ---
 
@@ -165,10 +166,10 @@ Findings:
 
 ### Step 4: Polish
 
-- [ ] Add retry/reset.
-- [ ] Add cache clear button.
+- [x] Add retry/reset.
+- [x] Add cache clear button.
 - [x] Add Help Center diagnostics count for cutouts.
-- [ ] Add Help Center usage note for Object Cutout.
+- [x] Add Help Center usage note for Object Cutout.
 - [x] Browser verification.
 
 Verification notes:
@@ -177,7 +178,9 @@ Verification notes:
 - `POST /api/cutout/1` is triggered from the UI.
 - Preview image renders from `/api/cutout/1?t=...`.
 - `Download PNG` and `Regenerate` become enabled after generation.
+- `Clear Cache` removes the cached PNG and resets the preview without changing the source image.
 - Diagnostics reports `cutout_count: 1` while cached PNG exists.
+- Help Center documents the lightweight local cutout workflow and shows the cutout cache path.
 
 ### Step 5: Phase 2 Planning
 
@@ -189,7 +192,7 @@ Verification notes:
 
 ## Risks
 
-- High-quality segmentation may require heavy ML dependencies and model downloads.
+- High-quality segmentation may require heavy ML dependencies and model downloads, so those stay out of the default MVP.
 - Browser-only canvas segmentation would be lighter but likely lower quality.
 - CPU-only inference may be slow on large images.
 - Scanned source files may move/delete after scan; API must report this clearly.

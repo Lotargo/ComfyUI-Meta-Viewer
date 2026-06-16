@@ -28,8 +28,6 @@ export let allLoaded = false;
 export let isLoading = false;
 export let detailCache = {};
 export let scrollObserver = null;
-export let sessions = [];
-export let activeSessionId = 0;
 
 export function setImages(v) { images = v; }
 export function setActiveIndex(v) { activeIndex = v; }
@@ -43,8 +41,6 @@ export function setAllLoaded(v) { allLoaded = v; }
 export function setIsLoading(v) { isLoading = v; }
 export function setDetailCache(v) { detailCache = v; }
 export function setScrollObserver(v) { scrollObserver = v; }
-export function setSessions(v) { sessions = v; }
-export function setActiveSessionId(v) { activeSessionId = v; }
 
 export function addImage(img) { images.push(img); }
 export function addImages(imgs) { for (const img of imgs) images.push(img); }
@@ -65,8 +61,6 @@ export function saveState() {
             totalImages: totalImages,
             allLoaded: allLoaded,
             folderName: dom.folderNameEl.textContent,
-            sessions: sessions.map(s => ({ id: s.id, name: s.name, startIdx: s.startIdx, imageCount: s.images.length })),
-            activeSessionId: activeSessionId
         }));
     } catch(e) { /* ignore quota errors */ }
 }

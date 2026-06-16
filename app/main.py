@@ -146,6 +146,17 @@ def api_image_detail(image_id: int):
     return jsonify(detail.model_dump())
 
 
+@app.route("/api/images/<int:image_id>", methods=["DELETE"])
+def api_delete_image(image_id: int):
+    ok = db.delete_image(image_id)
+    if not ok:
+        return jsonify({"error": "Image not found"}), 404
+
+    thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
+    (thumb_dir / f"{image_id}.jpg").unlink(missing_ok=True)
+    return jsonify(OkResponse().model_dump())
+
+
 @app.route("/api/folders/<int:folder_id>", methods=["DELETE"])
 def api_delete_folder(folder_id: int):
     db.delete_folder(folder_id)

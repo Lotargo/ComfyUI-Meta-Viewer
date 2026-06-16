@@ -5,22 +5,23 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-lg);
+    min-height: 34px;
+    padding: 7px 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: var(--surface2);
+    background: color-mix(in srgb, var(--surface2) 86%, white);
     color: var(--text);
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 12px;
+    font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
     transition: all var(--transition-fast);
 }
 
 .btn:hover {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
+    background: var(--surface3);
+    border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+    color: var(--text);
 }
 
 .btn:active {
@@ -31,7 +32,7 @@
 .btn-primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: hsl(180, 20%, 98%);
 }
 
 .btn-primary:hover {
@@ -66,9 +67,9 @@
 
 /* Danger */
 .btn-danger {
-    background: var(--red-dim);
-    border-color: var(--red);
-    color: var(--red);
+    background: hsla(0, 75%, 48%, 0.12);
+    border-color: hsla(0, 75%, 58%, 0.42);
+    color: hsl(0, 86%, 72%);
 }
 
 .btn-danger:hover {

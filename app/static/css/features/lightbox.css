@@ -3,7 +3,7 @@
 .lightbox-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.92);
+    background: rgba(6, 9, 12, 0.94);
     z-index: var(--z-lightbox);
     display: flex;
     flex-direction: column;
@@ -25,7 +25,8 @@
     gap: var(--space-md);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     flex-shrink: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(10, 14, 18, 0.82);
+    backdrop-filter: blur(12px);
 }
 
 .lightbox-top .lb-title {
@@ -58,9 +59,20 @@
 }
 
 .lb-btn:hover {
-    background: var(--accent);
+    background: var(--surface3);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--text);
+}
+
+.lb-delete {
+    border-color: hsla(0, 75%, 58%, 0.34);
+    color: hsl(0, 86%, 76%);
+}
+
+.lb-delete:hover {
+    background: hsl(0, 72%, 42%);
+    border-color: hsl(0, 75%, 58%);
+    color: white;
 }
 
 .lb-btn-icon {
@@ -139,7 +151,7 @@
 .lightbox-meta-panel {
     width: var(--meta-panel-width);
     min-width: var(--meta-panel-width);
-    background: var(--surface);
+    background: color-mix(in srgb, var(--bg-elevated) 88%, var(--surface));
     border-left: 1px solid var(--border);
     overflow-y: auto;
     padding: var(--space-lg);

@@ -7,15 +7,22 @@
 
 .gallery-card {
     background: var(--surface);
-    border: 2px solid var(--border);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     overflow: hidden;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
     position: relative;
 }
-.gallery-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-.gallery-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.gallery-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 68%, var(--border));
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+.gallery-card.active {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 2px var(--accent), var(--shadow);
+}
 
 .gallery-card img {
     width: 100%;
@@ -26,7 +33,21 @@
 }
 
 .gallery-card .card-info {
-    padding: 8px 10px;
+    padding: 32px 10px 10px;
+    background: linear-gradient(to top, rgba(11, 15, 18, 0.96) 0%, rgba(11, 15, 18, 0.68) 68%, transparent 100%);
+    position: absolute;
+    inset: auto 0 0 0;
+    color: #fff;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+    backdrop-filter: blur(6px);
+}
+
+.gallery-card:hover .card-info,
+.gallery-card:focus-within .card-info {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .gallery-card .card-name {
@@ -63,4 +84,11 @@
     justify-content: center;
     color: var(--red);
     font-size: 24px;
+}
+
+.gallery-delete {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    z-index: 2;
 }

@@ -92,7 +92,7 @@ export function updateLightbox() {
     if (galleryActive) {
         import('./gallery.js').then(m => m.renderGallery());
     } else {
-        import('./sidebar.js').then(m => m.renderSidebar());
+        import('./features/sidebar.js').then(m => m.renderSidebar());
     }
 
     const fileName = img.file_name || img.file || '';
@@ -248,6 +248,19 @@ export function initLightboxEvents() {
 
     // Download
     document.getElementById('lb-download')?.addEventListener('click', downloadImage);
+
+    document.getElementById('lb-delete')?.addEventListener('click', async () => {
+        const currentIndex = lightboxIndex;
+        const { deleteImageAt } = await import('./api.js');
+        const deleted = await deleteImageAt(currentIndex);
+        if (!deleted) return;
+        if (images.length === 0) {
+            closeLightbox();
+            return;
+        }
+        setLightboxIndex(Math.min(currentIndex, images.length - 1));
+        updateLightbox();
+    });
 
     // Zoom controls
     document.getElementById('lb-zoom-in')?.addEventListener('click', zoomIn);

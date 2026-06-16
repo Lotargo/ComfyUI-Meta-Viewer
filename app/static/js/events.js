@@ -1,6 +1,6 @@
 import { dom, galleryActive, setViewModeValue, setGalleryActive, images, activeIndex, sessions, activeSessionId, currentFolderId, currentPage, totalImages, allLoaded, detailCache, scrollObserver, setImages, setActiveIndex, setSessions, setActiveSessionId, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setScrollObserver, saveState } from './state.js';
 import { loadFromFiles, loadFromPaths, scanFolder } from './api.js';
-import { renderSidebar } from './sidebar.js';
+import { renderSidebar } from './features/sidebar.js';
 import { createSession, createSessionOnServer } from './sessions.js';
 import { customConfirm, customPrompt } from './utils.js';
 

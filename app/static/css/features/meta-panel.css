@@ -1,7 +1,7 @@
 /* === Meta view === */
 
 .meta-view {
-    max-width: 900px;
+    max-width: 980px;
 }
 
 /* Meta header */
@@ -10,14 +10,16 @@
     align-items: center;
     gap: var(--space-lg);
     margin-bottom: var(--space-xl);
-    padding-bottom: var(--space-lg);
-    border-bottom: 1px solid var(--border);
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
 }
 
 .meta-thumb {
     width: 80px;
     height: 80px;
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     object-fit: cover;
     background: var(--surface2);
 }

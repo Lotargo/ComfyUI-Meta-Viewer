@@ -1,14 +1,16 @@
 .content-area {
     flex: 1;
     overflow-y: auto;
-    padding: var(--space-xl);
+    padding: 22px;
     min-width: 0;
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--bg) 94%, var(--surface2)) 0%, var(--bg) 100%);
 }
 
 /* Drop zone */
 .drop-zone {
-    border: 2px dashed var(--border);
-    border-radius: var(--radius-lg);
+    border: 1px dashed color-mix(in srgb, var(--border) 78%, var(--text-muted));
+    border-radius: var(--radius);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -16,7 +18,8 @@
     padding: var(--space-2xl);
     text-align: center;
     transition: all var(--transition);
-    min-height: 400px;
+    min-height: 420px;
+    background: color-mix(in srgb, var(--surface) 58%, transparent);
 }
 
 .drop-zone.dragover {
@@ -31,8 +34,8 @@
 }
 
 .drop-zone h2 {
-    font-size: 16px;
-    font-weight: 500;
+    font-size: 17px;
+    font-weight: 650;
     margin-bottom: var(--space-sm);
     color: var(--text-dim);
 }
@@ -57,6 +60,7 @@
     justify-content: center;
     height: 100%;
     color: var(--text-dim);
+    min-height: 360px;
 }
 
 .empty-state-icon {

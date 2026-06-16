@@ -1,6 +1,6 @@
-import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, sessions, activeSessionId, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setGalleryActive, setIsLoading, isLoading, saveState, setSessions, setActiveSessionId } from './state.js';
+import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, sessions, activeSessionId, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setGalleryActive, setIsLoading, isLoading, saveState, setSessions, setActiveSessionId, showToast } from './state.js';
 import { createSession, getActiveSession, createSessionOnServer } from './sessions.js';
-import { escapeHtml, thumbUrl, showLoading, showError } from './utils.js';
+import { escapeHtml, thumbUrl, showLoading, showError, customConfirm } from './utils.js';
 
 export async function scanFolder(path) {
     showLoading('Scanning folder...');
@@ -32,11 +32,11 @@ export async function scanFolder(path) {
             const { renderGallery } = await import('./gallery.js');
             renderGallery();
         } else {
-            const { renderSidebar } = await import('./sidebar.js');
+            const { renderSidebar } = await import('./features/sidebar.js');
             renderSidebar();
         }
         if (activeIndex >= 0) {
-            const { selectImage } = await import('./sidebar.js');
+            const { selectImage } = await import('./features/sidebar.js');
             selectImage(activeIndex);
         }
     } catch(e) {
@@ -69,7 +69,7 @@ export async function loadFromPaths(paths) {
                 const { renderGallery } = await import('./gallery.js');
                 renderGallery();
             } else {
-                const { renderSidebar } = await import('./sidebar.js');
+                const { renderSidebar } = await import('./features/sidebar.js');
                 renderSidebar();
             }
             const { renderMeta } = await import('./meta-view.js');
@@ -106,7 +106,7 @@ export async function loadFromFiles(files) {
                 const { renderGallery } = await import('./gallery.js');
                 renderGallery();
             } else {
-                const { renderSidebar } = await import('./sidebar.js');
+                const { renderSidebar } = await import('./features/sidebar.js');
                 renderSidebar();
             }
             const { renderMeta } = await import('./meta-view.js');
@@ -136,7 +136,7 @@ export async function loadMore() {
             setTotalImages(data.total);
             setAllLoaded(images.length >= data.total);
             saveState();
-            const { renderSidebar } = await import('./sidebar.js');
+            const { renderSidebar } = await import('./features/sidebar.js');
             renderSidebar();
         }
     } catch(e) {
@@ -162,6 +162,65 @@ export async function deleteFolderFromServer(folderId) {
         return resp.ok;
     } catch (e) {
         console.error('Failed to delete folder:', e);
+        return false;
+    }
+}
+
+export async function deleteImageAt(index) {
+    const img = images[index];
+    if (!img) return false;
+
+    const fileName = img.file_name || img.file || 'this image';
+    const ok = await customConfirm(
+        'Delete Image',
+        `Remove "${fileName}" from the viewer? Files scanned from disk will not be deleted from the folder.`
+    );
+    if (!ok) return false;
+
+    try {
+        if (img.id) {
+            const resp = await fetch(`/api/images/${img.id}`, { method: 'DELETE' });
+            if (!resp.ok) {
+                const data = await resp.json().catch(() => ({}));
+                showError(data.error || 'Failed to delete image');
+                return false;
+            }
+            delete detailCache[img.id];
+        }
+
+        images.splice(index, 1);
+        for (const session of sessions) {
+            const sessionIndex = session.images.indexOf(img);
+            if (sessionIndex >= 0) session.images.splice(sessionIndex, 1);
+        }
+
+        setSessions(sessions.filter(session => session.images.length > 0 || sessions.length === 1));
+        setTotalImages(Math.max(0, totalImages - 1));
+
+        if (images.length === 0) {
+            setActiveIndex(-1);
+        } else if (activeIndex >= images.length) {
+            setActiveIndex(images.length - 1);
+        } else if (index <= activeIndex) {
+            setActiveIndex(Math.max(0, activeIndex - 1));
+        }
+
+        saveState();
+
+        if (galleryActive) {
+            const { renderGallery } = await import('./gallery.js');
+            renderGallery();
+        } else {
+            const { renderSidebar } = await import('./features/sidebar.js');
+            renderSidebar();
+            const { renderMeta } = await import('./meta-view.js');
+            renderMeta(images[activeIndex] || null);
+        }
+
+        showToast('Image removed');
+        return true;
+    } catch(e) {
+        showError('Delete failed: ' + e.message);
         return false;
     }
 }
@@ -222,4 +281,3 @@ export async function loadFolderImages(folderId, folderName) {
         showError('Error loading folder: ' + e.message);
     }
 }
-

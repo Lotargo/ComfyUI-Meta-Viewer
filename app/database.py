@@ -267,6 +267,19 @@ def delete_folder(folder_id: int) -> None:
         conn.close()
 
 
+def delete_image(image_id: int) -> bool:
+    conn = get_conn()
+    try:
+        cur = conn.execute("DELETE FROM images WHERE id = ?", (image_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def insert_upload_image(
     file_name: str,
     original_data: bytes,

@@ -25,6 +25,10 @@ export function renderSidebar() {
                 if (i < 0) return;
                 const div = createSidebarItem(img, i, i === activeIndex, isGrid);
                 div.onclick = () => selectImage(i);
+                div.querySelector('.sidebar-delete')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    import('../api.js').then(m => m.deleteImageAt(i));
+                });
                 dom.imageList.appendChild(div);
             });
         }
@@ -32,6 +36,10 @@ export function renderSidebar() {
         images.forEach((img, i) => {
             const div = createSidebarItem(img, i, i === activeIndex, isGrid);
             div.onclick = () => selectImage(i);
+            div.querySelector('.sidebar-delete')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                import('../api.js').then(m => m.deleteImageAt(i));
+            });
             dom.imageList.appendChild(div);
         });
     }
@@ -118,7 +126,13 @@ export function initSidebarResize() {
 export function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) {
-        sidebar.classList.toggle('collapsed');
+        if (window.matchMedia('(max-width: 768px)').matches) {
+            sidebar.classList.toggle('open');
+            sidebar.classList.remove('collapsed');
+        } else {
+            sidebar.classList.toggle('collapsed');
+            sidebar.classList.remove('open');
+        }
     }
 }
 
@@ -196,4 +210,3 @@ export async function renderFoldersList() {
         folderListEl.appendChild(div);
     });
 }
-

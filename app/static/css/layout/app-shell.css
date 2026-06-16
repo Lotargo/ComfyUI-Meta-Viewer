@@ -1,11 +1,11 @@
 .app-header {
     height: var(--header-height);
-    background: var(--surface);
+    background: color-mix(in srgb, var(--bg-elevated) 92%, black);
     border-bottom: 1px solid var(--border);
-    padding: 0 var(--space-lg);
+    padding: 0 18px;
     display: flex;
     align-items: center;
-    gap: var(--space-lg);
+    gap: 18px;
     position: fixed;
     top: 0;
     left: 0;
@@ -23,12 +23,14 @@
 .header-logo {
     font-family: var(--font-title);
     font-size: 18px;
-    font-weight: 800;
+    font-weight: 750;
     white-space: nowrap;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: -0.5px;
+    color: var(--text);
+    letter-spacing: 0;
+}
+
+.header-logo span {
+    color: var(--accent2);
 }
 
 .header-center {
@@ -42,7 +44,7 @@
 .header-right {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
+    gap: 7px;
     flex-shrink: 0;
 }
 
@@ -55,11 +57,13 @@
     border-radius: var(--radius-sm);
     font-size: 18px;
     color: var(--text-dim);
+    border: 1px solid transparent;
     transition: all var(--transition-fast);
 }
 
 .icon-btn:hover {
     background: var(--surface2);
+    border-color: var(--border);
     color: var(--text);
 }
 

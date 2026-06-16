@@ -1,7 +1,7 @@
 .sidebar {
-    width: 340px;
-    min-width: 340px;
-    background: var(--surface);
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-min);
+    background: color-mix(in srgb, var(--bg-elevated) 88%, var(--surface));
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
@@ -56,19 +56,30 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px;
+    min-height: 58px;
+    padding: 8px 9px;
     border-radius: var(--radius);
     cursor: pointer;
-    transition: background 0.1s;
-    margin-bottom: 2px;
+    transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+    position: relative;
 }
-.image-item:hover { background: var(--surface2); }
-.image-item.active { background: var(--accent); color: #fff; }
-.image-item.active .meta-hint { color: rgba(255,255,255,0.7); }
+.image-item:hover {
+    background: var(--surface2);
+    border-color: var(--border);
+}
+.image-item.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--text);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+.image-item.active .meta-hint { color: var(--text-dim); }
 
 .image-item img {
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
     border-radius: 6px;
     object-fit: cover;
     background: var(--surface2);
@@ -83,6 +94,12 @@
     flex: 1;
 }
 
+.image-item .item-info {
+    flex: 1;
+    min-width: 0;
+    padding-right: 28px;
+}
+
 .image-item .meta-hint {
     font-size: 11px;
     color: var(--text-dim);
@@ -94,6 +111,7 @@
     padding: 6px;
     gap: 4px;
     margin-bottom: 0;
+    min-height: 124px;
 }
 
 .grid-mode .image-item img {
@@ -110,3 +128,57 @@
 }
 
 .grid-mode .image-item .meta-hint { display: none; }
+
+.image-delete-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid hsla(0, 75%, 58%, 0.34);
+    border-radius: var(--radius-sm);
+    background: hsla(0, 72%, 18%, 0.84);
+    color: hsl(0, 86%, 76%);
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(2px);
+    transition: opacity var(--transition-fast), transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.image-delete-btn:hover,
+.image-delete-btn:focus-visible {
+    background: hsl(0, 72%, 42%);
+    border-color: hsl(0, 75%, 58%);
+    color: white;
+}
+
+.image-item:hover .image-delete-btn,
+.image-item:focus-within .image-delete-btn,
+.gallery-card:hover .image-delete-btn,
+.gallery-card:focus-within .image-delete-btn {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.sidebar-delete {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(calc(-50% + 2px));
+}
+
+.image-item:hover .sidebar-delete,
+.image-item:focus-within .sidebar-delete {
+    transform: translateY(-50%);
+}
+
+.grid-mode .sidebar-delete {
+    top: 10px;
+    right: 10px;
+    transform: translateY(2px);
+}
+
+.grid-mode .image-item:hover .sidebar-delete,
+.grid-mode .image-item:focus-within .sidebar-delete {
+    transform: translateY(0);
+}

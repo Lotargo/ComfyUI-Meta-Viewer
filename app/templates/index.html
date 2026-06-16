@@ -30,6 +30,7 @@
     <link rel="stylesheet" href="/static/css/features/workflow-graph.css">
     <link rel="stylesheet" href="/static/css/features/gallery.css">
     <link rel="stylesheet" href="/static/css/features/lightbox.css">
+    <link rel="stylesheet" href="/static/css/features/cutout.css">
     <!-- Legacy (пока оставляем) -->
     <link rel="stylesheet" href="/static/css/sessions.css">
     <link rel="stylesheet" href="/static/css/gallery.css">
@@ -139,6 +140,9 @@
         <button class="lb-btn" id="lb-download" title="Download image">
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
         </button>
+        <button class="lb-btn" id="lb-cutout" title="Select object">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3"></path><path d="M16 4h3a1 1 0 0 1 1 1v3"></path><path d="M20 16v3a1 1 0 0 1-1 1h-3"></path><path d="M8 20H5a1 1 0 0 1-1-1v-3"></path><path d="M9 9h6v6H9z"></path></svg>
+        </button>
         <button class="lb-btn lb-delete" id="lb-delete" title="Delete image">
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
         </button>
@@ -160,6 +164,24 @@
             </button>
         </div>
         <div class="lightbox-meta-panel open" id="lb-meta"></div>
+        <aside class="cutout-panel" id="cutout-panel" aria-label="Object cutout panel">
+            <div class="cutout-header">
+                <div>
+                    <h3>Object Cutout</h3>
+                    <p id="cutout-status">Select an object to create a transparent PNG.</p>
+                </div>
+                <button class="lb-btn" id="cutout-close" title="Close cutout panel">
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="cutout-preview" id="cutout-preview">
+                <div class="cutout-empty">No cutout yet</div>
+            </div>
+            <div class="cutout-actions">
+                <button class="btn btn-primary" id="cutout-download" disabled>Download PNG</button>
+                <button class="btn btn-secondary" id="cutout-regenerate" disabled>Regenerate</button>
+            </div>
+        </aside>
     </div>
 </div>
 

@@ -159,16 +159,25 @@ Findings:
 
 ### Step 3: Frontend Panel
 
-- [ ] Add lightbox `Select Object` button.
-- [ ] Add cutout panel markup and CSS.
-- [ ] Add JS module for request/preview/download.
+- [x] Add lightbox `Select Object` button.
+- [x] Add cutout panel markup and CSS.
+- [x] Add JS module for request/preview/download.
 
 ### Step 4: Polish
 
 - [ ] Add retry/reset.
 - [ ] Add cache clear button.
-- [ ] Add Help Center note for Object Cutout.
-- [ ] Browser verification.
+- [x] Add Help Center diagnostics count for cutouts.
+- [ ] Add Help Center usage note for Object Cutout.
+- [x] Browser verification.
+
+Verification notes:
+
+- Lightbox `Select Object` opens the cutout panel.
+- `POST /api/cutout/1` is triggered from the UI.
+- Preview image renders from `/api/cutout/1?t=...`.
+- `Download PNG` and `Regenerate` become enabled after generation.
+- Diagnostics reports `cutout_count: 1` while cached PNG exists.
 
 ### Step 5: Phase 2 Planning
 

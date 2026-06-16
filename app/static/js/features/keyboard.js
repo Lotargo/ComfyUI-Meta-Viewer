@@ -232,6 +232,7 @@ function initHelpCenter() {
                         <div class="diagnostic-card"><span>Uploads</span><strong id="diag-uploads">-</strong></div>
                         <div class="diagnostic-card"><span>Sessions</span><strong id="diag-sessions">-</strong></div>
                         <div class="diagnostic-card"><span>Thumbnails</span><strong id="diag-thumbnails">-</strong></div>
+                        <div class="diagnostic-card"><span>Cutouts</span><strong id="diag-cutouts">-</strong></div>
                         <div class="diagnostic-card"><span>Loaded Now</span><strong id="diag-loaded">-</strong></div>
                     </div>
                     <div class="diagnostics-paths">
@@ -302,6 +303,7 @@ async function refreshDiagnostics() {
         setText('diag-uploads', data.uploads);
         setText('diag-sessions', data.sessions);
         setText('diag-thumbnails', data.thumbnail_count);
+        setText('diag-cutouts', data.cutout_count);
         setText('diag-loaded', `${data.loaded_images}/${data.total_images || data.loaded_images}`);
         setText('diag-db-path', data.db_path || '-');
         setText('diag-upload-dir', data.upload_dir || '-');

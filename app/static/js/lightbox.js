@@ -7,6 +7,7 @@
 
 import { images, lightboxIndex, totalImages, galleryActive, detailCache, dom, setLightboxIndex, setActiveIndex, saveState } from './state.js';
 import { escapeHtml, originalUrl, thumbUrl, copyText } from './utils.js';
+import { initCutoutEvents, resetCutoutPanel } from './features/cutout.js';
 
 let metaPanelOpen = true;
 let zoomLevel = 1;
@@ -66,6 +67,7 @@ export async function openLightbox(idx) {
     dom.lightbox.classList.add('open');
     document.body.style.overflow = 'hidden';
     resetZoom();
+    resetCutoutPanel();
     updateLightbox();
 }
 
@@ -73,6 +75,7 @@ export function closeLightbox() {
     dom.lightbox.classList.remove('open');
     document.body.style.overflow = '';
     setLightboxIndex(-1);
+    resetCutoutPanel();
 }
 
 function getDetailForLightbox() {
@@ -202,6 +205,7 @@ export function lbNav(dir) {
     const next = lightboxIndex + dir;
     if (next >= 0 && next < images.length) {
         resetZoom();
+        resetCutoutPanel();
         openLightbox(next);
     }
 }
@@ -230,6 +234,8 @@ export function downloadImage() {
 }
 
 export function initLightboxEvents() {
+    initCutoutEvents();
+
     // Close button
     document.getElementById('lb-close')?.addEventListener('click', closeLightbox);
 

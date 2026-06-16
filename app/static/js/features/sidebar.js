@@ -72,7 +72,13 @@ export async function selectImage(idx) {
         const { renderMeta } = await import('../meta-view.js');
         return renderMeta(null);
     }
-    if (galleryActive) return;
+    if (galleryActive) {
+        dom.imageList.querySelectorAll('.image-item').forEach((el, i) => {
+            el.classList.toggle('active', i === idx);
+        });
+        import('../lightbox.js').then(m => m.openLightbox(idx));
+        return;
+    }
     const { renderMeta } = await import('../meta-view.js');
     renderMeta(img);
     if (img.id && !detailCache[img.id]) {

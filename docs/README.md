@@ -1,46 +1,61 @@
 # Documentation
 
-> Полная документация по Comfy Meta Viewer.
+> Documentation index for ComfyUI Meta Viewer.
+
+This folder contains the public documentation for the project: architecture, API behavior, feature overview, configuration, and development guides.
 
 ---
 
-## Оглавление
+## Core Documentation
 
-### Основное
-
-| Документ | Описание |
-|----------|----------|
-| [Architecture](architecture.md) | Обзор системы, data flow, схема БД |
-| [API Reference](api.md) | Все 18 REST endpoints с примерами |
-| [Features](features.md) | Подробное описание всех возможностей |
-| [Configuration](configuration.md) | Переменные окружения, пути, CLI флаги |
-
-### Разработка
-
-| Документ | Описание |
-|----------|----------|
-| [Development](development.md) | Руководство для контрибьюторов |
-| [JS Architecture](js-architecture.md) | Структура frontend модулей |
-| [CSS Architecture](css-architecture.md) | Система стилей и custom properties |
-
-### Внутренняя документация
-
-| Документ | Описание | Статус |
-|----------|----------|--------|
-| [dev_docs/plan.md](../dev_docs/plan.md) | План рефакторинга | Архив |
-| [dev_docs/sprint-redesign.md](../dev_docs/sprint-redesign.md) | Спринт: редизайн UI | Завершён |
-| [dev_docs/sprint-object-cutout.md](../dev_docs/sprint-object-cutout.md) | Спринт: Object Cutout | In Progress |
+| Document | Description |
+|----------|-------------|
+| [Architecture](architecture.md) | System overview, data flow, storage model, and extension points |
+| [API Reference](api.md) | Current REST API routes with request/response examples |
+| [Features](features.md) | User-facing features and implementation notes |
+| [Configuration](configuration.md) | Environment variables, local paths, file support, and CLI flags |
 
 ---
 
-## Быстрый доступ
+## Development Documentation
 
-### Я хочу...
+| Document | Description |
+|----------|-------------|
+| [Development](development.md) | Local setup, project structure, contribution workflow, and testing checklist |
+| [JavaScript Architecture](js-architecture.md) | Frontend ES module structure, state, API client, and feature modules |
+| [CSS Architecture](css-architecture.md) | Styling structure, custom properties, naming rules, and extension guidelines |
 
-- **Установить и запустить** → [Development > Установка](development.md#установка)
-- **Узнать API** → [API Reference](api.md)
-- **Понять архитектуру** → [Architecture](architecture.md)
-- **Добавить feature** → [Development > Добавление нового API endpoint](development.md#добавление-нового-api-endpoint)
-- **Настроить порт** → [Configuration > Переменные окружения](configuration.md#переменные-окружения)
-- **Понять CSS** → [CSS Architecture > Custom Properties](css-architecture.md#custom-properties)
-- **Понять JS** → [JS Architecture > Модули](js-architecture.md#модули)
+---
+
+## Internal Development Notes
+
+The `dev_docs/` folder contains planning notes and sprint documents. These files are kept as historical development context and may not always match the current public documentation.
+
+| Document | Status |
+|----------|--------|
+| [Refactor Plan](../dev_docs/plan.md) | Archived planning note |
+| [UI Redesign Sprint](../dev_docs/sprint-redesign.md) | Completed sprint note |
+| [Object Cutout Sprint](../dev_docs/sprint-object-cutout.md) | Historical sprint note |
+
+---
+
+## Quick Links
+
+| Goal | Start Here |
+|------|------------|
+| Install and run the app | [Development > Setup](development.md#setup) |
+| Understand the system design | [Architecture](architecture.md) |
+| Use or integrate with the REST API | [API Reference](api.md) |
+| Review user-facing capabilities | [Features](features.md) |
+| Change the port or storage path | [Configuration > Environment Variables](configuration.md#environment-variables) |
+| Add a new backend endpoint | [Development > Adding an API Endpoint](development.md#adding-an-api-endpoint) |
+| Add a frontend module | [JavaScript Architecture > Extension Guidelines](js-architecture.md#extension-guidelines) |
+| Add or organize styles | [CSS Architecture > Extension Guidelines](css-architecture.md#extension-guidelines) |
+
+---
+
+## Notes
+
+- The root [`README.md`](../README.md) is the project landing page.
+- Files in this folder are intended to stay aligned with the current codebase.
+- Files in `dev_docs/` are allowed to be more historical or exploratory.

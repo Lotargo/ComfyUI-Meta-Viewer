@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from flask import Flask, Response, jsonify, render_template, request
 
 from . import database as db
+from .cutout import clear_cutout, get_cutout_path, make_cutout_png
 from .extractor import (
     extract_metadata,
     make_thumbnail_bytes,
@@ -154,6 +155,7 @@ def api_delete_image(image_id: int):
 
     thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
     (thumb_dir / f"{image_id}.jpg").unlink(missing_ok=True)
+    clear_cutout(app.config.get("CUTOUT_FOLDER", "cache/cutouts"), image_id)
     return jsonify(OkResponse().model_dump())
 
 
@@ -223,6 +225,14 @@ def api_reset():
                         f.unlink()
                     except Exception:
                         pass
+        cutout_dir = Path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"))
+        if cutout_dir.exists() and cutout_dir.is_dir():
+            for f in cutout_dir.iterdir():
+                if f.is_file():
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
         return jsonify(OkResponse().model_dump())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -231,17 +241,57 @@ def api_reset():
 @app.route("/api/diagnostics", methods=["GET"])
 def api_diagnostics():
     thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
+    cutout_dir = Path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"))
     thumb_count = 0
     if thumb_dir.exists() and thumb_dir.is_dir():
         thumb_count = sum(1 for f in thumb_dir.iterdir() if f.is_file())
+    cutout_count = 0
+    if cutout_dir.exists() and cutout_dir.is_dir():
+        cutout_count = sum(1 for f in cutout_dir.iterdir() if f.is_file())
 
     diagnostics = db.get_diagnostics()
     diagnostics.update({
         "thumbnail_dir": str(thumb_dir),
         "thumbnail_count": thumb_count,
+        "cutout_dir": str(cutout_dir),
+        "cutout_count": cutout_count,
         "upload_dir": str(Path(app.config["UPLOAD_FOLDER"])),
     })
     return jsonify(diagnostics)
+
+
+@app.route("/api/cutout/<int:image_id>", methods=["GET"])
+def api_get_cutout(image_id: int):
+    cutout_path = get_cutout_path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"), image_id)
+    if not cutout_path.exists():
+        return jsonify({"error": "Cutout not found"}), 404
+    return Response(cutout_path.read_bytes(), mimetype="image/png")
+
+
+@app.route("/api/cutout/<int:image_id>", methods=["POST"])
+def api_create_cutout(image_id: int):
+    try:
+        _, cached = make_cutout_png(
+            image_id,
+            app.config.get("CUTOUT_FOLDER", "cache/cutouts"),
+        )
+    except FileNotFoundError:
+        return jsonify({"error": "Image source not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({
+        "ok": True,
+        "image_id": image_id,
+        "cutout_url": f"/api/cutout/{image_id}",
+        "cached": cached,
+    })
+
+
+@app.route("/api/cutout/<int:image_id>", methods=["DELETE"])
+def api_delete_cutout(image_id: int):
+    deleted = clear_cutout(app.config.get("CUTOUT_FOLDER", "cache/cutouts"), image_id)
+    return jsonify({"ok": True, "deleted": deleted})
 
 
 @app.route("/api/thumbnail/<int:image_id>")

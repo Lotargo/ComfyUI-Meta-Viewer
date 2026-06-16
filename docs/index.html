@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComfyUI Meta Viewer</title>
+  <meta name="description" content="A local metadata viewer and manager for ComfyUI generated images. Browse galleries, inspect prompts, visualize workflow graphs, and export object cutouts.">
+  <meta property="og:title" content="ComfyUI Meta Viewer">
+  <meta property="og:description" content="Turn ComfyUI image folders into a searchable gallery with prompts, generation settings, workflow graphs, and cutout export.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="assets/site-og.jpg">
+  <meta name="theme-color" content="#11171b">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header class="site-header" aria-label="Primary navigation">
+    <a class="brand" href="#top" aria-label="ComfyUI Meta Viewer home">
+      <span class="brand-mark">CMV</span>
+      <span>ComfyUI Meta Viewer</span>
+    </a>
+    <nav class="nav-links" aria-label="Project links">
+      <a href="#features">Features</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/Lotargo/ComfyUI-Meta-Viewer/blob/main/docs/api.md">API</a>
+      <a href="https://github.com/Lotargo/ComfyUI-Meta-Viewer">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-labelledby="hero-title">
+      <picture>
+        <img class="hero-art" src="assets/site-hero.jpg" alt="">
+      </picture>
+      <div class="hero-shade"></div>
+      <div class="hero-inner">
+        <p class="eyebrow">Local-first metadata workspace for ComfyUI</p>
+        <h1 id="hero-title">ComfyUI Meta Viewer</h1>
+        <p class="hero-copy">
+          Browse generated image folders as a polished gallery, inspect prompts and model settings,
+          open the original workflow graph, and create transparent PNG cutouts without uploading your work anywhere.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#install">Get started</a>
+          <a class="button secondary" href="https://github.com/Lotargo/ComfyUI-Meta-Viewer">View on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="proof-strip" aria-label="Project highlights">
+      <div>
+        <strong>18</strong>
+        <span>REST endpoints</span>
+      </div>
+      <div>
+        <strong>14</strong>
+        <span>keyboard shortcuts</span>
+      </div>
+      <div>
+        <strong>SQLite</strong>
+        <span>persistent local library</span>
+      </div>
+      <div>
+        <strong>PNG / JPG / WEBP</strong>
+        <span>metadata extraction</span>
+      </div>
+    </section>
+
+    <section class="section intro-grid" aria-labelledby="intro-title">
+      <div>
+        <p class="section-kicker">Why it exists</p>
+        <h2 id="intro-title">Your ComfyUI archive should be searchable, inspectable, and reusable.</h2>
+      </div>
+      <p>
+        ComfyUI Meta Viewer turns a folder full of generated images into a fast local catalog.
+        It keeps files in place, stores metadata in SQLite, renders thumbnails on demand, and
+        gives every image a readable story: prompt, seed, sampler, model, LoRA, EXIF, and workflow.
+      </p>
+    </section>
+
+    <section class="section feature-grid" id="features" aria-labelledby="features-title">
+      <div class="section-heading">
+        <p class="section-kicker">Core workflow</p>
+        <h2 id="features-title">Built for people who actually revisit generations.</h2>
+      </div>
+      <article class="feature-card">
+        <img src="icons/metadata.svg" alt="">
+        <h3>Metadata extraction</h3>
+        <p>Read PNG chunks, EXIF, ComfyUI prompt JSON, model names, LoRA weights, seeds, samplers, and resolution data.</p>
+      </article>
+      <article class="feature-card">
+        <img src="icons/workflow.svg" alt="">
+        <h3>Workflow graph</h3>
+        <p>Inspect a color-coded SVG node graph with pan, zoom, links, node details, and workflow-aware categories.</p>
+      </article>
+      <article class="feature-card">
+        <img src="icons/gallery.svg" alt="">
+        <h3>Gallery and lightbox</h3>
+        <p>Move through large folders with masonry thumbnails, image zoom, rotation, touch swipes, and metadata tabs.</p>
+      </article>
+      <article class="feature-card">
+        <img src="icons/search.svg" alt="">
+        <h3>Fuzzy search</h3>
+        <p>Find images by filename, prompt text, model, sampler, folder, and extracted generation parameters.</p>
+      </article>
+      <article class="feature-card">
+        <img src="icons/folder.svg" alt="">
+        <h3>In-place scanning</h3>
+        <p>Scan folders recursively without copying originals. Incremental mtime checks keep repeat scans quick.</p>
+      </article>
+      <article class="feature-card">
+        <img src="icons/cutout.svg" alt="">
+        <h3>Object cutout</h3>
+        <p>Select the subject in an image and export a transparent PNG while keeping cached results locally.</p>
+      </article>
+    </section>
+
+    <section class="showcase" id="screenshots" aria-labelledby="showcase-title">
+      <div class="showcase-copy">
+        <p class="section-kicker">Interface</p>
+        <h2 id="showcase-title">A desktop-feeling web app for local image libraries.</h2>
+        <p>
+          The UI is intentionally dense: a resizable sidebar for folders and sessions, a fast gallery surface,
+          and a lightbox that keeps metadata close to the image instead of hiding it in raw JSON.
+        </p>
+      </div>
+      <div class="screenshot-grid">
+        <figure>
+          <img src="assets/gallery-view.png" alt="Gallery view with generated image thumbnails">
+          <figcaption>Gallery view</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/lightbox-detail.png" alt="Lightbox view with metadata panel">
+          <figcaption>Lightbox metadata</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section split-section" aria-labelledby="workflow-title">
+      <div class="poster-panel">
+        <img src="assets/site-poster.jpg" alt="">
+      </div>
+      <div class="workflow-copy">
+        <p class="section-kicker">Under the hood</p>
+        <h2 id="workflow-title">Small stack, direct control, no documentation generator.</h2>
+        <p>
+          The app is a Flask service with a vanilla ES module frontend, Pydantic response models,
+          SQLite WAL persistence, Pillow image handling, and vendored Fuse.js search.
+        </p>
+        <dl class="tech-list">
+          <div>
+            <dt>Backend</dt>
+            <dd>Python 3.10+, Flask 3.1</dd>
+          </div>
+          <div>
+            <dt>Storage</dt>
+            <dd>SQLite with local uploads and cache folders</dd>
+          </div>
+          <div>
+            <dt>Frontend</dt>
+            <dd>Vanilla JavaScript modules and custom CSS</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="install-band" id="install" aria-labelledby="install-title">
+      <div>
+        <p class="section-kicker">Install</p>
+        <h2 id="install-title">Run it locally in a few commands.</h2>
+        <p>Python 3.10+ and Poetry are the only manual prerequisites. Windows users can also run `start.bat`.</p>
+      </div>
+      <pre><code>git clone https://github.com/Lotargo/ComfyUI-Meta-Viewer.git
+cd ComfyUI-Meta-Viewer
+poetry install --no-root
+poetry run python -m app.main</code></pre>
+      <div class="install-links">
+        <a href="https://github.com/Lotargo/ComfyUI-Meta-Viewer/blob/main/docs/installation.md">Installation guide</a>
+        <a href="https://github.com/Lotargo/ComfyUI-Meta-Viewer/blob/main/docs/features.md">Feature reference</a>
+        <a href="https://github.com/Lotargo/ComfyUI-Meta-Viewer/blob/main/docs/architecture.md">Architecture</a>
+        <a href="https://github.com/Lotargo/ComfyUI-Meta-Viewer/blob/main/docs/development.md">Development</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>GPL-3.0-only</span>
+    <span>Local-first ComfyUI metadata viewer</span>
+    <a href="https://github.com/Lotargo/ComfyUI-Meta-Viewer">github.com/Lotargo/ComfyUI-Meta-Viewer</a>
+  </footer>
+</body>
+</html>

@@ -78,6 +78,20 @@ def init_db() -> None:
     conn.close()
 
 
+def clear_db() -> None:
+    conn = get_conn()
+    try:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("DROP TABLE IF EXISTS images")
+        conn.execute("DROP TABLE IF EXISTS folders")
+        conn.execute("DROP TABLE IF EXISTS sessions")
+        conn.commit()
+    finally:
+        conn.close()
+    init_db()
+
+
+
 def upsert_folder(path: str) -> int:
     conn = get_conn()
     try:

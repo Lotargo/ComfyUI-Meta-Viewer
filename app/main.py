@@ -200,7 +200,25 @@ def api_delete_session(session_id: int):
     return jsonify(OkResponse().model_dump())
 
 
+@app.route("/api/reset", methods=["POST"])
+def api_reset():
+    try:
+        db.clear_db()
+        thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
+        if thumb_dir.exists() and thumb_dir.is_dir():
+            for f in thumb_dir.iterdir():
+                if f.is_file():
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
+        return jsonify(OkResponse().model_dump())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/thumbnail/<int:image_id>")
+
 def api_thumbnail(image_id: int):
     thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
     thumb_path = thumb_dir / f"{image_id}.jpg"

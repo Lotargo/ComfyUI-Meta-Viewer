@@ -73,6 +73,53 @@ export function initEvents() {
         </div>`;
     });
 
+    document.getElementById('btn-hard-reset')?.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to perform a hard reset? This will clear all folders, database entries, and thumbnail cache.')) {
+            return;
+        }
+
+        if (scrollObserver) scrollObserver.disconnect();
+        
+        const { showLoading, showError } = await import('./utils.js');
+        const { showToast } = await import('./state.js');
+        showLoading('Resetting database and cache...');
+
+        try {
+            const resp = await fetch('/api/reset', { method: 'POST' });
+            const data = await resp.json();
+            if (data.error) {
+                showError('Reset failed: ' + data.error);
+                return;
+            }
+
+            setImages([]);
+            setSessions([]);
+            setActiveSessionId(0);
+            setActiveIndex(-1);
+            setGalleryActive(false);
+            setCurrentFolderId(null);
+            setCurrentPage(0);
+            setTotalImages(0);
+            setAllLoaded(false);
+            setDetailCache({});
+            dom.folderNameEl.textContent = '';
+            sessionStorage.removeItem('cmv_state');
+            
+            renderSidebar();
+            
+            dom.contentArea.innerHTML = `<div class="drop-zone anim-scale-in" id="drop-zone">
+                <div class="icon">&#128444;</div>
+                <h2>Drop images here</h2>
+                <p>or use buttons above / paste path</p>
+                <div class="hint">Supports PNG, JPG, WEBP, BMP, TIFF</div>
+            </div>`;
+            
+            showToast('Database reset successfully!');
+        } catch (e) {
+            showError('Error during reset: ' + e.message);
+        }
+    });
+
     document.querySelectorAll('.btn-paste').forEach(el => {
         el.addEventListener('click', async () => {
             const input = prompt('Enter file/folder path(s), separated by newlines:');

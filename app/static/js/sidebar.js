@@ -1,11 +1,10 @@
-import { images, activeIndex, viewMode, galleryActive, currentFolderId, allLoaded, detailCache, scrollObserver, sessions, totalImages, dom, setActiveIndex, setScrollObserver, saveState } from './state.js';
+import { images, activeIndex, galleryActive, currentFolderId, allLoaded, detailCache, scrollObserver, sessions, totalImages, dom, setActiveIndex, setScrollObserver, saveState } from './state.js';
 import { escapeHtml, thumbUrl } from './utils.js';
 
 export function renderSidebar() {
     if (galleryActive) return;
     dom.imageList.innerHTML = '';
     dom.imageCount.textContent = totalImages ? `(${images.length}/${totalImages})` : '';
-    const isGrid = viewMode === 'grid';
 
     if (sessions.length > 0) {
         for (const session of sessions) {
@@ -26,16 +25,11 @@ export function renderSidebar() {
                 div.className = 'image-item' + (i === activeIndex ? ' active' : '');
                 const src = thumbUrl(img);
                 const fileName = img.file_name || img.file || '';
-                if (isGrid) {
-                    div.innerHTML = `<img src="${src}" alt="" loading="lazy">` +
-                        `<div class="name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>`;
-                } else {
-                    div.innerHTML = `<img src="${src}" alt="" loading="lazy">` +
-                        `<div style="flex:1;min-width:0">` +
-                            `<div class="name">${escapeHtml(fileName)}</div>` +
-                            `<div class="meta-hint">${img.format || ''} ${img.size ? img.size[0]+'x'+img.size[1] : ''}</div>` +
-                        `</div>`;
-                }
+                div.innerHTML = `<img src="${src}" alt="" loading="lazy">` +
+                    `<div style="flex:1;min-width:0">` +
+                        `<div class="name">${escapeHtml(fileName)}</div>` +
+                        `<div class="meta-hint">${img.format || ''} ${img.size ? img.size[0]+'x'+img.size[1] : ''}</div>` +
+                    `</div>`;
                 div.onclick = () => selectImage(i);
                 dom.imageList.appendChild(div);
             });
@@ -46,16 +40,11 @@ export function renderSidebar() {
             div.className = 'image-item' + (i === activeIndex ? ' active' : '');
             const src = thumbUrl(img);
             const fileName = img.file_name || img.file || '';
-            if (isGrid) {
-                div.innerHTML = `<img src="${src}" alt="" loading="lazy">` +
-                    `<div class="name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>`;
-            } else {
-                div.innerHTML = `<img src="${src}" alt="" loading="lazy">` +
-                    `<div style="flex:1;min-width:0">` +
-                        `<div class="name">${escapeHtml(fileName)}</div>` +
-                        `<div class="meta-hint">${img.format || ''} ${img.size ? img.size[0]+'x'+img.size[1] : ''}</div>` +
-                    `</div>`;
-            }
+            div.innerHTML = `<img src="${src}" alt="" loading="lazy">` +
+                `<div style="flex:1;min-width:0">` +
+                    `<div class="name">${escapeHtml(fileName)}</div>` +
+                    `<div class="meta-hint">${img.format || ''} ${img.size ? img.size[0]+'x'+img.size[1] : ''}</div>` +
+                `</div>`;
             div.onclick = () => selectImage(i);
             dom.imageList.appendChild(div);
         });

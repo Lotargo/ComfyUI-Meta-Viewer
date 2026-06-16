@@ -1,4 +1,4 @@
-type ViewMode = 'list' | 'grid' | 'gallery';
+type ViewMode = 'list' | 'gallery';
 
 interface ImageListItem {
   id?: number;

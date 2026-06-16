@@ -31,7 +31,6 @@ export function initEvents() {
     });
 
     dom.btnViewList.addEventListener('click', () => setViewMode('list'));
-    dom.btnViewGrid.addEventListener('click', () => setViewMode('grid'));
     dom.btnViewGallery.addEventListener('click', () => setViewMode('gallery'));
 
     // New session button
@@ -167,9 +166,7 @@ export function initEvents() {
 export function setViewMode(mode) {
     setViewModeValue(mode);
     dom.btnViewList.classList.toggle('active', mode === 'list');
-    dom.btnViewGrid.classList.toggle('active', mode === 'grid');
     dom.btnViewGallery.classList.toggle('active', mode === 'gallery');
-    dom.imageList.classList.toggle('grid-mode', mode === 'grid');
     setGalleryActive(mode === 'gallery');
     saveState();
     if (galleryActive) {

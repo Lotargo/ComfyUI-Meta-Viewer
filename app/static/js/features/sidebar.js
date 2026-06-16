@@ -2,7 +2,7 @@
  * Sidebar component - handles image list rendering and resize
  */
 
-import { images, activeIndex, viewMode, galleryActive, currentFolderId, allLoaded, detailCache, scrollObserver, sessions, totalImages, dom, setActiveIndex, setScrollObserver, saveState } from '../state.js';
+import { images, activeIndex, galleryActive, currentFolderId, allLoaded, detailCache, scrollObserver, sessions, totalImages, dom, setActiveIndex, setScrollObserver, saveState } from '../state.js';
 import { escapeHtml, thumbUrl, customConfirm } from '../utils.js';
 import { createSidebarItem, createSessionHeader } from '../components/sidebar-item.js';
 
@@ -10,7 +10,6 @@ export function renderSidebar() {
     if (galleryActive) return;
     dom.imageList.innerHTML = '';
     dom.imageCount.textContent = totalImages ? `(${images.length}/${totalImages})` : '';
-    const isGrid = viewMode === 'grid';
 
     if (sessions.length > 0) {
         for (const session of sessions) {
@@ -23,7 +22,7 @@ export function renderSidebar() {
             session.images.forEach(img => {
                 const i = images.indexOf(img);
                 if (i < 0) return;
-                const div = createSidebarItem(img, i, i === activeIndex, isGrid);
+                const div = createSidebarItem(img, i, i === activeIndex);
                 div.onclick = () => selectImage(i);
                 div.querySelector('.sidebar-delete')?.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -34,7 +33,7 @@ export function renderSidebar() {
         }
     } else {
         images.forEach((img, i) => {
-            const div = createSidebarItem(img, i, i === activeIndex, isGrid);
+            const div = createSidebarItem(img, i, i === activeIndex);
             div.onclick = () => selectImage(i);
             div.querySelector('.sidebar-delete')?.addEventListener('click', (e) => {
                 e.stopPropagation();

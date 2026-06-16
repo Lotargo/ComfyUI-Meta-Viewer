@@ -38,6 +38,17 @@ from .schemas import (
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
+app.config["SEND_FILE_MAX_AGE"] = 0
+app.jinja_env.auto_reload = True
+
+
+@app.after_request
+def add_no_cache(response):
+    if request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 @app.route("/")

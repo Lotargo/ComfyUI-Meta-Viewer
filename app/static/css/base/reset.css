@@ -50,3 +50,21 @@ ul, ol {
     background: var(--accent);
     color: #fff;
 }
+
+.hidden-input { display: none; }
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-dim);
+}
+
+.empty-state .icon { font-size: 64px; margin-bottom: 16px; opacity: 0.3; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }

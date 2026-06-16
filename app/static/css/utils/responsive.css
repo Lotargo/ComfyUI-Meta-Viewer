@@ -226,6 +226,17 @@
     }
 }
 
+/* Utility responsive overrides */
+@media (max-width: 800px) {
+    .sidebar {
+        display: flex;
+    }
+
+    .lightbox-meta-panel:not(.open) {
+        display: none;
+    }
+}
+
 /* Prefers reduced motion */
 @media (prefers-reduced-motion: reduce) {
     *,

@@ -1,8 +1,3 @@
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
 @keyframes fadeOut {
     from { opacity: 1; }
     to { opacity: 0; }
@@ -59,6 +54,11 @@
     50% { border-color: var(--accent2); box-shadow: 0 0 20px rgba(124, 106, 239, 0.15); }
 }
 
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .anim-fade-in { animation: fadeIn 0.25s ease-out both; }
 .anim-fade-out { animation: fadeOut 0.2s ease-in both; }
 .anim-slide-up { animation: slideUp 0.3s ease-out both; }
@@ -70,6 +70,7 @@
 .anim-shake { animation: shake 0.3s ease-in-out; }
 .anim-pulse { animation: pulse 1.5s ease-in-out infinite; }
 .anim-drop-pulse { animation: dropPulse 1.2s ease-in-out infinite; }
+.anim-spin { animation: spin 1s linear infinite; display: inline-block; }
 
 .anim-stagger > * {
     animation: staggerFadeIn 0.3s ease-out both;
@@ -85,21 +86,3 @@
 .anim-stagger > *:nth-child(9) { animation-delay: 240ms; }
 .anim-stagger > *:nth-child(10) { animation-delay: 270ms; }
 .anim-stagger > *:nth-child(n+11) { animation-delay: 300ms; }
-
-.lightbox-overlay.open .lightbox-image-area img {
-    animation: fadeIn 0.25s ease-out both;
-}
-
-.category-body:not(.collapsed) {
-    animation: slideDown 0.2s ease-out both;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-.anim-spin {
-    animation: spin 1s linear infinite;
-    display: inline-block;
-}

@@ -8,7 +8,6 @@ export const dom = {
     folderInput: document.getElementById('folder-input'),
     toast: document.getElementById('toast'),
     btnViewList: document.getElementById('btn-view-list'),
-    btnViewGrid: document.getElementById('btn-view-grid'),
     btnViewGallery: document.getElementById('btn-view-gallery'),
     lightbox: document.getElementById('lightbox'),
     lbTitle: document.getElementById('lb-title'),

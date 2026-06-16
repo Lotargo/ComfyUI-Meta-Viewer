@@ -158,8 +158,8 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/comfy-meta-viewer.git
-cd comfy-meta-viewer
+git clone https://github.com/Lotargo/ComfyUI-Meta-Viewer.git
+cd ComfyUI-Meta-Viewer
 
 # Install dependencies
 poetry install --no-root
@@ -202,7 +202,7 @@ The app will be available at **http://localhost:7860**
 | **Images** | Pillow 11.0 | Metadata extraction, thumbnails, cutout |
 | **Frontend** | Vanilla JS (ES modules) | SPA interface |
 | **CSS** | Custom Properties | Modular styling |
-| **Search** | Fuse.js 7.0 | Fuzzy search |
+| **Search** | Fuse.js 7.0 | Fuzzy search (vendored in `app/static/js/vendor/`) |
 | **Dependencies** | Poetry | Package management |
 
 ---
@@ -284,7 +284,7 @@ comfy-meta-viewer/
 └── start.sh                 # Linux launcher
 ```
 
-Full structure: [docs/architecture.md#структура-каталогов](docs/architecture.md#структура-каталогов)
+Full structure: [docs/architecture.md#directory-structure](docs/architecture.md#directory-structure)
 
 ---
 

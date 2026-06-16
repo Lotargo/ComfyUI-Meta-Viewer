@@ -88,7 +88,10 @@ export async function loadFromFiles(files) {
         const resp = await fetch('/api/upload', { method: 'POST', body: formData });
         const data = await resp.json();
         if (data.images && data.images.length) {
-            if (data.folder_id) setCurrentFolderId(data.folder_id);
+            if (data.folder_id) {
+                setCurrentFolderId(data.folder_id);
+                dom.folderNameEl.textContent = 'Uploads';
+            }
             for (const img of data.images) images.push(img);
             setTotalImages(images.length);
             setAllLoaded(true);
@@ -216,6 +219,8 @@ export async function loadFolderImages(folderId, folderName) {
     try {
         setCurrentFolderId(folderId);
         setImages([]);
+        setDetailCache({});
+        dom.folderNameEl.textContent = folderName || '';
         
         let page = 1;
         let total = 0;
@@ -234,9 +239,9 @@ export async function loadFolderImages(folderId, folderName) {
         } while (loadedImages.length < total);
         
         setImages(loadedImages);
-        setTotalImages(loadedImages.length);
+        setTotalImages(total || loadedImages.length);
         setCurrentPage(page - 1);
-        setAllLoaded(true);
+        setAllLoaded(loadedImages.length >= (total || loadedImages.length));
         
         if (loadedImages.length > 0) {
             setActiveIndex(0);

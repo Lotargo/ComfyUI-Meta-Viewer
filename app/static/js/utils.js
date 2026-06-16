@@ -18,6 +18,16 @@ export function getStringValue(v) {
     return String(v);
 }
 
+export function formatImageCountLabel(loaded, total) {
+    const safeLoaded = Math.max(0, loaded || 0);
+    const safeTotal = Math.max(0, total || 0);
+    if (!safeLoaded && !safeTotal) return '';
+    if (!safeTotal || safeLoaded === safeTotal) {
+        return `${safeLoaded} image${safeLoaded === 1 ? '' : 's'}`;
+    }
+    return `${safeLoaded} / ${safeTotal} loaded`;
+}
+
 export function thumbUrl(img) {
     return img.id ? `/api/thumbnail/${img.id}` : (img.thumbnail || '');
 }
@@ -131,4 +141,3 @@ export function customPrompt(title, message, defaultValue = '') {
         overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
     });
 }
-

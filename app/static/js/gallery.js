@@ -3,11 +3,11 @@
  */
 
 import { images, activeIndex, galleryActive, currentFolderId, allLoaded, scrollObserver, totalImages, dom, setScrollObserver, saveState } from './state.js';
-import { escapeHtml, thumbUrl } from './utils.js';
+import { escapeHtml, thumbUrl, formatImageCountLabel } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
 
 export function renderGallery() {
-    dom.imageCount.textContent = totalImages ? `(${images.length}/${totalImages})` : '';
+    dom.imageCount.textContent = formatImageCountLabel(images.length, totalImages);
 
     // Show skeleton while loading
     if (images.length === 0) {

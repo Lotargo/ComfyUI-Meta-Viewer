@@ -3,13 +3,13 @@
  */
 
 import { images, activeIndex, galleryActive, currentFolderId, allLoaded, detailCache, scrollObserver, totalImages, dom, setActiveIndex, setScrollObserver, saveState } from '../state.js';
-import { escapeHtml, customConfirm } from '../utils.js';
+import { escapeHtml, customConfirm, formatImageCountLabel } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
 
 export function renderSidebar() {
     if (galleryActive) return;
     dom.imageList.innerHTML = '';
-    dom.imageCount.textContent = totalImages ? `(${images.length}/${totalImages})` : '';
+    dom.imageCount.textContent = formatImageCountLabel(images.length, totalImages);
 
     images.forEach((img, i) => {
         const div = createSidebarItem(img, i, i === activeIndex);
@@ -123,52 +123,60 @@ export async function renderFoldersList() {
     const folderListEl = document.getElementById('folder-list');
     const foldersCountEl = document.getElementById('folders-count');
     if (!folderListEl) return;
-    
+
     folderListEl.innerHTML = '<div style="padding: 12px; color: var(--text-dim)">Loading folders...</div>';
-    
+
     const { getFolders } = await import('../api.js');
     const folders = await getFolders();
-    
+
     if (foldersCountEl) {
         foldersCountEl.textContent = `(${folders.length})`;
     }
-    
+
     if (folders.length === 0) {
         folderListEl.innerHTML = `
             <div style="padding: 24px; text-align: center; color: var(--text-muted)">
-                <div style="font-size: 24px; margin-bottom: 8px;">📁</div>
+                <div style="font-size: 24px; margin-bottom: 8px;">&#128193;</div>
                 <p style="font-size: 12px;">No scanned folders yet.</p>
                 <p style="font-size: 11px; margin-top: 4px;">Click "Open Folder" in the top bar to scan a directory.</p>
             </div>
         `;
         return;
     }
-    
+
     folderListEl.innerHTML = '';
     folders.forEach(folder => {
         const div = document.createElement('div');
         div.className = 'folder-item' + (folder.id === currentFolderId ? ' active' : '');
-        
+
         const dateStr = folder.scanned_at ? new Date(folder.scanned_at).toLocaleString() : '';
-        
+        const isUploads = folder.path === '__uploads__';
+        const displayPath = isUploads ? 'Stored inside app library' : folder.path;
+        const folderType = isUploads ? 'Uploads' : 'Folder';
+
         div.innerHTML = `
             <div class="folder-item-content">
-                <div class="folder-item-name" title="${escapeHtml(folder.name)}">📁 ${escapeHtml(folder.name)}</div>
-                <div class="folder-item-path" title="${escapeHtml(folder.path)}">${escapeHtml(folder.path)}</div>
+                <div class="folder-item-topline">
+                    <span class="folder-item-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path></svg>
+                    </span>
+                    <div class="folder-item-name" title="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</div>
+                    <span class="folder-item-type">${folderType}</span>
+                </div>
+                <div class="folder-item-path" title="${escapeHtml(displayPath)}">${escapeHtml(displayPath)}</div>
                 <div class="folder-item-meta">
-                    <span>${folder.image_count} images</span>
-                    <span>•</span>
-                    <span style="font-size: 10px;">${escapeHtml(dateStr)}</span>
+                    <span class="folder-item-count">${folder.image_count} image${folder.image_count === 1 ? '' : 's'}</span>
+                    <span class="folder-item-time">${escapeHtml(dateStr)}</span>
                 </div>
             </div>
             <button class="folder-delete-btn" title="Delete from database">&times;</button>
         `;
-        
+
         div.onclick = async () => {
             const { loadFolderImages } = await import('../api.js');
             await loadFolderImages(folder.id, folder.name);
         };
-        
+
         const deleteBtn = div.querySelector('.folder-delete-btn');
         deleteBtn.onclick = async (e) => {
             e.stopPropagation();
@@ -189,7 +197,7 @@ export async function renderFoldersList() {
                 }
             }
         };
-        
+
         folderListEl.appendChild(div);
     });
 }

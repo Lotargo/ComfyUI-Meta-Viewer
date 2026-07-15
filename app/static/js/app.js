@@ -20,6 +20,7 @@ import { initLightboxEvents } from './lightbox.js';
 import { renderSidebar, initSidebarResize, toggleSidebar, renderFoldersList } from './features/sidebar.js';
 import { initSearch } from './components/search-bar.js';
 import { initKeyboardShortcuts } from './features/keyboard.js';
+import { initCentralCollectionShortcuts } from './central-shortcuts.js';
 import { loadBootstrap } from './api.js';
 
 function finishBoot() {
@@ -95,6 +96,7 @@ initEvents();
 initLightboxEvents();
 initSidebarResize();
 initSearch();
+initCentralCollectionShortcuts();
 initKeyboardShortcuts();
 bootstrapApplication();
 

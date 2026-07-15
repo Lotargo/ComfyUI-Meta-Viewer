@@ -87,6 +87,12 @@ export function initEvents() {
             sessionStorage.removeItem('cmv_state');
             
             renderSidebar();
+            try {
+                const { renderFoldersList } = await import('./features/sidebar.js');
+                await renderFoldersList();
+            } catch (e) {
+                console.error(e);
+            }
             
             dom.contentArea.innerHTML = `<div class="drop-zone anim-scale-in" id="drop-zone">
                 <div class="icon">

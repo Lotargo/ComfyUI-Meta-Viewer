@@ -29,17 +29,18 @@ export async function scanFolder(path) {
         setDetailCache({});
         dom.folderNameEl.textContent = data.folder ? data.folder.name : '';
         saveState();
+        switchToImagesTab();
+        const { renderSidebar } = await import('./features/sidebar.js');
+        
         if (galleryActive) {
             const { renderGallery } = await import('./gallery.js');
             renderGallery();
         } else {
-            switchToImagesTab();
-            const { renderSidebar } = await import('./features/sidebar.js');
             renderSidebar();
-        }
-        if (activeIndex >= 0) {
-            const { selectImage } = await import('./features/sidebar.js');
-            selectImage(activeIndex);
+            if (activeIndex >= 0) {
+                const { renderMeta } = await import('./meta-view.js');
+                renderMeta(images[activeIndex]);
+            }
         }
     } catch(e) {
         showError('Error: ' + e.message);

@@ -18,8 +18,8 @@ export const dom = {
 
 export let images = [];
 export let activeIndex = -1;
-export let viewMode = 'list';
-export let galleryActive = false;
+export let viewMode = 'gallery';
+export let galleryActive = true;
 export let lightboxIndex = -1;
 export let currentFolderId = null;
 export let currentPage = 0;

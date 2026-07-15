@@ -124,8 +124,6 @@ export async function renderFoldersList() {
     const foldersCountEl = document.getElementById('folders-count');
     if (!folderListEl) return;
 
-    folderListEl.innerHTML = '<div style="padding: 12px; color: var(--text-dim)">Loading folders...</div>';
-
     const { getFolders } = await import('../api.js');
     const folders = await getFolders();
 

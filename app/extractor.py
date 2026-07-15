@@ -206,6 +206,8 @@ def _parse_api_workflow(prompt_json: dict) -> dict[str, Any]:
         if class_type in SKIP_TYPES:
             continue
         cat = CLASSIFY.get(class_type, "Other")
+        if cat == "Other" and "CLIPTextEncode" in class_type:
+            cat = "Prompts"
         entry = _build_api_node_entry(nid, node, nodes_map)
         if entry:
             categories.setdefault(cat, []).append(entry)
@@ -263,6 +265,8 @@ def _parse_ui_workflow(workflow_json: dict) -> dict[str, Any]:
         if ntype in SKIP_TYPES:
             continue
         cat = CLASSIFY.get(ntype, "Other")
+        if cat == "Other" and "CLIPTextEncode" in ntype:
+            cat = "Prompts"
 
         title_parts = [ntype]
         widgets = n.get("widgets_values", [])
@@ -384,6 +388,42 @@ def _generate_params_from_api(prompt_json: dict) -> dict[str, Any]:
         if str(k).isdigit() and isinstance(v, dict):
             nodes[str(k)] = v
 
+    pos_roots = set()
+    neg_roots = set()
+    for nid, node in nodes.items():
+        ct = node.get("class_type", "")
+        inputs = node.get("inputs", {})
+        if not isinstance(inputs, dict):
+            continue
+        if "Sampler" in ct or "Guider" in ct:
+            pos_link = inputs.get("positive")
+            if isinstance(pos_link, list) and len(pos_link) > 0:
+                pos_roots.add(str(pos_link[0]))
+            neg_link = inputs.get("negative")
+            if isinstance(neg_link, list) and len(neg_link) > 0:
+                neg_roots.add(str(neg_link[0]))
+
+    def get_upstream_nodes(start_nids: set[str]) -> set[str]:
+        visited = set()
+        queue = list(start_nids)
+        while queue:
+            curr = queue.pop(0)
+            if curr in visited:
+                continue
+            visited.add(curr)
+            node = nodes.get(curr)
+            if not node:
+                continue
+            inputs = node.get("inputs", {})
+            if isinstance(inputs, dict):
+                for val in inputs.values():
+                    if isinstance(val, list) and len(val) >= 1 and str(val[0]).isdigit():
+                        queue.append(str(val[0]))
+        return visited
+
+    pos_nodes = get_upstream_nodes(pos_roots)
+    neg_nodes = get_upstream_nodes(neg_roots)
+
     positive_parts: list[str] = []
     negative_parts: list[str] = []
 
@@ -393,11 +433,20 @@ def _generate_params_from_api(prompt_json: dict) -> dict[str, Any]:
         if not isinstance(inputs, dict):
             continue
 
-        if ct == "CLIPTextEncode":
+        if "CLIPTextEncode" in ct:
             title = node.get("_meta", {}).get("title", "").lower()
             text_val = inputs.get("text", "")
-            if isinstance(text_val, str):
-                if "negative" in title:
+            if isinstance(text_val, str) and text_val:
+                is_neg = False
+                if nid in neg_nodes and nid not in pos_nodes:
+                    is_neg = True
+                elif nid in pos_nodes:
+                    is_neg = False
+                else:
+                    if "negative" in title:
+                        is_neg = True
+                
+                if is_neg:
                     negative_parts.append(text_val)
                 else:
                     positive_parts.append(text_val)

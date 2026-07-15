@@ -207,9 +207,8 @@ function renderCategory(title, icon, id, rows, isLong) {
                 <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="arrow" id="arrow-${id}"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 <span class="icon">${icon}</span>
                 <h3>${title}</h3>
-                <span class="counter">${rows.length}</span>
                 <div class="actions">
-                    <button class="btn btn-sm btn-ghost copy-all" data-category="${id}">Copy</button>
+                    <button class="btn btn-sm btn-ghost copy-all" data-category="${id}" ${isLong ? 'data-value-only="true"' : ''}>Copy</button>
                 </div>
             </div>
             <div class="card-body" id="body-${id}">
@@ -238,7 +237,6 @@ function renderNodeCategory(title, icon, nodes, badgeClass) {
                 <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="arrow" id="arrow-node-${title}"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 <span class="icon">${icon}</span>
                 <h3>${escapeHtml(title)}</h3>
-                <span class="counter">${nodes.length}</span>
             </div>
             <div class="card-body" id="body-node-${title}">
     `;
@@ -286,15 +284,19 @@ function toggleCategory(id) {
     if (arrow) arrow.classList.toggle('collapsed');
 }
 
-function copyCategory(id) {
+function copyCategory(id, valueOnly = false) {
     const body = document.getElementById('body-' + id);
     if (!body) return;
     const rows = body.querySelectorAll('.card-row');
     let text = '';
-    rows.forEach(r => {
+    rows.forEach((r, i) => {
         const key = r.querySelector('.key')?.textContent || '';
         const val = r.querySelector('.value')?.textContent || '';
-        text += `${key}: ${val}\n`;
+        if (valueOnly) {
+            text += val + (i < rows.length - 1 ? '\n' : '');
+        } else {
+            text += `${key}: ${val}\n`;
+        }
     });
     copyText(text.trim());
 }
@@ -340,7 +342,8 @@ function attachEventListeners() {
         el.addEventListener('click', (e) => {
             e.stopPropagation();
             const id = el.dataset.category;
-            if (id) copyCategory(id);
+            const valueOnly = el.dataset.valueOnly === 'true';
+            if (id) copyCategory(id, valueOnly);
         });
     });
 

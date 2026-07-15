@@ -118,7 +118,10 @@ export function updateLightbox() {
         if (pp.positive_prompt) {
             html += `
                 <div class="lb-meta-section">
-                    <div class="lb-prompt-label"><svg viewBox="0 0 24 24" width="12" height="12" stroke="var(--green)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"></polyline></svg>Positive Prompt</div>
+                    <div class="lb-prompt-label" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><svg viewBox="0 0 24 24" width="12" height="12" stroke="var(--green)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"></polyline></svg>Positive Prompt</span>
+                        <button class="btn btn-sm btn-ghost lb-copy-prompt" style="padding: 2px 6px; font-size: 11px;" data-copy-value="${escapeHtml(pp.positive_prompt).replace(/"/g, '&quot;')}">Copy</button>
+                    </div>
                     <div class="lb-prompt-box">${escapeHtml(pp.positive_prompt)}</div>
                 </div>
             `;
@@ -126,7 +129,10 @@ export function updateLightbox() {
         if (pp.negative_prompt) {
             html += `
                 <div class="lb-meta-section">
-                    <div class="lb-prompt-label"><svg viewBox="0 0 24 24" width="12" height="12" stroke="var(--red)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>Negative Prompt</div>
+                    <div class="lb-prompt-label" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><svg viewBox="0 0 24 24" width="12" height="12" stroke="var(--red)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>Negative Prompt</span>
+                        <button class="btn btn-sm btn-ghost lb-copy-prompt" style="padding: 2px 6px; font-size: 11px;" data-copy-value="${escapeHtml(pp.negative_prompt).replace(/"/g, '&quot;')}">Copy</button>
+                    </div>
                     <div class="lb-prompt-box">${escapeHtml(pp.negative_prompt)}</div>
                 </div>
             `;
@@ -199,6 +205,14 @@ export function updateLightbox() {
     }
 
     dom.lbMeta.innerHTML = html || '<div class="lb-no-meta">No metadata</div>';
+    
+    // Attach event listeners for copy buttons in lightbox meta
+    dom.lbMeta.querySelectorAll('.lb-copy-prompt').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            copyText(btn.dataset.copyValue || '');
+        });
+    });
 }
 
 export function lbNav(dir) {

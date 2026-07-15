@@ -1,64 +1,51 @@
 /**
- * Gallery view with masonry layout
+ * Central gallery view. The source collection is always the currently selected folder.
  */
 
-import { images, activeIndex, currentFolderId, allLoaded, scrollObserver, totalImages, dom, setScrollObserver, sidebarImages, sidebarTotalImages, sidebarAllLoaded } from './state.js';
-import { escapeHtml, thumbUrl, formatImageCountLabel } from './utils.js';
+import {
+    images,
+    activeIndex,
+    currentFolderId,
+    allLoaded,
+    galleryScrollObserver,
+    dom,
+    setGalleryScrollObserver,
+} from './state.js';
+import { escapeHtml, thumbUrl } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
 
 export function renderGallery() {
-    const isImagesTab = dom.tabImages?.classList.contains('active');
-    const currentList = isImagesTab ? sidebarImages : images;
-    const currentTotal = isImagesTab ? sidebarTotalImages : totalImages;
-    const currentAllLoaded = isImagesTab ? sidebarAllLoaded : allLoaded;
+    if (galleryScrollObserver) galleryScrollObserver.disconnect();
 
-    dom.imageCount.textContent = formatImageCountLabel(currentList.length, currentTotal);
-
-    if (currentList.length === 0) {
-        if (!isImagesTab && !currentFolderId) {
-            dom.contentArea.innerHTML = `<div class="drop-zone anim-scale-in" id="drop-zone">
-                <div class="icon">
-                    <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                </div>
-                <h2>Drop images here</h2>
-                <p>or use buttons above / paste path</p>
-                <div class="hint">Supports PNG, JPG, WEBP, BMP, TIFF</div>
-            </div>`;
+    if (images.length === 0) {
+        if (!allLoaded && currentFolderId) {
+            renderGallerySkeleton();
             return;
         }
-        
-        if (currentAllLoaded) {
-            dom.contentArea.innerHTML = `<div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-dim);">
+        dom.contentArea.innerHTML = `
+            <div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-dim);">
                 <div class="empty-state-icon" style="margin-bottom: 16px;">
                     <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                 </div>
                 <p>No images found</p>
-            </div>`;
-            return;
-        }
-
-        let skeletonHtml = '<div class="gallery-masonry">';
-        for (let i = 0; i < 12; i++) {
-            skeletonHtml += skeletonGalleryCard();
-        }
-        skeletonHtml += '</div>';
-        dom.contentArea.innerHTML = skeletonHtml;
+            </div>
+        `;
         return;
     }
 
     let html = '<div class="gallery-masonry">';
-    currentList.forEach((img, i) => {
+    images.forEach((img, index) => {
         const src = thumbUrl(img);
-        const isActive = i === activeIndex ? ' active' : '';
+        const isActive = index === activeIndex ? ' active' : '';
         const hasError = img.error ? '<div class="card-error"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>' : '';
         const fmt = img.format || '';
         const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
         const fileName = img.file_name || img.file || '';
 
         html += `
-            <div class="gallery-card${isActive}" data-index="${i}">
+            <div class="gallery-card${isActive}" data-index="${index}">
                 <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false">
-                <button class="image-delete-btn gallery-delete" data-index="${i}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
+                <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
                     <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
                 </button>
                 ${hasError}
@@ -71,54 +58,45 @@ export function renderGallery() {
     });
     html += '</div>';
     dom.contentArea.innerHTML = html;
-    import('./components/search-bar.js').then(m => m.applySearchFilter());
+    import('./components/search-bar.js').then(module => module.applySearchFilter());
 
-    // Add click handlers
     dom.contentArea.querySelectorAll('.gallery-card').forEach(card => {
         card.addEventListener('click', () => {
-            const idx = parseInt(card.dataset.index);
-            import('./lightbox.js').then(m => m.openLightbox(idx, currentList));
+            const index = Number.parseInt(card.dataset.index, 10);
+            import('./lightbox.js').then(module => module.openLightbox(index, images));
         });
     });
 
     dom.contentArea.querySelectorAll('.gallery-delete').forEach(button => {
-        button.addEventListener('click', e => {
-            e.stopPropagation();
-            const idx = parseInt(button.dataset.index);
-            const imgId = currentList[idx]?.id;
-            const targetIdx = images.findIndex(x => x.id === imgId);
-            import('./api.js').then(m => m.deleteImageAt(targetIdx >= 0 ? targetIdx : images.findIndex(x => x.id === imgId)));
+        button.addEventListener('click', event => {
+            event.stopPropagation();
+            const index = Number.parseInt(button.dataset.index, 10);
+            const imageId = images[index]?.id;
+            if (imageId) import('./api.js').then(module => module.deleteImageById(imageId));
         });
     });
 
-    // Infinite scroll
-    if (!currentAllLoaded && (isImagesTab || currentFolderId)) {
+    if (!allLoaded && currentFolderId) {
         const sentinel = document.createElement('div');
         sentinel.id = 'gallery-sentinel';
         sentinel.style.height = '1px';
         dom.contentArea.appendChild(sentinel);
 
-        if (scrollObserver) scrollObserver.disconnect();
-
-        setScrollObserver(new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting) {
-                if (isImagesTab) {
-                    import('./api.js').then(m => m.loadMoreSidebarImages().then(() => renderGallery()));
-                } else {
-                    import('./api.js').then(m => m.loadMore().then(() => renderGallery()));
-                }
-            }
-        }, { root: dom.contentArea, threshold: 0.1 }));
-
-        scrollObserver.observe(sentinel);
+        const observer = new IntersectionObserver(entries => {
+            if (!entries[0].isIntersecting) return;
+            import('./api.js').then(async module => {
+                await module.loadMore();
+                renderGallery();
+            });
+        }, { root: dom.contentArea, threshold: 0.1 });
+        setGalleryScrollObserver(observer);
+        observer.observe(sentinel);
     }
 }
 
 export function renderGallerySkeleton() {
     let html = '<div class="gallery-masonry">';
-    for (let i = 0; i < 12; i++) {
-        html += skeletonGalleryCard();
-    }
+    for (let i = 0; i < 12; i++) html += skeletonGalleryCard();
     html += '</div>';
     dom.contentArea.innerHTML = html;
 }

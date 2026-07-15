@@ -18,6 +18,8 @@
     display: inline-block;
     width: 100%;
     box-shadow: var(--shadow-sm);
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .gallery-card:hover {

@@ -4,9 +4,21 @@ import { renderSidebar } from './features/sidebar.js';
 import { customConfirm, customPrompt } from './utils.js';
 
 export function initEvents() {
+    let isInternalDrag = false;
+    window.addEventListener('dragstart', () => {
+        isInternalDrag = true;
+    });
+    window.addEventListener('dragend', () => {
+        isInternalDrag = false;
+    });
+
     document.addEventListener('dragover', e => e.preventDefault());
     document.addEventListener('drop', e => {
         e.preventDefault();
+        if (isInternalDrag) {
+            isInternalDrag = false;
+            return;
+        }
         if (e.dataTransfer.files.length) loadFromFiles(e.dataTransfer.files);
     });
 

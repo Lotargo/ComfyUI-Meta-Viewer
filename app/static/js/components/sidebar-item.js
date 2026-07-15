@@ -16,7 +16,7 @@ export function createSidebarItem(img, index, isActive) {
 
     div.innerHTML = `
         <div class="item-thumb">
-            <img src="${src}" alt="" loading="lazy">
+            <img src="${src}" alt="" loading="lazy" draggable="false">
         </div>
         <div class="item-info">
             <div class="name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>

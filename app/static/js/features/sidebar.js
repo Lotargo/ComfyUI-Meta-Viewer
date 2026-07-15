@@ -74,12 +74,6 @@ export async function selectImage(idx) {
     }
     const { renderMeta } = await import('../meta-view.js');
     renderMeta(img);
-    if (img.id && !detailCache[img.id]) {
-        try {
-            const resp = await fetch(`/api/images/${img.id}`);
-            if (resp.ok) detailCache[img.id] = await resp.json();
-        } catch (e) { /* ignore */ }
-    }
 }
 
 export async function selectSidebarImage(idx) {
@@ -101,12 +95,6 @@ export async function selectSidebarImage(idx) {
 
         const { renderMeta } = await import('../meta-view.js');
         renderMeta(img);
-        if (img.id && !detailCache[img.id]) {
-            try {
-                const resp = await fetch(`/api/images/${img.id}`);
-                if (resp.ok) detailCache[img.id] = await resp.json();
-            } catch (e) { /* ignore */ }
-        }
     }
 }
 

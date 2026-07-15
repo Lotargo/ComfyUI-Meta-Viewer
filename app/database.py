@@ -356,6 +356,19 @@ def insert_upload_image(
         image_id = row["id"]
         conn.commit()
         return image_id, folder_id
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        try:
+            # Query for the existing image's ID using a new cursor
+            row = conn.execute(
+                "SELECT id FROM images WHERE folder_id = ? AND rel_path = ?",
+                (folder_id, file_name)
+            ).fetchone()
+            if row:
+                return row["id"], folder_id
+        except Exception:
+            pass
+        raise
     except Exception:
         conn.rollback()
         raise

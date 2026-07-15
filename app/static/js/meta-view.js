@@ -3,7 +3,7 @@
  * Now with tabs: Summary / Workflow / Raw
  */
 
-import { images, activeIndex, detailCache, galleryActive, dom, saveState, currentFolderId } from './state.js';
+import { images, sidebarImages, activeIndex, detailCache, galleryActive, dom, saveState, currentFolderId } from './state.js';
 import { escapeHtml, formatValue, getStringValue, thumbUrl, copyText } from './utils.js';
 import { currentSearchTerms, isExactMatch } from './components/search-bar.js';
 import { skeletonMetaView } from './components/skeleton.js';
@@ -62,7 +62,9 @@ export function renderMeta(img) {
         dom.contentArea.innerHTML = skeletonMetaView();
         // Load detail in background
         loadDetail(img).then(() => {
-            if (images[activeIndex] === img) {
+            const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+            const currentList = isImagesTab ? sidebarImages : images;
+            if (currentList[activeIndex]?.id === img?.id) {
                 renderMeta(img);
             }
         });
@@ -320,14 +322,29 @@ function copyAllMeta() {
     if (detail) copyText(JSON.stringify(detail, null, 2));
 }
 
+const promiseCache = {};
+
 async function loadDetail(img) {
     if (!img.id) return;
-    try {
-        const resp = await fetch(`/api/images/${img.id}`);
-        if (resp.ok) {
-            detailCache[img.id] = await resp.json();
+    if (detailCache[img.id]) return detailCache[img.id];
+    if (promiseCache[img.id]) return promiseCache[img.id];
+
+    promiseCache[img.id] = (async () => {
+        try {
+            const resp = await fetch(`/api/images/${img.id}`, { priority: 'high' });
+            if (resp.ok) {
+                const data = await resp.json();
+                detailCache[img.id] = data;
+                return data;
+            }
+        } catch (e) {
+            /* ignore */
+        } finally {
+            delete promiseCache[img.id];
         }
-    } catch (e) { /* ignore */ }
+    })();
+
+    return promiseCache[img.id];
 }
 
 function attachEventListeners() {

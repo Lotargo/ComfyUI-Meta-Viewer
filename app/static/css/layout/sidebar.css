@@ -142,19 +142,33 @@
     border-radius: var(--radius-sm);
     overflow: hidden;
     background: var(--bg);
+    height: 34px;
+    align-items: center;
 }
 
 .view-toggle button {
-    min-width: 34px;
-    padding: 7px 9px;
-    font-size: 14px;
+    min-width: 42px;
+    height: 100%;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: var(--text-dim);
     transition: all var(--transition-fast);
-    line-height: 1;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.view-toggle button svg {
+    width: 18px;
+    height: 18px;
+    display: block;
 }
 
 .view-toggle button:hover {
     color: var(--text);
+    background: var(--surface3);
 }
 
 .view-toggle button.active {
@@ -375,6 +389,8 @@
     border: 1px solid transparent;
     position: relative;
     text-align: center;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .image-item:hover {

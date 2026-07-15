@@ -1,11 +1,14 @@
-import { saveState, dom, images, setImages, setTotalImages, setAllLoaded, setCurrentPage, activeIndex, setActiveIndex, currentFolderId, setCurrentFolderId } from './state.js';
+import { saveState, dom, images, setImages, setTotalImages, setAllLoaded, setCurrentPage, activeIndex, setActiveIndex, currentFolderId, setCurrentFolderId, galleryActive, sidebarImages, setIsLoading } from './state.js';
 import { initEvents, setViewMode } from './events.js';
 import { initLightboxEvents } from './lightbox.js';
 import { renderSidebar, initSidebarResize, toggleSidebar, renderFoldersList } from './features/sidebar.js';
 import { initSearch } from './components/search-bar.js';
 import { initKeyboardShortcuts } from './features/keyboard.js';
 
+import { getFolders } from './api.js';
+
 async function restoreState() {
+    setIsLoading(true);
     try {
         const saved = sessionStorage.getItem('cmv_state');
         let folderId = null;
@@ -23,8 +26,7 @@ async function restoreState() {
         // If no folderId was saved, fetch folders and use the first one
         if (!folderId) {
             try {
-                const resp = await fetch('/api/folders');
-                const folders = await resp.json();
+                const folders = await getFolders();
                 if (folders && folders.length > 0) {
                     folderId = folders[0].id;
                     folderName = folders[0].name;
@@ -66,11 +68,13 @@ async function restoreState() {
                 setActiveIndex(0);
             }
 
-            if (restoredState && restoredState.viewMode === 'list') {
+            if (!galleryActive) {
                 renderSidebar();
-                if (activeIndex >= 0 && images[activeIndex]) {
+                const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+                const currentList = isImagesTab ? sidebarImages : images;
+                if (activeIndex >= 0 && currentList[activeIndex]) {
                     const { renderMeta } = await import('./meta-view.js');
-                    renderMeta(images[activeIndex]);
+                    renderMeta(currentList[activeIndex]);
                 }
             } else {
                 const { renderGallery } = await import('./gallery.js');
@@ -84,6 +88,8 @@ async function restoreState() {
 
     } catch (e) {
         console.warn('State restore failed:', e);
+    } finally {
+        setIsLoading(false);
     }
 }
 

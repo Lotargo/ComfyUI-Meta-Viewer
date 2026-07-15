@@ -165,6 +165,7 @@ export async function loadMore() {
 }
 
 export async function loadSidebarImages() {
+    setIsLoading(true);
     try {
         let page = 1;
         const resp = await fetch(`/api/images?page=${page}&per_page=100`);
@@ -181,6 +182,8 @@ export async function loadSidebarImages() {
         }
     } catch(e) {
         console.error('loadSidebarImages error:', e);
+    } finally {
+        setIsLoading(false);
     }
 }
 
@@ -288,6 +291,7 @@ export async function deleteImageAt(index) {
 
 export async function loadFolderImages(folderId, folderName) {
     showLoading('Loading folder images...');
+    setIsLoading(true);
     try {
         setCurrentFolderId(folderId);
         setImages([]);
@@ -337,5 +341,7 @@ export async function loadFolderImages(folderId, folderName) {
         }
     } catch(e) {
         showError('Error loading folder: ' + e.message);
+    } finally {
+        setIsLoading(false);
     }
 }

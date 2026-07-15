@@ -30,6 +30,9 @@ export async function scanFolder(path) {
         dom.folderNameEl.textContent = data.folder ? data.folder.name : '';
         saveState();
         switchToImagesTab();
+        
+        await loadSidebarImages();
+        
         const { renderSidebar } = await import('./features/sidebar.js');
         
         if (galleryActive) {
@@ -66,6 +69,9 @@ export async function loadFromPaths(paths) {
             setCurrentPage(1);
             if (activeIndex < 0) setActiveIndex(0);
             saveState();
+            
+            await loadSidebarImages();
+            
             if (galleryActive) {
                 const { renderGallery } = await import('./gallery.js');
                 renderGallery();
@@ -105,6 +111,9 @@ export async function loadFromFiles(files) {
             setCurrentPage(1);
             if (activeIndex < 0) setActiveIndex(0);
             saveState();
+            
+            await loadSidebarImages();
+            
             if (galleryActive) {
                 const { renderGallery } = await import('./gallery.js');
                 renderGallery();

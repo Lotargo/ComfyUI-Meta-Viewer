@@ -65,12 +65,20 @@ function handleKeydown(e) {
 }
 
 function prevImage() {
+    if (dom.lightbox.classList.contains('open')) {
+        import('../lightbox.js').then(m => m.prevLightbox());
+        return;
+    }
     if (activeIndex > 0) {
         import('./sidebar.js').then(m => m.selectImage(activeIndex - 1));
     }
 }
 
 function nextImage() {
+    if (dom.lightbox.classList.contains('open')) {
+        import('../lightbox.js').then(m => m.nextLightbox());
+        return;
+    }
     if (activeIndex < images.length - 1) {
         import('./sidebar.js').then(m => m.selectImage(activeIndex + 1));
     }

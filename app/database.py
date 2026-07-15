@@ -166,21 +166,32 @@ def get_folders() -> list[FolderInfo]:
 
 
 def get_images_page(
-    folder_id: int, page: int = 1, per_page: int = 50
+    folder_id: int | None, page: int = 1, per_page: int = 50
 ) -> ImagesResponse:
     conn = get_conn()
     try:
-        total_row = conn.execute(
-            "SELECT COUNT(*) AS c FROM images WHERE folder_id = ?", (folder_id,)
-        ).fetchone()
+        if folder_id is not None:
+            total_row = conn.execute(
+                "SELECT COUNT(*) AS c FROM images WHERE folder_id = ?", (folder_id,)
+            ).fetchone()
+        else:
+            total_row = conn.execute("SELECT COUNT(*) AS c FROM images").fetchone()
         total = total_row["c"] if total_row else 0
         offset = (page - 1) * per_page
-        rows = conn.execute(
-            """SELECT id, file_name, format, width, height, error
-            FROM images WHERE folder_id = ?
-            ORDER BY file_name LIMIT ? OFFSET ?""",
-            (folder_id, per_page, offset),
-        ).fetchall()
+        if folder_id is not None:
+            rows = conn.execute(
+                """SELECT id, file_name, format, width, height, error
+                FROM images WHERE folder_id = ?
+                ORDER BY file_name LIMIT ? OFFSET ?""",
+                (folder_id, per_page, offset),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT id, file_name, format, width, height, error
+                FROM images
+                ORDER BY file_name LIMIT ? OFFSET ?""",
+                (per_page, offset),
+            ).fetchall()
         images = []
         for r in rows:
             d = dict(r)

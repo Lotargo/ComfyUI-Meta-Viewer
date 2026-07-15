@@ -1,4 +1,4 @@
-import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setIsLoading, isLoading, saveState, showToast } from './state.js';
+import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setIsLoading, isLoading, saveState, showToast, sidebarImages, setSidebarImages, setSidebarTotalImages, sidebarTotalImages, setSidebarPage, sidebarPage, setSidebarAllLoaded, sidebarAllLoaded } from './state.js';
 import { showLoading, showError, customConfirm } from './utils.js';
 
 function switchToImagesTab() {
@@ -137,6 +137,49 @@ export async function loadMore() {
         }
     } catch(e) {
         console.error('loadMore error:', e);
+    }
+    setIsLoading(false);
+}
+
+export async function loadSidebarImages() {
+    try {
+        let page = 1;
+        const resp = await fetch(`/api/images?page=${page}&per_page=100`);
+        const data = await resp.json();
+        if (data.images && data.images.length) {
+            setSidebarImages(data.images);
+            setSidebarTotalImages(data.total);
+            setSidebarPage(page);
+            setSidebarAllLoaded(data.images.length >= data.total);
+        } else {
+            setSidebarImages([]);
+            setSidebarTotalImages(0);
+            setSidebarAllLoaded(true);
+        }
+    } catch(e) {
+        console.error('loadSidebarImages error:', e);
+    }
+}
+
+export async function loadMoreSidebarImages() {
+    if (isLoading || sidebarAllLoaded) return;
+    setIsLoading(true);
+    const nextPage = sidebarPage + 1;
+    try {
+        const resp = await fetch(`/api/images?page=${nextPage}&per_page=50`);
+        const data = await resp.json();
+        if (data.images && data.images.length) {
+            for (const img of data.images) {
+                sidebarImages.push(img);
+            }
+            setSidebarPage(nextPage);
+            setSidebarTotalImages(data.total);
+            setSidebarAllLoaded(sidebarImages.length >= data.total);
+            const { renderSidebar } = await import('./features/sidebar.js');
+            renderSidebar();
+        }
+    } catch(e) {
+        console.error('loadMoreSidebarImages error:', e);
     }
     setIsLoading(false);
 }

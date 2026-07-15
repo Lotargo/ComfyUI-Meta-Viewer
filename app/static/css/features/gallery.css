@@ -3,7 +3,6 @@
 .gallery-masonry {
     column-count: 4;
     column-gap: 14px;
-    max-width: 1500px;
 }
 
 .gallery-card {

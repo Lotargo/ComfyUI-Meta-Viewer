@@ -2,21 +2,27 @@
  * Sidebar component - handles image list rendering and resize
  */
 
-import { images, activeIndex, galleryActive, currentFolderId, allLoaded, detailCache, scrollObserver, totalImages, dom, setActiveIndex, setScrollObserver, saveState } from '../state.js';
+import { images, activeIndex, galleryActive, currentFolderId, sidebarAllLoaded, detailCache, scrollObserver, sidebarTotalImages, dom, setActiveIndex, setScrollObserver, saveState, sidebarImages } from '../state.js';
 import { escapeHtml, customConfirm, formatImageCountLabel } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
 
 export function renderSidebar() {
-    if (galleryActive) return;
     dom.imageList.innerHTML = '';
-    dom.imageCount.textContent = formatImageCountLabel(images.length, totalImages);
+    dom.imageCount.textContent = formatImageCountLabel(sidebarImages.length, sidebarTotalImages);
 
-    images.forEach((img, i) => {
-        const div = createSidebarItem(img, i, i === activeIndex);
-        div.onclick = () => selectImage(i);
+    sidebarImages.forEach((img, i) => {
+        // activeIndex in sidebar only makes sense if it's the exact same image
+        // but we won't highlight activeIndex here unless we do a deep match.
+        // For simplicity, we can pass false for isActive, or check img.id
+        const currentActiveImg = images[activeIndex];
+        const isActive = currentActiveImg && currentActiveImg.id === img.id;
+        const div = createSidebarItem(img, i, isActive);
+        
+        div.onclick = () => selectSidebarImage(i);
+        
         div.querySelector('.sidebar-delete')?.addEventListener('click', (e) => {
             e.stopPropagation();
-            import('../api.js').then(m => m.deleteImageAt(i));
+            import('../api.js').then(m => m.deleteImageAt(images.findIndex(x => x.id === img.id)));
         });
         dom.imageList.appendChild(div);
     });
@@ -28,14 +34,14 @@ export function appendSentinel() {
     if (scrollObserver) scrollObserver.disconnect();
     const existing = document.getElementById('scroll-sentinel');
     if (existing) existing.remove();
-    if (allLoaded) return;
+    if (sidebarAllLoaded) return;
     const sentinel = document.createElement('div');
     sentinel.id = 'scroll-sentinel';
     sentinel.style.height = '1px';
     dom.imageList.appendChild(sentinel);
     setScrollObserver(new IntersectionObserver(entries => {
         if (entries[0].isIntersecting) {
-            import('../api.js').then(m => m.loadMore());
+            import('../api.js').then(m => m.loadMoreSidebarImages());
         }
     }, { root: dom.imageList, threshold: 0.1 }));
     scrollObserver.observe(sentinel);
@@ -44,17 +50,23 @@ export function appendSentinel() {
 export async function selectImage(idx) {
     setActiveIndex(idx);
     saveState();
-    renderSidebar();
+    
+    // update active class in sidebar if possible
+    const currentActiveImg = images[idx];
+    if (currentActiveImg) {
+        dom.imageList.querySelectorAll('.image-item').forEach((el, i) => {
+            const img = sidebarImages[i];
+            el.classList.toggle('active', img && img.id === currentActiveImg.id);
+        });
+    }
+
     const img = images[idx];
     if (!img) {
         const { renderMeta } = await import('../meta-view.js');
         return renderMeta(null);
     }
     if (galleryActive) {
-        dom.imageList.querySelectorAll('.image-item').forEach((el, i) => {
-            el.classList.toggle('active', i === idx);
-        });
-        import('../lightbox.js').then(m => m.openLightbox(idx));
+        import('../lightbox.js').then(m => m.openLightbox(idx, images));
         return;
     }
     const { renderMeta } = await import('../meta-view.js');
@@ -65,6 +77,12 @@ export async function selectImage(idx) {
             if (resp.ok) detailCache[img.id] = await resp.json();
         } catch (e) { /* ignore */ }
     }
+}
+
+export async function selectSidebarImage(idx) {
+    const img = sidebarImages[idx];
+    if (!img) return;
+    import('../lightbox.js').then(m => m.openLightbox(idx, sidebarImages));
 }
 
 /**
@@ -150,24 +168,21 @@ export async function renderFoldersList() {
         const dateStr = folder.scanned_at ? new Date(folder.scanned_at).toLocaleString() : '';
         const isUploads = folder.path === '__uploads__';
         const displayPath = isUploads ? 'Stored inside app library' : folder.path;
-        const folderType = isUploads ? 'Uploads' : 'Folder';
-
         div.innerHTML = `
             <div class="folder-item-content">
-                <div class="folder-item-topline">
-                    <span class="folder-item-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path></svg>
-                    </span>
-                    <div class="folder-item-name" title="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</div>
-                    <span class="folder-item-type">${folderType}</span>
-                </div>
-                <div class="folder-item-path" title="${escapeHtml(displayPath)}">${escapeHtml(displayPath)}</div>
-                <div class="folder-item-meta">
-                    <span class="folder-item-count">${folder.image_count} image${folder.image_count === 1 ? '' : 's'}</span>
-                    <span class="folder-item-time">${escapeHtml(dateStr)}</span>
-                </div>
+                <div class="folder-item-icon">📁</div>
+                <div class="folder-item-name" title="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</div>
+                
+                ${folder.scanned_at ? `<div class="folder-item-meta">
+                    <span class="folder-item-count">${folder.image_count}</span>
+                </div>` : ''}
             </div>
-            <button class="folder-delete-btn" title="Delete from database">&times;</button>
+            <button class="folder-delete-btn" data-id="${folder.id}" title="Delete folder" aria-label="Delete folder ${escapeHtml(folder.name)}">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+            </button>
         `;
 
         div.onclick = async () => {

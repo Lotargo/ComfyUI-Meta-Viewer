@@ -1,4 +1,4 @@
-import { showToast } from './state.js';
+import { showToast, cacheBuster } from './state.js';
 
 export function escapeHtml(s) {
     if (s === null || s === undefined) return '<null>';
@@ -29,11 +29,11 @@ export function formatImageCountLabel(loaded, total) {
 }
 
 export function thumbUrl(img) {
-    return img.id ? `/api/thumbnail/${img.id}` : (img.thumbnail || '');
+    return img.id ? `/api/thumbnail/${img.id}?t=${cacheBuster}` : (img.thumbnail || '');
 }
 
 export function originalUrl(img) {
-    return img.id ? `/api/original/${img.id}` : (img.thumbnail || '');
+    return img.id ? `/api/original/${img.id}?t=${cacheBuster}` : (img.thumbnail || '');
 }
 
 export function showLoading(msg) {

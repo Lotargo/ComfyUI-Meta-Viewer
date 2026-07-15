@@ -139,8 +139,6 @@ def api_scan():
 @app.route("/api/images", methods=["GET"])
 def api_images():
     folder_id = request.args.get("folder_id", type=int)
-    if not folder_id:
-        return jsonify({"error": "folder_id required"}), 400
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 50, type=int)
     result = db.get_images_page(folder_id, page, per_page)

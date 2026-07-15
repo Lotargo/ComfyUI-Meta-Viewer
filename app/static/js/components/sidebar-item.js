@@ -19,11 +19,13 @@ export function createSidebarItem(img, index, isActive) {
             <img src="${src}" alt="" loading="lazy">
         </div>
         <div class="item-info">
-            <div class="name">${escapeHtml(fileName)}</div>
-            <div class="meta-hint">${format} ${size}</div>
+            <div class="name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
         </div>
         <button class="image-delete-btn sidebar-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
         </button>
     `;
 

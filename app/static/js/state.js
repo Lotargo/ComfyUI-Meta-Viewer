@@ -17,30 +17,40 @@ export const dom = {
 };
 
 export let images = [];
+export let sidebarImages = [];
 export let activeIndex = -1;
 export let viewMode = 'gallery';
 export let galleryActive = true;
 export let lightboxIndex = -1;
 export let currentFolderId = null;
 export let currentPage = 0;
+export let sidebarPage = 0;
 export let totalImages = 0;
+export let sidebarTotalImages = 0;
 export let allLoaded = false;
+export let sidebarAllLoaded = false;
 export let isLoading = false;
 export let detailCache = {};
 export let scrollObserver = null;
+export let cacheBuster = Date.now();
 
 export function setImages(v) { images = v; }
+export function setSidebarImages(v) { sidebarImages = v; }
 export function setActiveIndex(v) { activeIndex = v; }
 export function setViewModeValue(v) { viewMode = v; }
 export function setGalleryActive(v) { galleryActive = v; }
 export function setLightboxIndex(v) { lightboxIndex = v; }
 export function setCurrentFolderId(v) { currentFolderId = v; }
 export function setCurrentPage(v) { currentPage = v; }
+export function setSidebarPage(v) { sidebarPage = v; }
 export function setTotalImages(v) { totalImages = v; }
+export function setSidebarTotalImages(v) { sidebarTotalImages = v; }
 export function setAllLoaded(v) { allLoaded = v; }
+export function setSidebarAllLoaded(v) { sidebarAllLoaded = v; }
 export function setIsLoading(v) { isLoading = v; }
 export function setDetailCache(v) { detailCache = v; }
 export function setScrollObserver(v) { scrollObserver = v; }
+export function refreshCacheBuster() { cacheBuster = Date.now(); }
 
 export function addImage(img) { images.push(img); }
 export function addImages(imgs) { for (const img of imgs) images.push(img); }

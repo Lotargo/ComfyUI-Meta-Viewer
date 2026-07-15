@@ -1,4 +1,4 @@
-import { dom, galleryActive, setViewModeValue, setGalleryActive, images, activeIndex, scrollObserver, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, saveState } from './state.js';
+import { dom, galleryActive, setViewModeValue, setGalleryActive, images, activeIndex, scrollObserver, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, saveState, refreshCacheBuster } from './state.js';
 import { loadFromFiles, loadFromPaths, scanFolder } from './api.js';
 import { renderSidebar } from './features/sidebar.js';
 import { customConfirm, customPrompt } from './utils.js';
@@ -82,7 +82,13 @@ export function initEvents() {
             setCurrentPage(0);
             setTotalImages(0);
             setAllLoaded(false);
+            const { setSidebarImages, setSidebarTotalImages, setSidebarPage, setSidebarAllLoaded } = await import('./state.js');
+            setSidebarImages([]);
+            setSidebarTotalImages(0);
+            setSidebarPage(0);
+            setSidebarAllLoaded(false);
             setDetailCache({});
+            refreshCacheBuster();
             dom.folderNameEl.textContent = '';
             sessionStorage.removeItem('cmv_state');
             
@@ -182,6 +188,11 @@ export async function switchSidebarTab(tab) {
         imagesPanel.classList.add('active');
         foldersPanel.classList.remove('active');
         const { renderSidebar } = await import('./features/sidebar.js');
+        const { sidebarImages } = await import('./state.js');
+        if (sidebarImages.length === 0) {
+            const { loadSidebarImages } = await import('./api.js');
+            await loadSidebarImages();
+        }
         renderSidebar();
     }
 }

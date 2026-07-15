@@ -12,6 +12,7 @@ import { initCutoutEvents, resetCutoutPanel } from './features/cutout.js';
 let metaPanelOpen = true;
 let zoomLevel = 1;
 let rotation = 0;
+let currentImagesArray = [];
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 10;
 const ZOOM_STEP = 0.15;
@@ -51,10 +52,13 @@ export function rotateCounterClockwise() {
     applyImageTransform();
 }
 
-export async function openLightbox(idx) {
-    if (idx < 0 || idx >= images.length) return;
-    setLightboxIndex(idx);
-    const img = images[idx];
+export async function openLightbox(index, imagesArray = null) {
+    if (imagesArray) {
+        currentImagesArray = imagesArray;
+    }
+    setLightboxIndex(index);
+    const img = currentImagesArray[index];
+    if (!img) return;
 
     // Load detail if needed
     if (img && img.id && !detailCache[img.id]) {
@@ -79,7 +83,7 @@ export function closeLightbox() {
 }
 
 function getDetailForLightbox() {
-    const img = images[lightboxIndex];
+    const img = currentImagesArray[lightboxIndex];
     if (!img) return null;
     if (img.id && detailCache[img.id]) return detailCache[img.id];
     return img;
@@ -100,7 +104,7 @@ export function updateLightbox() {
 
     const fileName = img.file_name || img.file || '';
     dom.lbTitle.textContent = fileName;
-    dom.lbCounter.textContent = `${lightboxIndex + 1} / ${totalImages || images.length}`;
+    dom.lbCounter.textContent = `${lightboxIndex + 1} / ${totalImages || currentImagesArray.length}`;
     dom.lbImg.src = originalUrl(img);
 
     // Update meta panel visibility
@@ -148,7 +152,7 @@ export function updateLightbox() {
         if (pp.generation_settings) Object.assign(settings, pp.generation_settings);
 
         if (Object.keys(settings).length) {
-            html += '<div class="lb-meta-section"><h4><svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; opacity: 0.8;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Settings</h4>';
+            html += '<div class="lb-meta-section"><h4><svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; opacity: 0.8;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Settings</h4>';
             Object.entries(settings).forEach(([k, v]) => {
                 html += `
                     <div class="lb-meta-row">
@@ -217,11 +221,25 @@ export function updateLightbox() {
 
 export function lbNav(dir) {
     const next = lightboxIndex + dir;
-    if (next >= 0 && next < images.length) {
+    if (next >= 0 && next < currentImagesArray.length) {
         resetZoom();
         resetCutoutPanel();
         openLightbox(next);
     }
+}
+
+export function nextLightbox() {
+    if (currentImagesArray.length === 0) return;
+    let n = lightboxIndex + 1;
+    if (n >= currentImagesArray.length) n = 0;
+    openLightbox(n);
+}
+
+export function prevLightbox() {
+    if (currentImagesArray.length === 0) return;
+    let n = lightboxIndex - 1;
+    if (n < 0) n = currentImagesArray.length - 1;
+    openLightbox(n);
 }
 
 export function toggleMetaPanel() {
@@ -233,7 +251,7 @@ export function toggleMetaPanel() {
 }
 
 export function downloadImage() {
-    const img = images[lightboxIndex];
+    const img = currentImagesArray[lightboxIndex];
     if (!img) return;
 
     const url = originalUrl(img);
@@ -274,11 +292,11 @@ export function initLightboxEvents() {
         const { deleteImageAt } = await import('./api.js');
         const deleted = await deleteImageAt(currentIndex);
         if (!deleted) return;
-        if (images.length === 0) {
+        if (currentImagesArray.length === 0) {
             closeLightbox();
             return;
         }
-        setLightboxIndex(Math.min(currentIndex, images.length - 1));
+        setLightboxIndex(Math.min(currentIndex, currentImagesArray.length - 1));
         updateLightbox();
     });
 

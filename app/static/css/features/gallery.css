@@ -56,6 +56,9 @@
     transform: translateY(12px);
     transition: all var(--transition);
     backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    -webkit-mask-image: linear-gradient(to top, black 30%, transparent 100%);
+    mask-image: linear-gradient(to top, black 30%, transparent 100%);
 }
 
 .gallery-card:hover .card-info {

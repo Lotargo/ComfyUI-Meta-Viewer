@@ -3,6 +3,7 @@
  */
 
 import { escapeHtml } from '../utils.js';
+import { dom } from '../state.js';
 
 const NODE_WIDTH = 200;
 const NODE_HEIGHT = 60;
@@ -243,7 +244,7 @@ function getNodePosition(node, levels) {
 }
 
 export function initWorkflowGraphEvents() {
-    const container = document.getElementById('workflow-graph');
+    const container = dom.workflowGraph;
     if (!container) return;
 
     let isPanning = false;

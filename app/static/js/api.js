@@ -2,10 +2,10 @@ import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoad
 import { showLoading, showError, customConfirm } from './utils.js';
 
 function switchToImagesTab() {
-    document.getElementById('tab-images')?.classList.add('active');
-    document.getElementById('tab-folders')?.classList.remove('active');
-    document.getElementById('panel-images')?.classList.add('active');
-    document.getElementById('panel-folders')?.classList.remove('active');
+    dom.tabImages?.classList.add('active');
+    dom.tabFolders?.classList.remove('active');
+    dom.panelImages?.classList.add('active');
+    dom.panelFolders?.classList.remove('active');
 }
 
 export async function scanFolder(path) {
@@ -167,7 +167,7 @@ export async function loadMore() {
 export async function loadSidebarImages() {
     setIsLoading(true);
     try {
-        let page = 1;
+        const page = 1;
         const resp = await fetch(`/api/images?page=${page}&per_page=100`);
         const data = await resp.json();
         if (data.images && data.images.length) {
@@ -303,8 +303,8 @@ export async function loadFolderImages(folderId, folderName) {
         const loadedImages = [];
         
         do {
-            const resp = await fetch(`/api/images?folder_id=${folderId}&page=${page}&per_page=100`);
-            const data = await resp.json();
+            const resp = await fetch(`/api/images?folder_id=${folderId}&page=${page}&per_page=100`); // eslint-disable-line no-await-in-loop -- sequential pagination required
+            const data = await resp.json(); // eslint-disable-line no-await-in-loop
             if (data.images && data.images.length) {
                 loadedImages.push(...data.images);
                 total = data.total || 0;

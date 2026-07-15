@@ -2,40 +2,34 @@
  * Search bar component
  */
 
-import { images, sidebarImages, searchSettings, saveState } from '../state.js';
+import { images, sidebarImages, searchSettings, saveState, dom } from '../state.js';
 
 export let currentSearchTerms = [];
 export let isExactMatch = false;
 
 export function initSearch() {
-    const input = document.getElementById('search-input');
-    if (!input) return;
+    if (!dom.searchInput) return;
 
-    input.addEventListener('input', onSearch);
-    input.addEventListener('keydown', onKeydown);
+    dom.searchInput.addEventListener('input', onSearch);
+    dom.searchInput.addEventListener('keydown', onKeydown);
 
-    // Settings dropdown toggle
-    const btn = document.getElementById('search-settings-btn');
-    const dropdown = document.getElementById('search-settings-dropdown');
-    
-    if (btn && dropdown) {
-        btn.addEventListener('click', (e) => {
+    if (dom.searchSettingsBtn && dom.searchSettingsDropdown) {
+        dom.searchSettingsBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const isVisible = dropdown.style.display !== 'none';
-            dropdown.style.display = isVisible ? 'none' : 'flex';
+            const isVisible = dom.searchSettingsDropdown.style.display !== 'none';
+            dom.searchSettingsDropdown.style.display = isVisible ? 'none' : 'flex';
             if (!isVisible) syncSettingsToUI();
         });
 
         // Close when clicking outside
         document.addEventListener('click', (e) => {
-            if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
-                dropdown.style.display = 'none';
+            if (!dom.searchSettingsDropdown.contains(e.target) && !dom.searchSettingsBtn.contains(e.target)) {
+                dom.searchSettingsDropdown.style.display = 'none';
             }
         });
 
-        // Bind checkboxes
         const bindCheckbox = (id, key, fieldKey) => {
-            const cb = document.getElementById(id);
+            const cb = document.getElementById(id); // eslint-disable-line no-restricted-syntax -- dynamic checkbox IDs
             if (cb) {
                 cb.addEventListener('change', (e) => {
                     if (fieldKey) {
@@ -60,7 +54,7 @@ export function initSearch() {
 
 function syncSettingsToUI() {
     const setCb = (id, val) => {
-        const cb = document.getElementById(id);
+        const cb = document.getElementById(id); // eslint-disable-line no-restricted-syntax -- dynamic checkbox IDs
         if (cb) cb.checked = !!val;
     };
     setCb('search-exact-match', searchSettings.exactMatch);
@@ -89,7 +83,7 @@ function getMatchPredicate(query) {
     return (img) => {
         if (!img) return false;
         
-        let searchableParts = [];
+        const searchableParts = [];
         searchableParts.push(img.file_name);
         searchableParts.push(img.format);
         
@@ -132,7 +126,7 @@ function onSearch(e) {
     const query = e.target.value.trim();
     const predicate = getMatchPredicate(query);
 
-    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const isImagesTab = dom.tabImages?.classList.contains('active');
     const galleryList = isImagesTab ? sidebarImages : images;
 
     // Filter gallery cards
@@ -167,9 +161,8 @@ function onKeydown(e) {
 }
 
 export function applySearchFilter() {
-    const input = document.getElementById('search-input');
-    if (input) {
-        onSearch({ target: input });
+    if (dom.searchInput) {
+        onSearch({ target: dom.searchInput });
     }
 }
 

@@ -1,4 +1,4 @@
-import { showToast, cacheBuster } from './state.js';
+import { showToast, cacheBuster, dom } from './state.js';
 
 export function escapeHtml(s) {
     if (s === null || s === undefined) return '<null>';
@@ -67,13 +67,11 @@ export function originalUrl(img) {
 }
 
 export function showLoading(msg) {
-    const contentArea = document.getElementById('content-area');
-    contentArea.innerHTML = `<div class="empty-state anim-fade-in"><div class="icon"><svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--accent)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="anim-spin"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg></div><div>${escapeHtml(msg)}</div></div>`;
+    dom.contentArea.innerHTML = `<div class="empty-state anim-fade-in"><div class="icon"><svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--accent)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="anim-spin"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg></div><div>${escapeHtml(msg)}</div></div>`;
 }
 
 export function showError(msg) {
-    const contentArea = document.getElementById('content-area');
-    contentArea.innerHTML = `<div class="empty-state anim-shake"><div class="icon"><svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--red)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div><div>${escapeHtml(msg)}</div></div>`;
+    dom.contentArea.innerHTML = `<div class="empty-state anim-shake"><div class="icon"><svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--red)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div><div>${escapeHtml(msg)}</div></div>`;
 }
 
 export async function copyText(text) {

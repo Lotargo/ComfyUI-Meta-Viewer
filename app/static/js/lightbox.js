@@ -20,9 +20,8 @@ const ZOOM_STEP = 0.15;
 function applyImageTransform() {
     if (!dom.lbImg) return;
     dom.lbImg.style.transform = `scale(${zoomLevel}) rotate(${rotation}deg)`;
-    const indicator = document.getElementById('lb-zoom-level');
-    if (indicator) {
-        indicator.textContent = `${Math.round(zoomLevel * 100)}%`;
+    if (dom.lbZoomLevel) {
+        dom.lbZoomLevel.textContent = `${Math.round(zoomLevel * 100)}%`;
     }
 }
 
@@ -108,9 +107,8 @@ export function updateLightbox() {
     dom.lbImg.src = originalUrl(img);
 
     // Update meta panel visibility
-    const metaPanel = document.getElementById('lb-meta');
-    if (metaPanel) {
-        metaPanel.classList.toggle('open', metaPanelOpen);
+    if (dom.lbMeta) {
+        dom.lbMeta.classList.toggle('open', metaPanelOpen);
     }
 
     // Build metadata HTML
@@ -244,9 +242,8 @@ export function prevLightbox() {
 
 export function toggleMetaPanel() {
     metaPanelOpen = !metaPanelOpen;
-    const metaPanel = document.getElementById('lb-meta');
-    if (metaPanel) {
-        metaPanel.classList.toggle('open', metaPanelOpen);
+    if (dom.lbMeta) {
+        dom.lbMeta.classList.toggle('open', metaPanelOpen);
     }
 }
 
@@ -269,25 +266,25 @@ export function initLightboxEvents() {
     initCutoutEvents();
 
     // Close button
-    document.getElementById('lb-close')?.addEventListener('click', closeLightbox);
+    dom.lbClose?.addEventListener('click', closeLightbox);
 
     // Navigation
-    document.getElementById('lb-prev')?.addEventListener('click', () => lbNav(-1));
-    document.getElementById('lb-next')?.addEventListener('click', () => lbNav(1));
+    dom.lbPrev?.addEventListener('click', () => lbNav(-1));
+    dom.lbNext?.addEventListener('click', () => lbNav(1));
 
     // Copy all
-    document.getElementById('lb-copy')?.addEventListener('click', () => {
+    dom.lbCopy?.addEventListener('click', () => {
         const img = getDetailForLightbox();
         if (img) copyText(JSON.stringify(img, null, 2));
     });
 
     // Toggle meta panel
-    document.getElementById('lb-toggle-meta')?.addEventListener('click', toggleMetaPanel);
+    dom.lbToggleMeta?.addEventListener('click', toggleMetaPanel);
 
     // Download
-    document.getElementById('lb-download')?.addEventListener('click', downloadImage);
+    dom.lbDownload?.addEventListener('click', downloadImage);
 
-    document.getElementById('lb-delete')?.addEventListener('click', async () => {
+    dom.lbDelete?.addEventListener('click', async () => {
         const currentIndex = lightboxIndex;
         const { deleteImageAt } = await import('./api.js');
         const deleted = await deleteImageAt(currentIndex);
@@ -301,11 +298,11 @@ export function initLightboxEvents() {
     });
 
     // Zoom controls
-    document.getElementById('lb-zoom-in')?.addEventListener('click', zoomIn);
-    document.getElementById('lb-zoom-out')?.addEventListener('click', zoomOut);
-    document.getElementById('lb-rotate-cw')?.addEventListener('click', rotateClockwise);
-    document.getElementById('lb-rotate-ccw')?.addEventListener('click', rotateCounterClockwise);
-    document.getElementById('lb-zoom-reset')?.addEventListener('click', resetZoom);
+    dom.lbZoomIn?.addEventListener('click', zoomIn);
+    dom.lbZoomOut?.addEventListener('click', zoomOut);
+    dom.lbRotateCw?.addEventListener('click', rotateClockwise);
+    dom.lbRotateCcw?.addEventListener('click', rotateCounterClockwise);
+    dom.lbZoomReset?.addEventListener('click', resetZoom);
 
     // Mouse wheel zoom on image area
     const imageArea = document.querySelector('.lightbox-image-area');

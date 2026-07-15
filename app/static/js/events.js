@@ -44,7 +44,7 @@ export function initEvents() {
     dom.btnViewList.addEventListener('click', () => setViewMode('list'));
     dom.btnViewGallery.addEventListener('click', () => setViewMode('gallery'));
 
-    document.getElementById('btn-clear').addEventListener('click', async () => {
+    dom.btnClear.addEventListener('click', () => {
         if (scrollObserver) scrollObserver.disconnect();
         setImages([]);
         setActiveIndex(-1);
@@ -67,7 +67,7 @@ export function initEvents() {
         </div>`;
     });
 
-    document.getElementById('btn-hard-reset')?.addEventListener('click', async () => {
+    dom.btnHardReset?.addEventListener('click', async () => {
         const ok = await customConfirm('Hard Reset', 'Are you sure you want to perform a hard reset? This will clear all folders, database entries, and thumbnail cache.');
         if (!ok) {
             return;
@@ -142,7 +142,7 @@ export function initEvents() {
         });
     });
 
-    document.getElementById('btn-paste').addEventListener('click', async function() {
+    dom.btnPaste.addEventListener('click', async function() {
         const input = await customPrompt('Paste Path', 'Enter file/folder path:');
         if (!input) return;
         const path = input.trim();
@@ -165,8 +165,8 @@ export function initEvents() {
     });
 
     // Sidebar tabs switching
-    document.getElementById('tab-folders')?.addEventListener('click', () => switchSidebarTab('folders'));
-    document.getElementById('tab-images')?.addEventListener('click', () => switchSidebarTab('images'));
+    dom.tabFolders?.addEventListener('click', () => switchSidebarTab('folders'));
+    dom.tabImages?.addEventListener('click', () => switchSidebarTab('images'));
 }
 
 export function setViewMode(mode) {
@@ -179,25 +179,20 @@ export function setViewMode(mode) {
         import('./gallery.js').then(m => m.renderGallery());
     } else {
         renderSidebar();
-        const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+        const isImagesTab = dom.tabImages?.classList.contains('active');
         const currentList = isImagesTab ? sidebarImages : images;
         import('./meta-view.js').then(m => m.renderMeta(currentList[activeIndex]));
     }
 }
 
 export async function switchSidebarTab(tab) {
-    const foldersTab = document.getElementById('tab-folders');
-    const imagesTab = document.getElementById('tab-images');
-    const foldersPanel = document.getElementById('panel-folders');
-    const imagesPanel = document.getElementById('panel-images');
-    
-    if (!foldersTab || !imagesTab || !foldersPanel || !imagesPanel) return;
+    if (!dom.tabFolders || !dom.tabImages || !dom.panelFolders || !dom.panelImages) return;
     
     if (tab === 'folders') {
-        foldersTab.classList.add('active');
-        imagesTab.classList.remove('active');
-        foldersPanel.classList.add('active');
-        imagesPanel.classList.remove('active');
+        dom.tabFolders.classList.add('active');
+        dom.tabImages.classList.remove('active');
+        dom.panelFolders.classList.add('active');
+        dom.panelImages.classList.remove('active');
         const { renderFoldersList } = await import('./features/sidebar.js');
         await renderFoldersList();
         if (galleryActive) {
@@ -205,10 +200,10 @@ export async function switchSidebarTab(tab) {
             renderGallery();
         }
     } else {
-        imagesTab.classList.add('active');
-        foldersTab.classList.remove('active');
-        imagesPanel.classList.add('active');
-        foldersPanel.classList.remove('active');
+        dom.tabImages.classList.add('active');
+        dom.tabFolders.classList.remove('active');
+        dom.panelImages.classList.add('active');
+        dom.panelFolders.classList.remove('active');
         const { renderSidebar } = await import('./features/sidebar.js');
         const { sidebarImages } = await import('./state.js');
         if (sidebarImages.length === 0) {

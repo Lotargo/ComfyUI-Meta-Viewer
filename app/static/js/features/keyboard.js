@@ -30,7 +30,7 @@ export function initKeyboardShortcuts() {
 }
 
 function handleKeydown(e) {
-    if (e.key === 'Escape' && document.getElementById('shortcuts-overlay')?.classList.contains('open')) {
+    if (e.key === 'Escape' && dom.shortcutsOverlay?.classList.contains('open')) {
         e.preventDefault();
         toggleShortcuts(false);
         return;
@@ -79,7 +79,7 @@ function nextImage() {
         import('../lightbox.js').then(m => m.nextLightbox());
         return;
     }
-    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const isImagesTab = dom.tabImages?.classList.contains('active');
     const currentList = isImagesTab ? sidebarImages : images;
     if (activeIndex < currentList.length - 1) {
         import('./sidebar.js').then(m => m.selectImage(activeIndex + 1));
@@ -91,21 +91,20 @@ function closeLightbox() {
 }
 
 function focusSearch() {
-    document.getElementById('search-input')?.focus();
+    dom.searchInput?.focus();
 }
 
 function toggleShortcuts(forceOpen) {
-    const overlay = document.getElementById('shortcuts-overlay');
-    if (!overlay) return;
-    const shouldOpen = forceOpen === undefined ? !overlay.classList.contains('open') : Boolean(forceOpen);
-    overlay.classList.toggle('open', shouldOpen);
+    if (!dom.shortcutsOverlay) return;
+    const shouldOpen = forceOpen === undefined ? !dom.shortcutsOverlay.classList.contains('open') : Boolean(forceOpen);
+    dom.shortcutsOverlay.classList.toggle('open', shouldOpen);
     if (shouldOpen) {
         refreshDiagnostics();
     }
 }
 
 function copyMetadata() {
-    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const isImagesTab = dom.tabImages?.classList.contains('active');
     const currentList = isImagesTab ? sidebarImages : images;
     const img = currentList[activeIndex];
     if (!img) return;
@@ -155,10 +154,9 @@ export function getShortcutsList() {
 }
 
 function initHelpCenter() {
-    const overlay = document.getElementById('shortcuts-overlay');
-    if (!overlay) return;
+    if (!dom.shortcutsOverlay) return;
 
-    overlay.innerHTML = `
+    dom.shortcutsOverlay.innerHTML = `
         <div class="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="help-center-title">
             <div class="shortcuts-header">
                 <div>
@@ -267,16 +265,16 @@ function initHelpCenter() {
             toggleShortcuts(true);
         }
     });
-    document.getElementById('shortcuts-close')?.addEventListener('click', () => toggleShortcuts(false));
-    overlay.addEventListener('click', e => {
-        if (e.target === overlay) toggleShortcuts(false);
+    dom.shortcutsClose?.addEventListener('click', () => toggleShortcuts(false));
+    dom.shortcutsOverlay.addEventListener('click', e => {
+        if (e.target === dom.shortcutsOverlay) toggleShortcuts(false);
     });
 
-    overlay.querySelectorAll('.help-tab').forEach(tab => {
+    dom.shortcutsOverlay.querySelectorAll('.help-tab').forEach(tab => {
         tab.addEventListener('click', () => activateHelpTab(tab.dataset.helpTab));
     });
 
-    document.getElementById('copy-diagnostics')?.addEventListener('click', copyDiagnostics);
+    dom.copyDiagnostics?.addEventListener('click', copyDiagnostics);
 }
 
 function activateHelpTab(tabName) {
@@ -306,25 +304,24 @@ async function getDiagnostics() {
 }
 
 async function refreshDiagnostics() {
-    const setText = (id, value) => {
-        const el = document.getElementById(id);
+    const setText = (el, value) => {
         if (el) el.textContent = value;
     };
 
     try {
         const data = await getDiagnostics();
-        setText('diag-folders', data.folders);
-        setText('diag-images', data.images);
-        setText('diag-uploads', data.uploads);
-        setText('diag-thumbnails', data.thumbnail_count);
-        setText('diag-cutouts', data.cutout_count);
-        setText('diag-loaded', `${data.loaded_images}/${data.total_images || data.loaded_images}`);
-        setText('diag-db-path', data.db_path || '-');
-        setText('diag-upload-dir', data.upload_dir || '-');
-        setText('diag-thumb-dir', data.thumbnail_dir || '-');
-        setText('diag-cutout-dir', data.cutout_dir || '-');
+        setText(document.getElementById('diag-folders'), data.folders); // eslint-disable-line no-restricted-syntax -- diagnostic IDs
+        setText(document.getElementById('diag-images'), data.images); // eslint-disable-line no-restricted-syntax
+        setText(document.getElementById('diag-uploads'), data.uploads); // eslint-disable-line no-restricted-syntax
+        setText(document.getElementById('diag-thumbnails'), data.thumbnail_count); // eslint-disable-line no-restricted-syntax
+        setText(document.getElementById('diag-cutouts'), data.cutout_count); // eslint-disable-line no-restricted-syntax
+        setText(document.getElementById('diag-loaded'), `${data.loaded_images}/${data.total_images || data.loaded_images}`); // eslint-disable-line no-restricted-syntax
+        setText(document.getElementById('diag-db-path'), data.db_path || '-'); // eslint-disable-line no-restricted-syntax
+        setText(document.getElementById('diag-upload-dir'), data.upload_dir || '-'); // eslint-disable-line no-restricted-syntax
+        setText(document.getElementById('diag-thumb-dir'), data.thumbnail_dir || '-'); // eslint-disable-line no-restricted-syntax
+        setText(document.getElementById('diag-cutout-dir'), data.cutout_dir || '-'); // eslint-disable-line no-restricted-syntax
     } catch (_e) {
-        setText('diag-db-path', 'Diagnostics unavailable');
+        setText(document.getElementById('diag-db-path'), 'Diagnostics unavailable'); // eslint-disable-line no-restricted-syntax
     }
 }
 

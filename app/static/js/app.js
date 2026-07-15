@@ -46,8 +46,8 @@ async function restoreState() {
             let total = 0;
             const restoredImages = [];
             do {
-                const resp = await fetch(`/api/images?folder_id=${folderId}&page=${page}&per_page=100`);
-                const data = await resp.json();
+                const resp = await fetch(`/api/images?folder_id=${folderId}&page=${page}&per_page=100`); // eslint-disable-line no-await-in-loop -- sequential pagination required
+                const data = await resp.json(); // eslint-disable-line no-await-in-loop
                 if (data.images && data.images.length) {
                     restoredImages.push(...data.images);
                     total = data.total || 0;
@@ -70,7 +70,7 @@ async function restoreState() {
 
             if (!galleryActive) {
                 renderSidebar();
-                const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+                const isImagesTab = dom.tabImages?.classList.contains('active');
                 const currentList = isImagesTab ? sidebarImages : images;
                 if (activeIndex >= 0 && currentList[activeIndex]) {
                     const { renderMeta } = await import('./meta-view.js');
@@ -102,4 +102,4 @@ initKeyboardShortcuts();
 restoreState();
 
 // Sidebar toggle
-document.getElementById('sidebar-toggle')?.addEventListener('click', toggleSidebar);
+dom.sidebarToggle?.addEventListener('click', toggleSidebar);

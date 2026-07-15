@@ -62,7 +62,7 @@ export function renderMeta(img) {
         dom.contentArea.innerHTML = skeletonMetaView();
         // Load detail in background
         loadDetail(img).then(() => {
-            const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+            const isImagesTab = dom.tabImages?.classList.contains('active');
             const currentList = isImagesTab ? sidebarImages : images;
             if (currentList[activeIndex]?.id === img?.id) {
                 renderMeta(img);
@@ -292,15 +292,15 @@ function renderNodeCategory(title, icon, nodes, badgeClass) {
 }
 
 function toggleCategory(id) {
-    const body = document.getElementById('body-' + id);
-    const arrow = document.getElementById('arrow-' + id);
+    const body = dom.contentArea.querySelector('#body-' + id);
+    const arrow = dom.contentArea.querySelector('#arrow-' + id);
     if (!body) return;
     body.classList.toggle('collapsed');
     if (arrow) arrow.classList.toggle('collapsed');
 }
 
 function copyCategory(id, valueOnly = false) {
-    const body = document.getElementById('body-' + id);
+    const body = dom.contentArea.querySelector('#body-' + id);
     if (!body) return;
     const rows = body.querySelectorAll('.card-row');
     let text = '';
@@ -324,7 +324,7 @@ function copyAllMeta() {
 
 const promiseCache = {};
 
-async function loadDetail(img) {
+function loadDetail(img) {
     if (!img.id) return;
     if (detailCache[img.id]) return detailCache[img.id];
     if (promiseCache[img.id]) return promiseCache[img.id];
@@ -355,7 +355,7 @@ function attachEventListeners() {
             dom.contentArea.querySelectorAll('.content-tab').forEach(t => t.classList.remove('active'));
             dom.contentArea.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
             tab.classList.add('active');
-            document.getElementById('panel-' + currentTab)?.classList.add('active');
+            document.getElementById('panel-' + currentTab)?.classList.add('active'); // eslint-disable-line no-restricted-syntax -- dynamic panel ID
         });
     });
 

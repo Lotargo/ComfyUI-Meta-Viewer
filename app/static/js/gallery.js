@@ -7,7 +7,7 @@ import { escapeHtml, thumbUrl, formatImageCountLabel } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
 
 export function renderGallery() {
-    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const isImagesTab = dom.tabImages?.classList.contains('active');
     const currentList = isImagesTab ? sidebarImages : images;
     const currentTotal = isImagesTab ? sidebarTotalImages : totalImages;
     const currentAllLoaded = isImagesTab ? sidebarAllLoaded : allLoaded;

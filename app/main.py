@@ -35,16 +35,19 @@ from .schemas import (
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
-app.config["SEND_FILE_MAX_AGE"] = 0
+app.config["SEND_FILE_MAX_AGE"] = 3600
 app.jinja_env.auto_reload = True
 
 
 @app.after_request
-def add_no_cache(response):
+def add_cache_headers(response):
     if request.path.startswith("/static/"):
-        response.headers["Cache-Control"] = "no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+        if request.path.endswith((".woff2", ".woff", ".ttf", ".eot")):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif request.path.endswith((".css", ".js")):
+            response.headers["Cache-Control"] = "public, max-age=3600"
+        else:
+            response.headers["Cache-Control"] = "public, max-age=86400"
     return response
 
 

@@ -1,19 +1,7 @@
-import { images, lightboxIndex, showToast } from '../state.js';
+import { images, lightboxIndex, showToast, dom } from '../state.js';
 
 let currentCutout = null;
 let isBusy = false;
-
-function getEls() {
-    return {
-        panel: document.getElementById('cutout-panel'),
-        preview: document.getElementById('cutout-preview'),
-        status: document.getElementById('cutout-status'),
-        download: document.getElementById('cutout-download'),
-        regenerate: document.getElementById('cutout-regenerate'),
-        clear: document.getElementById('cutout-clear'),
-        close: document.getElementById('cutout-close'),
-    };
-}
 
 function getActiveImage() {
     return images[lightboxIndex] || null;
@@ -26,38 +14,33 @@ function cutoutFileName(img) {
 }
 
 function setPanelOpen(open) {
-    const { panel } = getEls();
-    panel?.classList.toggle('open', open);
+    dom.cutoutPanel?.classList.toggle('open', open);
 }
 
 function setStatus(message) {
-    const { status } = getEls();
-    if (status) status.textContent = message;
+    if (dom.cutoutStatus) dom.cutoutStatus.textContent = message;
 }
 
 function setActionsEnabled({ hasCutout = false, canRequest = Boolean(getActiveImage()?.id) } = {}) {
-    const { download, regenerate, clear } = getEls();
-    if (download) download.disabled = !hasCutout;
-    if (regenerate) regenerate.disabled = !canRequest || isBusy;
-    if (clear) clear.disabled = !hasCutout || isBusy;
+    if (dom.cutoutDownload) dom.cutoutDownload.disabled = !hasCutout;
+    if (dom.cutoutRegenerate) dom.cutoutRegenerate.disabled = !canRequest || isBusy;
+    if (dom.cutoutClear) dom.cutoutClear.disabled = !hasCutout || isBusy;
 }
 
 function renderEmpty(message = 'No cutout yet') {
-    const { preview } = getEls();
-    if (!preview) return;
-    preview.replaceChildren();
+    if (!dom.cutoutPreview) return;
+    dom.cutoutPreview.replaceChildren();
     const empty = document.createElement('div');
     empty.className = 'cutout-empty';
     empty.textContent = message;
-    preview.appendChild(empty);
+    dom.cutoutPreview.appendChild(empty);
     currentCutout = null;
     setActionsEnabled();
 }
 
 function renderLoading() {
-    const { preview } = getEls();
-    if (!preview) return;
-    preview.innerHTML = `
+    if (!dom.cutoutPreview) return;
+    dom.cutoutPreview.innerHTML = `
         <div class="cutout-loading">
             <div class="cutout-spinner"></div>
             <span>Creating transparent PNG...</span>
@@ -67,14 +50,13 @@ function renderLoading() {
 }
 
 function renderCutout(url) {
-    const { preview } = getEls();
-    if (!preview) return;
+    if (!dom.cutoutPreview) return;
     const cacheBustUrl = `${url}?t=${Date.now()}`;
-    preview.replaceChildren();
+    dom.cutoutPreview.replaceChildren();
     const img = document.createElement('img');
     img.src = cacheBustUrl;
     img.alt = 'Object cutout preview';
-    preview.appendChild(img);
+    dom.cutoutPreview.appendChild(img);
     currentCutout = { url, cacheBustUrl, image: getActiveImage() };
     setActionsEnabled({ hasCutout: true, canRequest: true });
 }
@@ -174,11 +156,11 @@ export function downloadCutout() {
 }
 
 export function initCutoutEvents() {
-    document.getElementById('lb-cutout')?.addEventListener('click', openCutoutPanel);
-    document.getElementById('cutout-close')?.addEventListener('click', closeCutoutPanel);
-    document.getElementById('cutout-download')?.addEventListener('click', downloadCutout);
-    document.getElementById('cutout-clear')?.addEventListener('click', clearCutoutCache);
-    document.getElementById('cutout-regenerate')?.addEventListener('click', () => {
+    dom.lbCutout?.addEventListener('click', openCutoutPanel);
+    dom.cutoutClose?.addEventListener('click', closeCutoutPanel);
+    dom.cutoutDownload?.addEventListener('click', downloadCutout);
+    dom.cutoutClear?.addEventListener('click', clearCutoutCache);
+    dom.cutoutRegenerate?.addEventListener('click', () => {
         createCutout({ regenerate: true });
     });
 }

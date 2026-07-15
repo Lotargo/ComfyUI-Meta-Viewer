@@ -33,7 +33,7 @@ export function renderSidebar() {
 
 export function appendSentinel() {
     if (scrollObserver) scrollObserver.disconnect();
-    const existing = document.getElementById('scroll-sentinel');
+    const existing = dom.imageList.querySelector('#scroll-sentinel');
     if (existing) existing.remove();
     if (sidebarAllLoaded) return;
     const sentinel = document.createElement('div');
@@ -53,7 +53,7 @@ export async function selectImage(idx) {
     saveState();
     
     // update active class in sidebar if possible
-    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const isImagesTab = dom.tabImages?.classList.contains('active');
     const currentList = isImagesTab ? sidebarImages : images;
     const currentActiveImg = currentList[idx];
     if (currentActiveImg) {
@@ -77,7 +77,7 @@ export async function selectImage(idx) {
 }
 
 export async function selectSidebarImage(idx) {
-    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const isImagesTab = dom.tabImages?.classList.contains('active');
     const currentList = isImagesTab ? sidebarImages : images;
     const img = currentList[idx];
     if (!img) return;
@@ -102,17 +102,15 @@ export async function selectSidebarImage(idx) {
  * Initialize sidebar resize functionality
  */
 export function initSidebarResize() {
-    const sidebar = document.getElementById('sidebar');
-    const handle = document.getElementById('sidebar-resize');
-    if (!sidebar || !handle) return;
+    if (!dom.sidebar || !dom.sidebarResize) return;
 
     let startX, startWidth;
 
-    handle.addEventListener('mousedown', (e) => {
+    dom.sidebarResize.addEventListener('mousedown', (e) => {
         e.preventDefault();
         startX = e.clientX;
-        startWidth = sidebar.offsetWidth;
-        handle.classList.add('active');
+        startWidth = dom.sidebar.offsetWidth;
+        dom.sidebarResize.classList.add('active');
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
         document.body.style.cursor = 'col-resize';
@@ -122,11 +120,11 @@ export function initSidebarResize() {
     function onMouseMove(e) {
         const diff = e.clientX - startX;
         const newWidth = Math.min(Math.max(startWidth + diff, 280), 500);
-        sidebar.style.width = newWidth + 'px';
+        dom.sidebar.style.width = newWidth + 'px';
     }
 
     function onMouseUp() {
-        handle.classList.remove('active');
+        dom.sidebarResize.classList.remove('active');
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
         document.body.style.cursor = '';
@@ -138,32 +136,29 @@ export function initSidebarResize() {
  * Toggle sidebar visibility
  */
 export function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
+    if (dom.sidebar) {
         if (window.matchMedia('(max-width: 768px)').matches) {
-            sidebar.classList.toggle('open');
-            sidebar.classList.remove('collapsed');
+            dom.sidebar.classList.toggle('open');
+            dom.sidebar.classList.remove('collapsed');
         } else {
-            sidebar.classList.toggle('collapsed');
-            sidebar.classList.remove('open');
+            dom.sidebar.classList.toggle('collapsed');
+            dom.sidebar.classList.remove('open');
         }
     }
 }
 
 export async function renderFoldersList() {
-    const folderListEl = document.getElementById('folder-list');
-    const foldersCountEl = document.getElementById('folders-count');
-    if (!folderListEl) return;
+    if (!dom.folderList) return;
 
     const { getFolders } = await import('../api.js');
     const folders = await getFolders();
 
-    if (foldersCountEl) {
-        foldersCountEl.textContent = `(${folders.length})`;
+    if (dom.foldersCount) {
+        dom.foldersCount.textContent = `(${folders.length})`;
     }
 
     if (folders.length === 0) {
-        folderListEl.innerHTML = `
+        dom.folderList.innerHTML = `
             <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: var(--text-muted); text-align: center;">
                 <div style="font-size: 48px; margin-bottom: 16px;">&#128193;</div>
                 <p style="font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text);">No scanned folders yet.</p>
@@ -173,7 +168,7 @@ export async function renderFoldersList() {
         return;
     }
 
-    folderListEl.innerHTML = '';
+    dom.folderList.innerHTML = '';
     folders.forEach(folder => {
         const div = document.createElement('div');
         div.className = 'folder-item' + (folder.id === currentFolderId ? ' active' : '');
@@ -221,6 +216,6 @@ export async function renderFoldersList() {
             }
         };
 
-        folderListEl.appendChild(div);
+        dom.folderList.appendChild(div);
     });
 }

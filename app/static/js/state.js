@@ -83,9 +83,9 @@ export let galleryScrollObserver = null;
 export let sidebarScrollObserver = null;
 export let cacheBuster = Date.now();
 
-export function setImages(v) { images = Array.isArray(v) ? v : []; }
-export function setSidebarImages(v) { sidebarImages = Array.isArray(v) ? v : []; }
-export function setFolders(v) { folders = Array.isArray(v) ? v : []; }
+export function setImages(v) { images = Array.isArray(v) ? [...v] : []; }
+export function setSidebarImages(v) { sidebarImages = Array.isArray(v) ? [...v] : []; }
+export function setFolders(v) { folders = Array.isArray(v) ? [...v] : []; }
 export function setActiveIndex(v) { activeIndex = Number.isInteger(v) ? v : -1; }
 export function setViewModeValue(v) { viewMode = v === 'list' ? 'list' : 'gallery'; }
 export function setGalleryActive(v) { galleryActive = Boolean(v); }

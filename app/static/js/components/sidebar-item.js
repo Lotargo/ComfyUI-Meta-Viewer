@@ -11,8 +11,6 @@ export function createSidebarItem(img, index, isActive) {
 
     const src = thumbUrl(img);
     const fileName = img.file_name || img.file || '';
-    const format = img.format || '';
-    const size = img.size ? `${img.size[0]}x${img.size[1]}` : '';
 
     div.innerHTML = `
         <div class="item-thumb">

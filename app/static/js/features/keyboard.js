@@ -323,7 +323,7 @@ async function refreshDiagnostics() {
         setText('diag-upload-dir', data.upload_dir || '-');
         setText('diag-thumb-dir', data.thumbnail_dir || '-');
         setText('diag-cutout-dir', data.cutout_dir || '-');
-    } catch (e) {
+    } catch (_e) {
         setText('diag-db-path', 'Diagnostics unavailable');
     }
 }
@@ -333,7 +333,7 @@ async function copyDiagnostics() {
         const data = await getDiagnostics();
         await copyText(JSON.stringify(data, null, 2));
         showToast('Debug info copied');
-    } catch (e) {
+    } catch (_e) {
         showToast('Diagnostics unavailable');
     }
 }

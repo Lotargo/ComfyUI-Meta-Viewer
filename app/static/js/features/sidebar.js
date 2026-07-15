@@ -2,7 +2,7 @@
  * Sidebar component - handles image list rendering and resize
  */
 
-import { images, activeIndex, galleryActive, currentFolderId, sidebarAllLoaded, detailCache, scrollObserver, sidebarTotalImages, dom, setActiveIndex, setScrollObserver, saveState, sidebarImages } from '../state.js';
+import { images, activeIndex, galleryActive, currentFolderId, sidebarAllLoaded, scrollObserver, sidebarTotalImages, dom, setActiveIndex, setScrollObserver, saveState, sidebarImages } from '../state.js';
 import { escapeHtml, customConfirm, formatImageCountLabel } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
 
@@ -178,9 +178,6 @@ export async function renderFoldersList() {
         const div = document.createElement('div');
         div.className = 'folder-item' + (folder.id === currentFolderId ? ' active' : '');
 
-        const dateStr = folder.scanned_at ? new Date(folder.scanned_at).toLocaleString() : '';
-        const isUploads = folder.path === '__uploads__';
-        const displayPath = isUploads ? 'Stored inside app library' : folder.path;
         div.innerHTML = `
             <div class="folder-item-content">
                 <div class="folder-item-icon">📁</div>

@@ -2,7 +2,7 @@
  * Gallery view with masonry layout
  */
 
-import { images, activeIndex, galleryActive, currentFolderId, allLoaded, scrollObserver, totalImages, dom, setScrollObserver, saveState, sidebarImages, sidebarTotalImages, sidebarAllLoaded } from './state.js';
+import { images, activeIndex, currentFolderId, allLoaded, scrollObserver, totalImages, dom, setScrollObserver, sidebarImages, sidebarTotalImages, sidebarAllLoaded } from './state.js';
 import { escapeHtml, thumbUrl, formatImageCountLabel } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
 

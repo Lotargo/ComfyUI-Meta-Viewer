@@ -3,7 +3,7 @@
  * Now with tabs: Summary / Workflow / Raw
  */
 
-import { images, sidebarImages, activeIndex, detailCache, galleryActive, dom, saveState, currentFolderId } from './state.js';
+import { images, sidebarImages, activeIndex, detailCache, galleryActive, dom, currentFolderId } from './state.js';
 import { escapeHtml, formatValue, getStringValue, thumbUrl, copyText } from './utils.js';
 import { currentSearchTerms, isExactMatch } from './components/search-bar.js';
 import { skeletonMetaView } from './components/skeleton.js';
@@ -337,7 +337,7 @@ async function loadDetail(img) {
                 detailCache[img.id] = data;
                 return data;
             }
-        } catch (e) {
+        } catch (_e) {
             /* ignore */
         } finally {
             delete promiseCache[img.id];

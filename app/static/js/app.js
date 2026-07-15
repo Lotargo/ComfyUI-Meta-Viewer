@@ -1,4 +1,4 @@
-import { saveState, dom, images, setImages, setTotalImages, setAllLoaded, setCurrentPage, activeIndex, setActiveIndex, currentFolderId, setCurrentFolderId, galleryActive, sidebarImages, setIsLoading } from './state.js';
+import { dom, images, setImages, setTotalImages, setAllLoaded, setCurrentPage, activeIndex, setActiveIndex, setCurrentFolderId, galleryActive, sidebarImages, setIsLoading } from './state.js';
 import { initEvents, setViewMode } from './events.js';
 import { initLightboxEvents } from './lightbox.js';
 import { renderSidebar, initSidebarResize, toggleSidebar, renderFoldersList } from './features/sidebar.js';

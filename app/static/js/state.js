@@ -75,7 +75,7 @@ export function loadState() {
             if (st.viewMode) setViewModeValue(st.viewMode);
             if (st.searchSettings) setSearchSettings(st.searchSettings);
         }
-    } catch(e) {}
+    } catch(_e) { /* ignore parse errors */ }
 }
 
 export function showToast(msg) {
@@ -96,5 +96,5 @@ export function saveState() {
             folderName: dom.folderNameEl.textContent,
             searchSettings: searchSettings
         }));
-    } catch(e) { /* ignore quota errors */ }
+    } catch(_e) { /* ignore quota errors */ }
 }

@@ -1,4 +1,4 @@
-import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setIsLoading, isLoading, saveState, showToast, sidebarImages, setSidebarImages, setSidebarTotalImages, sidebarTotalImages, setSidebarPage, sidebarPage, setSidebarAllLoaded, sidebarAllLoaded } from './state.js';
+import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setIsLoading, isLoading, saveState, showToast, sidebarImages, setSidebarImages, setSidebarTotalImages, setSidebarPage, sidebarPage, setSidebarAllLoaded, sidebarAllLoaded } from './state.js';
 import { showLoading, showError, customConfirm } from './utils.js';
 
 function switchToImagesTab() {

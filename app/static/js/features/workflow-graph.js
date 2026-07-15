@@ -44,7 +44,7 @@ export function renderWorkflowGraph(workflow) {
             for (const [key, value] of Object.entries(node.inputs)) {
                 // Check if value is a link to another node
                 if (Array.isArray(value) && value.length === 2) {
-                    const [sourceNodeId, outputSlot] = value;
+                    const [sourceNodeId] = value;
                     const sourceNode = nodes.find(n => String(n.node_id) === String(sourceNodeId));
                     if (sourceNode) {
                         connections.push({
@@ -133,7 +133,6 @@ export function renderWorkflowGraph(workflow) {
 function renderNode(node, x, y) {
     const color = node.color || CATEGORY_COLORS['Other'];
     const inputs = node.inputs ? Object.entries(node.inputs) : [];
-    const inputCount = inputs.length;
 
     let g = `<g class="workflow-node" transform="translate(${x}, ${y})" data-node-id="${node.node_id}">`;
     
@@ -204,7 +203,7 @@ function renderNode(node, x, y) {
     return g;
 }
 
-function layoutNodes(nodes, connections) {
+function layoutNodes(nodes, _connections) {
     // Simple layout: group by category
     const levels = [];
     const categories = {};
@@ -282,7 +281,6 @@ export function initWorkflowGraphEvents() {
     // Node click
     container.querySelectorAll('.workflow-node').forEach(node => {
         node.addEventListener('click', () => {
-            const nodeId = node.dataset.nodeId;
             node.classList.toggle('selected');
         });
     });

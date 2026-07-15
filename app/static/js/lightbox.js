@@ -5,8 +5,8 @@
  * - Better navigation
  */
 
-import { images, lightboxIndex, totalImages, galleryActive, detailCache, dom, setLightboxIndex, setActiveIndex, saveState } from './state.js';
-import { escapeHtml, originalUrl, thumbUrl, copyText } from './utils.js';
+import { lightboxIndex, totalImages, galleryActive, detailCache, dom, setLightboxIndex, setActiveIndex, saveState } from './state.js';
+import { escapeHtml, originalUrl, copyText } from './utils.js';
 import { initCutoutEvents, resetCutoutPanel } from './features/cutout.js';
 
 let metaPanelOpen = true;
@@ -65,7 +65,7 @@ export async function openLightbox(index, imagesArray = null) {
         try {
             const resp = await fetch(`/api/images/${img.id}`);
             if (resp.ok) detailCache[img.id] = await resp.json();
-        } catch (e) { /* ignore */ }
+        } catch (_e) { /* ignore */ }
     }
 
     dom.lightbox.classList.add('open');

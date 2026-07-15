@@ -151,10 +151,10 @@ export async function renderFoldersList() {
 
     if (folders.length === 0) {
         folderListEl.innerHTML = `
-            <div style="padding: 24px; text-align: center; color: var(--text-muted)">
-                <div style="font-size: 24px; margin-bottom: 8px;">&#128193;</div>
-                <p style="font-size: 12px;">No scanned folders yet.</p>
-                <p style="font-size: 11px; margin-top: 4px;">Click "Open Folder" in the top bar to scan a directory.</p>
+            <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: var(--text-muted); text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 16px;">&#128193;</div>
+                <p style="font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text);">No scanned folders yet.</p>
+                <p style="font-size: 12px; line-height: 1.5; max-width: 200px;">Click "Open Folder" in the top bar to scan a directory.</p>
             </div>
         `;
         return;

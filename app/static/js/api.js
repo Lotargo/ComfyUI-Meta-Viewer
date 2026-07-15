@@ -42,6 +42,9 @@ export async function scanFolder(path) {
                 renderMeta(images[activeIndex]);
             }
         }
+        
+        const { renderFoldersList } = await import('./features/sidebar.js');
+        await renderFoldersList();
     } catch(e) {
         showError('Error: ' + e.message);
     }
@@ -73,6 +76,9 @@ export async function loadFromPaths(paths) {
             }
             const { renderMeta } = await import('./meta-view.js');
             renderMeta(images[activeIndex]);
+            
+            const { renderFoldersList } = await import('./features/sidebar.js');
+            await renderFoldersList();
         } else {
             showError('No images found');
         }
@@ -109,6 +115,9 @@ export async function loadFromFiles(files) {
             }
             const { renderMeta } = await import('./meta-view.js');
             renderMeta(images[activeIndex]);
+            
+            const { renderFoldersList } = await import('./features/sidebar.js');
+            await renderFoldersList();
         } else {
             showError('No images found');
         }

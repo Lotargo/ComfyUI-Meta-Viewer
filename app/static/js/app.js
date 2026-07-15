@@ -8,64 +8,80 @@ import { initKeyboardShortcuts } from './features/keyboard.js';
 async function restoreState() {
     try {
         const saved = sessionStorage.getItem('cmv_state');
-        if (!saved) {
-            await renderFoldersList();
-            return;
+        let folderId = null;
+        let folderName = '';
+        let restoredState = null;
+
+        if (saved) {
+            restoredState = JSON.parse(saved);
+            folderId = restoredState.folderId;
+            folderName = restoredState.folderName;
         }
 
-        const state = JSON.parse(saved);
-        if (!state.folderId) {
-            await renderFoldersList();
-            return;
-        }
-
-        setCurrentFolderId(state.folderId);
-        if (state.folderName) dom.folderNameEl.textContent = state.folderName;
         await renderFoldersList();
-        if (state.viewMode) setViewMode(state.viewMode);
 
-        setImages([]);
-        let page = 1;
-        let total = 0;
-        const restoredImages = [];
-        do {
-            const resp = await fetch(`/api/images?folder_id=${state.folderId}&page=${page}&per_page=100`);
-            const data = await resp.json();
-            if (data.images && data.images.length) {
-                restoredImages.push(...data.images);
-                total = data.total || 0;
-                page++;
+        // If no folderId was saved, fetch folders and use the first one
+        if (!folderId) {
+            try {
+                const resp = await fetch('/api/folders');
+                const folders = await resp.json();
+                if (folders && folders.length > 0) {
+                    folderId = folders[0].id;
+                    folderName = folders[0].name;
+                }
+            } catch (e) {
+                console.warn('Failed to fetch folders for default selection:', e);
+            }
+        }
+
+        if (folderId) {
+            setCurrentFolderId(folderId);
+            if (folderName) dom.folderNameEl.textContent = folderName;
+            if (restoredState && restoredState.viewMode) setViewMode(restoredState.viewMode);
+
+            setImages([]);
+            let page = 1;
+            let total = 0;
+            const restoredImages = [];
+            do {
+                const resp = await fetch(`/api/images?folder_id=${folderId}&page=${page}&per_page=100`);
+                const data = await resp.json();
+                if (data.images && data.images.length) {
+                    restoredImages.push(...data.images);
+                    total = data.total || 0;
+                    page++;
+                } else {
+                    break;
+                }
+            } while (restoredImages.length < total);
+
+            setImages(restoredImages);
+            setTotalImages(total || restoredImages.length);
+            setAllLoaded(restoredImages.length >= (total || restoredImages.length));
+            setCurrentPage(page - 1);
+
+            if (restoredState && restoredState.activeIndex >= 0 && restoredState.activeIndex < restoredImages.length) {
+                setActiveIndex(restoredState.activeIndex);
+            } else if (restoredImages.length > 0) {
+                setActiveIndex(0);
+            }
+
+            if (restoredState && restoredState.viewMode === 'list') {
+                renderSidebar();
+                if (activeIndex >= 0 && images[activeIndex]) {
+                    const { renderMeta } = await import('./meta-view.js');
+                    renderMeta(images[activeIndex]);
+                }
             } else {
-                break;
-            }
-        } while (restoredImages.length < total);
-
-        setImages(restoredImages);
-        setTotalImages(total || restoredImages.length);
-        setAllLoaded(restoredImages.length >= (total || restoredImages.length));
-        setCurrentPage(page - 1);
-
-        if (state.activeIndex >= 0 && state.activeIndex < restoredImages.length) {
-            setActiveIndex(state.activeIndex);
-        } else if (restoredImages.length > 0) {
-            setActiveIndex(0);
-        }
-
-        if (state.viewMode === 'gallery') {
-            const { renderGallery } = await import('./gallery.js');
-            renderGallery();
-        } else {
-            renderSidebar();
-            if (activeIndex >= 0 && images[activeIndex]) {
-                const { renderMeta } = await import('./meta-view.js');
-                renderMeta(images[activeIndex]);
+                const { renderGallery } = await import('./gallery.js');
+                renderGallery();
             }
         }
 
-        if (restoredImages.length > 0) {
-            const { switchSidebarTab } = await import('./events.js');
-            switchSidebarTab('images');
-        }
+        // Always show the 'Images' tab in the sidebar by default
+        const { switchSidebarTab } = await import('./events.js');
+        await switchSidebarTab('images');
+
     } catch (e) {
         console.warn('State restore failed:', e);
     }

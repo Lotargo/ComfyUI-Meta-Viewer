@@ -92,6 +92,7 @@ export function saveState() {
             viewMode: viewMode,
             totalImages: totalImages,
             allLoaded: allLoaded,
+            folderId: currentFolderId,
             folderName: dom.folderNameEl.textContent,
             searchSettings: searchSettings
         }));

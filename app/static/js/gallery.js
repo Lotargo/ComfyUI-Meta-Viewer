@@ -50,7 +50,7 @@ export function renderGallery() {
     dom.contentArea.querySelectorAll('.gallery-card').forEach(card => {
         card.addEventListener('click', () => {
             const idx = parseInt(card.dataset.index);
-            import('./lightbox.js').then(m => m.openLightbox(idx));
+            import('./lightbox.js').then(m => m.openLightbox(idx, images));
         });
     });
 

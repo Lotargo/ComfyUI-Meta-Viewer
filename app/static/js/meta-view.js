@@ -3,7 +3,7 @@
  * Now with tabs: Summary / Workflow / Raw
  */
 
-import { images, activeIndex, detailCache, galleryActive, dom, saveState } from './state.js';
+import { images, activeIndex, detailCache, galleryActive, dom, saveState, currentFolderId } from './state.js';
 import { escapeHtml, formatValue, getStringValue, thumbUrl, copyText } from './utils.js';
 import { skeletonMetaView } from './components/skeleton.js';
 import { renderWorkflowGraph, initWorkflowGraphEvents } from './features/workflow-graph.js';
@@ -12,6 +12,18 @@ let currentTab = 'summary';
 
 export function renderMeta(img) {
     if (!img) {
+        if (!currentFolderId && images.length === 0) {
+            dom.contentArea.innerHTML = `<div class="drop-zone anim-scale-in" id="drop-zone">
+                <div class="icon">
+                    <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                </div>
+                <h2>Drop images here</h2>
+                <p>or use buttons above / paste path</p>
+                <div class="hint">Supports PNG, JPG, WEBP, BMP, TIFF</div>
+            </div>`;
+            return;
+        }
+
         dom.contentArea.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">

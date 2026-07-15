@@ -9,8 +9,29 @@ import { skeletonGalleryCard } from './components/skeleton.js';
 export function renderGallery() {
     dom.imageCount.textContent = formatImageCountLabel(images.length, totalImages);
 
-    // Show skeleton while loading
     if (images.length === 0) {
+        if (!currentFolderId) {
+            dom.contentArea.innerHTML = `<div class="drop-zone anim-scale-in" id="drop-zone">
+                <div class="icon">
+                    <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                </div>
+                <h2>Drop images here</h2>
+                <p>or use buttons above / paste path</p>
+                <div class="hint">Supports PNG, JPG, WEBP, BMP, TIFF</div>
+            </div>`;
+            return;
+        }
+        
+        if (allLoaded) {
+            dom.contentArea.innerHTML = `<div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-dim);">
+                <div class="empty-state-icon" style="margin-bottom: 16px;">
+                    <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                </div>
+                <p>No images found in this folder</p>
+            </div>`;
+            return;
+        }
+
         let skeletonHtml = '<div class="gallery-masonry">';
         for (let i = 0; i < 12; i++) {
             skeletonHtml += skeletonGalleryCard();

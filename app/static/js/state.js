@@ -56,41 +56,56 @@ export const dom = {
     lbCutout: document.getElementById('lb-cutout'),
 };
 
+// Central content collection. It changes only when a folder is explicitly selected.
 export let images = [];
-export let sidebarImages = [];
 export let activeIndex = -1;
+export let currentFolderId = null;
+export let currentPage = 0;
+export let totalImages = 0;
+export let allLoaded = true;
+
+// Global Images sidebar collection. It never controls the central gallery.
+export let sidebarImages = [];
+export let sidebarPage = 0;
+export let sidebarTotalImages = 0;
+export let sidebarAllLoaded = true;
+export let sidebarActiveImageId = null;
+export let activeSidebarTab = 'images';
+
+export let folders = [];
 export let viewMode = 'gallery';
 export let galleryActive = true;
 export let lightboxIndex = -1;
-export let currentFolderId = null;
-export let currentPage = 0;
-export let sidebarPage = 0;
-export let totalImages = 0;
-export let sidebarTotalImages = 0;
-export let allLoaded = false;
-export let sidebarAllLoaded = false;
 export let isLoading = false;
 export let detailCache = {};
-export let scrollObserver = null;
+export let scrollObserver = null; // legacy observer used by older modules
+export let galleryScrollObserver = null;
+export let sidebarScrollObserver = null;
 export let cacheBuster = Date.now();
 
-export function setImages(v) { images = v; }
-export function setSidebarImages(v) { sidebarImages = v; }
-export function setActiveIndex(v) { activeIndex = v; }
-export function setViewModeValue(v) { viewMode = v; }
-export function setGalleryActive(v) { galleryActive = v; }
+export function setImages(v) { images = Array.isArray(v) ? v : []; }
+export function setSidebarImages(v) { sidebarImages = Array.isArray(v) ? v : []; }
+export function setFolders(v) { folders = Array.isArray(v) ? v : []; }
+export function setActiveIndex(v) { activeIndex = Number.isInteger(v) ? v : -1; }
+export function setViewModeValue(v) { viewMode = v === 'list' ? 'list' : 'gallery'; }
+export function setGalleryActive(v) { galleryActive = Boolean(v); }
 export function setLightboxIndex(v) { lightboxIndex = v; }
-export function setCurrentFolderId(v) { currentFolderId = v; }
-export function setCurrentPage(v) { currentPage = v; }
-export function setSidebarPage(v) { sidebarPage = v; }
-export function setTotalImages(v) { totalImages = v; }
-export function setSidebarTotalImages(v) { sidebarTotalImages = v; }
-export function setAllLoaded(v) { allLoaded = v; }
-export function setSidebarAllLoaded(v) { sidebarAllLoaded = v; }
-export function setIsLoading(v) { isLoading = v; }
-export function setDetailCache(v) { detailCache = v; }
+export function setCurrentFolderId(v) { currentFolderId = v ?? null; }
+export function setCurrentPage(v) { currentPage = Number.isInteger(v) ? v : 0; }
+export function setSidebarPage(v) { sidebarPage = Number.isInteger(v) ? v : 0; }
+export function setTotalImages(v) { totalImages = Number.isFinite(v) ? v : 0; }
+export function setSidebarTotalImages(v) { sidebarTotalImages = Number.isFinite(v) ? v : 0; }
+export function setAllLoaded(v) { allLoaded = Boolean(v); }
+export function setSidebarAllLoaded(v) { sidebarAllLoaded = Boolean(v); }
+export function setSidebarActiveImageId(v) { sidebarActiveImageId = v ?? null; }
+export function setActiveSidebarTab(v) { activeSidebarTab = v === 'folders' ? 'folders' : 'images'; }
+export function setIsLoading(v) { isLoading = Boolean(v); }
+export function setDetailCache(v) { detailCache = v && typeof v === 'object' ? v : {}; }
 export function setScrollObserver(v) { scrollObserver = v; }
+export function setGalleryScrollObserver(v) { galleryScrollObserver = v; }
+export function setSidebarScrollObserver(v) { sidebarScrollObserver = v; }
 export function refreshCacheBuster() { cacheBuster = Date.now(); }
+
 export let searchSettings = {
     exactMatch: false,
     fields: {
@@ -98,43 +113,65 @@ export let searchSettings = {
         negative_prompt: true,
         model: true,
         sampler: true,
-        resolution: true
-    }
+        resolution: true,
+    },
 };
 
-export function setSearchSettings(v) { searchSettings = v; }
+export function setSearchSettings(v) {
+    if (v && typeof v === 'object') searchSettings = v;
+}
 
 export function addImage(img) { images.push(img); }
 export function addImages(imgs) { for (const img of imgs) images.push(img); }
 
+// Only preferences are persisted. Navigation always starts from deterministic defaults.
 export function loadState() {
     try {
-        const str = sessionStorage.getItem('cmv_state');
-        if (str) {
-            const st = JSON.parse(str);
-            if (st.viewMode) setViewModeValue(st.viewMode);
-            if (st.searchSettings) setSearchSettings(st.searchSettings);
-        }
-    } catch(_e) { /* ignore parse errors */ }
-}
-
-export function showToast(msg) {
-    dom.toast.textContent = msg;
-    dom.toast.classList.add('show');
-    setTimeout(() => dom.toast.classList.remove('show'), 3000);
+        const str = sessionStorage.getItem('cmv_preferences');
+        if (!str) return;
+        const preferences = JSON.parse(str);
+        if (preferences.searchSettings) setSearchSettings(preferences.searchSettings);
+    } catch (_e) { /* ignore parse errors */ }
 }
 
 export function saveState() {
     try {
-        sessionStorage.setItem('cmv_state', JSON.stringify({
-            page: currentPage,
-            activeIndex: activeIndex,
-            viewMode: viewMode,
-            totalImages: totalImages,
-            allLoaded: allLoaded,
-            folderId: currentFolderId,
-            folderName: dom.folderNameEl.textContent,
-            searchSettings: searchSettings
+        sessionStorage.setItem('cmv_preferences', JSON.stringify({
+            searchSettings,
         }));
-    } catch(_e) { /* ignore quota errors */ }
+        sessionStorage.removeItem('cmv_state');
+    } catch (_e) { /* ignore quota errors */ }
+}
+
+export function resetRuntimeState() {
+    setImages([]);
+    setSidebarImages([]);
+    setFolders([]);
+    setActiveIndex(-1);
+    setSidebarActiveImageId(null);
+    setCurrentFolderId(null);
+    setCurrentPage(0);
+    setSidebarPage(0);
+    setTotalImages(0);
+    setSidebarTotalImages(0);
+    setAllLoaded(true);
+    setSidebarAllLoaded(true);
+    setActiveSidebarTab('images');
+    setViewModeValue('gallery');
+    setGalleryActive(true);
+    setDetailCache({});
+    if (scrollObserver) scrollObserver.disconnect();
+    if (galleryScrollObserver) galleryScrollObserver.disconnect();
+    if (sidebarScrollObserver) sidebarScrollObserver.disconnect();
+    setScrollObserver(null);
+    setGalleryScrollObserver(null);
+    setSidebarScrollObserver(null);
+    if (dom.folderNameEl) dom.folderNameEl.textContent = '';
+}
+
+export function showToast(msg) {
+    if (!dom.toast) return;
+    dom.toast.textContent = msg;
+    dom.toast.classList.add('show');
+    setTimeout(() => dom.toast.classList.remove('show'), 3000);
 }

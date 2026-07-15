@@ -1,105 +1,101 @@
-import { dom, images, setImages, setTotalImages, setAllLoaded, setCurrentPage, activeIndex, setActiveIndex, setCurrentFolderId, galleryActive, sidebarImages, setIsLoading } from './state.js';
-import { initEvents, setViewMode } from './events.js';
+import {
+    dom,
+    loadState,
+    resetRuntimeState,
+    setActiveIndex,
+    setAllLoaded,
+    setCurrentFolderId,
+    setCurrentPage,
+    setFolders,
+    setImages,
+    setIsLoading,
+    setSidebarAllLoaded,
+    setSidebarImages,
+    setSidebarPage,
+    setSidebarTotalImages,
+    setTotalImages,
+} from './state.js';
+import { initEvents, setViewMode, switchSidebarTab } from './events.js';
 import { initLightboxEvents } from './lightbox.js';
 import { renderSidebar, initSidebarResize, toggleSidebar, renderFoldersList } from './features/sidebar.js';
 import { initSearch } from './components/search-bar.js';
 import { initKeyboardShortcuts } from './features/keyboard.js';
+import { loadBootstrap } from './api.js';
 
-import { getFolders } from './api.js';
+function finishBoot() {
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            document.documentElement.classList.add('app-ready');
+        });
+    });
+}
 
-async function restoreState() {
+async function bootstrapApplication() {
     setIsLoading(true);
+    resetRuntimeState();
+    loadState();
+
+    // Navigation is intentionally not restored between page loads.
+    setViewMode('gallery', { render: false });
+    await switchSidebarTab('images', { render: false, load: false });
+
     try {
-        const saved = sessionStorage.getItem('cmv_state');
-        let folderId = null;
-        let folderName = '';
-        let restoredState = null;
+        const data = await loadBootstrap();
+        const folderList = data.folders || [];
+        const globalPage = data.global_images || {};
+        const folderPage = data.folder_images || {};
+        const defaultFolder = data.default_folder || null;
 
-        if (saved) {
-            restoredState = JSON.parse(saved);
-            folderId = restoredState.folderId;
-            folderName = restoredState.folderName;
-        }
+        setFolders(folderList);
+        setSidebarImages(globalPage.images || []);
+        setSidebarTotalImages(globalPage.total || 0);
+        setSidebarPage(globalPage.page || 1);
+        setSidebarAllLoaded((globalPage.images || []).length >= (globalPage.total || 0));
 
-        await renderFoldersList();
-
-        // If no folderId was saved, fetch folders and use the first one
-        if (!folderId) {
-            try {
-                const folders = await getFolders();
-                if (folders && folders.length > 0) {
-                    folderId = folders[0].id;
-                    folderName = folders[0].name;
-                }
-            } catch (e) {
-                console.warn('Failed to fetch folders for default selection:', e);
-            }
-        }
-
-        if (folderId) {
-            setCurrentFolderId(folderId);
-            if (folderName) dom.folderNameEl.textContent = folderName;
-            if (restoredState && restoredState.viewMode) setViewMode(restoredState.viewMode);
-
+        if (defaultFolder) {
+            setCurrentFolderId(defaultFolder.id);
+            dom.folderNameEl.textContent = defaultFolder.name || '';
+            setImages(folderPage.images || []);
+            setTotalImages(folderPage.total || 0);
+            setCurrentPage(folderPage.page || 1);
+            setAllLoaded((folderPage.images || []).length >= (folderPage.total || 0));
+            setActiveIndex((folderPage.images || []).length ? 0 : -1);
+        } else {
+            setCurrentFolderId(null);
+            dom.folderNameEl.textContent = '';
             setImages([]);
-            let page = 1;
-            let total = 0;
-            const restoredImages = [];
-            do {
-                const resp = await fetch(`/api/images?folder_id=${folderId}&page=${page}&per_page=100`); // eslint-disable-line no-await-in-loop -- sequential pagination required
-                const data = await resp.json(); // eslint-disable-line no-await-in-loop
-                if (data.images && data.images.length) {
-                    restoredImages.push(...data.images);
-                    total = data.total || 0;
-                    page++;
-                } else {
-                    break;
-                }
-            } while (restoredImages.length < total);
-
-            setImages(restoredImages);
-            setTotalImages(total || restoredImages.length);
-            setAllLoaded(restoredImages.length >= (total || restoredImages.length));
-            setCurrentPage(page - 1);
-
-            if (restoredState && restoredState.activeIndex >= 0 && restoredState.activeIndex < restoredImages.length) {
-                setActiveIndex(restoredState.activeIndex);
-            } else if (restoredImages.length > 0) {
-                setActiveIndex(0);
-            }
-
-            if (!galleryActive) {
-                renderSidebar();
-                const isImagesTab = dom.tabImages?.classList.contains('active');
-                const currentList = isImagesTab ? sidebarImages : images;
-                if (activeIndex >= 0 && currentList[activeIndex]) {
-                    const { renderMeta } = await import('./meta-view.js');
-                    renderMeta(currentList[activeIndex]);
-                }
-            } else {
-                const { renderGallery } = await import('./gallery.js');
-                renderGallery();
-            }
+            setTotalImages(0);
+            setCurrentPage(0);
+            setAllLoaded(true);
+            setActiveIndex(-1);
         }
 
-        // Always show the 'Images' tab in the sidebar by default
-        const { switchSidebarTab } = await import('./events.js');
-        await switchSidebarTab('images');
-
-    } catch (e) {
-        console.warn('State restore failed:', e);
+        await renderFoldersList(folderList);
+        renderSidebar();
+        const { renderGallery } = await import('./gallery.js');
+        renderGallery();
+    } catch (error) {
+        console.error('Application bootstrap failed:', error);
+        await renderFoldersList([]);
+        renderSidebar();
+        dom.contentArea.innerHTML = `
+            <div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-dim); text-align: center; padding: 24px;">
+                <p style="font-weight: 600; margin-bottom: 8px;">Failed to load the image library</p>
+                <p style="font-size: 12px;">${String(error.message || error)}</p>
+            </div>
+        `;
     } finally {
         setIsLoading(false);
+        finishBoot();
     }
 }
 
-// Initialize
+// Initialize event handlers before loading data. The boot layer keeps intermediate DOM hidden.
 initEvents();
 initLightboxEvents();
 initSidebarResize();
 initSearch();
 initKeyboardShortcuts();
-restoreState();
+bootstrapApplication();
 
-// Sidebar toggle
 dom.sidebarToggle?.addEventListener('click', toggleSidebar);

@@ -66,6 +66,7 @@ export function renderGallery() {
     });
     html += '</div>';
     dom.contentArea.innerHTML = html;
+    import('./components/search-bar.js').then(m => m.applySearchFilter());
 
     // Add click handlers
     dom.contentArea.querySelectorAll('.gallery-card').forEach(card => {

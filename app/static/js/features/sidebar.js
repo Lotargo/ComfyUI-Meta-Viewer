@@ -28,6 +28,7 @@ export function renderSidebar() {
     });
 
     appendSentinel();
+    import('../components/search-bar.js').then(m => m.applySearchFilter());
 }
 
 export function appendSentinel() {

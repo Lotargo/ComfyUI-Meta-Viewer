@@ -1,54 +1,136 @@
-import { images, activeIndex, currentFolderId, currentPage, totalImages, allLoaded, detailCache, galleryActive, dom, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, setIsLoading, isLoading, saveState, showToast, sidebarImages, setSidebarImages, setSidebarTotalImages, setSidebarPage, sidebarPage, setSidebarAllLoaded, sidebarAllLoaded } from './state.js';
+import {
+    images,
+    activeIndex,
+    currentFolderId,
+    currentPage,
+    totalImages,
+    allLoaded,
+    detailCache,
+    galleryActive,
+    dom,
+    setImages,
+    setActiveIndex,
+    setCurrentFolderId,
+    setCurrentPage,
+    setTotalImages,
+    setAllLoaded,
+    setDetailCache,
+    setIsLoading,
+    isLoading,
+    showToast,
+    sidebarImages,
+    setSidebarImages,
+    setSidebarTotalImages,
+    setSidebarPage,
+    sidebarPage,
+    setSidebarAllLoaded,
+    sidebarAllLoaded,
+    sidebarTotalImages,
+    setFolders,
+} from './state.js';
 import { showLoading, showError, customConfirm } from './utils.js';
 
-function switchToImagesTab() {
-    dom.tabImages?.classList.add('active');
-    dom.tabFolders?.classList.remove('active');
-    dom.panelImages?.classList.add('active');
-    dom.panelFolders?.classList.remove('active');
+const PAGE_SIZE = 50;
+const responseCache = new Map();
+const pendingRequests = new Map();
+
+function requestKey(url) {
+    return url;
+}
+
+async function fetchJson(url, { force = false, options = undefined } = {}) {
+    const key = requestKey(url);
+    const method = options?.method || 'GET';
+
+    if (method === 'GET' && !force && responseCache.has(key)) {
+        return responseCache.get(key);
+    }
+    if (method === 'GET' && pendingRequests.has(key)) {
+        return pendingRequests.get(key);
+    }
+
+    const request = fetch(url, options).then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.error) {
+            throw new Error(data.error || `${response.status} ${response.statusText}`);
+        }
+        if (method === 'GET') responseCache.set(key, data);
+        return data;
+    }).finally(() => {
+        if (method === 'GET') pendingRequests.delete(key);
+    });
+
+    if (method === 'GET') pendingRequests.set(key, request);
+    return request;
+}
+
+export function invalidateApiCache() {
+    responseCache.clear();
+    pendingRequests.clear();
+}
+
+async function renderCurrentContent() {
+    if (galleryActive) {
+        const { renderGallery } = await import('./gallery.js');
+        renderGallery();
+        return;
+    }
+    const { renderImageMeta } = await import('./detail-loader.js');
+    await renderImageMeta(images[activeIndex] || images[0] || null);
+}
+
+export async function loadBootstrap() {
+    // Build one coherent startup snapshot without rendering intermediate states.
+    const [folderData, globalPage] = await Promise.all([
+        fetchJson('/api/folders', { force: true }),
+        fetchJson(`/api/images?page=1&per_page=${PAGE_SIZE}`, { force: true }),
+    ]);
+    const folderList = folderData.folders || [];
+    const defaultFolder = folderList[0] || null;
+    const folderPage = defaultFolder
+        ? await fetchJson(`/api/images?folder_id=${defaultFolder.id}&page=1&per_page=${PAGE_SIZE}`, { force: true })
+        : { images: [], total: 0, page: 0, per_page: PAGE_SIZE };
+
+    return {
+        folders: folderList,
+        default_folder: defaultFolder,
+        global_images: globalPage,
+        folder_images: folderPage,
+    };
 }
 
 export async function scanFolder(path) {
     showLoading('Scanning folder...');
     try {
-        const resp = await fetch('/api/scan', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({path})
+        const data = await fetchJson('/api/scan', {
+            options: {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path}),
+            },
         });
-        const data = await resp.json();
-        if (data.error) { showError(data.error); return; }
 
+        invalidateApiCache();
         setCurrentFolderId(data.folder_id);
-        const newImages = data.images || [];
-        setImages(newImages);
-        setTotalImages(data.total || images.length);
-        setCurrentPage(1);
-        setAllLoaded(images.length >= totalImages);
-        setActiveIndex(images.length > 0 ? 0 : -1);
+        setImages(data.images || []);
+        setTotalImages(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setAllLoaded((data.images || []).length >= (data.total || 0));
+        setActiveIndex((data.images || []).length ? 0 : -1);
         setDetailCache({});
-        dom.folderNameEl.textContent = data.folder ? data.folder.name : '';
-        saveState();
-        switchToImagesTab();
-        
-        await loadSidebarImages();
-        
-        const { renderSidebar } = await import('./features/sidebar.js');
-        
-        if (galleryActive) {
-            const { renderGallery } = await import('./gallery.js');
-            renderGallery();
-        } else {
-            renderSidebar();
-            if (activeIndex >= 0) {
-                const { renderMeta } = await import('./meta-view.js');
-                renderMeta(images[activeIndex]);
-            }
-        }
-        
-        const { renderFoldersList } = await import('./features/sidebar.js');
-        await renderFoldersList();
-    } catch(e) {
+        dom.folderNameEl.textContent = data.folder?.name || '';
+
+        const [folders] = await Promise.all([
+            getFolders({ force: true }),
+            loadSidebarImages({ force: true, render: false }),
+        ]);
+        setFolders(folders);
+
+        const { renderFoldersList, renderSidebar } = await import('./features/sidebar.js');
+        await renderFoldersList(folders);
+        renderSidebar();
+        await renderCurrentContent();
+    } catch (e) {
         showError('Error: ' + e.message);
     }
 }
@@ -56,38 +138,26 @@ export async function scanFolder(path) {
 export async function loadFromPaths(paths) {
     showLoading('Loading...');
     try {
-        const resp = await fetch('/api/extract', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({paths})
+        const data = await fetchJson('/api/extract', {
+            options: {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({paths}),
+            },
         });
-        const data = await resp.json();
-        if (data.images && data.images.length) {
-            for (const img of data.images) images.push(img);
-            setTotalImages(images.length);
-            setAllLoaded(true);
-            setCurrentPage(1);
-            if (activeIndex < 0) setActiveIndex(0);
-            saveState();
-            
-            await loadSidebarImages();
-            
-            if (galleryActive) {
-                const { renderGallery } = await import('./gallery.js');
-                renderGallery();
-            } else {
-                switchToImagesTab();
-                const { renderSidebar } = await import('./features/sidebar.js');
-                renderSidebar();
-            }
-            const { renderMeta } = await import('./meta-view.js');
-            renderMeta(images[activeIndex]);
-            
-            const { renderFoldersList } = await import('./features/sidebar.js');
-            await renderFoldersList();
-        } else {
+        if (!data.images?.length) {
             showError('No images found');
+            return;
         }
+        setCurrentFolderId(null);
+        dom.folderNameEl.textContent = 'Temporary';
+        setImages(data.images);
+        setTotalImages(data.images.length);
+        setAllLoaded(true);
+        setCurrentPage(1);
+        setActiveIndex(0);
+        setDetailCache({});
+        await renderCurrentContent();
     } catch(e) {
         showError('Error: ' + e.message);
     }
@@ -95,41 +165,30 @@ export async function loadFromPaths(paths) {
 
 export async function loadFromFiles(files) {
     const formData = new FormData();
-    for (const f of files) formData.append('files', f);
+    for (const file of files) formData.append('files', file);
     showLoading('Processing ' + files.length + ' files...');
     try {
-        const resp = await fetch('/api/upload', { method: 'POST', body: formData });
-        const data = await resp.json();
-        if (data.images && data.images.length) {
-            if (data.folder_id) {
-                setCurrentFolderId(data.folder_id);
-                dom.folderNameEl.textContent = 'Uploads';
-            }
-            for (const img of data.images) images.push(img);
-            setTotalImages(images.length);
-            setAllLoaded(true);
-            setCurrentPage(1);
-            if (activeIndex < 0) setActiveIndex(0);
-            saveState();
-            
-            await loadSidebarImages();
-            
-            if (galleryActive) {
-                const { renderGallery } = await import('./gallery.js');
-                renderGallery();
-            } else {
-                switchToImagesTab();
-                const { renderSidebar } = await import('./features/sidebar.js');
-                renderSidebar();
-            }
-            const { renderMeta } = await import('./meta-view.js');
-            renderMeta(images[activeIndex]);
-            
-            const { renderFoldersList } = await import('./features/sidebar.js');
-            await renderFoldersList();
-        } else {
+        const data = await fetchJson('/api/upload', {
+            options: { method: 'POST', body: formData },
+        });
+        if (!data.images?.length) {
             showError('No images found');
+            return;
         }
+
+        invalidateApiCache();
+        const folders = await getFolders({ force: true });
+        setFolders(folders);
+        const uploadFolder = folders.find(folder => folder.id === data.folder_id);
+        await Promise.all([
+            loadFolderImages(data.folder_id, uploadFolder?.name || 'Uploads', { force: true, render: false }),
+            loadSidebarImages({ force: true, render: false }),
+        ]);
+
+        const { renderFoldersList, renderSidebar } = await import('./features/sidebar.js');
+        await renderFoldersList(folders);
+        renderSidebar();
+        await renderCurrentContent();
     } catch(e) {
         showError('Error: ' + e.message);
     }
@@ -140,51 +199,33 @@ export async function loadMore() {
     setIsLoading(true);
     const nextPage = currentPage + 1;
     try {
-        const resp = await fetch(`/api/images?folder_id=${currentFolderId}&page=${nextPage}&per_page=50`);
-        const data = await resp.json();
-        if (data.images && data.images.length) {
-            for (const img of data.images) {
-                images.push(img);
-            }
+        const data = await fetchJson(`/api/images?folder_id=${currentFolderId}&page=${nextPage}&per_page=${PAGE_SIZE}`);
+        if (data.images?.length) {
+            images.push(...data.images);
             setCurrentPage(nextPage);
-            setTotalImages(data.total);
-            setAllLoaded(images.length >= data.total);
-            saveState();
-            if (galleryActive) {
-                const { renderGallery } = await import('./gallery.js');
-                renderGallery();
-            } else {
-                const { renderSidebar } = await import('./features/sidebar.js');
-                renderSidebar();
-            }
+            setTotalImages(data.total || totalImages);
+            setAllLoaded(images.length >= (data.total || 0));
+        } else {
+            setAllLoaded(true);
         }
     } catch(e) {
         console.error('loadMore error:', e);
-    }
-    setIsLoading(false);
-}
-
-export async function loadSidebarImages() {
-    setIsLoading(true);
-    try {
-        const page = 1;
-        const resp = await fetch(`/api/images?page=${page}&per_page=100`);
-        const data = await resp.json();
-        if (data.images && data.images.length) {
-            setSidebarImages(data.images);
-            setSidebarTotalImages(data.total);
-            setSidebarPage(page);
-            setSidebarAllLoaded(data.images.length >= data.total);
-        } else {
-            setSidebarImages([]);
-            setSidebarTotalImages(0);
-            setSidebarAllLoaded(true);
-        }
-    } catch(e) {
-        console.error('loadSidebarImages error:', e);
     } finally {
         setIsLoading(false);
     }
+}
+
+export async function loadSidebarImages({ force = false, render = true } = {}) {
+    const data = await fetchJson(`/api/images?page=1&per_page=${PAGE_SIZE}`, { force });
+    setSidebarImages(data.images || []);
+    setSidebarTotalImages(data.total || 0);
+    setSidebarPage(data.page || 1);
+    setSidebarAllLoaded((data.images || []).length >= (data.total || 0));
+    if (render) {
+        const { renderSidebar } = await import('./features/sidebar.js');
+        renderSidebar();
+    }
+    return data;
 }
 
 export async function loadMoreSidebarImages() {
@@ -192,95 +233,71 @@ export async function loadMoreSidebarImages() {
     setIsLoading(true);
     const nextPage = sidebarPage + 1;
     try {
-        const resp = await fetch(`/api/images?page=${nextPage}&per_page=50`);
-        const data = await resp.json();
-        if (data.images && data.images.length) {
-            for (const img of data.images) {
-                sidebarImages.push(img);
-            }
+        const data = await fetchJson(`/api/images?page=${nextPage}&per_page=${PAGE_SIZE}`);
+        if (data.images?.length) {
+            sidebarImages.push(...data.images);
             setSidebarPage(nextPage);
-            setSidebarTotalImages(data.total);
-            setSidebarAllLoaded(sidebarImages.length >= data.total);
-            if (galleryActive) {
-                const { renderGallery } = await import('./gallery.js');
-                renderGallery();
-            } else {
-                const { renderSidebar } = await import('./features/sidebar.js');
-                renderSidebar();
-            }
+            setSidebarTotalImages(data.total || sidebarTotalImages);
+            setSidebarAllLoaded(sidebarImages.length >= (data.total || 0));
+            const { renderSidebar } = await import('./features/sidebar.js');
+            renderSidebar();
+        } else {
+            setSidebarAllLoaded(true);
         }
     } catch(e) {
         console.error('loadMoreSidebarImages error:', e);
+    } finally {
+        setIsLoading(false);
     }
-    setIsLoading(false);
 }
 
-export async function getFolders() {
-    try {
-        const resp = await fetch('/api/folders');
-        const data = await resp.json();
-        return data.folders || [];
-    } catch (e) {
-        console.error('Failed to fetch folders:', e);
-        return [];
-    }
+export async function getFolders({ force = false } = {}) {
+    const data = await fetchJson('/api/folders', { force });
+    return data.folders || [];
 }
 
 export async function deleteFolderFromServer(folderId) {
     try {
-        const resp = await fetch(`/api/folders/${folderId}`, { method: 'DELETE' });
-        return resp.ok;
+        await fetchJson(`/api/folders/${folderId}`, { options: { method: 'DELETE' } });
+        invalidateApiCache();
+        return true;
     } catch (e) {
         console.error('Failed to delete folder:', e);
         return false;
     }
 }
 
-export async function deleteImageAt(index) {
-    const img = images[index];
+export async function deleteImageById(imageId) {
+    const img = images.find(item => item.id === imageId) || sidebarImages.find(item => item.id === imageId);
     if (!img) return false;
 
     const fileName = img.file_name || img.file || 'this image';
-    const ok = await customConfirm(
-        'Delete Image',
-        `Remove "${fileName}" from the viewer? Files scanned from disk will not be deleted from the folder.`
-    );
+    const ok = await customConfirm('Delete Image', `Remove "${fileName}" from the viewer? Files scanned from disk will not be deleted from the folder.`);
     if (!ok) return false;
 
     try {
-        if (img.id) {
-            const resp = await fetch(`/api/images/${img.id}`, { method: 'DELETE' });
-            if (!resp.ok) {
-                const data = await resp.json().catch(() => ({}));
-                showError(data.error || 'Failed to delete image');
-                return false;
-            }
-            delete detailCache[img.id];
+        await fetchJson(`/api/images/${imageId}`, { options: { method: 'DELETE' } });
+        invalidateApiCache();
+        delete detailCache[imageId];
+
+        const centralIndex = images.findIndex(item => item.id === imageId);
+        if (centralIndex >= 0) {
+            images.splice(centralIndex, 1);
+            setTotalImages(Math.max(0, totalImages - 1));
+            if (!images.length) setActiveIndex(-1);
+            else if (activeIndex >= images.length) setActiveIndex(images.length - 1);
+            else if (centralIndex < activeIndex) setActiveIndex(activeIndex - 1);
         }
 
-        images.splice(index, 1);
-        setTotalImages(Math.max(0, totalImages - 1));
-
-        if (images.length === 0) {
-            setActiveIndex(-1);
-        } else if (activeIndex >= images.length) {
-            setActiveIndex(images.length - 1);
-        } else if (index <= activeIndex) {
-            setActiveIndex(Math.max(0, activeIndex - 1));
+        const sidebarIndex = sidebarImages.findIndex(item => item.id === imageId);
+        if (sidebarIndex >= 0) {
+            sidebarImages.splice(sidebarIndex, 1);
+            setSidebarTotalImages(Math.max(0, sidebarTotalImages - 1));
         }
 
-        saveState();
-
-        if (galleryActive) {
-            const { renderGallery } = await import('./gallery.js');
-            renderGallery();
-        } else {
-            const { renderSidebar } = await import('./features/sidebar.js');
-            renderSidebar();
-            const { renderMeta } = await import('./meta-view.js');
-            renderMeta(images[activeIndex] || null);
-        }
-
+        const { renderSidebar } = await import('./features/sidebar.js');
+        renderSidebar();
+        await renderCurrentContent();
         showToast('Image removed');
         return true;
     } catch(e) {
@@ -289,58 +306,29 @@ export async function deleteImageAt(index) {
     }
 }
 
-export async function loadFolderImages(folderId, folderName) {
-    showLoading('Loading folder images...');
+export function deleteImageAt(index) {
+    const img = images[index];
+    return img ? deleteImageById(img.id) : Promise.resolve(false);
+}
+
+export async function loadFolderImages(folderId, folderName, { force = false, render = true } = {}) {
     setIsLoading(true);
+    if (render) showLoading('Loading folder images...');
     try {
+        const data = await fetchJson(`/api/images?folder_id=${folderId}&page=1&per_page=${PAGE_SIZE}`, { force });
         setCurrentFolderId(folderId);
-        setImages([]);
-        setDetailCache({});
         dom.folderNameEl.textContent = folderName || '';
-        
-        let page = 1;
-        let total = 0;
-        const loadedImages = [];
-        
-        do {
-            const resp = await fetch(`/api/images?folder_id=${folderId}&page=${page}&per_page=100`); // eslint-disable-line no-await-in-loop -- sequential pagination required
-            const data = await resp.json(); // eslint-disable-line no-await-in-loop
-            if (data.images && data.images.length) {
-                loadedImages.push(...data.images);
-                total = data.total || 0;
-                page++;
-            } else {
-                break;
-            }
-        } while (loadedImages.length < total);
-        
-        setImages(loadedImages);
-        setTotalImages(total || loadedImages.length);
-        setCurrentPage(page - 1);
-        setAllLoaded(loadedImages.length >= (total || loadedImages.length));
-        
-        if (loadedImages.length > 0) {
-            setActiveIndex(0);
-        } else {
-            setActiveIndex(-1);
-        }
-        
-        saveState();
-        
-        if (galleryActive) {
-            const { renderGallery } = await import('./gallery.js');
-            renderGallery();
-        } else {
-            switchToImagesTab();
-            const { renderSidebar } = await import('./features/sidebar.js');
-            renderSidebar();
-            if (activeIndex >= 0) {
-                const { renderMeta } = await import('./meta-view.js');
-                renderMeta(images[activeIndex]);
-            }
-        }
+        setImages(data.images || []);
+        setTotalImages(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setAllLoaded((data.images || []).length >= (data.total || 0));
+        setActiveIndex((data.images || []).length ? 0 : -1);
+        setDetailCache({});
+        if (render) await renderCurrentContent();
+        return data;
     } catch(e) {
-        showError('Error loading folder: ' + e.message);
+        if (render) showError('Error loading folder: ' + e.message);
+        throw e;
     } finally {
         setIsLoading(false);
     }

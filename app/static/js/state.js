@@ -51,26 +51,49 @@ export function setIsLoading(v) { isLoading = v; }
 export function setDetailCache(v) { detailCache = v; }
 export function setScrollObserver(v) { scrollObserver = v; }
 export function refreshCacheBuster() { cacheBuster = Date.now(); }
+export let searchSettings = {
+    exactMatch: false,
+    fields: {
+        positive_prompt: true,
+        negative_prompt: true,
+        model: true,
+        sampler: true,
+        resolution: true
+    }
+};
+
+export function setSearchSettings(v) { searchSettings = v; }
 
 export function addImage(img) { images.push(img); }
 export function addImages(imgs) { for (const img of imgs) images.push(img); }
 
+export function loadState() {
+    try {
+        const str = sessionStorage.getItem('cmv_state');
+        if (str) {
+            const st = JSON.parse(str);
+            if (st.viewMode) setViewModeValue(st.viewMode);
+            if (st.searchSettings) setSearchSettings(st.searchSettings);
+        }
+    } catch(e) {}
+}
+
 export function showToast(msg) {
     dom.toast.textContent = msg;
     dom.toast.classList.add('show');
-    setTimeout(() => dom.toast.classList.remove('show'), 1800);
+    setTimeout(() => dom.toast.classList.remove('show'), 3000);
 }
 
 export function saveState() {
     try {
         sessionStorage.setItem('cmv_state', JSON.stringify({
-            folderId: currentFolderId,
             page: currentPage,
             activeIndex: activeIndex,
             viewMode: viewMode,
             totalImages: totalImages,
             allLoaded: allLoaded,
             folderName: dom.folderNameEl.textContent,
+            searchSettings: searchSettings
         }));
     } catch(e) { /* ignore quota errors */ }
 }

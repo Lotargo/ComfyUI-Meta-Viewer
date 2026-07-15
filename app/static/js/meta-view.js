@@ -5,6 +5,7 @@
 
 import { images, activeIndex, detailCache, galleryActive, dom, saveState, currentFolderId } from './state.js';
 import { escapeHtml, formatValue, getStringValue, thumbUrl, copyText } from './utils.js';
+import { currentSearchTerms, isExactMatch } from './components/search-bar.js';
 import { skeletonMetaView } from './components/skeleton.js';
 import { renderWorkflowGraph, initWorkflowGraphEvents } from './features/workflow-graph.js';
 
@@ -232,7 +233,7 @@ function renderCategory(title, icon, id, rows, isLong) {
         html += `
             <div class="card-row">
                 <div class="key">${escapeHtml(r.key)}</div>
-                <div class="value">${formatValue(r.value)}</div>
+                <div class="value">${formatValue(r.value, currentSearchTerms, isExactMatch)}</div>
                 <button class="copy-btn" data-copy-value="${escapedVal}"><svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
             </div>
         `;
@@ -273,9 +274,9 @@ function renderNodeCategory(title, icon, nodes, badgeClass) {
             const valStr = getStringValue(v);
             const escapedVal = escapeHtml(valStr).replace(/"/g, '&quot;');
             html += `
-                <div class="card-row">
+                <div class="node-prop-row">
                     <div class="key">${escapeHtml(k)}</div>
-                    <div class="value">${formatValue(v)}</div>
+                    <div class="value">${formatValue(v, currentSearchTerms, isExactMatch)}</div>
                     <button class="copy-btn" data-copy-value="${escapedVal}"><svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
                 </div>
             `;

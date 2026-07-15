@@ -6,10 +6,40 @@ export function escapeHtml(s) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-export function formatValue(v) {
+export function highlightText(text, terms = [], isExactMatch = false) {
+    if (!terms || terms.length === 0) return escapeHtml(text);
+    
+    let html = escapeHtml(text);
+    
+    // Sort terms by length descending so longer terms are highlighted first
+    const sortedTerms = [...terms].sort((a, b) => b.length - a.length);
+
+    sortedTerms.forEach(term => {
+        if (!term) return;
+        const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const pattern = isExactMatch 
+            ? `(?:^|\\b)(${escapedTerm})(?:\\b|$)`
+            : `(${escapedTerm})`;
+        
+        // Use a regex to find matches, ignoring case. 
+        // We use a placeholder so we don't double-highlight.
+        const regex = new RegExp(pattern, 'gi');
+        // This simple replace might replace inside existing <mark> tags if we're not careful.
+        // A safer way for multiple terms is to split and map, but for simple use case, we do it carefully.
+        html = html.replace(regex, '<mark class="search-highlight">$1</mark>');
+    });
+
+    // Fix any nested <mark> tags if they occurred
+    html = html.replace(/<mark[^>]*><mark[^>]*>/g, '<mark class="search-highlight">');
+    html = html.replace(/<\/mark><\/mark>/g, '</mark>');
+
+    return html;
+}
+
+export function formatValue(v, terms = [], isExactMatch = false) {
     if (v === null || v === undefined) return '<null>';
-    if (typeof v === 'object') return escapeHtml(JSON.stringify(v, null, 2));
-    return escapeHtml(String(v));
+    if (typeof v === 'object') return highlightText(JSON.stringify(v, null, 2), terms, isExactMatch);
+    return highlightText(String(v), terms, isExactMatch);
 }
 
 export function getStringValue(v) {

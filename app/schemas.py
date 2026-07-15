@@ -71,6 +71,7 @@ class ImageListItem(BaseModel):
     thumbnail: str | None = None
     file: str | None = None
     path: str | None = None
+    prompt_parameters: dict[str, Any] | None = None
 
 
 class ImageDetail(ImageListItem):

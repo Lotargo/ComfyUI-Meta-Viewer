@@ -2,15 +2,20 @@
  * Gallery view with masonry layout
  */
 
-import { images, activeIndex, galleryActive, currentFolderId, allLoaded, scrollObserver, totalImages, dom, setScrollObserver, saveState } from './state.js';
+import { images, activeIndex, galleryActive, currentFolderId, allLoaded, scrollObserver, totalImages, dom, setScrollObserver, saveState, sidebarImages, sidebarTotalImages, sidebarAllLoaded } from './state.js';
 import { escapeHtml, thumbUrl, formatImageCountLabel } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
 
 export function renderGallery() {
-    dom.imageCount.textContent = formatImageCountLabel(images.length, totalImages);
+    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const currentList = isImagesTab ? sidebarImages : images;
+    const currentTotal = isImagesTab ? sidebarTotalImages : totalImages;
+    const currentAllLoaded = isImagesTab ? sidebarAllLoaded : allLoaded;
 
-    if (images.length === 0) {
-        if (!currentFolderId) {
+    dom.imageCount.textContent = formatImageCountLabel(currentList.length, currentTotal);
+
+    if (currentList.length === 0) {
+        if (!isImagesTab && !currentFolderId) {
             dom.contentArea.innerHTML = `<div class="drop-zone anim-scale-in" id="drop-zone">
                 <div class="icon">
                     <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
@@ -22,12 +27,12 @@ export function renderGallery() {
             return;
         }
         
-        if (allLoaded) {
+        if (currentAllLoaded) {
             dom.contentArea.innerHTML = `<div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-dim);">
                 <div class="empty-state-icon" style="margin-bottom: 16px;">
                     <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                 </div>
-                <p>No images found in this folder</p>
+                <p>No images found</p>
             </div>`;
             return;
         }
@@ -42,7 +47,7 @@ export function renderGallery() {
     }
 
     let html = '<div class="gallery-masonry">';
-    images.forEach((img, i) => {
+    currentList.forEach((img, i) => {
         const src = thumbUrl(img);
         const isActive = i === activeIndex ? ' active' : '';
         const hasError = img.error ? '<div class="card-error"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>' : '';
@@ -72,7 +77,7 @@ export function renderGallery() {
     dom.contentArea.querySelectorAll('.gallery-card').forEach(card => {
         card.addEventListener('click', () => {
             const idx = parseInt(card.dataset.index);
-            import('./lightbox.js').then(m => m.openLightbox(idx, images));
+            import('./lightbox.js').then(m => m.openLightbox(idx, currentList));
         });
     });
 
@@ -80,12 +85,14 @@ export function renderGallery() {
         button.addEventListener('click', e => {
             e.stopPropagation();
             const idx = parseInt(button.dataset.index);
-            import('./api.js').then(m => m.deleteImageAt(idx));
+            const imgId = currentList[idx]?.id;
+            const targetIdx = images.findIndex(x => x.id === imgId);
+            import('./api.js').then(m => m.deleteImageAt(targetIdx >= 0 ? targetIdx : images.findIndex(x => x.id === imgId)));
         });
     });
 
     // Infinite scroll
-    if (!allLoaded && currentFolderId) {
+    if (!currentAllLoaded && (isImagesTab || currentFolderId)) {
         const sentinel = document.createElement('div');
         sentinel.id = 'gallery-sentinel';
         sentinel.style.height = '1px';
@@ -95,7 +102,11 @@ export function renderGallery() {
 
         setScrollObserver(new IntersectionObserver(entries => {
             if (entries[0].isIntersecting) {
-                import('./api.js').then(m => m.loadMore());
+                if (isImagesTab) {
+                    import('./api.js').then(m => m.loadMoreSidebarImages().then(() => renderGallery()));
+                } else {
+                    import('./api.js').then(m => m.loadMore().then(() => renderGallery()));
+                }
             }
         }, { root: dom.contentArea, threshold: 0.1 }));
 

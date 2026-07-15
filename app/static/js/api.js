@@ -150,8 +150,13 @@ export async function loadMore() {
             setTotalImages(data.total);
             setAllLoaded(images.length >= data.total);
             saveState();
-            const { renderSidebar } = await import('./features/sidebar.js');
-            renderSidebar();
+            if (galleryActive) {
+                const { renderGallery } = await import('./gallery.js');
+                renderGallery();
+            } else {
+                const { renderSidebar } = await import('./features/sidebar.js');
+                renderSidebar();
+            }
         }
     } catch(e) {
         console.error('loadMore error:', e);
@@ -193,8 +198,13 @@ export async function loadMoreSidebarImages() {
             setSidebarPage(nextPage);
             setSidebarTotalImages(data.total);
             setSidebarAllLoaded(sidebarImages.length >= data.total);
-            const { renderSidebar } = await import('./features/sidebar.js');
-            renderSidebar();
+            if (galleryActive) {
+                const { renderGallery } = await import('./gallery.js');
+                renderGallery();
+            } else {
+                const { renderSidebar } = await import('./features/sidebar.js');
+                renderSidebar();
+            }
         }
     } catch(e) {
         console.error('loadMoreSidebarImages error:', e);

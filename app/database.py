@@ -180,14 +180,14 @@ def get_images_page(
         offset = (page - 1) * per_page
         if folder_id is not None:
             rows = conn.execute(
-                """SELECT id, file_name, format, width, height, error
+                """SELECT id, file_name, format, width, height, mode, error, metadata_json
                 FROM images WHERE folder_id = ?
                 ORDER BY file_name LIMIT ? OFFSET ?""",
                 (folder_id, per_page, offset),
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT id, file_name, format, width, height, error
+                """SELECT id, file_name, format, width, height, mode, error, metadata_json
                 FROM images
                 ORDER BY file_name LIMIT ? OFFSET ?""",
                 (per_page, offset),
@@ -196,12 +196,22 @@ def get_images_page(
         for r in rows:
             d = dict(r)
             w, h = d.get("width"), d.get("height")
+            meta_json = d.get("metadata_json")
+            prompt_parameters = None
+            if meta_json:
+                try:
+                    meta_data = json.loads(meta_json)
+                    prompt_parameters = meta_data.get("prompt_parameters")
+                except (json.JSONDecodeError, TypeError):
+                    pass
             images.append(ImageListItem(
                 id=d.get("id"),
                 file_name=d.get("file_name", ""),
                 format=d.get("format"),
                 size=[w, h] if w and h else None,
+                mode=d.get("mode"),
                 error=d.get("error"),
+                prompt_parameters=prompt_parameters,
             ))
         return ImagesResponse(images=images, total=total, page=page, per_page=per_page)
     finally:

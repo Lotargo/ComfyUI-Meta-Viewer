@@ -31,3 +31,58 @@
     z-index: var(--z-dropdown);
     box-shadow: var(--shadow-lg);
 }
+
+/* Search settings dropdown */
+.search-settings-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 240px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-dropdown);
+    padding: var(--space-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.search-settings-header {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    margin-top: 4px;
+}
+
+.search-settings-divider {
+    height: 1px;
+    background: var(--border);
+    margin: var(--space-sm) 0;
+}
+
+.search-setting-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+}
+
+.search-setting-label:hover {
+    color: var(--accent);
+}
+
+/* Match highlight */
+mark.search-highlight {
+    background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+    color: var(--text);
+    border-radius: 2px;
+    padding: 0 2px;
+}

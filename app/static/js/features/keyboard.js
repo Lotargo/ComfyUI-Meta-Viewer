@@ -2,7 +2,7 @@
  * Keyboard shortcuts handler
  */
 
-import { images, activeIndex, detailCache, dom, totalImages, currentFolderId, showToast } from '../state.js';
+import { images, sidebarImages, activeIndex, detailCache, dom, totalImages, currentFolderId, showToast } from '../state.js';
 import { toggleSidebar } from './sidebar.js';
 import { copyText } from '../utils.js';
 
@@ -79,7 +79,9 @@ function nextImage() {
         import('../lightbox.js').then(m => m.nextLightbox());
         return;
     }
-    if (activeIndex < images.length - 1) {
+    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const currentList = isImagesTab ? sidebarImages : images;
+    if (activeIndex < currentList.length - 1) {
         import('./sidebar.js').then(m => m.selectImage(activeIndex + 1));
     }
 }
@@ -103,7 +105,9 @@ function toggleShortcuts(forceOpen) {
 }
 
 function copyMetadata() {
-    const img = images[activeIndex];
+    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const currentList = isImagesTab ? sidebarImages : images;
+    const img = currentList[activeIndex];
     if (!img) return;
 
     const detail = (img.id && detailCache[img.id]) || img;

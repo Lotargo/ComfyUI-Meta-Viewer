@@ -53,21 +53,23 @@ export async function selectImage(idx) {
     saveState();
     
     // update active class in sidebar if possible
-    const currentActiveImg = images[idx];
+    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const currentList = isImagesTab ? sidebarImages : images;
+    const currentActiveImg = currentList[idx];
     if (currentActiveImg) {
         dom.imageList.querySelectorAll('.image-item').forEach((el, i) => {
-            const img = sidebarImages[i];
+            const img = currentList[i];
             el.classList.toggle('active', img && img.id === currentActiveImg.id);
         });
     }
 
-    const img = images[idx];
+    const img = currentList[idx];
     if (!img) {
         const { renderMeta } = await import('../meta-view.js');
         return renderMeta(null);
     }
     if (galleryActive) {
-        import('../lightbox.js').then(m => m.openLightbox(idx, images));
+        import('../lightbox.js').then(m => m.openLightbox(idx, currentList));
         return;
     }
     const { renderMeta } = await import('../meta-view.js');
@@ -81,9 +83,31 @@ export async function selectImage(idx) {
 }
 
 export async function selectSidebarImage(idx) {
-    const img = sidebarImages[idx];
+    const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+    const currentList = isImagesTab ? sidebarImages : images;
+    const img = currentList[idx];
     if (!img) return;
-    import('../lightbox.js').then(m => m.openLightbox(idx, sidebarImages));
+
+    if (galleryActive) {
+        import('../lightbox.js').then(m => m.openLightbox(idx, currentList));
+    } else {
+        setActiveIndex(idx);
+        saveState();
+
+        // Update active class in sidebar
+        dom.imageList.querySelectorAll('.image-item').forEach((el, i) => {
+            el.classList.toggle('active', i === idx);
+        });
+
+        const { renderMeta } = await import('../meta-view.js');
+        renderMeta(img);
+        if (img.id && !detailCache[img.id]) {
+            try {
+                const resp = await fetch(`/api/images/${img.id}`);
+                if (resp.ok) detailCache[img.id] = await resp.json();
+            } catch (e) { /* ignore */ }
+        }
+    }
 }
 
 /**

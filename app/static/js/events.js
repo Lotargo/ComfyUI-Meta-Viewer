@@ -1,4 +1,4 @@
-import { dom, galleryActive, setViewModeValue, setGalleryActive, images, activeIndex, scrollObserver, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, saveState, refreshCacheBuster } from './state.js';
+import { dom, galleryActive, setViewModeValue, setGalleryActive, images, sidebarImages, activeIndex, scrollObserver, setImages, setActiveIndex, setCurrentFolderId, setCurrentPage, setTotalImages, setAllLoaded, setDetailCache, saveState, refreshCacheBuster } from './state.js';
 import { loadFromFiles, loadFromPaths, scanFolder } from './api.js';
 import { renderSidebar } from './features/sidebar.js';
 import { customConfirm, customPrompt } from './utils.js';
@@ -139,6 +139,10 @@ export function initEvents() {
 
     document.addEventListener('paste', e => {
         if (dom.lightbox.classList.contains('open')) return;
+        
+        // Ignore paste if user is typing in an input/textarea
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
         const text = e.clipboardData?.getData('text');
         if (text) {
             const paths = text.split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('http'));
@@ -163,7 +167,9 @@ export function setViewMode(mode) {
         import('./gallery.js').then(m => m.renderGallery());
     } else {
         renderSidebar();
-        import('./meta-view.js').then(m => m.renderMeta(images[activeIndex]));
+        const isImagesTab = document.getElementById('tab-images')?.classList.contains('active');
+        const currentList = isImagesTab ? sidebarImages : images;
+        import('./meta-view.js').then(m => m.renderMeta(currentList[activeIndex]));
     }
 }
 
@@ -182,6 +188,10 @@ export async function switchSidebarTab(tab) {
         imagesPanel.classList.remove('active');
         const { renderFoldersList } = await import('./features/sidebar.js');
         await renderFoldersList();
+        if (galleryActive) {
+            const { renderGallery } = await import('./gallery.js');
+            renderGallery();
+        }
     } else {
         imagesTab.classList.add('active');
         foldersTab.classList.remove('active');
@@ -194,5 +204,9 @@ export async function switchSidebarTab(tab) {
             await loadSidebarImages();
         }
         renderSidebar();
+        if (galleryActive) {
+            const { renderGallery } = await import('./gallery.js');
+            renderGallery();
+        }
     }
 }

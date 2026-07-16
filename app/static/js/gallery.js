@@ -40,11 +40,15 @@ export function renderGallery() {
         const hasError = img.error ? '<div class="card-error"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>' : '';
         const fmt = img.format || '';
         const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
+        const ratioStyle = img.size ? ` style="aspect-ratio: ${img.size[0]} / ${img.size[1]}; position: relative; width: 100%; background: var(--surface2);"` : ' style="position: relative; width: 100%; background: var(--surface2);"';
+        const imgStyle = img.size ? ` style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;"` : '';
         const fileName = img.file_name || img.file || '';
 
         html += `
             <div class="gallery-card${isActive}" data-index="${index}">
-                <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false">
+                <div class="img-wrapper"${ratioStyle}>
+                    <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle}>
+                </div>
                 <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
                     <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
                 </button>

@@ -9,3 +9,4 @@ build/
 .env
 cache/thumbnails*
 cache/cutouts*
+.videos

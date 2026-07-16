@@ -160,20 +160,21 @@ def insert_images(folder_id: int, images: list[ImageInsertRow]) -> None:
 def get_folders() -> list[FolderInfo]:
     conn = get_conn()
     try:
-        # Query normal folders, excluding no-metadata images from their count (except for the uploads folder)
+        # Query normal folders, excluding no-metadata images from their count (except for the uploads folders)
         rows = conn.execute(
             """SELECT f.id, f.path, f.name, f.scanned_at, f.status,
-               COUNT(CASE WHEN i.id IS NOT NULL AND (f.path = '__uploads__' OR (i.error IS NULL AND (i.metadata_json IS NULL OR json_extract(i.metadata_json, '$.prompt_parameters') IS NOT NULL OR json_extract(i.metadata_json, '$.workflow') IS NOT NULL))) THEN 1 END) AS image_count,
-               COUNT(CASE WHEN i.id IS NOT NULL AND (i.metadata_json IS NOT NULL OR i.error IS NOT NULL) AND (f.path = '__uploads__' OR (i.error IS NULL AND (json_extract(i.metadata_json, '$.prompt_parameters') IS NOT NULL OR json_extract(i.metadata_json, '$.workflow') IS NOT NULL))) THEN 1 END) AS processed_count
+               COUNT(CASE WHEN i.id IS NOT NULL AND (f.path IN ('__uploads__', '__uploads_no_metadata__') OR (i.error IS NULL AND (i.metadata_json IS NULL OR json_extract(i.metadata_json, '$.prompt_parameters') IS NOT NULL OR json_extract(i.metadata_json, '$.workflow') IS NOT NULL))) THEN 1 END) AS image_count,
+               COUNT(CASE WHEN i.id IS NOT NULL AND (i.metadata_json IS NOT NULL OR i.error IS NOT NULL) AND (f.path IN ('__uploads__', '__uploads_no_metadata__') OR (i.error IS NULL AND (json_extract(i.metadata_json, '$.prompt_parameters') IS NOT NULL OR json_extract(i.metadata_json, '$.workflow') IS NOT NULL))) THEN 1 END) AS processed_count
             FROM folders f LEFT JOIN images i ON i.folder_id = f.id
             GROUP BY f.id ORDER BY f.scanned_at DESC"""
         ).fetchall()
         folders_list = [FolderInfo.model_validate(dict(r)) for r in rows]
 
-        # Query count of all no-metadata images across all folders
+        # Query count of all no-metadata images in scanned folders (excluding uploads)
         no_meta_row = conn.execute(
             """SELECT COUNT(*) AS c FROM images
-            WHERE error IS NOT NULL OR (metadata_json IS NOT NULL AND json_extract(metadata_json, '$.prompt_parameters') IS NULL AND json_extract(metadata_json, '$.workflow') IS NULL)"""
+            WHERE folder_id NOT IN (SELECT id FROM folders WHERE path IN ('__uploads__', '__uploads_no_metadata__'))
+              AND (error IS NOT NULL OR (metadata_json IS NOT NULL AND json_extract(metadata_json, '$.prompt_parameters') IS NULL AND json_extract(metadata_json, '$.workflow') IS NULL))"""
         ).fetchone()
 
         no_meta_count = no_meta_row["c"] if no_meta_row else 0
@@ -303,16 +304,18 @@ def get_images_page(
         no_meta_cond = "error IS NOT NULL OR (metadata_json IS NOT NULL AND json_extract(metadata_json, '$.prompt_parameters') IS NULL AND json_extract(metadata_json, '$.workflow') IS NULL)"
         has_meta_cond = "error IS NULL AND (metadata_json IS NULL OR json_extract(metadata_json, '$.prompt_parameters') IS NOT NULL OR json_extract(metadata_json, '$.workflow') IS NOT NULL)"
 
-        # Check if the folder is __uploads__
+        # Check if the folder is __uploads__ or __uploads_no_metadata__
         is_uploads = False
         if folder_id is not None and folder_id != -1:
             f_row = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
-            if f_row and f_row["path"] == "__uploads__":
+            if f_row and f_row["path"] in ("__uploads__", "__uploads_no_metadata__"):
                 is_uploads = True
 
         if folder_id == -1:
             total_row = conn.execute(
-                f"SELECT COUNT(*) AS c FROM images WHERE {no_meta_cond}"
+                f"""SELECT COUNT(*) AS c FROM images 
+                WHERE folder_id NOT IN (SELECT id FROM folders WHERE path IN ('__uploads__', '__uploads_no_metadata__'))
+                  AND ({no_meta_cond})"""
             ).fetchone()
         elif folder_id is not None:
             if is_uploads:
@@ -352,7 +355,9 @@ def get_images_page(
         if folder_id == -1:
             rows = conn.execute(
                 f"""SELECT id, file_name, format, width, height, mode, error, metadata_json
-                FROM images WHERE {no_meta_cond}
+                FROM images 
+                WHERE folder_id NOT IN (SELECT id FROM folders WHERE path IN ('__uploads__', '__uploads_no_metadata__'))
+                  AND ({no_meta_cond})
                 {order_clause} LIMIT ? OFFSET ?""",
                 (per_page, offset),
             ).fetchall()
@@ -562,15 +567,21 @@ def insert_upload_image(
 ) -> tuple[int, int]:
     conn = get_conn()
     try:
+        has_meta = metadata.error is None and (
+            metadata.prompt_parameters is not None or metadata.workflow is not None
+        )
+        folder_path = "__uploads__" if has_meta else "__uploads_no_metadata__"
+        folder_name = "Uploads" if has_meta else "Uploads (no metadata)"
+
         folder_row = conn.execute(
-            "SELECT id FROM folders WHERE path = '__uploads__'"
+            "SELECT id FROM folders WHERE path = ?", (folder_path,)
         ).fetchone()
         if not folder_row:
             conn.execute(
-                "INSERT INTO folders (path, name) VALUES ('__uploads__', 'Uploads')"
+                "INSERT INTO folders (path, name) VALUES (?, ?)", (folder_path, folder_name)
             )
             folder_row = conn.execute(
-                "SELECT id FROM folders WHERE path = '__uploads__'"
+                "SELECT id FROM folders WHERE path = ?", (folder_path,)
             ).fetchone()
         folder_id = folder_row["id"]
 

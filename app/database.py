@@ -269,7 +269,11 @@ def ensure_image_processed(image_id: int, img_path: str) -> None:
 
 
 def get_images_page(
-    folder_id: int | None, page: int = 1, per_page: int = 50
+    folder_id: int | None,
+    page: int = 1,
+    per_page: int = 50,
+    sort_by: str = "name",
+    sort_dir: str = "asc",
 ) -> ImagesResponse:
     conn = get_conn()
     try:
@@ -281,18 +285,35 @@ def get_images_page(
             total_row = conn.execute("SELECT COUNT(*) AS c FROM images").fetchone()
         total = total_row["c"] if total_row else 0
         offset = (page - 1) * per_page
+
+        # Map sorting key to column names safely
+        sort_by_map = {
+            "name": "file_name",
+            "date": "file_mtime",
+            "size": "file_size",
+            "type": "format",
+        }
+        sort_column = sort_by_map.get(sort_by, "file_name")
+        direction = "DESC" if sort_dir.lower() == "desc" else "ASC"
+
+        # Determine secondary sort order for stability
+        if sort_column == "file_name":
+            order_clause = f"ORDER BY file_name {direction}"
+        else:
+            order_clause = f"ORDER BY {sort_column} {direction}, file_name ASC"
+
         if folder_id is not None:
             rows = conn.execute(
-                """SELECT id, file_name, format, width, height, mode, error, metadata_json
+                f"""SELECT id, file_name, format, width, height, mode, error, metadata_json
                 FROM images WHERE folder_id = ?
-                ORDER BY file_name LIMIT ? OFFSET ?""",
+                {order_clause} LIMIT ? OFFSET ?""",
                 (folder_id, per_page, offset),
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT id, file_name, format, width, height, mode, error, metadata_json
+                f"""SELECT id, file_name, format, width, height, mode, error, metadata_json
                 FROM images
-                ORDER BY file_name LIMIT ? OFFSET ?""",
+                {order_clause} LIMIT ? OFFSET ?""",
                 (per_page, offset),
             ).fetchall()
         images = []

@@ -33,7 +33,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
         return;
     }
 
-    let masonry = dom.contentArea.querySelector('.gallery-masonry');
+    const masonry = dom.contentArea.querySelector('.gallery-masonry');
     if (appendOnly && masonry) {
         let newHtml = '';
         for (let index = startIndex; index < images.length; index++) {
@@ -89,7 +89,24 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
 
         import('./components/search-bar.js').then(module => module.applySearchFilter());
     } else {
-        let html = '<div class="gallery-masonry">';
+        const folderName = dom.folderNameEl ? dom.folderNameEl.textContent : '';
+        const toolbarHtml = `
+            <div class="content-toolbar">
+                <div class="toolbar-title">${escapeHtml(folderName || 'Gallery')}</div>
+                <div class="toolbar-actions">
+                    <div class="sort-container">
+                        <button class="btn btn-sm btn-secondary sort-btn" id="sort-btn">
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" style="margin-right: 6px;"><path d="M3 9l4-4 4 4M7 5v14M21 15l-4 4-4-4M17 19V5"/></svg>
+                            <span>Сортировать</span>
+                            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" style="margin-left: 4px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="dropdown-menu" id="sort-dropdown-menu" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        let html = toolbarHtml + '<div class="gallery-masonry">';
         images.forEach((img, index) => {
             const src = thumbUrl(img);
             const isActive = index === activeIndex ? ' active' : '';
@@ -136,10 +153,12 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
                 if (imageId) import('./api.js').then(module => module.deleteImageById(imageId));
             });
         });
+
+        import('./features/sorting.js').then(module => module.bindCentralSortEvents());
     }
 
     if (!allLoaded && currentFolderId) {
-        let sentinel = document.getElementById('gallery-sentinel');
+        let sentinel = document.querySelector('#gallery-sentinel');
         if (!sentinel) {
             sentinel = document.createElement('div');
             sentinel.id = 'gallery-sentinel';

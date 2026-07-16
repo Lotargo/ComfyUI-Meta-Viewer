@@ -116,3 +116,104 @@
 .tab-panel.active {
     display: block;
 }
+
+/* Pinned Toolbar at the top of content area */
+.content-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-sm) var(--space-md);
+    background: color-mix(in srgb, var(--surface) 94%, var(--surface2));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-md);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.toolbar-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 70%;
+}
+
+.toolbar-actions {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+}
+
+/* General Sort Dropdown styling */
+.sort-container {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    width: 190px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-dropdown, 100);
+    padding: var(--space-xs) 0;
+    display: flex;
+    flex-direction: column;
+    animation: dropdown-fade 0.15s ease-out;
+}
+
+@keyframes dropdown-fade {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 7px 14px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: all var(--transition-fast);
+}
+
+.dropdown-item:hover {
+    background: var(--surface2);
+    color: var(--text);
+}
+
+.dropdown-item .indicator {
+    width: 16px;
+    margin-right: var(--space-xs);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 14px;
+}
+
+.dropdown-item .label {
+    flex: 1;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: var(--border);
+    margin: var(--space-xs) 0;
+}

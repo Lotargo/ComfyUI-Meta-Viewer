@@ -82,6 +82,17 @@ export let galleryScrollObserver = null;
 export let sidebarScrollObserver = null;
 export let cacheBuster = Date.now();
 
+export let sortKey = 'name';
+export let sortDir = 'asc';
+export let sidebarSortKey = 'name';
+export let sidebarSortDir = 'asc';
+
+export function setSortKey(v) { sortKey = v; }
+export function setSortDir(v) { sortDir = v; }
+export function setSidebarSortKey(v) { sidebarSortKey = v; }
+export function setSidebarSortDir(v) { sidebarSortDir = v; }
+
+
 export function setImages(v) { images = Array.isArray(v) ? [...v] : []; }
 export function setSidebarImages(v) { sidebarImages = Array.isArray(v) ? [...v] : []; }
 export function setFolders(v) { folders = Array.isArray(v) ? [...v] : []; }
@@ -166,6 +177,10 @@ export function resetRuntimeState() {
     setGalleryScrollObserver(null);
     setSidebarScrollObserver(null);
     if (dom.folderNameEl) dom.folderNameEl.textContent = '';
+    sortKey = 'name';
+    sortDir = 'asc';
+    sidebarSortKey = 'name';
+    sidebarSortDir = 'asc';
 }
 
 export function showToast(msg) {

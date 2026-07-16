@@ -27,6 +27,10 @@ import {
     sidebarAllLoaded,
     sidebarTotalImages,
     setFolders,
+    sortKey,
+    sortDir,
+    sidebarSortKey,
+    sidebarSortDir,
 } from './state.js';
 import { showLoading, showError, customConfirm } from './utils.js';
 
@@ -39,6 +43,7 @@ function requestKey(url) {
 }
 
 async function fetchJson(url, { force = false, options = undefined } = {}) {
+    await Promise.resolve();
     const key = requestKey(url);
     const method = options?.method || 'GET';
 
@@ -219,7 +224,7 @@ export async function loadMore() {
     const nextPage = currentPage + 1;
     let didLoad = false;
     try {
-        const data = await fetchJson(`/api/images?folder_id=${currentFolderId}&page=${nextPage}&per_page=${PAGE_SIZE}`);
+        const data = await fetchJson(`/api/images?folder_id=${currentFolderId}&page=${nextPage}&per_page=${PAGE_SIZE}&sort_by=${sortKey}&sort_dir=${sortDir}`);
         if (data.images?.length) {
             images.push(...data.images);
             setCurrentPage(nextPage);
@@ -239,7 +244,7 @@ export async function loadMore() {
 }
 
 export async function loadSidebarImages({ force = false, render = true } = {}) {
-    const data = await fetchJson(`/api/images?page=1&per_page=${PAGE_SIZE}`, { force });
+    const data = await fetchJson(`/api/images?page=1&per_page=${PAGE_SIZE}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}`, { force });
     setSidebarImages(data.images || []);
     setSidebarTotalImages(data.total || 0);
     setSidebarPage(data.page || 1);
@@ -275,7 +280,7 @@ export async function loadMoreSidebarImages() {
     }
     const nextPage = sidebarPage + 1;
     try {
-        const data = await fetchJson(`/api/images?page=${nextPage}&per_page=${PAGE_SIZE}`);
+        const data = await fetchJson(`/api/images?page=${nextPage}&per_page=${PAGE_SIZE}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}`);
         if (data.images?.length) {
             sidebarImages.push(...data.images);
             setSidebarPage(nextPage);
@@ -358,7 +363,7 @@ export async function loadFolderImages(folderId, folderName, { force = false, re
     setIsLoading(true);
     if (render) showLoading('Loading folder images...');
     try {
-        const data = await fetchJson(`/api/images?folder_id=${folderId}&page=1&per_page=${PAGE_SIZE}`, { force });
+        const data = await fetchJson(`/api/images?folder_id=${folderId}&page=1&per_page=${PAGE_SIZE}&sort_by=${sortKey}&sort_dir=${sortDir}`, { force });
         setCurrentFolderId(folderId);
         dom.folderNameEl.textContent = folderName || '';
         setImages(data.images || []);

@@ -29,7 +29,7 @@ export function initSearch() {
         });
 
         const bindCheckbox = (id, key, fieldKey) => {
-            const checkbox = document.getElementById(id);
+            const checkbox = document.querySelector('#' + id);
             if (!checkbox) return;
             checkbox.addEventListener('change', event => {
                 if (fieldKey) searchSettings.fields[fieldKey] = event.target.checked;
@@ -50,7 +50,7 @@ export function initSearch() {
 
 function syncSettingsToUI() {
     const setCheckbox = (id, value) => {
-        const checkbox = document.getElementById(id);
+        const checkbox = document.querySelector('#' + id);
         if (checkbox) checkbox.checked = Boolean(value);
     };
     setCheckbox('search-exact-match', searchSettings.exactMatch);

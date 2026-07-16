@@ -197,7 +197,9 @@ def api_images():
     folder_id = request.args.get("folder_id", type=int)
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 50, type=int)
-    result = db.get_images_page(folder_id, page, per_page)
+    sort_by = request.args.get("sort_by", "name")
+    sort_dir = request.args.get("sort_dir", "asc")
+    result = db.get_images_page(folder_id, page, per_page, sort_by, sort_dir)
     return jsonify(result.model_dump())
 
 

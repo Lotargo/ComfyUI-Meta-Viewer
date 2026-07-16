@@ -22,6 +22,7 @@ import { initSearch } from './components/search-bar.js';
 import { initKeyboardShortcuts } from './features/keyboard.js';
 import { initCentralCollectionShortcuts } from './central-shortcuts.js';
 import { loadBootstrap } from './api.js';
+import { initSorting } from './features/sorting.js';
 
 function finishBoot() {
     requestAnimationFrame(() => {
@@ -98,6 +99,7 @@ initSidebarResize();
 initSearch();
 initCentralCollectionShortcuts();
 initKeyboardShortcuts();
+initSorting();
 bootstrapApplication();
 
 dom.sidebarToggle?.addEventListener('click', toggleSidebar);

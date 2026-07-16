@@ -103,12 +103,19 @@
         </div>
 
         <div class="sidebar-panel" id="panel-images">
-            <div class="sidebar-header sidebar-header-images">
-                <div class="sidebar-header-main">
+            <div class="sidebar-header sidebar-header-images" style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="sidebar-header-main" style="min-width: 0; flex: 1;">
                     <span class="sidebar-label">Current Collection</span>
                     <div class="sidebar-header-summary">
                         <span class="sidebar-folder" id="folder-name"></span>
                         <span class="sidebar-info sidebar-info-badge" id="image-count"></span>
+                    </div>
+                </div>
+                <div class="sort-container" style="position: relative; flex-shrink: 0;">
+                    <button class="icon-btn" id="sidebar-sort-btn" title="Сортировка" style="padding: 6px;">
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 9l4-4 4 4M7 5v14M21 15l-4 4-4-4M17 19V5"/></svg>
+                    </button>
+                    <div class="dropdown-menu" id="sidebar-sort-dropdown-menu" style="display: none; right: 0; left: auto; width: 180px;">
                     </div>
                 </div>
             </div>

@@ -224,14 +224,12 @@ export async function renderFoldersList(folderList = null) {
             <div class="folder-item-content">
                 <div class="folder-item-icon">📁</div>
                 <div class="folder-item-name" title="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</div>
-                ${(folder.scanned_at || folder.id === -1) ? `<div class="folder-item-meta"><span class="folder-item-count">${folder.image_count}</span></div>` : ''}
+                ${folder.scanned_at ? `<div class="folder-item-meta"><span class="folder-item-count">${folder.image_count}</span></div>` : ''}
                 ${progressHtml}
             </div>
-            ${folder.id !== -1 ? `
             <button class="folder-delete-btn" data-id="${folder.id}" title="Delete folder" aria-label="Delete folder ${escapeHtml(folder.name)}">
                 <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </button>
-            ` : ''}
         `;
 
         item.onclick = async () => {
@@ -328,6 +326,20 @@ function initFoldersSSE() {
     foldersEventSource.onmessage = async (event) => {
         try {
             const state = JSON.parse(event.data);
+
+            // Check if any new or removed folders appeared (e.g. after split_folder_by_metadata)
+            const serverIds = new Set(Object.keys(state));
+            const localIds = new Set(folders.map(f => String(f.id)));
+            const idsChanged = serverIds.size !== localIds.size || [...serverIds].some(id => !localIds.has(id));
+
+            if (idsChanged) {
+                // New folders appeared (or were removed) — do a full refetch
+                const { getFolders } = await import('../api.js');
+                const freshFolders = await getFolders({ force: true });
+                setFolders(freshFolders);
+                await renderFoldersList(freshFolders);
+                return;
+            }
             
             let changed = false;
             const updatedFolders = folders.map(f => {

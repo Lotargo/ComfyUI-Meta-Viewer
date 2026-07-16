@@ -5,7 +5,7 @@ export const dom = {
     folderNameEl: document.getElementById('folder-name'),
     fileInput: document.getElementById('file-input'),
     addFileInput: document.getElementById('add-file-input'),
-    folderInput: document.getElementById('folder-input'),
+    btnOpenFolder: document.getElementById('btn-open-folder'),
     toast: document.getElementById('toast'),
     btnViewUpload: document.getElementById('btn-view-upload'),
     btnViewList: document.getElementById('btn-view-list'),

@@ -71,7 +71,7 @@
         </div>
         <label class="btn" for="file-input">Open Files</label>
         <label class="btn" for="add-file-input">Add Files</label>
-        <label class="btn" for="folder-input">Open Folder</label>
+        <button class="btn" id="btn-open-folder">Open Folder</button>
         <button class="btn" id="btn-paste">Paste Path</button>
         <button class="btn btn-danger" id="btn-hard-reset" title="Hard reset database and cache">Hard Reset</button>
         <button class="icon-btn" id="shortcuts-btn" title="Help center (?)"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></button>
@@ -80,7 +80,6 @@
 
 <input type="file" id="file-input" class="hidden-input" multiple accept="image/*">
 <input type="file" id="add-file-input" class="hidden-input" multiple accept="image/*">
-<input type="file" id="folder-input" class="hidden-input" webkitdirectory directory>
 
 <main class="app-main">
     <aside class="sidebar" id="sidebar">

@@ -70,6 +70,10 @@ def _worker_loop():
                             (fid,),
                         )
                         conn.commit()
+                        conn.close()
+                        # Split folder into metadata / no-metadata siblings
+                        db.split_folder_by_metadata(fid)
+                        conn = db.get_conn()
                 conn.close()
                 time.sleep(1.0)
                 continue
@@ -80,7 +84,7 @@ def _worker_loop():
             conn.close()
 
             # 2. Process the image
-            if folder_path == "__uploads__":
+            if folder_path in ("__uploads__", "__uploads_no_metadata__"):
                 # Uploaded images are already processed, skip
                 continue
 

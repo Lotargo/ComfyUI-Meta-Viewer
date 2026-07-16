@@ -140,13 +140,19 @@ export function initEvents() {
         dom.addFileInput.value = '';
     });
 
-    dom.folderInput.addEventListener('change', () => {
-        if (dom.folderInput.files.length) {
-            const paths = Array.from(dom.folderInput.files).map(f => f.webkitRelativePath || f.name);
-            const dir = paths[0]?.split('/')[0];
-            if (dir) scanFolder(dir);
+    dom.btnOpenFolder?.addEventListener('click', async () => {
+        try {
+            const response = await fetch('/api/choose-folder', { method: 'POST' });
+            const data = await response.json();
+            if (data.path) {
+                await scanFolder(data.path);
+            }
+        } catch (err) {
+            console.error('Error choosing folder:', err);
+            const input = await customPrompt('Open Folder', 'Enter folder path:');
+            const path = input?.trim();
+            if (path) scanFolder(path);
         }
-        dom.folderInput.value = '';
     });
 
     dom.btnViewUpload?.addEventListener('click', () => setViewMode('upload'));

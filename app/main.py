@@ -439,6 +439,23 @@ def api_upload():
     return jsonify(resp)
 
 
+@app.route("/api/choose-folder", methods=["POST"])
+def api_choose_folder():
+    import tkinter as tk
+    from tkinter import filedialog
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        folder_path = filedialog.askdirectory(parent=root, title="Select Folder")
+        root.destroy()
+        if folder_path:
+            return jsonify({"path": str(Path(folder_path).absolute())})
+        return jsonify({"path": None})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def open_browser(port: int):
     threading.Timer(1.5, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
 

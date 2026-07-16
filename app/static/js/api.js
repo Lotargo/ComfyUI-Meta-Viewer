@@ -75,6 +75,11 @@ export function invalidateApiCache() {
 }
 
 async function renderCurrentContent() {
+    const { viewMode } = await import('./state.js');
+    if (viewMode === 'upload') {
+        const { setViewMode } = await import('./events.js');
+        setViewMode('gallery', { render: false });
+    }
     if (galleryActive) {
         const { renderGallery } = await import('./gallery.js');
         renderGallery();

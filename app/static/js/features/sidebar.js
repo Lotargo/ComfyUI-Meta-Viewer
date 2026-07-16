@@ -23,6 +23,7 @@ import {
     setCurrentFolderId,
     setCurrentPage,
     setAllLoaded,
+    viewMode,
 } from '../state.js';
 import { escapeHtml, customConfirm, formatImageCountLabel } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
@@ -91,6 +92,11 @@ export async function selectSidebarImage(index) {
     dom.imageList.querySelectorAll('.image-item').forEach((element, itemIndex) => {
         element.classList.toggle('active', itemIndex === index);
     });
+
+    if (viewMode === 'upload') {
+        const { setViewMode } = await import('../events.js');
+        setViewMode('list', { render: false });
+    }
 
     if (galleryActive) {
         const { openLightbox } = await import('../lightbox.js');

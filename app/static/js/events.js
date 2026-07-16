@@ -5,6 +5,7 @@ import {
     setGalleryActive,
     images,
     activeIndex,
+    viewMode,
     refreshCacheBuster,
     setActiveSidebarTab,
     setSidebarImages,
@@ -30,6 +31,11 @@ function renderEmptyContent() {
 }
 
 async function renderCurrentContent() {
+    if (viewMode === 'upload') {
+        const { renderUploadView } = await import('./meta-view.js');
+        renderUploadView();
+        return;
+    }
     if (galleryActive) {
         const { renderGallery } = await import('./gallery.js');
         renderGallery();
@@ -81,6 +87,7 @@ export function initEvents() {
         dom.folderInput.value = '';
     });
 
+    dom.btnViewUpload?.addEventListener('click', () => setViewMode('upload'));
     dom.btnViewList.addEventListener('click', () => setViewMode('list'));
     dom.btnViewGallery.addEventListener('click', () => setViewMode('gallery'));
 
@@ -153,11 +160,12 @@ export function initEvents() {
 }
 
 export function setViewMode(mode, { render = true } = {}) {
-    const normalized = mode === 'list' ? 'list' : 'gallery';
+    const normalized = mode === 'list' ? 'list' : (mode === 'upload' ? 'upload' : 'gallery');
     setViewModeValue(normalized);
     setGalleryActive(normalized === 'gallery');
     dom.btnViewList.classList.toggle('active', normalized === 'list');
     dom.btnViewGallery.classList.toggle('active', normalized === 'gallery');
+    dom.btnViewUpload?.classList.toggle('active', normalized === 'upload');
     if (render) renderCurrentContent();
 }
 

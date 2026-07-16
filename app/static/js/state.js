@@ -7,6 +7,7 @@ export const dom = {
     addFileInput: document.getElementById('add-file-input'),
     folderInput: document.getElementById('folder-input'),
     toast: document.getElementById('toast'),
+    btnViewUpload: document.getElementById('btn-view-upload'),
     btnViewList: document.getElementById('btn-view-list'),
     btnViewGallery: document.getElementById('btn-view-gallery'),
     lightbox: document.getElementById('lightbox'),
@@ -97,7 +98,7 @@ export function setImages(v) { images = Array.isArray(v) ? [...v] : []; }
 export function setSidebarImages(v) { sidebarImages = Array.isArray(v) ? [...v] : []; }
 export function setFolders(v) { folders = Array.isArray(v) ? [...v] : []; }
 export function setActiveIndex(v) { activeIndex = Number.isInteger(v) ? v : -1; }
-export function setViewModeValue(v) { viewMode = v === 'list' ? 'list' : 'gallery'; }
+export function setViewModeValue(v) { viewMode = v === 'list' ? 'list' : (v === 'upload' ? 'upload' : 'gallery'); }
 export function setGalleryActive(v) { galleryActive = Boolean(v); }
 export function setLightboxIndex(v) { lightboxIndex = v; }
 export function setCurrentFolderId(v) { currentFolderId = v ?? null; }

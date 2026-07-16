@@ -32,14 +32,15 @@ let panLastX = 0;
 let panLastY = 0;
 let imageLoadToken = 0;
 let previewAbortController = null;
-let previewObjectUrl = null;
-let thumbnailReadyCleanup = null;
+let displayedPreviewObjectUrl = null;
+let displayedPreviewToken = -1;
 let currentImagesArray = [];
 let usesGalleryPagination = false;
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 10;
 const ZOOM_STEP = 0.15;
 const PREVIEW_RETRY_DELAY = 500;
+const THUMBNAIL_FALLBACK_DELAY = 250;
 const GALLERY_PREFETCH_THRESHOLD = 5;
 
 function canLoadNextGalleryPage() {
@@ -118,14 +119,48 @@ function cancelImageLoad({ clearSource = false } = {}) {
     imageLoadToken += 1;
     previewAbortController?.abort();
     previewAbortController = null;
-    thumbnailReadyCleanup?.();
-    thumbnailReadyCleanup = null;
 
-    if (clearSource) dom.lbImg?.removeAttribute('src');
-    if (previewObjectUrl) {
-        URL.revokeObjectURL(previewObjectUrl);
-        previewObjectUrl = null;
+    if (clearSource) {
+        dom.lbImg?.removeAttribute('src');
+        if (displayedPreviewObjectUrl) {
+            URL.revokeObjectURL(displayedPreviewObjectUrl);
+            displayedPreviewObjectUrl = null;
+        }
+        displayedPreviewToken = -1;
     }
+}
+
+function revokeObjectUrlAfterPaint(objectUrl) {
+    if (!objectUrl) return;
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => URL.revokeObjectURL(objectUrl));
+    });
+}
+
+async function decodeImageSource(source) {
+    const preloader = new Image();
+    preloader.decoding = 'async';
+    await new Promise((resolve, reject) => {
+        preloader.addEventListener('load', resolve, { once: true });
+        preloader.addEventListener('error', reject, { once: true });
+        preloader.src = source;
+    });
+    if (typeof preloader.decode === 'function') {
+        await preloader.decode().catch(() => { /* the completed image remains usable */ });
+    }
+}
+
+function commitDecodedImage(source, token, { previewObjectUrl = null } = {}) {
+    if (token !== imageLoadToken || !dom.lbImg) return false;
+
+    const previousObjectUrl = displayedPreviewObjectUrl;
+    dom.lbImg.src = source;
+    displayedPreviewObjectUrl = previewObjectUrl;
+    if (previewObjectUrl) displayedPreviewToken = token;
+    if (previousObjectUrl && previousObjectUrl !== previewObjectUrl) {
+        revokeObjectUrlAfterPaint(previousObjectUrl);
+    }
+    return true;
 }
 
 async function fetchDisplayPreview(img, token, controller) {
@@ -149,6 +184,7 @@ async function fetchDisplayPreview(img, token, controller) {
 async function loadDisplayPreview(img, token) {
     const controller = new AbortController();
     previewAbortController = controller;
+    let objectUrl = null;
 
     try {
         const response = await fetchDisplayPreview(img, token, controller);
@@ -157,18 +193,22 @@ async function loadDisplayPreview(img, token) {
         const previewBlob = await response.blob();
         if (token !== imageLoadToken || controller.signal.aborted) return;
 
-        const objectUrl = URL.createObjectURL(previewBlob);
+        objectUrl = URL.createObjectURL(previewBlob);
         if (token !== imageLoadToken || controller.signal.aborted) {
-            URL.revokeObjectURL(objectUrl);
             return;
         }
-        previewObjectUrl = objectUrl;
-        dom.lbImg.src = objectUrl;
+
+        await decodeImageSource(objectUrl);
+        if (token !== imageLoadToken || controller.signal.aborted) return;
+        if (commitDecodedImage(objectUrl, token, { previewObjectUrl: objectUrl })) {
+            objectUrl = null; // Ownership moves to the visible lightbox image.
+        }
     } catch (error) {
         if (error.name !== 'AbortError') {
-            // Keep the already visible thumbnail if preview generation fails.
+            // Keep the already visible decoded frame if preview generation fails.
         }
     } finally {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
         if (previewAbortController === controller) {
             previewAbortController = null;
         }
@@ -176,30 +216,28 @@ async function loadDisplayPreview(img, token) {
 }
 
 function loadLightboxImage(img) {
+    const hadVisibleImage = Boolean(dom.lbImg?.getAttribute('src'));
     cancelImageLoad();
     const token = imageLoadToken;
-    const thumbnail = thumbUrl(img);
-    dom.lbImg.src = thumbnail;
 
-    if (!img.id) return;
+    if (img.id) loadDisplayPreview(img, token);
 
-    let previewStarted = false;
-    const startPreview = () => {
-        if (previewStarted) return;
-        previewStarted = true;
-        thumbnailReadyCleanup?.();
-        thumbnailReadyCleanup = null;
-        if (token === imageLoadToken) loadDisplayPreview(img, token);
-    };
-    const onThumbnailReady = () => startPreview();
-    dom.lbImg.addEventListener('load', onThumbnailReady);
-    dom.lbImg.addEventListener('error', onThumbnailReady);
-    thumbnailReadyCleanup = () => {
-        dom.lbImg.removeEventListener('load', onThumbnailReady);
-        dom.lbImg.removeEventListener('error', onThumbnailReady);
-    };
+    const fallbackDelay = hadVisibleImage && img.id ? THUMBNAIL_FALLBACK_DELAY : 0;
+    (async () => {
+        if (fallbackDelay) {
+            await new Promise(resolve => setTimeout(resolve, fallbackDelay));
+        }
+        if (token !== imageLoadToken || displayedPreviewToken === token) return;
 
-    if (dom.lbImg.complete) queueMicrotask(startPreview);
+        const thumbnail = thumbUrl(img);
+        try {
+            await decodeImageSource(thumbnail);
+            if (token !== imageLoadToken || displayedPreviewToken === token) return;
+            commitDecodedImage(thumbnail, token);
+        } catch (_error) {
+            // Keep the previous decoded frame until a preview is available.
+        }
+    })();
 }
 
 export function resetZoom() {

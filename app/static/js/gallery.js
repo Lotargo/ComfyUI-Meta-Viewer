@@ -14,6 +14,26 @@ import {
 import { escapeHtml, thumbUrl } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
 
+let nextGalleryPagePromise = null;
+
+export function loadNextGalleryPage() {
+    if (nextGalleryPagePromise) return nextGalleryPagePromise;
+
+    nextGalleryPagePromise = (async () => {
+        const startIndex = images.length;
+        const { loadMore } = await import('./api.js');
+        const didLoad = await loadMore();
+        if (didLoad) {
+            renderGallery({ appendOnly: true, startIndex });
+        }
+        return didLoad;
+    })().finally(() => {
+        nextGalleryPagePromise = null;
+    });
+
+    return nextGalleryPagePromise;
+}
+
 export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
     if (galleryScrollObserver) galleryScrollObserver.disconnect();
 
@@ -170,13 +190,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
 
         const observer = new IntersectionObserver(entries => {
             if (!entries[0].isIntersecting) return;
-            import('./api.js').then(async module => {
-                const startIdx = images.length;
-                const didLoad = await module.loadMore();
-                if (didLoad) {
-                    renderGallery({ appendOnly: true, startIndex: startIdx });
-                }
-            });
+            loadNextGalleryPage();
         }, { root: dom.contentArea, threshold: 0.1 });
         setGalleryScrollObserver(observer);
         observer.observe(sentinel);

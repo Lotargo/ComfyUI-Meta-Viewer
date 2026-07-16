@@ -5,7 +5,19 @@
  * - Better navigation
  */
 
-import { lightboxIndex, totalImages, galleryActive, detailCache, dom, setLightboxIndex, setActiveIndex, saveState } from './state.js';
+import {
+    images,
+    lightboxIndex,
+    totalImages,
+    allLoaded,
+    currentFolderId,
+    galleryActive,
+    detailCache,
+    dom,
+    setLightboxIndex,
+    setActiveIndex,
+    saveState,
+} from './state.js';
 import { escapeHtml, thumbUrl, previewUrl, originalUrl, copyText } from './utils.js';
 import { initCutoutEvents, resetCutoutPanel } from './features/cutout.js';
 
@@ -23,10 +35,28 @@ let previewAbortController = null;
 let previewObjectUrl = null;
 let thumbnailReadyCleanup = null;
 let currentImagesArray = [];
+let usesGalleryPagination = false;
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 10;
 const ZOOM_STEP = 0.15;
 const PREVIEW_RETRY_DELAY = 500;
+const GALLERY_PREFETCH_THRESHOLD = 5;
+
+function canLoadNextGalleryPage() {
+    return usesGalleryPagination && Boolean(currentFolderId) && !allLoaded;
+}
+
+async function loadNextGalleryPage() {
+    if (!canLoadNextGalleryPage()) return false;
+    const gallery = await import('./gallery.js');
+    return gallery.loadNextGalleryPage();
+}
+
+function prefetchNextGalleryPage() {
+    const remainingLoadedImages = currentImagesArray.length - lightboxIndex - 1;
+    if (remainingLoadedImages > GALLERY_PREFETCH_THRESHOLD || !canLoadNextGalleryPage()) return;
+    loadNextGalleryPage().catch(() => { /* navigation retries at the page boundary */ });
+}
 
 function getPanBounds() {
     if (!dom.lbImg || !imageArea) return { x: 0, y: 0 };
@@ -202,6 +232,7 @@ export function rotateCounterClockwise() {
 export async function openLightbox(index, imagesArray = null) {
     if (imagesArray) {
         currentImagesArray = imagesArray;
+        usesGalleryPagination = imagesArray === images;
     }
     setLightboxIndex(index);
     const img = currentImagesArray[index];
@@ -220,6 +251,7 @@ export async function openLightbox(index, imagesArray = null) {
     resetZoom();
     resetCutoutPanel();
     updateLightbox();
+    prefetchNextGalleryPage();
 }
 
 export function closeLightbox() {
@@ -368,27 +400,34 @@ export function updateLightbox() {
     });
 }
 
-export function lbNav(dir) {
-    const next = lightboxIndex + dir;
+async function navigateLightbox(dir, { wrap = false } = {}) {
+    let next = lightboxIndex + dir;
+    if (dir > 0 && next >= currentImagesArray.length) {
+        await loadNextGalleryPage();
+    }
+
     if (next >= 0 && next < currentImagesArray.length) {
         resetZoom();
         resetCutoutPanel();
-        openLightbox(next);
+        await openLightbox(next);
+        return;
     }
+
+    if (!wrap || currentImagesArray.length === 0 || canLoadNextGalleryPage()) return;
+    next = dir > 0 ? 0 : currentImagesArray.length - 1;
+    await openLightbox(next);
+}
+
+export function lbNav(dir) {
+    return navigateLightbox(dir);
 }
 
 export function nextLightbox() {
-    if (currentImagesArray.length === 0) return;
-    let n = lightboxIndex + 1;
-    if (n >= currentImagesArray.length) n = 0;
-    openLightbox(n);
+    return navigateLightbox(1, { wrap: true });
 }
 
 export function prevLightbox() {
-    if (currentImagesArray.length === 0) return;
-    let n = lightboxIndex - 1;
-    if (n < 0) n = currentImagesArray.length - 1;
-    openLightbox(n);
+    return navigateLightbox(-1, { wrap: true });
 }
 
 export function toggleMetaPanel() {

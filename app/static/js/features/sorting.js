@@ -18,15 +18,15 @@ import {
 
 
 const sortOptions = [
-    { key: 'name', label: 'Имя' },
-    { key: 'date', label: 'Даты' },
-    { key: 'size', label: 'Размер' },
-    { key: 'type', label: 'Тип' }
+    { key: 'name', label: 'Name' },
+    { key: 'date', label: 'Date' },
+    { key: 'size', label: 'Size' },
+    { key: 'type', label: 'Type' }
 ];
 
 const dirOptions = [
-    { dir: 'asc', label: 'По возрастанию' },
-    { dir: 'desc', label: 'По убыванию' }
+    { dir: 'asc', label: 'Ascending' },
+    { dir: 'desc', label: 'Descending' }
 ];
 
 function renderSortMenu(menuElement, currentKey, currentDir, onSortSelect, onDirSelect) {

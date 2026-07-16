@@ -122,16 +122,18 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-sm) var(--space-md);
-    background: color-mix(in srgb, var(--surface) 94%, var(--surface2));
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    padding: var(--space-sm) 22px;
+    background: color-mix(in srgb, var(--surface) 90%, var(--bg) 10%);
+    border-bottom: 1px solid var(--border);
+    margin-top: -22px;
+    margin-left: -22px;
+    margin-right: -22px;
     margin-bottom: var(--space-md);
     position: sticky;
-    top: 0;
+    top: -22px;
     z-index: 10;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
 .toolbar-title {

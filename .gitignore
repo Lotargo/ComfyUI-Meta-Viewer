@@ -10,3 +10,4 @@ build/
 cache/thumbnails*
 cache/cutouts*
 .videos
+cache/previews

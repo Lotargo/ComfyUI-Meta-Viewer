@@ -192,6 +192,7 @@ function initHelpCenter() {
                         </div>
                         <div class="shortcut-group">
                             <h4>Lightbox</h4>
+                            <div class="shortcut-row"><span>Original button</span><span>Open full resolution in a new tab</span></div>
                             <div class="shortcut-row"><span>Mouse wheel</span><span>Zoom at cursor</span></div>
                             <div class="shortcut-row"><span>Drag image</span><span>Pan while zoomed</span></div>
                             <div class="shortcut-row"><span><kbd>+</kbd> <kbd>-</kbd></span><span>Zoom in / out</span></div>
@@ -233,7 +234,7 @@ function initHelpCenter() {
                         </div>
                         <div class="shortcut-group">
                             <h4>Cache And Reset</h4>
-                            <p class="help-text">Thumbnails and object cutouts are cached on disk for speed. Hard Reset clears folders, image records, thumbnail cache, and cutout cache, but it does not delete source images from scanned folders.</p>
+                            <p class="help-text">Thumbnails, display previews, and object cutouts are cached on disk for speed. Hard Reset clears folders, image records, and generated caches, but it does not delete source images from scanned folders.</p>
                         </div>
                     </div>
                 </section>
@@ -247,6 +248,7 @@ function initHelpCenter() {
                         <div class="diagnostic-card"><span>Images</span><strong id="diag-images">-</strong></div>
                         <div class="diagnostic-card"><span>Uploads</span><strong id="diag-uploads">-</strong></div>
                         <div class="diagnostic-card"><span>Thumbnails</span><strong id="diag-thumbnails">-</strong></div>
+                        <div class="diagnostic-card"><span>Previews</span><strong id="diag-previews">-</strong></div>
                         <div class="diagnostic-card"><span>Cutouts</span><strong id="diag-cutouts">-</strong></div>
                         <div class="diagnostic-card"><span>Loaded Now</span><strong id="diag-loaded">-</strong></div>
                     </div>
@@ -254,6 +256,7 @@ function initHelpCenter() {
                         <div><span>Database</span><code id="diag-db-path">-</code></div>
                         <div><span>Uploads</span><code id="diag-upload-dir">-</code></div>
                         <div><span>Thumbnail Cache</span><code id="diag-thumb-dir">-</code></div>
+                        <div><span>Preview Cache</span><code id="diag-preview-dir">-</code></div>
                         <div><span>Cutout Cache</span><code id="diag-cutout-dir">-</code></div>
                     </div>
                 </section>
@@ -316,11 +319,13 @@ async function refreshDiagnostics() {
         setText(document.getElementById('diag-images'), data.images); // eslint-disable-line no-restricted-syntax
         setText(document.getElementById('diag-uploads'), data.uploads); // eslint-disable-line no-restricted-syntax
         setText(document.getElementById('diag-thumbnails'), data.thumbnail_count); // eslint-disable-line no-restricted-syntax
+        setText(document.getElementById('diag-previews'), data.preview_count); // eslint-disable-line no-restricted-syntax
         setText(document.getElementById('diag-cutouts'), data.cutout_count); // eslint-disable-line no-restricted-syntax
         setText(document.getElementById('diag-loaded'), `${data.loaded_images}/${data.total_images || data.loaded_images}`); // eslint-disable-line no-restricted-syntax
         setText(document.getElementById('diag-db-path'), data.db_path || '-'); // eslint-disable-line no-restricted-syntax
         setText(document.getElementById('diag-upload-dir'), data.upload_dir || '-'); // eslint-disable-line no-restricted-syntax
         setText(document.getElementById('diag-thumb-dir'), data.thumbnail_dir || '-'); // eslint-disable-line no-restricted-syntax
+        setText(document.getElementById('diag-preview-dir'), data.preview_dir || '-'); // eslint-disable-line no-restricted-syntax
         setText(document.getElementById('diag-cutout-dir'), data.cutout_dir || '-'); // eslint-disable-line no-restricted-syntax
     } catch (_e) {
         setText(document.getElementById('diag-db-path'), 'Diagnostics unavailable'); // eslint-disable-line no-restricted-syntax

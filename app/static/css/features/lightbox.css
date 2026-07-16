@@ -64,6 +64,12 @@
     color: var(--text);
 }
 
+.lb-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .lb-delete {
     border-color: hsla(0, 75%, 58%, 0.34);
     color: hsl(0, 86%, 76%);
@@ -312,7 +318,6 @@
     transition: opacity var(--transition), transform 0.15s ease-out;
     transform-origin: center center;
     cursor: default;
-    will-change: transform;
 }
 
 .lightbox-image-area img.is-pannable {

@@ -152,6 +152,8 @@ The lightbox is the main inspection surface for a selected image.
 - Previous/next navigation.
 - Cursor-centered mouse-wheel zoom and rotation controls.
 - Click-and-drag panning while the image is larger than the viewport.
+- Immediate thumbnail display followed by a cached preview up to 4096 px.
+- Explicit `View Original` action that opens the untouched source in a new tab.
 - Metadata panel toggle.
 - Summary, Workflow, and Raw metadata tabs.
 - Touch-friendly navigation where supported by the browser.
@@ -253,7 +255,7 @@ Uploaded originals are stored immediately as SQLite BLOBs and can be served late
 
 ## Thumbnails and Originals
 
-**Main routes:** `GET /api/thumbnail/{image_id}`, `GET /api/original/{image_id}`
+**Main routes:** `GET /api/thumbnail/{image_id}`, `GET /api/preview/{image_id}`, `GET /api/original/{image_id}`
 
 ### Thumbnails
 
@@ -261,10 +263,18 @@ Uploaded originals are stored immediately as SQLite BLOBs and can be served late
 - Stored as JPEG files under `cache/thumbnails/`.
 - Served from cache on later requests.
 
+### Display previews
+
+- Generated lazily with a maximum side of 4096 pixels.
+- Stored as JPEG for opaque images or WebP for transparent images.
+- Loaded into the lightbox instead of the full-resolution source.
+- Serialized so rapid navigation cannot start several high-memory resizes concurrently.
+
 ### Originals
 
-- Uploaded images are served from SQLite BLOB storage.
-- Scanned images are served from their original filesystem path.
+- Uploaded images are streamed from SQLite BLOB storage in chunks.
+- Scanned images are streamed from their original filesystem path with range support.
+- The lightbox opens an original only through the explicit new-tab button or download action.
 
 ---
 
@@ -279,6 +289,7 @@ Diagnostics expose basic local runtime information:
 - Image count.
 - Uploaded image count.
 - Thumbnail cache path/count.
+- Preview cache path/count.
 - Cutout cache path/count.
 - Upload directory.
 

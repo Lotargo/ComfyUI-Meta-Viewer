@@ -14,6 +14,7 @@ The application is designed to run locally with a small set of environment varia
 - [Supported File Extensions](#supported-file-extensions)
 - [SQLite Settings](#sqlite-settings)
 - [Thumbnail Cache](#thumbnail-cache)
+- [Display Preview Cache](#display-preview-cache)
 - [Cutout Cache](#cutout-cache)
 - [CLI Flags](#cli-flags)
 
@@ -67,6 +68,9 @@ ComfyUI-Meta-Viewer/
 │   ├── thumbnails/
 │   │   ├── 1.jpg                  # JPEG thumbnails
 │   │   └── ...
+│   ├── previews/
+│   │   ├── 1-<version>-4096.jpg   # Opaque lightbox previews
+│   │   └── 2-<version>-4096.webp  # Transparent lightbox previews
 │   └── cutouts/
 │       ├── 1.png                  # Transparent PNG cutouts
 │       └── ...
@@ -79,6 +83,7 @@ ComfyUI-Meta-Viewer/
 |------|----------|------------------|
 | `.comfy_meta_uploads/meta.db` | SQLite database | yes |
 | `cache/thumbnails/` | Generated JPEG thumbnails | yes |
+| `cache/previews/` | Generated lightbox previews up to 4096 px | yes |
 | `cache/cutouts/` | Generated transparent PNG cutouts | yes |
 
 Scanned folder images are not copied. The database stores their metadata and local path references. Uploaded files are stored as BLOBs in SQLite; their metadata is extracted only when an image is first opened.
@@ -127,6 +132,18 @@ idx_images_folder_mtime  -- Incremental scan checks
 | Path | `cache/thumbnails/{image_id}.jpg` |
 | Generation | Lazy, on first thumbnail request |
 | Source | Uploaded BLOB or original scanned file path |
+
+---
+
+## Display Preview Cache
+
+| Setting | Value |
+|---------|-------|
+| Maximum side | 4096 pixels |
+| Format | JPEG for opaque images, WebP for transparency |
+| Path | `cache/previews/{image_id}-{source_version}-4096.{ext}` |
+| Generation | Lazy, after the lightbox thumbnail is visible |
+| Concurrency | One uncached preview generation at a time |
 
 ---
 

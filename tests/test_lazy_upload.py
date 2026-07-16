@@ -12,6 +12,7 @@ from PIL.PngImagePlugin import PngInfo
 from app import database as db
 from app.extractor import extract_metadata_from_bytes, has_generation_metadata
 from app.main import app
+from app.schemas import ImageInsertRow
 
 
 def make_png(*, with_metadata: bool = True) -> bytes:
@@ -88,16 +89,29 @@ def make_xmp_image(image_format: str) -> bytes:
     return buffer.getvalue()
 
 
+def make_large_jpeg() -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGB", (4200, 200), color="orange").save(
+        buffer,
+        format="JPEG",
+        quality=90,
+    )
+    return buffer.getvalue()
+
+
 class LazyUploadTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.old_db_path = db.get_db_path()
         self.db_path = Path(self.temp_dir.name) / "meta.db"
+        self.preview_dir = Path(self.temp_dir.name) / "previews"
         db.set_db_path(self.db_path)
         db.init_db()
         app.config.update(
             TESTING=True,
             THUMBNAIL_FOLDER=str(Path(self.temp_dir.name) / "thumbnails"),
+            PREVIEW_FOLDER=str(self.preview_dir),
+            UPLOAD_FOLDER=str(Path(self.temp_dir.name) / "uploads"),
         )
         self.client = app.test_client()
 
@@ -162,7 +176,10 @@ class LazyUploadTest(unittest.TestCase):
         original_response = self.client.get(f"/api/original/{rows[1]['id']}")
         self.assertEqual(original_response.status_code, 200)
         self.assertEqual(original_response.content_type, "image/png")
+        self.assertEqual(original_response.content_length, len(png_data))
+        self.assertEqual(original_response.headers["Content-Disposition"], "inline")
         self.assertEqual(original_response.data, png_data)
+        original_response.close()
         self.assertIsNone(self.fetch_upload_rows()[1]["metadata_json"])
 
     def test_upload_probe_splits_files_without_full_indexing(self) -> None:
@@ -259,6 +276,66 @@ class LazyUploadTest(unittest.TestCase):
                     7,
                 )
 
+    def test_preview_is_bounded_cached_and_keeps_metadata_lazy(self) -> None:
+        image_data = make_large_jpeg()
+        upload_response = self.client.post(
+            "/api/upload",
+            data={"files": [(io.BytesIO(image_data), "large.jpg")]},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(upload_response.status_code, 200)
+        image_id = upload_response.get_json()["images"][0]["id"]
+
+        preview_response = self.client.get(f"/api/preview/{image_id}")
+        self.assertEqual(preview_response.status_code, 200)
+        self.assertEqual(preview_response.content_type, "image/jpeg")
+        preview_data = preview_response.get_data()
+        preview_response.close()
+        with Image.open(io.BytesIO(preview_data)) as preview:
+            self.assertEqual(max(preview.size), 4096)
+
+        rows = self.fetch_upload_rows()
+        self.assertIsNone(rows[0]["metadata_json"])
+        self.assertEqual(len(list(self.preview_dir.iterdir())), 1)
+
+        cached_response = self.client.get(f"/api/preview/{image_id}")
+        self.assertEqual(cached_response.status_code, 200)
+        cached_data = cached_response.get_data()
+        cached_response.close()
+        self.assertEqual(cached_data, preview_data)
+
+    def test_local_original_uses_range_capable_file_response(self) -> None:
+        source_dir = Path(self.temp_dir.name) / "source"
+        source_dir.mkdir()
+        source_path = source_dir / "local.png"
+        source_data = make_png(with_metadata=False)
+        source_path.write_bytes(source_data)
+        stat = source_path.stat()
+
+        folder_id = db.upsert_folder(str(source_dir))
+        db.insert_images(
+            folder_id,
+            [
+                ImageInsertRow(
+                    rel_path=source_path.name,
+                    file_name=source_path.name,
+                    file_size=stat.st_size,
+                    file_mtime=stat.st_mtime,
+                )
+            ],
+        )
+        image_id = db.get_images_page(folder_id).images[0].id
+
+        response = self.client.get(
+            f"/api/original/{image_id}",
+            headers={"Range": "bytes=0-15"},
+        )
+        self.assertEqual(response.status_code, 206)
+        response_data = response.get_data()
+        self.assertEqual(response_data, source_data[:16])
+        self.assertEqual(response.headers["Accept-Ranges"], "bytes")
+        response.close()
+
     def test_open_files_control_is_removed(self) -> None:
         response = self.client.get("/")
         html = response.get_data(as_text=True)
@@ -267,6 +344,7 @@ class LazyUploadTest(unittest.TestCase):
         self.assertNotIn('id="file-input"', html)
         self.assertIn("Add Files", html)
         self.assertIn('id="add-file-input"', html)
+        self.assertIn('id="lb-view-original"', html)
         self.assertIn('class="folder-list view-list"', html)
 
     def test_folders_default_to_list_view(self) -> None:

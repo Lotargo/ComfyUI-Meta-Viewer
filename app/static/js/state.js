@@ -47,6 +47,7 @@ export const dom = {
     lbNext: document.getElementById('lb-next'),
     lbCopy: document.getElementById('lb-copy'),
     lbToggleMeta: document.getElementById('lb-toggle-meta'),
+    lbViewOriginal: document.getElementById('lb-view-original'),
     lbDownload: document.getElementById('lb-download'),
     lbDelete: document.getElementById('lb-delete'),
     lbZoomIn: document.getElementById('lb-zoom-in'),

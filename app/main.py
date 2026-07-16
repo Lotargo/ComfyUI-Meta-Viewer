@@ -10,7 +10,15 @@ import threading
 from pathlib import Path
 
 from pydantic import ValidationError
-from flask import Flask, Response, jsonify, render_template, request
+from flask import (
+    Flask,
+    Response,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+    stream_with_context,
+)
 
 from . import database as db
 from .cutout import clear_cutout, get_cutout_path, make_cutout_png
@@ -21,6 +29,12 @@ from .extractor import (
     make_thumbnail_b64,
     scan_paths,
     SUPPORTED,
+)
+from .preview import (
+    PreviewBusyError,
+    clear_preview_cache,
+    get_or_create_preview,
+    preview_mimetype,
 )
 from .schemas import (
     ExtractRequest,
@@ -135,9 +149,11 @@ def api_scan():
         # Clean up cache files
         thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
         cutout_dir = Path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"))
+        preview_dir = Path(app.config.get("PREVIEW_FOLDER", "cache/previews"))
         for d_id in deleted_ids:
             (thumb_dir / f"{d_id}.jpg").unlink(missing_ok=True)
             clear_cutout(cutout_dir, d_id)
+            clear_preview_cache(preview_dir, d_id)
 
     # 2. Detect new/modified files
     to_process: list[tuple[str, Path]] = []
@@ -219,12 +235,21 @@ def api_delete_image(image_id: int):
     thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
     (thumb_dir / f"{image_id}.jpg").unlink(missing_ok=True)
     clear_cutout(app.config.get("CUTOUT_FOLDER", "cache/cutouts"), image_id)
+    clear_preview_cache(app.config.get("PREVIEW_FOLDER", "cache/previews"), image_id)
     return jsonify(OkResponse().model_dump())
 
 
 @app.route("/api/folders/<int:folder_id>", methods=["DELETE"])
 def api_delete_folder(folder_id: int):
+    image_ids = db.get_folder_image_ids(folder_id)
     db.delete_folder(folder_id)
+    thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
+    cutout_dir = Path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"))
+    preview_dir = Path(app.config.get("PREVIEW_FOLDER", "cache/previews"))
+    for image_id in image_ids:
+        (thumb_dir / f"{image_id}.jpg").unlink(missing_ok=True)
+        clear_cutout(cutout_dir, image_id)
+        clear_preview_cache(preview_dir, image_id)
     return jsonify(OkResponse().model_dump())
 
 
@@ -248,6 +273,7 @@ def api_reset():
                         f.unlink()
                     except Exception:
                         pass
+        clear_preview_cache(app.config.get("PREVIEW_FOLDER", "cache/previews"))
         return jsonify(OkResponse().model_dump())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -257,12 +283,16 @@ def api_reset():
 def api_diagnostics():
     thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
     cutout_dir = Path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"))
+    preview_dir = Path(app.config.get("PREVIEW_FOLDER", "cache/previews"))
     thumb_count = 0
     if thumb_dir.exists() and thumb_dir.is_dir():
         thumb_count = sum(1 for f in thumb_dir.iterdir() if f.is_file())
     cutout_count = 0
     if cutout_dir.exists() and cutout_dir.is_dir():
         cutout_count = sum(1 for f in cutout_dir.iterdir() if f.is_file())
+    preview_count = 0
+    if preview_dir.exists() and preview_dir.is_dir():
+        preview_count = sum(1 for f in preview_dir.iterdir() if f.is_file())
 
     diagnostics = db.get_diagnostics()
     diagnostics.update({
@@ -270,6 +300,8 @@ def api_diagnostics():
         "thumbnail_count": thumb_count,
         "cutout_dir": str(cutout_dir),
         "cutout_count": cutout_count,
+        "preview_dir": str(preview_dir),
+        "preview_count": preview_count,
         "upload_dir": str(Path(app.config["UPLOAD_FOLDER"])),
     })
     return jsonify(diagnostics)
@@ -341,6 +373,33 @@ def api_thumbnail(image_id: int):
     return Response(thumb_data, mimetype="image/jpeg")
 
 
+@app.route("/api/preview/<int:image_id>")
+def api_preview(image_id: int):
+    try:
+        preview_path = get_or_create_preview(
+            image_id,
+            app.config.get("PREVIEW_FOLDER", "cache/previews"),
+        )
+    except PreviewBusyError:
+        response = jsonify({"status": "busy"})
+        response.status_code = 202
+        response.headers["Retry-After"] = "1"
+        return response
+    except FileNotFoundError:
+        return jsonify({"error": "not found"}), 404
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    response = send_file(
+        preview_path,
+        mimetype=preview_mimetype(preview_path),
+        conditional=True,
+        max_age=0,
+    )
+    response.headers["Cache-Control"] = "private, no-cache"
+    return response
+
+
 MIME_MAP = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -354,20 +413,39 @@ MIME_MAP = {
 
 @app.route("/api/original/<int:image_id>")
 def api_original(image_id: int):
-    original = db.get_image_original_data(image_id)
-    if original:
-        fmt = db.get_image_format(image_id)
-        mime = MIME_MAP.get(f".{fmt}".lower() if fmt else "", "application/octet-stream")
-        return Response(original, mimetype=mime)
-
-    img_path = db.get_image_path(image_id)
-    if not img_path:
+    source = db.get_image_source_info(image_id)
+    if not source:
         return jsonify({"error": "not found"}), 404
-    p = Path(img_path)
+
+    fmt = source.get("format")
+    suffix = Path(source["file_name"]).suffix.lower()
+    mime = MIME_MAP.get(
+        f".{fmt}".lower() if fmt else suffix,
+        "application/octet-stream",
+    )
+
+    if source["has_original_data"]:
+        response = Response(
+            stream_with_context(db.iter_image_original_data(image_id)),
+            mimetype=mime,
+            direct_passthrough=True,
+        )
+        response.content_length = int(source.get("file_size") or 0) or None
+        response.headers["Cache-Control"] = "private, no-cache"
+        response.headers["Content-Disposition"] = "inline"
+        return response
+
+    p = Path(source["path"])
     if not p.is_file():
         return jsonify({"error": "file not found"}), 404
-    mime = MIME_MAP.get(p.suffix.lower(), "application/octet-stream")
-    return Response(p.read_bytes(), mimetype=mime)
+    return send_file(
+        p.resolve(),
+        mimetype=mime,
+        conditional=True,
+        as_attachment=False,
+        download_name=source["file_name"],
+        max_age=0,
+    )
 
 
 @app.route("/api/extract", methods=["POST"])

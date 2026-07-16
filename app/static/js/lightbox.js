@@ -6,7 +6,7 @@
  */
 
 import { lightboxIndex, totalImages, galleryActive, detailCache, dom, setLightboxIndex, setActiveIndex, saveState } from './state.js';
-import { escapeHtml, originalUrl, copyText } from './utils.js';
+import { escapeHtml, thumbUrl, previewUrl, originalUrl, copyText } from './utils.js';
 import { initCutoutEvents, resetCutoutPanel } from './features/cutout.js';
 
 let metaPanelOpen = true;
@@ -18,10 +18,15 @@ let imageArea = null;
 let panPointerId = null;
 let panLastX = 0;
 let panLastY = 0;
+let imageLoadToken = 0;
+let previewAbortController = null;
+let previewObjectUrl = null;
+let thumbnailReadyCleanup = null;
 let currentImagesArray = [];
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 10;
 const ZOOM_STEP = 0.15;
+const PREVIEW_RETRY_DELAY = 500;
 
 function getPanBounds() {
     if (!dom.lbImg || !imageArea) return { x: 0, y: 0 };
@@ -79,6 +84,94 @@ function setZoom(nextZoom, focalPoint = null) {
     applyImageTransform();
 }
 
+function cancelImageLoad({ clearSource = false } = {}) {
+    imageLoadToken += 1;
+    previewAbortController?.abort();
+    previewAbortController = null;
+    thumbnailReadyCleanup?.();
+    thumbnailReadyCleanup = null;
+
+    if (clearSource) dom.lbImg?.removeAttribute('src');
+    if (previewObjectUrl) {
+        URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = null;
+    }
+}
+
+async function fetchDisplayPreview(img, token, controller) {
+    if (token !== imageLoadToken || controller.signal.aborted) return null;
+
+    const response = await fetch(previewUrl(img), {
+        signal: controller.signal,
+        cache: 'no-cache',
+    });
+    if (response.status !== 202) return response;
+
+    const retryHeader = response.headers.get('Retry-After');
+    const retrySeconds = retryHeader ? Number(retryHeader) : Number.NaN;
+    const retryDelay = Number.isFinite(retrySeconds)
+        ? retrySeconds * 1000
+        : PREVIEW_RETRY_DELAY;
+    await new Promise(resolve => setTimeout(resolve, retryDelay));
+    return fetchDisplayPreview(img, token, controller);
+}
+
+async function loadDisplayPreview(img, token) {
+    const controller = new AbortController();
+    previewAbortController = controller;
+
+    try {
+        const response = await fetchDisplayPreview(img, token, controller);
+        if (!response?.ok) return;
+
+        const previewBlob = await response.blob();
+        if (token !== imageLoadToken || controller.signal.aborted) return;
+
+        const objectUrl = URL.createObjectURL(previewBlob);
+        if (token !== imageLoadToken || controller.signal.aborted) {
+            URL.revokeObjectURL(objectUrl);
+            return;
+        }
+        previewObjectUrl = objectUrl;
+        dom.lbImg.src = objectUrl;
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            // Keep the already visible thumbnail if preview generation fails.
+        }
+    } finally {
+        if (previewAbortController === controller) {
+            previewAbortController = null;
+        }
+    }
+}
+
+function loadLightboxImage(img) {
+    cancelImageLoad();
+    const token = imageLoadToken;
+    const thumbnail = thumbUrl(img);
+    dom.lbImg.src = thumbnail;
+
+    if (!img.id) return;
+
+    let previewStarted = false;
+    const startPreview = () => {
+        if (previewStarted) return;
+        previewStarted = true;
+        thumbnailReadyCleanup?.();
+        thumbnailReadyCleanup = null;
+        if (token === imageLoadToken) loadDisplayPreview(img, token);
+    };
+    const onThumbnailReady = () => startPreview();
+    dom.lbImg.addEventListener('load', onThumbnailReady);
+    dom.lbImg.addEventListener('error', onThumbnailReady);
+    thumbnailReadyCleanup = () => {
+        dom.lbImg.removeEventListener('load', onThumbnailReady);
+        dom.lbImg.removeEventListener('error', onThumbnailReady);
+    };
+
+    if (dom.lbImg.complete) queueMicrotask(startPreview);
+}
+
 export function resetZoom() {
     stopPanning();
     zoomLevel = 1;
@@ -131,6 +224,7 @@ export async function openLightbox(index, imagesArray = null) {
 
 export function closeLightbox() {
     stopPanning();
+    cancelImageLoad({ clearSource: true });
     dom.lightbox.classList.remove('open');
     document.body.style.overflow = '';
     setLightboxIndex(-1);
@@ -160,7 +254,8 @@ export function updateLightbox() {
     const fileName = img.file_name || img.file || '';
     dom.lbTitle.textContent = fileName;
     dom.lbCounter.textContent = `${lightboxIndex + 1} / ${totalImages || currentImagesArray.length}`;
-    dom.lbImg.src = originalUrl(img);
+    loadLightboxImage(img);
+    if (dom.lbViewOriginal) dom.lbViewOriginal.disabled = !img.id;
 
     // Update meta panel visibility
     if (dom.lbMeta) {
@@ -318,6 +413,12 @@ export function downloadImage() {
     document.body.removeChild(a);
 }
 
+export function viewOriginal() {
+    const img = getDetailForLightbox();
+    if (!img?.id) return;
+    window.open(originalUrl(img), '_blank', 'noopener,noreferrer');
+}
+
 export function initLightboxEvents() {
     initCutoutEvents();
     imageArea = document.querySelector('.lightbox-image-area');
@@ -339,6 +440,7 @@ export function initLightboxEvents() {
     dom.lbToggleMeta?.addEventListener('click', toggleMetaPanel);
 
     // Download
+    dom.lbViewOriginal?.addEventListener('click', viewOriginal);
     dom.lbDownload?.addEventListener('click', downloadImage);
 
     dom.lbDelete?.addEventListener('click', async () => {

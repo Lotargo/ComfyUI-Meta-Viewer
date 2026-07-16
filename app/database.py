@@ -295,6 +295,18 @@ def get_image_ids_by_rel_paths(folder_id: int, rel_paths: list[str]) -> list[int
         conn.close()
 
 
+def get_folder_image_ids(folder_id: int) -> list[int]:
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT id FROM images WHERE folder_id = ?",
+            (folder_id,),
+        ).fetchall()
+        return [int(row["id"]) for row in rows]
+    finally:
+        conn.close()
+
+
 def delete_images_by_ids(image_ids: list[int]) -> None:
     if not image_ids:
         return
@@ -462,6 +474,55 @@ def get_image_path(image_id: int) -> str | None:
         if row:
             return str(Path(row["path"]) / row["rel_path"])
         return None
+    finally:
+        conn.close()
+
+
+def get_image_source_info(image_id: int) -> dict[str, Any] | None:
+    """Return source metadata without loading an uploaded BLOB into memory."""
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            """SELECT i.id, i.rel_path, i.file_name, i.file_size, i.file_mtime,
+                i.format, i.original_data IS NOT NULL AS has_original_data,
+                f.path AS folder_path
+            FROM images i
+            JOIN folders f ON f.id = i.folder_id
+            WHERE i.id = ?""",
+            (image_id,),
+        ).fetchone()
+        if not row:
+            return None
+
+        source = dict(row)
+        source["path"] = None
+        if not source["has_original_data"]:
+            source["path"] = str(
+                Path(source["folder_path"]) / source["rel_path"]
+            )
+        return source
+    finally:
+        conn.close()
+
+
+def iter_image_original_data(
+    image_id: int,
+    chunk_size: int = 1024 * 1024,
+):
+    """Stream an SQLite BLOB without materializing the full value as bytes."""
+    conn = get_conn()
+    try:
+        with conn.blobopen(
+            "images",
+            "original_data",
+            image_id,
+            readonly=True,
+        ) as blob:
+            while True:
+                chunk = blob.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
     finally:
         conn.close()
 

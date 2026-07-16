@@ -259,7 +259,7 @@ Returns full metadata for a single image. If an uploaded image has not been open
 
 ### `DELETE /api/images/{image_id}`
 
-Deletes an image row and clears related thumbnail/cutout cache files.
+Deletes an image row and clears related thumbnail/preview/cutout cache files.
 
 **Response:**
 
@@ -279,9 +279,15 @@ Returns a JPEG thumbnail. If the cached file is missing, the thumbnail is genera
 
 ---
 
+### `GET /api/preview/{image_id}`
+
+Returns a display-oriented image whose longest side is at most 4096 pixels. The preview is generated lazily, cached under `cache/previews/`, and does not trigger metadata extraction. JPEG is used for opaque images and WebP for images with transparency. Only one large preview is generated at a time; concurrent uncached requests receive `202` with `Retry-After`.
+
+---
+
 ### `GET /api/original/{image_id}`
 
-Returns the original image bytes. Uploaded files are served from SQLite BLOB storage; scanned files are read from their original local path.
+Returns the untouched original image for inline viewing or download. Uploaded SQLite BLOBs are streamed in chunks; scanned files use a conditional file response with range support instead of being copied fully into Python memory.
 
 **Response:** `image/png`, `image/jpeg`, `image/webp`, `image/bmp`, `image/tiff`, or `application/octet-stream`.
 
@@ -339,7 +345,7 @@ Deletes the cached cutout file for an image.
 
 ### `POST /api/reset`
 
-Clears the SQLite database and thumbnail/cutout caches.
+Clears the SQLite database and thumbnail/preview/cutout caches.
 
 **Response:**
 
@@ -363,6 +369,8 @@ Returns local diagnostics and cache statistics.
   "uploads": 12,
   "thumbnail_dir": "cache/thumbnails",
   "thumbnail_count": 138,
+  "preview_dir": "cache/previews",
+  "preview_count": 7,
   "cutout_dir": "cache/cutouts",
   "cutout_count": 5,
   "upload_dir": ".comfy_meta_uploads"

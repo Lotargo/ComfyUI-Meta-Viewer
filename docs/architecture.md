@@ -36,7 +36,7 @@
                 └───────────────────────┘
 ```
 
-ComfyUI Meta Viewer is a local-first web application. The browser hosts a single-page interface, while the Flask backend exposes a small REST API for scanning folders, extracting metadata, serving thumbnails/original images, and managing cached cutouts. SQLite stores the indexed metadata and folder state.
+ComfyUI Meta Viewer is a local-first web application. The browser hosts a single-page interface, while the Flask backend exposes a small REST API for scanning folders, extracting metadata, serving thumbnails/previews/original images, and managing cached cutouts. SQLite stores the indexed metadata and folder state.
 
 ## Technology Stack
 
@@ -46,7 +46,7 @@ ComfyUI Meta Viewer is a local-first web application. The browser hosts a single
 | HTTP Framework | Flask | 3.1 | REST API and static file serving |
 | Database | SQLite3 | Built-in | Metadata persistence |
 | Validation | Pydantic | 2.x | Request and response models |
-| Images | Pillow | 11.x | Metadata extraction, thumbnails, cutouts |
+| Images | Pillow | 11.x | Metadata extraction, thumbnails, display previews, cutouts |
 | Frontend | Vanilla JS | ES Modules | SPA without a frontend framework |
 | CSS | Custom Properties | -- | Modular styling system |
 | Search | Fuse.js | 7.x | Client-side fuzzy search |
@@ -86,6 +86,7 @@ comfy-meta-viewer/
 │       └── index.html            # SPA entry template
 ├── cache/
 │   ├── thumbnails/               # JPEG thumbnails (*.jpg)
+│   ├── previews/                 # Bounded JPEG/WebP lightbox previews
 │   └── cutouts/                  # Transparent PNG cutouts (*.png)
 ├── .comfy_meta_uploads/
 │   └── meta.db                   # SQLite database by default
@@ -174,21 +175,25 @@ User clicks an image
 
 The frontend renders the response in three main views: Summary, Workflow, and Raw metadata.
 
-### 4. Thumbnail and Original Image Serving
+### 4. Thumbnail, Preview, and Original Image Serving
 
 ```
-Browser requests thumbnail/original
+Browser requests thumbnail/preview/original
        │
        ├──► GET /api/thumbnail/{id}
        │      ├──► Return cached JPEG if present
        │      └──► Generate from original path or BLOB
        │
+       ├──► GET /api/preview/{id}
+       │      ├──► Return cached 4096px JPEG/WebP if present
+       │      └──► Serialize one large preview generation at a time
+       │
        └──► GET /api/original/{id}
-              ├──► Return uploaded BLOB if present
-              └──► Read the original scanned file from disk
+              ├──► Stream uploaded BLOB in chunks
+              └──► Stream the scanned file with range support
 ```
 
-Thumbnails are cached under `cache/thumbnails/` and regenerated lazily when missing.
+The lightbox displays the thumbnail immediately, then replaces it with a cached preview. The full original is never loaded into the lightbox automatically and is available through an explicit new-tab action. Thumbnails and previews are regenerated lazily when missing.
 
 ### 5. Cutout Generation
 
@@ -304,7 +309,7 @@ api.js
 - Uploaded originals are stored as SQLite BLOBs.
 - Uploaded metadata is extracted lazily when an image is opened.
 - Scanned folder files are not copied; only metadata and file references are stored.
-- Thumbnail and cutout caches are stored on disk.
+- Thumbnail, display preview, and cutout caches are stored on disk.
 
 ## Extensibility
 

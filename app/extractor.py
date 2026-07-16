@@ -786,14 +786,16 @@ def extract_metadata(path: Path) -> ImageMetadata:
     meta: dict[str, Any] = {"file": path.name, "path": str(path)}
 
     with Image.open(path) as source_img:
-        image_format = source_img.format
+        width, height = source_img.size
         try:
-            img = ImageOps.exif_transpose(source_img)
+            orientation = source_img.getexif().get(274, 1)
         except Exception:
-            img = source_img
-        meta["format"] = image_format
-        meta["size"] = list(img.size)
-        meta["mode"] = img.mode
+            orientation = 1
+        if orientation in {5, 6, 7, 8}:
+            width, height = height, width
+        meta["format"] = source_img.format
+        meta["size"] = [width, height]
+        meta["mode"] = source_img.mode
 
     text_chunks: dict[str, str] = {}
     if path.suffix.lower() == ".png":
@@ -1067,3 +1069,69 @@ def make_thumbnail_bytes_from_bytes(data: bytes, max_size: int = 1024) -> bytes 
         return buf.getvalue()
     except Exception:
         return None
+
+
+def _make_display_preview(
+    source: str | Path | io.BytesIO,
+    max_size: int = 4096,
+) -> tuple[bytes, str] | None:
+    """Create a bounded display image while preserving the original separately."""
+    try:
+        with Image.open(source) as source_img:
+            icc_profile = source_img.info.get("icc_profile")
+            if source_img.format == "JPEG":
+                source_img.draft("RGB", (max_size, max_size))
+
+            img = ImageOps.exif_transpose(source_img)
+            img.thumbnail(
+                (max_size, max_size),
+                Image.Resampling.LANCZOS,
+                reducing_gap=3.0,
+            )
+
+            has_alpha = img.mode in {"RGBA", "LA"} or (
+                img.mode == "P" and "transparency" in img.info
+            )
+            buffer = io.BytesIO()
+            save_args: dict[str, Any] = {}
+            if icc_profile:
+                save_args["icc_profile"] = icc_profile
+
+            if has_alpha:
+                if img.mode != "RGBA":
+                    img = img.convert("RGBA")
+                img.save(
+                    buffer,
+                    format="WEBP",
+                    quality=90,
+                    method=4,
+                    **save_args,
+                )
+                return buffer.getvalue(), "webp"
+
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            img.save(
+                buffer,
+                format="JPEG",
+                quality=88,
+                progressive=True,
+                **save_args,
+            )
+            return buffer.getvalue(), "jpg"
+    except Exception:
+        return None
+
+
+def make_display_preview_from_path(
+    path: str | Path,
+    max_size: int = 4096,
+) -> tuple[bytes, str] | None:
+    return _make_display_preview(path, max_size)
+
+
+def make_display_preview_from_bytes(
+    data: bytes,
+    max_size: int = 4096,
+) -> tuple[bytes, str] | None:
+    return _make_display_preview(io.BytesIO(data), max_size)

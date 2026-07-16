@@ -348,11 +348,15 @@ class LazyUploadTest(unittest.TestCase):
         self.assertIn('class="folder-list view-list"', html)
 
     def test_folders_default_to_list_view(self) -> None:
-        state_path = Path(__file__).parents[1] / "app" / "static" / "js" / "state.js"
+        js_dir = Path(__file__).parents[1] / "app" / "static" / "js"
+        state_path = js_dir / "state.js"
+        preferences_path = js_dir / "preferences.js"
         source = state_path.read_text(encoding="utf-8")
+        preferences_source = preferences_path.read_text(encoding="utf-8")
 
         self.assertIn("export let foldersViewMode = 'list';", source)
-        self.assertGreaterEqual(source.count("foldersViewMode = 'list';"), 2)
+        self.assertIn("setFoldersViewMode(defaults.layout.foldersViewMode);", source)
+        self.assertIn("foldersViewMode: 'list'", preferences_source)
 
 
 if __name__ == "__main__":

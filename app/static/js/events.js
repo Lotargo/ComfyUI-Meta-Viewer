@@ -6,6 +6,7 @@ import {
     images,
     activeIndex,
     viewMode,
+    activeSidebarTab,
     refreshCacheBuster,
     setActiveSidebarTab,
     setSidebarImages,
@@ -14,6 +15,9 @@ import {
     setSidebarAllLoaded,
     setFolders,
     resetRuntimeState,
+    loadState,
+    saveState,
+    setCurrentFolderId,
 } from './state.js';
 import { loadFromFiles, loadFromPaths, scanFolder, invalidateApiCache } from './api.js';
 import { renderSidebar } from './features/sidebar.js';
@@ -30,7 +34,7 @@ function renderEmptyContent() {
     `;
 }
 
-async function renderCurrentContent() {
+export async function renderCurrentContent() {
     if (viewMode === 'upload') {
         const { renderUploadView } = await import('./meta-view.js');
         renderUploadView();
@@ -173,14 +177,19 @@ export function initEvents() {
 
             invalidateApiCache();
             resetRuntimeState();
+            loadState();
+            setCurrentFolderId(null);
             setFolders([]);
             setSidebarImages([]);
             setSidebarTotalImages(0);
             setSidebarPage(0);
             setSidebarAllLoaded(true);
             refreshCacheBuster();
-            setViewMode('gallery', { render: false });
-            await switchSidebarTab('images', { render: false, load: false });
+            saveState();
+            const { applySidebarLayout } = await import('./features/sidebar.js');
+            applySidebarLayout();
+            setViewMode(viewMode, { render: false, persist: false });
+            await switchSidebarTab(activeSidebarTab, { render: false, load: false, persist: false });
 
             renderSidebar();
             const { renderFoldersList } = await import('./features/sidebar.js');
@@ -225,24 +234,27 @@ export function initEvents() {
         const { foldersViewMode, setFoldersViewMode } = await import('./state.js');
         const { renderFoldersList } = await import('./features/sidebar.js');
         setFoldersViewMode(foldersViewMode === 'list' ? 'tile' : 'list');
+        saveState();
         await renderFoldersList();
     });
 }
 
-export function setViewMode(mode, { render = true } = {}) {
+export function setViewMode(mode, { render = true, persist = true } = {}) {
     const normalized = mode === 'list' ? 'list' : (mode === 'upload' ? 'upload' : 'gallery');
     setViewModeValue(normalized);
     setGalleryActive(normalized === 'gallery');
     dom.btnViewList.classList.toggle('active', normalized === 'list');
     dom.btnViewGallery.classList.toggle('active', normalized === 'gallery');
     dom.btnViewUpload?.classList.toggle('active', normalized === 'upload');
+    if (persist) saveState();
     if (render) renderCurrentContent();
 }
 
-export async function switchSidebarTab(tab, { render = true, load = true } = {}) {
+export async function switchSidebarTab(tab, { render = true, load = true, persist = true } = {}) {
     const normalized = tab === 'folders' ? 'folders' : 'images';
     setActiveSidebarTab(normalized);
     applySidebarTabClasses(normalized);
+    if (persist) saveState();
 
     if (!render) return;
     if (normalized === 'folders') {

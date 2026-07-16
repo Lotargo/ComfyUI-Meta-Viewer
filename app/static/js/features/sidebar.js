@@ -27,6 +27,11 @@ import {
     foldersSortKey,
     foldersSortDir,
     foldersViewMode,
+    saveState,
+    setSidebarCollapsed,
+    setSidebarWidth,
+    sidebarCollapsed,
+    sidebarWidth,
 } from '../state.js';
 import { escapeHtml, customConfirm, formatImageCountLabel } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
@@ -133,12 +138,27 @@ export function initSidebarResize() {
     }
 
     function onMouseUp() {
+        setSidebarWidth(dom.sidebar.offsetWidth);
+        saveState();
         dom.sidebarResize.classList.remove('active');
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
     }
+
+    window.matchMedia('(max-width: 768px)').addEventListener?.('change', applySidebarLayout);
+}
+
+export function applySidebarLayout() {
+    if (!dom.sidebar) return;
+    dom.sidebar.style.width = `${sidebarWidth}px`;
+    dom.sidebar.classList.remove('open');
+    if (window.matchMedia('(max-width: 768px)').matches) {
+        dom.sidebar.classList.remove('collapsed');
+        return;
+    }
+    dom.sidebar.classList.toggle('collapsed', sidebarCollapsed);
 }
 
 export function toggleSidebar() {
@@ -147,8 +167,9 @@ export function toggleSidebar() {
         dom.sidebar.classList.toggle('open');
         dom.sidebar.classList.remove('collapsed');
     } else {
-        dom.sidebar.classList.toggle('collapsed');
-        dom.sidebar.classList.remove('open');
+        setSidebarCollapsed(!sidebarCollapsed);
+        applySidebarLayout();
+        saveState();
     }
 }
 
@@ -328,6 +349,7 @@ export async function renderFoldersList(folderList = null) {
                         setAllLoaded(true);
                         setActiveIndex(-1);
                         dom.folderNameEl.textContent = '';
+                        saveState();
                         if (galleryActive) {
                             const { renderGallery } = await import('../gallery.js');
                             renderGallery();

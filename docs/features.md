@@ -18,6 +18,7 @@ ComfyUI Meta Viewer is a local-first metadata browser for AI-generated images. I
 - [Object Cutout](#object-cutout)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Resizable Sidebar](#resizable-sidebar)
+- [Persistent UI Preferences](#persistent-ui-preferences)
 - [Drag-and-Drop Upload](#drag-and-drop-upload)
 - [Thumbnails and Originals](#thumbnails-and-originals)
 - [Diagnostics](#diagnostics)
@@ -233,6 +234,16 @@ The sidebar contains folder navigation, image lists, and pagination/infinite-scr
 - Image list with thumbnails and metadata badges.
 - Delete actions.
 - Infinite scroll sentinel.
+
+---
+
+## Persistent UI Preferences
+
+**Main files:** `app/static/js/state.js`, `app/static/js/preferences.js`, `app/static/js/app.js`
+
+Stable interface preferences survive reloads and browser restarts through a versioned `localStorage` document. The app restores the selected folder, main view, sidebar tab/width/collapsed state, folder layout, sorting, search options, metadata tab, and lightbox metadata-panel visibility.
+
+Every field is validated independently and the saved folder ID is checked against the server during startup. Runtime collections, pagination, open overlays, zoom/pan, scroll positions, and search text are intentionally never persisted.
 
 ---
 

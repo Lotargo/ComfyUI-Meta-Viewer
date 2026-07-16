@@ -31,6 +31,7 @@ import {
     sortDir,
     sidebarSortKey,
     sidebarSortDir,
+    saveState,
 } from './state.js';
 import { showLoading, showError, customConfirm } from './utils.js';
 
@@ -89,16 +90,17 @@ async function renderCurrentContent() {
     await renderImageMeta(images[activeIndex] || images[0] || null);
 }
 
-export async function loadBootstrap() {
+export async function loadBootstrap({ preferredFolderId = null } = {}) {
     // Build one coherent startup snapshot without rendering intermediate states.
     const [folderData, globalPage] = await Promise.all([
         fetchJson('/api/folders', { force: true }),
-        fetchJson(`/api/images?page=1&per_page=${PAGE_SIZE}`, { force: true }),
+        fetchJson(`/api/images?page=1&per_page=${PAGE_SIZE}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}`, { force: true }),
     ]);
     const folderList = folderData.folders || [];
-    const defaultFolder = folderList[0] || null;
+    const preferredId = Number.isInteger(preferredFolderId) ? preferredFolderId : null;
+    const defaultFolder = folderList.find(folder => folder.id === preferredId) || folderList[0] || null;
     const folderPage = defaultFolder
-        ? await fetchJson(`/api/images?folder_id=${defaultFolder.id}&page=1&per_page=${PAGE_SIZE}`, { force: true })
+        ? await fetchJson(`/api/images?folder_id=${defaultFolder.id}&page=1&per_page=${PAGE_SIZE}&sort_by=${sortKey}&sort_dir=${sortDir}`, { force: true })
         : { images: [], total: 0, page: 0, per_page: PAGE_SIZE };
 
     return {
@@ -129,6 +131,7 @@ export async function scanFolder(path) {
         setActiveIndex((data.images || []).length ? 0 : -1);
         setDetailCache({});
         dom.folderNameEl.textContent = data.folder?.name || '';
+        saveState();
 
         const [folders] = await Promise.all([
             getFolders({ force: true }),
@@ -167,6 +170,7 @@ export async function loadFromPaths(paths) {
         setCurrentPage(1);
         setActiveIndex(0);
         setDetailCache({});
+        saveState();
         await renderCurrentContent();
     } catch(e) {
         showError('Error: ' + e.message);
@@ -388,6 +392,7 @@ export async function loadFolderImages(folderId, folderName, { force = false, re
         setAllLoaded((data.images || []).length >= (data.total || 0));
         setActiveIndex((data.images || []).length ? 0 : -1);
         setDetailCache({});
+        saveState();
         if (render) await renderCurrentContent();
         return data;
     } catch(e) {

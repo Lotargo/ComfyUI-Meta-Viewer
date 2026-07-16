@@ -1,7 +1,10 @@
 import {
+    activeSidebarTab,
+    currentFolderId,
     dom,
     loadState,
     resetRuntimeState,
+    saveState,
     setActiveIndex,
     setAllLoaded,
     setCurrentFolderId,
@@ -14,10 +17,11 @@ import {
     setSidebarPage,
     setSidebarTotalImages,
     setTotalImages,
+    viewMode,
 } from './state.js';
-import { initEvents, setViewMode, switchSidebarTab } from './events.js';
+import { initEvents, renderCurrentContent, setViewMode, switchSidebarTab } from './events.js';
 import { initLightboxEvents } from './lightbox.js';
-import { renderSidebar, initSidebarResize, toggleSidebar, renderFoldersList } from './features/sidebar.js';
+import { applySidebarLayout, renderSidebar, initSidebarResize, toggleSidebar, renderFoldersList } from './features/sidebar.js';
 import { initSearch } from './components/search-bar.js';
 import { initKeyboardShortcuts } from './features/keyboard.js';
 import { initCentralCollectionShortcuts } from './central-shortcuts.js';
@@ -36,13 +40,14 @@ async function bootstrapApplication() {
     setIsLoading(true);
     resetRuntimeState();
     loadState();
+    const preferredFolderId = currentFolderId;
 
-    // Navigation is intentionally not restored between page loads.
-    setViewMode('gallery', { render: false });
-    await switchSidebarTab('images', { render: false, load: false });
+    applySidebarLayout();
+    setViewMode(viewMode, { render: false, persist: false });
+    await switchSidebarTab(activeSidebarTab, { render: false, load: false, persist: false });
 
     try {
-        const data = await loadBootstrap();
+        const data = await loadBootstrap({ preferredFolderId });
         const folderList = data.folders || [];
         const globalPage = data.global_images || {};
         const folderPage = data.folder_images || {};
@@ -72,10 +77,12 @@ async function bootstrapApplication() {
             setActiveIndex(-1);
         }
 
+        // Re-save the validated selection so a deleted folder ID cannot linger.
+        saveState();
+
         await renderFoldersList(folderList);
         renderSidebar();
-        const { renderGallery } = await import('./gallery.js');
-        renderGallery();
+        await renderCurrentContent();
     } catch (error) {
         console.error('Application bootstrap failed:', error);
         await renderFoldersList([]);

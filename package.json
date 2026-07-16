@@ -1,4 +1,9 @@
 {
+  "type": "module",
+  "scripts": {
+    "lint": "eslint app/static/js",
+    "test:preferences": "node --test tests/test_preferences.mjs"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "globals": "^17.7.0"

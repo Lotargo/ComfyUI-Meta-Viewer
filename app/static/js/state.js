@@ -1,3 +1,12 @@
+import {
+    PREFERENCES_VERSION,
+    PREFERENCES_STORAGE_KEY,
+    LEGACY_PREFERENCES_STORAGE_KEY,
+    createDefaultPreferences,
+    normalizePreferences,
+    parsePreferences,
+} from './preferences.js';
+
 export const dom = {
     contentArea: document.getElementById('content-area'),
     imageList: document.getElementById('image-list'),
@@ -93,6 +102,10 @@ export let sidebarSortDir = 'desc';
 export let foldersSortKey = 'scanned_at';
 export let foldersSortDir = 'desc';
 export let foldersViewMode = 'list';
+export let sidebarWidth = 360;
+export let sidebarCollapsed = false;
+export let lightboxMetaOpen = true;
+export let metadataTab = 'summary';
 
 export function setSortKey(v) { sortKey = v; }
 export function setSortDir(v) { sortDir = v; }
@@ -101,6 +114,10 @@ export function setSidebarSortDir(v) { sidebarSortDir = v; }
 export function setFoldersSortKey(v) { foldersSortKey = v; }
 export function setFoldersSortDir(v) { foldersSortDir = v; }
 export function setFoldersViewMode(v) { foldersViewMode = v === 'list' ? 'list' : 'tile'; }
+export function setSidebarWidth(v) { sidebarWidth = Number.isFinite(v) ? Math.min(500, Math.max(280, Math.round(v))) : 360; }
+export function setSidebarCollapsed(v) { sidebarCollapsed = Boolean(v); }
+export function setLightboxMetaOpen(v) { lightboxMetaOpen = Boolean(v); }
+export function setMetadataTab(v) { metadataTab = ['workflow', 'raw'].includes(v) ? v : 'summary'; }
 
 
 export function setImages(v) { images = Array.isArray(v) ? [...v] : []; }
@@ -138,32 +155,88 @@ export let searchSettings = {
 };
 
 export function setSearchSettings(v) {
-    if (v && typeof v === 'object') searchSettings = v;
+    searchSettings = normalizePreferences({ searchSettings: v }).searchSettings;
 }
 
 export function addImage(img) { images.push(img); }
 export function addImages(imgs) { for (const img of imgs) images.push(img); }
 
-// Only preferences are persisted. Navigation always starts from deterministic defaults.
-export function loadState() {
+function getStoredPreferences() {
     try {
-        const str = sessionStorage.getItem('cmv_preferences');
-        if (!str) return;
-        const preferences = JSON.parse(str);
-        if (preferences.searchSettings) setSearchSettings(preferences.searchSettings);
-    } catch (_e) { /* ignore parse errors */ }
+        const stored = localStorage.getItem(PREFERENCES_STORAGE_KEY);
+        if (stored) return { preferences: parsePreferences(stored), migrated: false };
+
+        const legacy = sessionStorage.getItem(LEGACY_PREFERENCES_STORAGE_KEY)
+            || localStorage.getItem(LEGACY_PREFERENCES_STORAGE_KEY);
+        if (legacy) return { preferences: parsePreferences(legacy), migrated: true };
+    } catch (_error) {
+        // Storage can be unavailable in hardened browser contexts.
+    }
+    return { preferences: createDefaultPreferences(), migrated: false };
+}
+
+function applyPreferences(preferences) {
+    setCurrentFolderId(preferences.navigation.selectedFolderId);
+    setViewModeValue(preferences.navigation.viewMode);
+    setGalleryActive(preferences.navigation.viewMode === 'gallery');
+    setActiveSidebarTab(preferences.navigation.sidebarTab);
+    setSidebarWidth(preferences.layout.sidebarWidth);
+    setSidebarCollapsed(preferences.layout.sidebarCollapsed);
+    setFoldersViewMode(preferences.layout.foldersViewMode);
+    setLightboxMetaOpen(preferences.layout.lightboxMetaOpen);
+    setMetadataTab(preferences.layout.metadataTab);
+    setSortKey(preferences.sorting.gallery.key);
+    setSortDir(preferences.sorting.gallery.direction);
+    setSidebarSortKey(preferences.sorting.images.key);
+    setSidebarSortDir(preferences.sorting.images.direction);
+    setFoldersSortKey(preferences.sorting.folders.key);
+    setFoldersSortDir(preferences.sorting.folders.direction);
+    setSearchSettings(preferences.searchSettings);
+}
+
+export function loadState() {
+    const { preferences, migrated } = getStoredPreferences();
+    applyPreferences(preferences);
+    if (migrated) saveState();
+    return preferences;
 }
 
 export function saveState() {
+    const preferences = normalizePreferences({
+        version: PREFERENCES_VERSION,
+        navigation: {
+            selectedFolderId: currentFolderId,
+            viewMode,
+            sidebarTab: activeSidebarTab,
+        },
+        layout: {
+            sidebarWidth,
+            sidebarCollapsed,
+            foldersViewMode,
+            lightboxMetaOpen,
+            metadataTab,
+        },
+        sorting: {
+            gallery: { key: sortKey, direction: sortDir },
+            images: { key: sidebarSortKey, direction: sidebarSortDir },
+            folders: { key: foldersSortKey, direction: foldersSortDir },
+        },
+        searchSettings,
+    });
     try {
-        sessionStorage.setItem('cmv_preferences', JSON.stringify({
-            searchSettings,
-        }));
+        localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences));
+        localStorage.removeItem(LEGACY_PREFERENCES_STORAGE_KEY);
+        localStorage.removeItem('cmv_state');
+        sessionStorage.removeItem(LEGACY_PREFERENCES_STORAGE_KEY);
         sessionStorage.removeItem('cmv_state');
-    } catch (_e) { /* ignore quota errors */ }
+    } catch (_error) {
+        // Preference persistence must never break the application runtime.
+    }
+    return preferences;
 }
 
 export function resetRuntimeState() {
+    const defaults = createDefaultPreferences();
     setImages([]);
     setSidebarImages([]);
     setFolders([]);
@@ -176,8 +249,8 @@ export function resetRuntimeState() {
     setSidebarTotalImages(0);
     setAllLoaded(true);
     setSidebarAllLoaded(true);
-    setActiveSidebarTab('images');
-    setViewModeValue('gallery');
+    setActiveSidebarTab(defaults.navigation.sidebarTab);
+    setViewModeValue(defaults.navigation.viewMode);
     setGalleryActive(true);
     setDetailCache({});
     if (scrollObserver) scrollObserver.disconnect();
@@ -187,13 +260,18 @@ export function resetRuntimeState() {
     setGalleryScrollObserver(null);
     setSidebarScrollObserver(null);
     if (dom.folderNameEl) dom.folderNameEl.textContent = '';
-    sortKey = 'date';
-    sortDir = 'desc';
-    sidebarSortKey = 'date';
-    sidebarSortDir = 'desc';
-    foldersSortKey = 'scanned_at';
-    foldersSortDir = 'desc';
-    foldersViewMode = 'list';
+    setSortKey(defaults.sorting.gallery.key);
+    setSortDir(defaults.sorting.gallery.direction);
+    setSidebarSortKey(defaults.sorting.images.key);
+    setSidebarSortDir(defaults.sorting.images.direction);
+    setFoldersSortKey(defaults.sorting.folders.key);
+    setFoldersSortDir(defaults.sorting.folders.direction);
+    setFoldersViewMode(defaults.layout.foldersViewMode);
+    setSidebarWidth(defaults.layout.sidebarWidth);
+    setSidebarCollapsed(defaults.layout.sidebarCollapsed);
+    setLightboxMetaOpen(defaults.layout.lightboxMetaOpen);
+    setMetadataTab(defaults.layout.metadataTab);
+    setSearchSettings(defaults.searchSettings);
 }
 
 export function showToast(msg) {

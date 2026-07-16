@@ -1,0 +1,132 @@
+export const PREFERENCES_VERSION = 2;
+export const PREFERENCES_STORAGE_KEY = 'cmv_preferences_v2';
+export const LEGACY_PREFERENCES_STORAGE_KEY = 'cmv_preferences';
+
+const VIEW_MODES = new Set(['gallery', 'list', 'upload']);
+const SIDEBAR_TABS = new Set(['folders', 'images']);
+const FOLDER_VIEW_MODES = new Set(['list', 'tile']);
+const META_TABS = new Set(['summary', 'workflow', 'raw']);
+const SORT_DIRECTIONS = new Set(['asc', 'desc']);
+const IMAGE_SORT_KEYS = new Set(['name', 'date', 'size', 'type']);
+const FOLDER_SORT_KEYS = new Set(['name', 'scanned_at', 'image_count']);
+
+function isRecord(value) {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function enumValue(value, allowed, fallback) {
+    return allowed.has(value) ? value : fallback;
+}
+
+function booleanValue(value, fallback) {
+    return typeof value === 'boolean' ? value : fallback;
+}
+
+function selectedFolderId(value) {
+    return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function sidebarWidth(value) {
+    if (!Number.isFinite(value)) return 360;
+    return Math.min(500, Math.max(280, Math.round(value)));
+}
+
+export function createDefaultPreferences() {
+    return {
+        version: PREFERENCES_VERSION,
+        navigation: {
+            selectedFolderId: null,
+            viewMode: 'gallery',
+            sidebarTab: 'images',
+        },
+        layout: {
+            sidebarWidth: 360,
+            sidebarCollapsed: false,
+            foldersViewMode: 'list',
+            lightboxMetaOpen: true,
+            metadataTab: 'summary',
+        },
+        sorting: {
+            gallery: { key: 'date', direction: 'desc' },
+            images: { key: 'date', direction: 'desc' },
+            folders: { key: 'scanned_at', direction: 'desc' },
+        },
+        searchSettings: {
+            exactMatch: false,
+            fields: {
+                positive_prompt: true,
+                negative_prompt: true,
+                model: true,
+                sampler: true,
+                resolution: true,
+            },
+        },
+    };
+}
+
+export function normalizePreferences(value) {
+    const defaults = createDefaultPreferences();
+    const source = isRecord(value) ? value : {};
+    const isCurrentVersion = source.version === PREFERENCES_VERSION;
+    const isLegacyVersion = source.version === undefined;
+    const current = isCurrentVersion ? source : {};
+    const navigation = isRecord(current.navigation) ? current.navigation : {};
+    const layout = isRecord(current.layout) ? current.layout : {};
+    const sorting = isRecord(current.sorting) ? current.sorting : {};
+    const gallerySort = isRecord(sorting.gallery) ? sorting.gallery : {};
+    const imagesSort = isRecord(sorting.images) ? sorting.images : {};
+    const foldersSort = isRecord(sorting.folders) ? sorting.folders : {};
+    const search = isCurrentVersion || isLegacyVersion
+        ? (isRecord(source.searchSettings) ? source.searchSettings : {})
+        : {};
+    const searchFields = isRecord(search.fields) ? search.fields : {};
+
+    return {
+        version: PREFERENCES_VERSION,
+        navigation: {
+            selectedFolderId: selectedFolderId(navigation.selectedFolderId),
+            viewMode: enumValue(navigation.viewMode, VIEW_MODES, defaults.navigation.viewMode),
+            sidebarTab: enumValue(navigation.sidebarTab, SIDEBAR_TABS, defaults.navigation.sidebarTab),
+        },
+        layout: {
+            sidebarWidth: sidebarWidth(layout.sidebarWidth),
+            sidebarCollapsed: booleanValue(layout.sidebarCollapsed, defaults.layout.sidebarCollapsed),
+            foldersViewMode: enumValue(layout.foldersViewMode, FOLDER_VIEW_MODES, defaults.layout.foldersViewMode),
+            lightboxMetaOpen: booleanValue(layout.lightboxMetaOpen, defaults.layout.lightboxMetaOpen),
+            metadataTab: enumValue(layout.metadataTab, META_TABS, defaults.layout.metadataTab),
+        },
+        sorting: {
+            gallery: {
+                key: enumValue(gallerySort.key, IMAGE_SORT_KEYS, defaults.sorting.gallery.key),
+                direction: enumValue(gallerySort.direction, SORT_DIRECTIONS, defaults.sorting.gallery.direction),
+            },
+            images: {
+                key: enumValue(imagesSort.key, IMAGE_SORT_KEYS, defaults.sorting.images.key),
+                direction: enumValue(imagesSort.direction, SORT_DIRECTIONS, defaults.sorting.images.direction),
+            },
+            folders: {
+                key: enumValue(foldersSort.key, FOLDER_SORT_KEYS, defaults.sorting.folders.key),
+                direction: enumValue(foldersSort.direction, SORT_DIRECTIONS, defaults.sorting.folders.direction),
+            },
+        },
+        searchSettings: {
+            exactMatch: booleanValue(search.exactMatch, defaults.searchSettings.exactMatch),
+            fields: {
+                positive_prompt: booleanValue(searchFields.positive_prompt, defaults.searchSettings.fields.positive_prompt),
+                negative_prompt: booleanValue(searchFields.negative_prompt, defaults.searchSettings.fields.negative_prompt),
+                model: booleanValue(searchFields.model, defaults.searchSettings.fields.model),
+                sampler: booleanValue(searchFields.sampler, defaults.searchSettings.fields.sampler),
+                resolution: booleanValue(searchFields.resolution, defaults.searchSettings.fields.resolution),
+            },
+        },
+    };
+}
+
+export function parsePreferences(serialized) {
+    if (typeof serialized !== 'string' || !serialized) return createDefaultPreferences();
+    try {
+        return normalizePreferences(JSON.parse(serialized));
+    } catch (_error) {
+        return createDefaultPreferences();
+    }
+}

@@ -72,6 +72,7 @@ comfy-meta-viewer/
 │   │   └── js/                   # Modular JavaScript
 │   │       ├── app.js            # Entry point
 │   │       ├── state.js          # Reactive store
+│   │       ├── preferences.js    # Versioned preference schema and validation
 │   │       ├── api.js            # HTTP client
 │   │       ├── events.js         # DOM event handlers
 │   │       ├── gallery.js        # Masonry layout
@@ -268,7 +269,7 @@ state.js
   └── isLoading          -- request/loading flag
 ```
 
-State is persisted in `sessionStorage`, allowing the interface to recover after a page refresh.
+Runtime state and durable preferences are deliberately separated. Image arrays, pagination, loading flags, open overlays, and zoom/scroll positions exist only in memory. A small versioned and field-validated preference document is stored in `localStorage`; startup restores it before the boot layer is removed and validates the saved folder ID against the current SQLite folder list.
 
 ### API Client (`api.js`)
 

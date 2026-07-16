@@ -217,15 +217,15 @@ Add the file to `app/templates/index.html` or to the appropriate CSS import path
 
 ## Testing
 
-### Current Status
+### Automated Checks
 
-The project currently does not include automated unit or integration tests.
+```bash
+python -m unittest discover -s tests -v
+npm run test:preferences
+npm run lint
+```
 
-### Recommended Test Stack
-
-1. **Backend:** `pytest` + Flask test client.
-2. **Frontend modules:** Vitest or Jest if JS tests are introduced.
-3. **E2E:** Playwright or Cypress for browser flows.
+The Python suite covers Flask/database/image-processing behavior. The Node test suite uses the built-in test runner for the versioned preference schema and state-persistence boundary. ESLint checks all frontend modules.
 
 ### Manual Test Checklist
 

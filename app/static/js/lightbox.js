@@ -14,6 +14,8 @@ import {
     galleryActive,
     detailCache,
     dom,
+    lightboxMetaOpen,
+    setLightboxMetaOpen,
     setLightboxIndex,
     setActiveIndex,
     saveState,
@@ -21,7 +23,6 @@ import {
 import { escapeHtml, thumbUrl, previewUrl, originalUrl, copyText } from './utils.js';
 import { initCutoutEvents, resetCutoutPanel } from './features/cutout.js';
 
-let metaPanelOpen = true;
 let zoomLevel = 1;
 let rotation = 0;
 let panX = 0;
@@ -313,7 +314,6 @@ export function updateLightbox() {
     if (!img) { closeLightbox(); return; }
 
     setActiveIndex(lightboxIndex);
-    saveState();
 
     if (galleryActive) {
         import('./gallery.js').then(m => m.updateActiveGalleryCard(lightboxIndex));
@@ -329,7 +329,7 @@ export function updateLightbox() {
 
     // Update meta panel visibility
     if (dom.lbMeta) {
-        dom.lbMeta.classList.toggle('open', metaPanelOpen);
+        dom.lbMeta.classList.toggle('open', lightboxMetaOpen);
     }
 
     // Build metadata HTML
@@ -469,10 +469,11 @@ export function prevLightbox() {
 }
 
 export function toggleMetaPanel() {
-    metaPanelOpen = !metaPanelOpen;
+    setLightboxMetaOpen(!lightboxMetaOpen);
     if (dom.lbMeta) {
-        dom.lbMeta.classList.toggle('open', metaPanelOpen);
+        dom.lbMeta.classList.toggle('open', lightboxMetaOpen);
     }
+    saveState();
 }
 
 export function downloadImage() {

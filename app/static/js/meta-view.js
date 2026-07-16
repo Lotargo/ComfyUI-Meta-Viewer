@@ -3,13 +3,22 @@
  * Now with tabs: Summary / Workflow / Raw
  */
 
-import { images, sidebarImages, activeIndex, detailCache, galleryActive, dom, currentFolderId } from './state.js';
+import {
+    images,
+    sidebarImages,
+    activeIndex,
+    detailCache,
+    galleryActive,
+    dom,
+    currentFolderId,
+    metadataTab,
+    saveState,
+    setMetadataTab,
+} from './state.js';
 import { escapeHtml, formatValue, getStringValue, thumbUrl, copyText } from './utils.js';
 import { currentSearchTerms, isExactMatch } from './components/search-bar.js';
 import { skeletonMetaView } from './components/skeleton.js';
 import { renderWorkflowGraph, initWorkflowGraphEvents } from './features/workflow-graph.js';
-
-let currentTab = 'summary';
 
 export function renderUploadView() {
     dom.contentArea.innerHTML = `<div class="drop-zone anim-scale-in" id="drop-zone">
@@ -99,28 +108,31 @@ export function renderMeta(img) {
     // Tabs
     const hasWorkflow = detail.workflow && detail.workflow.workflow_nodes;
     const hasRaw = detail.raw_parameters || detail.raw_chunks;
+    const activeTab = (metadataTab === 'workflow' && hasWorkflow) || (metadataTab === 'raw' && hasRaw)
+        ? metadataTab
+        : 'summary';
 
     html += `
         <div class="content-tabs">
-            <button class="content-tab ${currentTab === 'summary' ? 'active' : ''}" data-tab="summary">Summary</button>
-            ${hasWorkflow ? `<button class="content-tab ${currentTab === 'workflow' ? 'active' : ''}" data-tab="workflow">Workflow</button>` : ''}
-            ${hasRaw ? `<button class="content-tab ${currentTab === 'raw' ? 'active' : ''}" data-tab="raw">Raw</button>` : ''}
+            <button class="content-tab ${activeTab === 'summary' ? 'active' : ''}" data-tab="summary">Summary</button>
+            ${hasWorkflow ? `<button class="content-tab ${activeTab === 'workflow' ? 'active' : ''}" data-tab="workflow">Workflow</button>` : ''}
+            ${hasRaw ? `<button class="content-tab ${activeTab === 'raw' ? 'active' : ''}" data-tab="raw">Raw</button>` : ''}
         </div>
     `;
 
     // Tab panels
-    html += `<div class="tab-panel ${currentTab === 'summary' ? 'active' : ''}" id="panel-summary">`;
+    html += `<div class="tab-panel ${activeTab === 'summary' ? 'active' : ''}" id="panel-summary">`;
     html += renderSummaryTab(detail);
     html += '</div>';
 
     if (hasWorkflow) {
-        html += `<div class="tab-panel ${currentTab === 'workflow' ? 'active' : ''}" id="panel-workflow">`;
+        html += `<div class="tab-panel ${activeTab === 'workflow' ? 'active' : ''}" id="panel-workflow">`;
         html += renderWorkflowTab(detail.workflow);
         html += '</div>';
     }
 
     if (hasRaw) {
-        html += `<div class="tab-panel ${currentTab === 'raw' ? 'active' : ''}" id="panel-raw">`;
+        html += `<div class="tab-panel ${activeTab === 'raw' ? 'active' : ''}" id="panel-raw">`;
         html += renderRawTab(detail);
         html += '</div>';
     }
@@ -355,11 +367,13 @@ function attachEventListeners() {
     // Tab switching
     dom.contentArea.querySelectorAll('.content-tab').forEach(tab => {
         tab.addEventListener('click', () => {
-            currentTab = tab.dataset.tab;
+            const nextTab = tab.dataset.tab;
+            setMetadataTab(nextTab);
+            saveState();
             dom.contentArea.querySelectorAll('.content-tab').forEach(t => t.classList.remove('active'));
             dom.contentArea.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
             tab.classList.add('active');
-            document.getElementById('panel-' + currentTab)?.classList.add('active'); // eslint-disable-line no-restricted-syntax -- dynamic panel ID
+            document.getElementById('panel-' + nextTab)?.classList.add('active'); // eslint-disable-line no-restricted-syntax -- dynamic panel ID
         });
     });
 

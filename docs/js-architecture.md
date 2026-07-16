@@ -40,6 +40,7 @@ No React/Vue/Svelte runtime is required.
 app/static/js/
 ├── app.js                 # Entry point
 ├── state.js               # Shared UI state
+├── preferences.js         # Versioned preference schema and validation
 ├── api.js                 # REST API client
 ├── events.js              # DOM event wiring
 ├── gallery.js             # Masonry/gallery rendering
@@ -66,25 +67,24 @@ app/static/js/
 
 **File:** `app/static/js/state.js`
 
-The app uses a small shared state object instead of an external state management library.
+The app uses a small shared state module instead of an external state management library. It contains both ephemeral runtime values and stable UI preference values, but only the latter are serialized.
 
 ```javascript
 {
     images: [],           // Current image list/page
     activeIndex: -1,      // Selected image index
-    sessions: [],         // Local session UI state
-    currentSession: null, // Current session object when used
-    viewMode: 'list',     // 'list' | 'gallery'
-    folderId: null,       // Active folder ID
+    viewMode: 'gallery',  // 'upload' | 'list' | 'gallery'
+    currentFolderId: null,// Stable selected folder ID
     folders: [],          // Indexed folders
-    page: 1,              // Current page
-    perPage: 50,          // Images per page
-    hasMore: true,        // Infinite-scroll flag
+    currentPage: 0,       // Ephemeral pagination state
+    allLoaded: true,      // Infinite-scroll flag
     isLoading: false      // Request/loading flag
 }
 ```
 
-State is persisted to `sessionStorage` so the UI can recover after a page refresh. Persistent library data lives in SQLite and is accessed through the backend API.
+`preferences.js` defines schema version 2 and normalizes every saved field. `localStorage` contains only stable preferences: selected folder ID, view/sidebar modes, sidebar dimensions, sorting, search options, metadata tab, and lightbox metadata-panel visibility. Collections, indexes, open dialogs/lightbox state, zoom/pan, search text, pagination, caches, and DOM classes are always rebuilt from runtime data. Old search preferences from `sessionStorage` are migrated once.
+
+During boot, preferences are applied while the boot layer still hides intermediate DOM. The backend folder list then confirms the selected folder ID; a missing ID falls back to an existing folder and is immediately corrected in storage.
 
 ---
 

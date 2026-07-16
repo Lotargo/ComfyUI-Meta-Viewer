@@ -13,6 +13,7 @@ import {
     setFoldersSortDir,
     currentFolderId,
     dom,
+    saveState,
 } from '../state.js';
 import {
     loadFolderImages,
@@ -91,6 +92,7 @@ export function bindCentralSortEvents() {
             renderSortMenu(sortMenu, sortKey, sortDir, sortOptions,
                 async (newKey) => {
                     setSortKey(newKey);
+                    saveState();
                     sortMenu.style.display = 'none';
                     invalidateApiCache();
                     const folderName = dom.folderNameEl ? dom.folderNameEl.textContent : '';
@@ -100,6 +102,7 @@ export function bindCentralSortEvents() {
                 }, 
                 async (newDir) => {
                     setSortDir(newDir);
+                    saveState();
                     sortMenu.style.display = 'none';
                     invalidateApiCache();
                     const folderName = dom.folderNameEl ? dom.folderNameEl.textContent : '';
@@ -133,12 +136,14 @@ export function bindSidebarSortEvents() {
             renderSortMenu(sidebarSortMenu, sidebarSortKey, sidebarSortDir, sortOptions,
                 async (newKey) => {
                     setSidebarSortKey(newKey);
+                    saveState();
                     sidebarSortMenu.style.display = 'none';
                     invalidateApiCache();
                     await loadSidebarImages({ force: true });
                 },
                 async (newDir) => {
                     setSidebarSortDir(newDir);
+                    saveState();
                     sidebarSortMenu.style.display = 'none';
                     invalidateApiCache();
                     await loadSidebarImages({ force: true });
@@ -169,12 +174,14 @@ export function bindFoldersSortEvents() {
             renderSortMenu(foldersSortMenu, foldersSortKey, foldersSortDir, folderSortOptions,
                 async (newKey) => {
                     setFoldersSortKey(newKey);
+                    saveState();
                     foldersSortMenu.style.display = 'none';
                     const { renderFoldersList } = await import('./sidebar.js');
                     await renderFoldersList();
                 },
                 async (newDir) => {
                     setFoldersSortDir(newDir);
+                    saveState();
                     foldersSortMenu.style.display = 'none';
                     const { renderFoldersList } = await import('./sidebar.js');
                     await renderFoldersList();

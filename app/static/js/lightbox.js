@@ -12,33 +12,88 @@ import { initCutoutEvents, resetCutoutPanel } from './features/cutout.js';
 let metaPanelOpen = true;
 let zoomLevel = 1;
 let rotation = 0;
+let panX = 0;
+let panY = 0;
+let imageArea = null;
+let panPointerId = null;
+let panLastX = 0;
+let panLastY = 0;
 let currentImagesArray = [];
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 10;
 const ZOOM_STEP = 0.15;
 
+function getPanBounds() {
+    if (!dom.lbImg || !imageArea) return { x: 0, y: 0 };
+
+    const areaRect = imageArea.getBoundingClientRect();
+    const quarterTurns = Math.abs(rotation / 90) % 2;
+    const imageWidth = quarterTurns ? dom.lbImg.offsetHeight : dom.lbImg.offsetWidth;
+    const imageHeight = quarterTurns ? dom.lbImg.offsetWidth : dom.lbImg.offsetHeight;
+
+    return {
+        x: Math.max(0, (imageWidth * zoomLevel - areaRect.width) / 2),
+        y: Math.max(0, (imageHeight * zoomLevel - areaRect.height) / 2),
+    };
+}
+
+function clampPan() {
+    const bounds = getPanBounds();
+    panX = Math.max(-bounds.x, Math.min(bounds.x, panX));
+    panY = Math.max(-bounds.y, Math.min(bounds.y, panY));
+    return bounds;
+}
+
+function stopPanning(pointerId = panPointerId) {
+    if (pointerId !== null && dom.lbImg?.hasPointerCapture(pointerId)) {
+        dom.lbImg.releasePointerCapture(pointerId);
+    }
+    panPointerId = null;
+    dom.lbImg?.classList.remove('is-panning');
+}
+
 function applyImageTransform() {
     if (!dom.lbImg) return;
-    dom.lbImg.style.transform = `scale(${zoomLevel}) rotate(${rotation}deg)`;
+    const bounds = clampPan();
+    dom.lbImg.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${zoomLevel}) rotate(${rotation}deg)`;
+    dom.lbImg.classList.toggle('is-pannable', bounds.x > 0 || bounds.y > 0);
     if (dom.lbZoomLevel) {
         dom.lbZoomLevel.textContent = `${Math.round(zoomLevel * 100)}%`;
     }
 }
 
+function setZoom(nextZoom, focalPoint = null) {
+    const clampedZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, nextZoom));
+    if (clampedZoom === zoomLevel) return;
+
+    if (focalPoint && imageArea && zoomLevel > 0) {
+        const areaRect = imageArea.getBoundingClientRect();
+        const focalX = focalPoint.x - (areaRect.left + areaRect.width / 2);
+        const focalY = focalPoint.y - (areaRect.top + areaRect.height / 2);
+        const zoomRatio = clampedZoom / zoomLevel;
+        panX += (focalX - panX) * (1 - zoomRatio);
+        panY += (focalY - panY) * (1 - zoomRatio);
+    }
+
+    zoomLevel = clampedZoom;
+    applyImageTransform();
+}
+
 export function resetZoom() {
+    stopPanning();
     zoomLevel = 1;
     rotation = 0;
+    panX = 0;
+    panY = 0;
     applyImageTransform();
 }
 
 export function zoomIn() {
-    zoomLevel = Math.min(ZOOM_MAX, zoomLevel + ZOOM_STEP);
-    applyImageTransform();
+    setZoom(zoomLevel + ZOOM_STEP);
 }
 
 export function zoomOut() {
-    zoomLevel = Math.max(ZOOM_MIN, zoomLevel - ZOOM_STEP);
-    applyImageTransform();
+    setZoom(zoomLevel - ZOOM_STEP);
 }
 
 export function rotateClockwise() {
@@ -75,6 +130,7 @@ export async function openLightbox(index, imagesArray = null) {
 }
 
 export function closeLightbox() {
+    stopPanning();
     dom.lightbox.classList.remove('open');
     document.body.style.overflow = '';
     setLightboxIndex(-1);
@@ -264,6 +320,7 @@ export function downloadImage() {
 
 export function initLightboxEvents() {
     initCutoutEvents();
+    imageArea = document.querySelector('.lightbox-image-area');
 
     // Close button
     dom.lbClose?.addEventListener('click', closeLightbox);
@@ -305,16 +362,62 @@ export function initLightboxEvents() {
     dom.lbZoomReset?.addEventListener('click', resetZoom);
 
     // Mouse wheel zoom on image area
-    const imageArea = document.querySelector('.lightbox-image-area');
     imageArea?.addEventListener('wheel', e => {
         e.preventDefault();
-        if (e.deltaY < 0) {
-            zoomLevel = Math.min(ZOOM_MAX, zoomLevel + ZOOM_STEP);
-        } else {
-            zoomLevel = Math.max(ZOOM_MIN, zoomLevel - ZOOM_STEP);
-        }
-        applyImageTransform();
+        const direction = e.deltaY < 0 ? 1 : -1;
+        setZoom(zoomLevel + direction * ZOOM_STEP, {
+            x: e.clientX,
+            y: e.clientY,
+        });
     }, { passive: false });
+
+    // Drag a zoomed image with the primary mouse button.
+    dom.lbImg?.addEventListener('pointerdown', e => {
+        if (e.button !== 0 || (e.pointerType !== 'mouse' && e.pointerType !== 'pen')) return;
+        const bounds = getPanBounds();
+        if (bounds.x === 0 && bounds.y === 0) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        panPointerId = e.pointerId;
+        panLastX = e.clientX;
+        panLastY = e.clientY;
+        dom.lbImg.setPointerCapture(e.pointerId);
+        dom.lbImg.classList.add('is-panning');
+    });
+
+    dom.lbImg?.addEventListener('pointermove', e => {
+        if (e.pointerId !== panPointerId) return;
+        if ((e.buttons & 1) === 0) {
+            stopPanning(e.pointerId);
+            return;
+        }
+
+        e.preventDefault();
+        panX += e.clientX - panLastX;
+        panY += e.clientY - panLastY;
+        panLastX = e.clientX;
+        panLastY = e.clientY;
+        applyImageTransform();
+    });
+
+    dom.lbImg?.addEventListener('pointerup', e => {
+        if (e.pointerId === panPointerId) stopPanning(e.pointerId);
+    });
+    dom.lbImg?.addEventListener('pointercancel', e => {
+        if (e.pointerId === panPointerId) stopPanning(e.pointerId);
+    });
+    dom.lbImg?.addEventListener('lostpointercapture', e => {
+        if (e.pointerId === panPointerId) stopPanning(null);
+    });
+    dom.lbImg?.addEventListener('dragstart', e => e.preventDefault());
+    dom.lbImg?.addEventListener('load', applyImageTransform);
+
+    // Keep the image within the viewport after fullscreen/layout changes.
+    window.addEventListener('resize', applyImageTransform);
+    dom.lbMeta?.addEventListener('transitionend', e => {
+        if (e.propertyName === 'width') applyImageTransform();
+    });
 
     // Double-click to reset zoom
     dom.lbImg?.addEventListener('dblclick', e => {

@@ -311,5 +311,15 @@
 .lightbox-image-area img {
     transition: opacity var(--transition), transform 0.15s ease-out;
     transform-origin: center center;
-    cursor: zoom-in;
+    cursor: default;
+    will-change: transform;
+}
+
+.lightbox-image-area img.is-pannable {
+    cursor: grab;
+}
+
+.lightbox-image-area img.is-panning {
+    cursor: grabbing;
+    transition: opacity var(--transition);
 }

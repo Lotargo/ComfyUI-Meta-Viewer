@@ -150,7 +150,8 @@ The lightbox is the main inspection surface for a selected image.
 
 - Fullscreen-style image viewing.
 - Previous/next navigation.
-- Zoom and rotation controls.
+- Cursor-centered mouse-wheel zoom and rotation controls.
+- Click-and-drag panning while the image is larger than the viewport.
 - Metadata panel toggle.
 - Summary, Workflow, and Raw metadata tabs.
 - Touch-friendly navigation where supported by the browser.

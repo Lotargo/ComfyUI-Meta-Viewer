@@ -64,7 +64,7 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
     <td>
       <img src="docs/icons/gallery.svg" width="20" alt="Gallery">
       <strong>Gallery & Lightbox</strong><br>
-      <sub>Masonry layout, zoom, rotate, touch swipe</sub>
+      <sub>Masonry layout, cursor zoom, click-drag pan, rotate, touch swipe</sub>
     </td>
     <td>
       <img src="docs/icons/search.svg" width="20" alt="Search">

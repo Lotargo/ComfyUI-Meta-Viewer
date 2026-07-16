@@ -292,7 +292,7 @@ api.js
 | Keyboard | `features/keyboard.js` | 14 shortcuts + Help Center |
 | Cutout | `features/cutout.js` | Background-removal panel |
 | Gallery | `gallery.js` | Masonry layout + lazy loading |
-| Lightbox | `lightbox.js` | Fullscreen viewer + zoom/rotate |
+| Lightbox | `lightbox.js` | Fullscreen viewer + cursor zoom/pan/rotate |
 | Meta View | `meta-view.js` | 3 tabs: Summary, Workflow, Raw |
 | Search | `components/search-bar.js` | Fuse.js fuzzy search |
 

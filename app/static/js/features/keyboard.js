@@ -192,6 +192,8 @@ function initHelpCenter() {
                         </div>
                         <div class="shortcut-group">
                             <h4>Lightbox</h4>
+                            <div class="shortcut-row"><span>Mouse wheel</span><span>Zoom at cursor</span></div>
+                            <div class="shortcut-row"><span>Drag image</span><span>Pan while zoomed</span></div>
                             <div class="shortcut-row"><span><kbd>+</kbd> <kbd>-</kbd></span><span>Zoom in / out</span></div>
                             <div class="shortcut-row"><span><kbd>0</kbd></span><span>Reset zoom</span></div>
                             <div class="shortcut-row"><span><kbd>M</kbd></span><span>Toggle metadata panel</span></div>

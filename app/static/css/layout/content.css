@@ -122,7 +122,9 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-sm) 22px;
+    height: var(--panel-header-height);
+    box-sizing: border-box;
+    padding: 0 22px;
     background: color-mix(in srgb, var(--surface) 90%, var(--bg) 10%);
     border-bottom: 1px solid var(--border);
     margin-top: -22px;

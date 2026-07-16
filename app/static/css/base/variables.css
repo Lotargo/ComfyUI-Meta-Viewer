@@ -82,6 +82,7 @@
 
     /* === Layout === */
     --header-height: 58px;
+    --panel-header-height: 46px;
     --sidebar-width: 360px;
     --sidebar-min: 280px;
     --sidebar-max: 500px;

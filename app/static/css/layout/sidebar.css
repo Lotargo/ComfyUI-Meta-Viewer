@@ -182,11 +182,17 @@
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     background: var(--bg);
+    height: var(--panel-header-height);
+    box-sizing: border-box;
 }
 
 .sidebar-tab {
     flex: 1;
-    padding: var(--space-md) var(--space-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 0 var(--space-sm);
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
@@ -194,7 +200,6 @@
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    text-align: center;
     transition: all var(--transition-fast);
 }
 

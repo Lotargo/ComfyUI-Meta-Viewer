@@ -14,7 +14,7 @@ import {
 import { escapeHtml, thumbUrl } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
 
-export function renderGallery() {
+export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
     if (galleryScrollObserver) galleryScrollObserver.disconnect();
 
     if (images.length === 0) {
@@ -33,68 +33,147 @@ export function renderGallery() {
         return;
     }
 
-    let html = '<div class="gallery-masonry">';
-    images.forEach((img, index) => {
-        const src = thumbUrl(img);
-        const isActive = index === activeIndex ? ' active' : '';
-        const hasError = img.error ? '<div class="card-error"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>' : '';
-        const fmt = img.format || '';
-        const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
-        const ratioStyle = img.size ? ` style="aspect-ratio: ${img.size[0]} / ${img.size[1]}; position: relative; width: 100%; background: var(--surface2);"` : ' style="position: relative; width: 100%; background: var(--surface2);"';
-        const imgStyle = img.size ? ` style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;"` : '';
-        const fileName = img.file_name || img.file || '';
+    let masonry = dom.contentArea.querySelector('.gallery-masonry');
+    if (appendOnly && masonry) {
+        let newHtml = '';
+        for (let index = startIndex; index < images.length; index++) {
+            const img = images[index];
+            const src = thumbUrl(img);
+            const isActive = index === activeIndex ? ' active' : '';
+            const hasError = img.error ? '<div class="card-error"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>' : '';
+            const fmt = img.format || '';
+            const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
+            const size = img.size && img.size[0] > 0 && img.size[1] > 0 ? img.size : [4, 3];
+            const ratioStyle = ` style="aspect-ratio: ${size[0]} / ${size[1]}; position: relative; width: 100%; background: var(--surface2);"`;
+            const imgStyle = ` style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;"`;
+            const fileName = img.file_name || img.file || '';
 
-        html += `
-            <div class="gallery-card${isActive}" data-index="${index}">
-                <div class="img-wrapper"${ratioStyle}>
-                    <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle}>
+            newHtml += `
+                <div class="gallery-card${isActive}" data-index="${index}">
+                    <div class="img-wrapper"${ratioStyle}>
+                        <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth)this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight">
+                    </div>
+                    <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
+                        <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
+                    </button>
+                    ${hasError}
+                    <div class="card-info">
+                        <div class="card-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
+                        <div class="card-meta">${fmt} ${dims}</div>
+                    </div>
                 </div>
-                <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
-                    <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
-                </button>
-                ${hasError}
-                <div class="card-info">
-                    <div class="card-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
-                    <div class="card-meta">${fmt} ${dims}</div>
+            `;
+        }
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newHtml;
+        const newCards = Array.from(tempDiv.children);
+        newCards.forEach(card => {
+            masonry.appendChild(card);
+            
+            card.addEventListener('click', () => {
+                const index = Number.parseInt(card.dataset.index, 10);
+                import('./lightbox.js').then(module => module.openLightbox(index, images));
+            });
+
+            const deleteBtn = card.querySelector('.gallery-delete');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', event => {
+                    event.stopPropagation();
+                    const index = Number.parseInt(deleteBtn.dataset.index, 10);
+                    const imageId = images[index]?.id;
+                    if (imageId) import('./api.js').then(module => module.deleteImageById(imageId));
+                });
+            }
+        });
+
+        import('./components/search-bar.js').then(module => module.applySearchFilter());
+    } else {
+        let html = '<div class="gallery-masonry">';
+        images.forEach((img, index) => {
+            const src = thumbUrl(img);
+            const isActive = index === activeIndex ? ' active' : '';
+            const hasError = img.error ? '<div class="card-error"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>' : '';
+            const fmt = img.format || '';
+            const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
+            const size = img.size && img.size[0] > 0 && img.size[1] > 0 ? img.size : [4, 3];
+            const ratioStyle = ` style="aspect-ratio: ${size[0]} / ${size[1]}; position: relative; width: 100%; background: var(--surface2);"`;
+            const imgStyle = ` style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;"`;
+            const fileName = img.file_name || img.file || '';
+
+            html += `
+                <div class="gallery-card${isActive}" data-index="${index}">
+                    <div class="img-wrapper"${ratioStyle}>
+                        <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth)this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight">
+                    </div>
+                    <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
+                        <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
+                    </button>
+                    ${hasError}
+                    <div class="card-info">
+                        <div class="card-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
+                        <div class="card-meta">${fmt} ${dims}</div>
+                    </div>
                 </div>
-            </div>
-        `;
-    });
-    html += '</div>';
-    dom.contentArea.innerHTML = html;
-    import('./components/search-bar.js').then(module => module.applySearchFilter());
-
-    dom.contentArea.querySelectorAll('.gallery-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const index = Number.parseInt(card.dataset.index, 10);
-            import('./lightbox.js').then(module => module.openLightbox(index, images));
+            `;
         });
-    });
+        html += '</div>';
+        dom.contentArea.innerHTML = html;
+        import('./components/search-bar.js').then(module => module.applySearchFilter());
 
-    dom.contentArea.querySelectorAll('.gallery-delete').forEach(button => {
-        button.addEventListener('click', event => {
-            event.stopPropagation();
-            const index = Number.parseInt(button.dataset.index, 10);
-            const imageId = images[index]?.id;
-            if (imageId) import('./api.js').then(module => module.deleteImageById(imageId));
+        dom.contentArea.querySelectorAll('.gallery-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const index = Number.parseInt(card.dataset.index, 10);
+                import('./lightbox.js').then(module => module.openLightbox(index, images));
+            });
         });
-    });
+
+        dom.contentArea.querySelectorAll('.gallery-delete').forEach(button => {
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                const index = Number.parseInt(button.dataset.index, 10);
+                const imageId = images[index]?.id;
+                if (imageId) import('./api.js').then(module => module.deleteImageById(imageId));
+            });
+        });
+    }
 
     if (!allLoaded && currentFolderId) {
-        const sentinel = document.createElement('div');
-        sentinel.id = 'gallery-sentinel';
-        sentinel.style.height = '1px';
-        dom.contentArea.appendChild(sentinel);
+        let sentinel = document.getElementById('gallery-sentinel');
+        if (!sentinel) {
+            sentinel = document.createElement('div');
+            sentinel.id = 'gallery-sentinel';
+            sentinel.style.height = '1px';
+            dom.contentArea.appendChild(sentinel);
+        } else {
+            dom.contentArea.appendChild(sentinel);
+        }
 
         const observer = new IntersectionObserver(entries => {
             if (!entries[0].isIntersecting) return;
             import('./api.js').then(async module => {
-                await module.loadMore();
-                renderGallery();
+                const startIdx = images.length;
+                const didLoad = await module.loadMore();
+                if (didLoad) {
+                    renderGallery({ appendOnly: true, startIndex: startIdx });
+                }
             });
         }, { root: dom.contentArea, threshold: 0.1 });
         setGalleryScrollObserver(observer);
         observer.observe(sentinel);
+    }
+}
+
+export function updateActiveGalleryCard(index) {
+    const masonry = document.querySelector('.gallery-masonry');
+    if (!masonry) return;
+    const prevActive = masonry.querySelector('.gallery-card.active');
+    if (prevActive) {
+        prevActive.classList.remove('active');
+    }
+    const newActive = masonry.querySelector(`.gallery-card[data-index="${index}"]`);
+    if (newActive) {
+        newActive.classList.add('active');
     }
 }
 

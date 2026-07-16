@@ -96,7 +96,7 @@ export function updateLightbox() {
     saveState();
 
     if (galleryActive) {
-        import('./gallery.js').then(m => m.renderGallery());
+        import('./gallery.js').then(m => m.updateActiveGalleryCard(lightboxIndex));
     } else {
         import('./features/sidebar.js').then(m => m.renderSidebar());
     }

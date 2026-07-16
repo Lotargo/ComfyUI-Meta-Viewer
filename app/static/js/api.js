@@ -195,7 +195,7 @@ export async function loadFromFiles(files) {
 }
 
 export async function loadMore() {
-    if (isLoading || allLoaded || !currentFolderId) return;
+    if (isLoading || allLoaded || !currentFolderId) return false;
     setIsLoading(true);
     let spinner = document.querySelector('#gallery-load-more-spinner');
     if (!spinner && dom.contentArea) {
@@ -217,6 +217,7 @@ export async function loadMore() {
         dom.contentArea.appendChild(spinner);
     }
     const nextPage = currentPage + 1;
+    let didLoad = false;
     try {
         const data = await fetchJson(`/api/images?folder_id=${currentFolderId}&page=${nextPage}&per_page=${PAGE_SIZE}`);
         if (data.images?.length) {
@@ -224,6 +225,7 @@ export async function loadMore() {
             setCurrentPage(nextPage);
             setTotalImages(data.total || totalImages);
             setAllLoaded(images.length >= (data.total || 0));
+            didLoad = true;
         } else {
             setAllLoaded(true);
         }
@@ -233,6 +235,7 @@ export async function loadMore() {
         setIsLoading(false);
         if (spinner) spinner.remove();
     }
+    return didLoad;
 }
 
 export async function loadSidebarImages({ force = false, render = true } = {}) {

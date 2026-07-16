@@ -24,6 +24,9 @@ import {
     setCurrentPage,
     setAllLoaded,
     viewMode,
+    foldersSortKey,
+    foldersSortDir,
+    foldersViewMode,
 } from '../state.js';
 import { escapeHtml, customConfirm, formatImageCountLabel } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
@@ -161,6 +164,19 @@ export async function renderFoldersList(folderList = null) {
         setFolders(folderList);
     }
 
+    // Toggle view-list class on folder list based on view mode
+    dom.folderList.classList.toggle('view-list', foldersViewMode === 'list');
+    if (dom.foldersViewBtn) {
+        dom.foldersViewBtn.classList.toggle('active', foldersViewMode === 'list');
+        if (foldersViewMode === 'list') {
+            dom.foldersViewBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>`;
+            dom.foldersViewBtn.title = 'Switch to Grid View';
+        } else {
+            dom.foldersViewBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon-list"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`;
+            dom.foldersViewBtn.title = 'Switch to List View';
+        }
+    }
+
     if (dom.foldersCount) dom.foldersCount.textContent = `(${visibleFolders.length})`;
 
     if (visibleFolders.length === 0) {
@@ -174,8 +190,28 @@ export async function renderFoldersList(folderList = null) {
         return;
     }
 
+    // Sort visibleFolders
+    const sortedFolders = [...visibleFolders].sort((a, b) => {
+        let valA = a[foldersSortKey];
+        let valB = b[foldersSortKey];
+
+        if (valA === undefined || valA === null) valA = '';
+        if (valB === undefined || valB === null) valB = '';
+
+        if (typeof valA === 'string' && typeof valB === 'string') {
+            return foldersSortDir === 'asc' 
+                ? valA.localeCompare(valB) 
+                : valB.localeCompare(valA);
+        }
+
+        // For numbers like image_count
+        if (valA < valB) return foldersSortDir === 'asc' ? -1 : 1;
+        if (valA > valB) return foldersSortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
     dom.folderList.innerHTML = '';
-    visibleFolders.forEach(folder => {
+    sortedFolders.forEach(folder => {
         const item = document.createElement('div');
         item.className = 'folder-item' + (folder.id === currentFolderId ? ' active' : '');
         

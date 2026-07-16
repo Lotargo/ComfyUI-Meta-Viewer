@@ -225,6 +225,13 @@ export function initEvents() {
 
     dom.tabFolders?.addEventListener('click', () => switchSidebarTab('folders'));
     dom.tabImages?.addEventListener('click', () => switchSidebarTab('images'));
+
+    dom.foldersViewBtn?.addEventListener('click', async () => {
+        const { foldersViewMode, setFoldersViewMode } = await import('./state.js');
+        const { renderFoldersList } = await import('./features/sidebar.js');
+        setFoldersViewMode(foldersViewMode === 'list' ? 'tile' : 'list');
+        await renderFoldersList();
+    });
 }
 
 export function setViewMode(mode, { render = true } = {}) {

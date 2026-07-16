@@ -7,6 +7,10 @@ import {
     setSortDir,
     setSidebarSortKey,
     setSidebarSortDir,
+    foldersSortKey,
+    foldersSortDir,
+    setFoldersSortKey,
+    setFoldersSortDir,
     currentFolderId,
     dom,
 } from '../state.js';
@@ -24,15 +28,21 @@ const sortOptions = [
     { key: 'type', label: 'Type' }
 ];
 
+const folderSortOptions = [
+    { key: 'name', label: 'Name' },
+    { key: 'scanned_at', label: 'Date Scanned' },
+    { key: 'image_count', label: 'Image Count' }
+];
+
 const dirOptions = [
     { dir: 'asc', label: 'Ascending' },
     { dir: 'desc', label: 'Descending' }
 ];
 
-function renderSortMenu(menuElement, currentKey, currentDir, onSortSelect, onDirSelect) {
+function renderSortMenu(menuElement, currentKey, currentDir, options, onSortSelect, onDirSelect) {
     menuElement.innerHTML = '';
     
-    sortOptions.forEach(opt => {
+    options.forEach(opt => {
         const btn = document.createElement('button');
         btn.className = 'dropdown-item';
         const activeIndicator = opt.key === currentKey ? '•' : '';
@@ -72,11 +82,13 @@ export function bindCentralSortEvents() {
         
         const sidebarMenu = document.querySelector('#sidebar-sort-dropdown-menu');
         if (sidebarMenu) sidebarMenu.style.display = 'none';
+        const foldersMenu = document.querySelector('#folders-sort-dropdown-menu');
+        if (foldersMenu) foldersMenu.style.display = 'none';
         
         if (isVisible) {
             sortMenu.style.display = 'none';
         } else {
-            renderSortMenu(sortMenu, sortKey, sortDir, 
+            renderSortMenu(sortMenu, sortKey, sortDir, sortOptions,
                 async (newKey) => {
                     setSortKey(newKey);
                     sortMenu.style.display = 'none';
@@ -112,11 +124,13 @@ export function bindSidebarSortEvents() {
         
         const sortMenu = document.querySelector('#sort-dropdown-menu');
         if (sortMenu) sortMenu.style.display = 'none';
+        const foldersMenu = document.querySelector('#folders-sort-dropdown-menu');
+        if (foldersMenu) foldersMenu.style.display = 'none';
         
         if (isVisible) {
             sidebarSortMenu.style.display = 'none';
         } else {
-            renderSortMenu(sidebarSortMenu, sidebarSortKey, sidebarSortDir,
+            renderSortMenu(sidebarSortMenu, sidebarSortKey, sidebarSortDir, sortOptions,
                 async (newKey) => {
                     setSidebarSortKey(newKey);
                     sidebarSortMenu.style.display = 'none';
@@ -135,13 +149,53 @@ export function bindSidebarSortEvents() {
     };
 }
 
+export function bindFoldersSortEvents() {
+    const foldersSortBtn = document.querySelector('#folders-sort-btn');
+    const foldersSortMenu = document.querySelector('#folders-sort-dropdown-menu');
+    if (!foldersSortBtn || !foldersSortMenu) return;
+    
+    foldersSortBtn.onclick = (e) => {
+        e.stopPropagation();
+        const isVisible = foldersSortMenu.style.display !== 'none';
+        
+        const sortMenu = document.querySelector('#sort-dropdown-menu');
+        if (sortMenu) sortMenu.style.display = 'none';
+        const sidebarMenu = document.querySelector('#sidebar-sort-dropdown-menu');
+        if (sidebarMenu) sidebarMenu.style.display = 'none';
+        
+        if (isVisible) {
+            foldersSortMenu.style.display = 'none';
+        } else {
+            renderSortMenu(foldersSortMenu, foldersSortKey, foldersSortDir, folderSortOptions,
+                async (newKey) => {
+                    setFoldersSortKey(newKey);
+                    foldersSortMenu.style.display = 'none';
+                    const { renderFoldersList } = await import('./sidebar.js');
+                    await renderFoldersList();
+                },
+                async (newDir) => {
+                    setFoldersSortDir(newDir);
+                    foldersSortMenu.style.display = 'none';
+                    const { renderFoldersList } = await import('./sidebar.js');
+                    await renderFoldersList();
+                }
+            );
+            foldersSortMenu.style.display = 'flex';
+        }
+    };
+}
+
 export function initSorting() {
     bindSidebarSortEvents();
+    bindCentralSortEvents();
+    bindFoldersSortEvents();
     
     document.addEventListener('click', () => {
         const sortMenu = document.querySelector('#sort-dropdown-menu');
         if (sortMenu) sortMenu.style.display = 'none';
         const sidebarMenu = document.querySelector('#sidebar-sort-dropdown-menu');
         if (sidebarMenu) sidebarMenu.style.display = 'none';
+        const foldersMenu = document.querySelector('#folders-sort-dropdown-menu');
+        if (foldersMenu) foldersMenu.style.display = 'none';
     });
 }

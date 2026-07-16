@@ -26,6 +26,9 @@ export const dom = {
     sidebarToggle: document.getElementById('sidebar-toggle'),
     folderList: document.getElementById('folder-list'),
     foldersCount: document.getElementById('folders-count'),
+    foldersViewBtn: document.getElementById('folders-view-btn'),
+    foldersSortBtn: document.getElementById('folders-sort-btn'),
+    foldersSortDropdown: document.getElementById('folders-sort-dropdown-menu'),
     searchInput: document.getElementById('search-input'),
     searchSettingsBtn: document.getElementById('search-settings-btn'),
     searchSettingsDropdown: document.getElementById('search-settings-dropdown'),
@@ -87,11 +90,17 @@ export let sortKey = 'date';
 export let sortDir = 'desc';
 export let sidebarSortKey = 'date';
 export let sidebarSortDir = 'desc';
+export let foldersSortKey = 'scanned_at';
+export let foldersSortDir = 'desc';
+export let foldersViewMode = 'tile';
 
 export function setSortKey(v) { sortKey = v; }
 export function setSortDir(v) { sortDir = v; }
 export function setSidebarSortKey(v) { sidebarSortKey = v; }
 export function setSidebarSortDir(v) { sidebarSortDir = v; }
+export function setFoldersSortKey(v) { foldersSortKey = v; }
+export function setFoldersSortDir(v) { foldersSortDir = v; }
+export function setFoldersViewMode(v) { foldersViewMode = v === 'list' ? 'list' : 'tile'; }
 
 
 export function setImages(v) { images = Array.isArray(v) ? [...v] : []; }
@@ -182,6 +191,9 @@ export function resetRuntimeState() {
     sortDir = 'desc';
     sidebarSortKey = 'date';
     sidebarSortDir = 'desc';
+    foldersSortKey = 'scanned_at';
+    foldersSortDir = 'desc';
+    foldersViewMode = 'tile';
 }
 
 export function showToast(msg) {

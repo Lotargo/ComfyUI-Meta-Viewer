@@ -481,3 +481,76 @@
     color: var(--accent);
     background: var(--surface3);
 }
+
+/* Folder List View (Row layout) */
+.folder-list.view-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.folder-list.view-list .folder-item {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 8px var(--space-sm);
+    text-align: left;
+    gap: 12px;
+    box-shadow: none;
+    width: 100%;
+}
+
+.folder-list.view-list .folder-item-content {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+}
+
+.folder-list.view-list .folder-item-icon {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.folder-list.view-list .folder-item-name {
+    font-size: 12px;
+    text-align: left;
+    margin: 0;
+    flex: 1;
+}
+
+.folder-list.view-list .folder-item-meta {
+    margin-top: 0;
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    flex-shrink: 0;
+}
+
+.folder-list.view-list .folder-item-count {
+    padding: 2px 6px;
+    font-size: 10px;
+}
+
+.folder-list.view-list .folder-progress-wrapper {
+    margin-top: 0 !important;
+    width: 70px !important;
+    flex-shrink: 0;
+}
+
+.folder-list.view-list .folder-delete-btn {
+    position: relative;
+    top: auto;
+    right: auto;
+    flex-shrink: 0;
+}
+
+.folder-list.view-list .folder-control-btn {
+    position: relative;
+    top: auto;
+    left: auto;
+    flex-shrink: 0;
+}

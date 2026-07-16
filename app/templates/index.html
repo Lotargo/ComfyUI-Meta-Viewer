@@ -89,9 +89,23 @@
         </div>
         
         <div class="sidebar-panel active" id="panel-folders">
-            <div class="sidebar-header">
-                <span class="sidebar-title">Scanned Folders</span>
-                <span class="sidebar-info" id="folders-count">(0)</span>
+            <div class="sidebar-header" style="display: flex; justify-content: space-between; align-items: center; padding-right: 8px;">
+                <div style="min-width: 0; flex: 1; display: flex; align-items: center; gap: 6px;">
+                    <span class="sidebar-title">Scanned Folders</span>
+                    <span id="folders-count" style="font-size: 12px; font-weight: 500; color: var(--text-dim);">(0)</span>
+                </div>
+                <div class="folders-controls" style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
+                    <button class="icon-btn" id="folders-view-btn" title="Toggle List/Tile View" style="padding: 6px; width: 30px; height: 30px;">
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon-list"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                    </button>
+                    <div class="sort-container" style="position: relative; flex-shrink: 0;">
+                        <button class="icon-btn" id="folders-sort-btn" title="Sort" style="padding: 6px; width: 30px; height: 30px;">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 9l4-4 4 4M7 5v14M21 15l-4 4-4-4M17 19V5"/></svg>
+                        </button>
+                        <div class="dropdown-menu" id="folders-sort-dropdown-menu" style="display: none; right: 0; left: auto; width: 180px;">
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="folder-list" id="folder-list">
                 <div style="padding: 24px; text-align: center; color: var(--text-muted)">

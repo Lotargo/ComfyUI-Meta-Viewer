@@ -92,18 +92,6 @@ export function initEvents() {
     dom.btnViewList.addEventListener('click', () => setViewMode('list'));
     dom.btnViewGallery.addEventListener('click', () => setViewMode('gallery'));
 
-    dom.btnClear.addEventListener('click', async () => {
-        if (scrollObserver) scrollObserver.disconnect();
-        setImages([]);
-        setActiveIndex(-1);
-        setCurrentFolderId(null);
-        setCurrentPage(0);
-        setTotalImages(0);
-        setAllLoaded(true);
-        setDetailCache({});
-        dom.folderNameEl.textContent = '';
-        await renderCurrentContent();
-    });
 
     dom.btnHardReset?.addEventListener('click', async () => {
         const ok = await customConfirm('Hard Reset', 'Are you sure you want to perform a hard reset? This will clear all folders, database entries, and thumbnail cache.');

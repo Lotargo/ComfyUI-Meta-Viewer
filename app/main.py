@@ -45,7 +45,7 @@ def add_cache_headers(response):
         if request.path.endswith((".woff2", ".woff", ".ttf", ".eot")):
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         elif request.path.endswith((".css", ".js")):
-            response.headers["Cache-Control"] = "public, max-age=3600"
+            response.headers["Cache-Control"] = "public, max-age=0"
         else:
             response.headers["Cache-Control"] = "public, max-age=86400"
     return response

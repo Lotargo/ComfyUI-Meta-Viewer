@@ -14,7 +14,6 @@ export const dom = {
     lbCounter: document.getElementById('lb-counter'),
     lbImg: document.getElementById('lb-img'),
     lbMeta: document.getElementById('lb-meta'),
-    btnClear: document.getElementById('btn-clear'),
     btnHardReset: document.getElementById('btn-hard-reset'),
     btnPaste: document.getElementById('btn-paste'),
     tabFolders: document.getElementById('tab-folders'),

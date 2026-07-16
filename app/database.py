@@ -272,8 +272,8 @@ def get_images_page(
     folder_id: int | None,
     page: int = 1,
     per_page: int = 50,
-    sort_by: str = "name",
-    sort_dir: str = "asc",
+    sort_by: str = "date",
+    sort_dir: str = "desc",
 ) -> ImagesResponse:
     conn = get_conn()
     try:

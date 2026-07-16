@@ -174,9 +174,20 @@ export async function loadFromPaths(paths) {
 }
 
 export async function loadFromFiles(files) {
+    const SUPPORTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff'];
+    const validFiles = Array.from(files).filter(file => {
+        const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+        return SUPPORTED_EXTENSIONS.includes(ext);
+    });
+
+    if (validFiles.length === 0) {
+        showError('No supported images found');
+        return;
+    }
+
     const formData = new FormData();
-    for (const file of files) formData.append('files', file);
-    showLoading('Processing ' + files.length + ' files...');
+    for (const file of validFiles) formData.append('files', file);
+    showLoading('Processing ' + validFiles.length + ' files...');
     try {
         const data = await fetchJson('/api/upload', {
             options: { method: 'POST', body: formData },

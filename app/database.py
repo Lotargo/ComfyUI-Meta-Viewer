@@ -160,13 +160,36 @@ def insert_images(folder_id: int, images: list[ImageInsertRow]) -> None:
 def get_folders() -> list[FolderInfo]:
     conn = get_conn()
     try:
+        # Query normal folders, excluding no-metadata images from their count (except for the uploads folder)
         rows = conn.execute(
-            """SELECT f.id, f.path, f.name, f.scanned_at, f.status, COUNT(i.id) AS image_count,
-               SUM(CASE WHEN i.metadata_json IS NOT NULL OR i.error IS NOT NULL THEN 1 ELSE 0 END) AS processed_count
+            """SELECT f.id, f.path, f.name, f.scanned_at, f.status,
+               COUNT(CASE WHEN i.id IS NOT NULL AND (f.path = '__uploads__' OR (i.error IS NULL AND (i.metadata_json IS NULL OR json_extract(i.metadata_json, '$.prompt_parameters') IS NOT NULL OR json_extract(i.metadata_json, '$.workflow') IS NOT NULL))) THEN 1 END) AS image_count,
+               COUNT(CASE WHEN i.id IS NOT NULL AND (i.metadata_json IS NOT NULL OR i.error IS NOT NULL) AND (f.path = '__uploads__' OR (i.error IS NULL AND (json_extract(i.metadata_json, '$.prompt_parameters') IS NOT NULL OR json_extract(i.metadata_json, '$.workflow') IS NOT NULL))) THEN 1 END) AS processed_count
             FROM folders f LEFT JOIN images i ON i.folder_id = f.id
             GROUP BY f.id ORDER BY f.scanned_at DESC"""
         ).fetchall()
-        return [FolderInfo.model_validate(dict(r)) for r in rows]
+        folders_list = [FolderInfo.model_validate(dict(r)) for r in rows]
+
+        # Query count of all no-metadata images across all folders
+        no_meta_row = conn.execute(
+            """SELECT COUNT(*) AS c FROM images
+            WHERE error IS NOT NULL OR (metadata_json IS NOT NULL AND json_extract(metadata_json, '$.prompt_parameters') IS NULL AND json_extract(metadata_json, '$.workflow') IS NULL)"""
+        ).fetchone()
+
+        no_meta_count = no_meta_row["c"] if no_meta_row else 0
+        if no_meta_count > 0:
+            folders_list.append(FolderInfo(
+                id=-1,
+                path="__no_metadata__",
+                name="(no metadata)",
+                scanned_at=None,
+                created_at=None,
+                image_count=no_meta_count,
+                status="completed",
+                processed_count=no_meta_count
+            ))
+
+        return folders_list
     finally:
         conn.close()
 
@@ -277,12 +300,36 @@ def get_images_page(
 ) -> ImagesResponse:
     conn = get_conn()
     try:
-        if folder_id is not None:
+        no_meta_cond = "error IS NOT NULL OR (metadata_json IS NOT NULL AND json_extract(metadata_json, '$.prompt_parameters') IS NULL AND json_extract(metadata_json, '$.workflow') IS NULL)"
+        has_meta_cond = "error IS NULL AND (metadata_json IS NULL OR json_extract(metadata_json, '$.prompt_parameters') IS NOT NULL OR json_extract(metadata_json, '$.workflow') IS NOT NULL)"
+
+        # Check if the folder is __uploads__
+        is_uploads = False
+        if folder_id is not None and folder_id != -1:
+            f_row = conn.execute("SELECT path FROM folders WHERE id = ?", (folder_id,)).fetchone()
+            if f_row and f_row["path"] == "__uploads__":
+                is_uploads = True
+
+        if folder_id == -1:
             total_row = conn.execute(
-                "SELECT COUNT(*) AS c FROM images WHERE folder_id = ?", (folder_id,)
+                f"SELECT COUNT(*) AS c FROM images WHERE {no_meta_cond}"
             ).fetchone()
+        elif folder_id is not None:
+            if is_uploads:
+                total_row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM images WHERE folder_id = ?",
+                    (folder_id,),
+                ).fetchone()
+            else:
+                total_row = conn.execute(
+                    f"SELECT COUNT(*) AS c FROM images WHERE folder_id = ? AND {has_meta_cond}",
+                    (folder_id,),
+                ).fetchone()
         else:
-            total_row = conn.execute("SELECT COUNT(*) AS c FROM images").fetchone()
+            total_row = conn.execute(
+                f"SELECT COUNT(*) AS c FROM images WHERE {has_meta_cond}"
+            ).fetchone()
+
         total = total_row["c"] if total_row else 0
         offset = (page - 1) * per_page
 
@@ -302,17 +349,32 @@ def get_images_page(
         else:
             order_clause = f"ORDER BY {sort_column} {direction}, file_name ASC"
 
-        if folder_id is not None:
+        if folder_id == -1:
             rows = conn.execute(
                 f"""SELECT id, file_name, format, width, height, mode, error, metadata_json
-                FROM images WHERE folder_id = ?
+                FROM images WHERE {no_meta_cond}
                 {order_clause} LIMIT ? OFFSET ?""",
-                (folder_id, per_page, offset),
+                (per_page, offset),
             ).fetchall()
+        elif folder_id is not None:
+            if is_uploads:
+                rows = conn.execute(
+                    f"""SELECT id, file_name, format, width, height, mode, error, metadata_json
+                    FROM images WHERE folder_id = ?
+                    {order_clause} LIMIT ? OFFSET ?""",
+                    (folder_id, per_page, offset),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    f"""SELECT id, file_name, format, width, height, mode, error, metadata_json
+                    FROM images WHERE folder_id = ? AND {has_meta_cond}
+                    {order_clause} LIMIT ? OFFSET ?""",
+                    (folder_id, per_page, offset),
+                ).fetchall()
         else:
             rows = conn.execute(
                 f"""SELECT id, file_name, format, width, height, mode, error, metadata_json
-                FROM images
+                FROM images WHERE {has_meta_cond}
                 {order_clause} LIMIT ? OFFSET ?""",
                 (per_page, offset),
             ).fetchall()

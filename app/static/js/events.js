@@ -53,19 +53,81 @@ function applySidebarTabClasses(tab) {
     dom.panelImages?.classList.toggle('active', !showFolders);
 }
 
+async function scanDragAndDropItems(items) {
+    /* eslint-disable no-await-in-loop */
+    const files = [];
+    const queue = [];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+            const entry = item.webkitGetAsEntry();
+            if (entry) {
+                queue.push(entry);
+            }
+        }
+    }
+
+    const SUPPORTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff'];
+
+    while (queue.length > 0) {
+        const entry = queue.shift();
+        if (entry.isFile) {
+            const file = await new Promise((resolve) => {
+                entry.file(resolve, () => resolve(null));
+            });
+            if (file) {
+                const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+                if (SUPPORTED_EXTENSIONS.includes(ext)) {
+                    files.push(file);
+                }
+            }
+        } else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            const readBatch = () => {
+                return new Promise((resolve) => {
+                    reader.readEntries(resolve, () => resolve([]));
+                });
+            };
+            let batch;
+            do {
+                batch = await readBatch();
+                if (batch && batch.length > 0) {
+                    queue.push(...batch);
+                }
+            } while (batch && batch.length > 0);
+        }
+    }
+    return files;
+}
+
 export function initEvents() {
     let isInternalDrag = false;
     window.addEventListener('dragstart', () => { isInternalDrag = true; });
     window.addEventListener('dragend', () => { isInternalDrag = false; });
 
     document.addEventListener('dragover', e => e.preventDefault());
-    document.addEventListener('drop', e => {
+    document.addEventListener('drop', async e => {
         e.preventDefault();
         if (isInternalDrag) {
             isInternalDrag = false;
             return;
         }
-        if (e.dataTransfer.files.length) loadFromFiles(e.dataTransfer.files);
+        if (e.dataTransfer.items && e.dataTransfer.items.length) {
+            try {
+                const files = await scanDragAndDropItems(e.dataTransfer.items);
+                if (files.length) {
+                    loadFromFiles(files);
+                } else {
+                    const { showError } = await import('./utils.js');
+                    showError('No supported images found in dropped files/folders');
+                }
+            } catch (err) {
+                console.error('Error scanning dropped items:', err);
+                if (e.dataTransfer.files.length) loadFromFiles(e.dataTransfer.files);
+            }
+        } else if (e.dataTransfer.files.length) {
+            loadFromFiles(e.dataTransfer.files);
+        }
     });
 
     dom.fileInput.addEventListener('change', () => {

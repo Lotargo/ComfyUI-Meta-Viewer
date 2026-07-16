@@ -224,12 +224,14 @@ export async function renderFoldersList(folderList = null) {
             <div class="folder-item-content">
                 <div class="folder-item-icon">📁</div>
                 <div class="folder-item-name" title="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</div>
-                ${folder.scanned_at ? `<div class="folder-item-meta"><span class="folder-item-count">${folder.image_count}</span></div>` : ''}
+                ${(folder.scanned_at || folder.id === -1) ? `<div class="folder-item-meta"><span class="folder-item-count">${folder.image_count}</span></div>` : ''}
                 ${progressHtml}
             </div>
+            ${folder.id !== -1 ? `
             <button class="folder-delete-btn" data-id="${folder.id}" title="Delete folder" aria-label="Delete folder ${escapeHtml(folder.name)}">
                 <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </button>
+            ` : ''}
         `;
 
         item.onclick = async () => {
@@ -268,45 +270,48 @@ export async function renderFoldersList(folderList = null) {
             };
         }
 
-        item.querySelector('.folder-delete-btn').onclick = async event => {
-            event.stopPropagation();
-            const confirmed = await customConfirm('Delete Folder', `Are you sure you want to remove folder "${folder.name}" from the database? This does not delete any files from your disk.`);
-            if (!confirmed) return;
+        const deleteBtn = item.querySelector('.folder-delete-btn');
+        if (deleteBtn) {
+            deleteBtn.onclick = async event => {
+                event.stopPropagation();
+                const confirmed = await customConfirm('Delete Folder', `Are you sure you want to remove folder "${folder.name}" from the database? This does not delete any files from your disk.`);
+                if (!confirmed) return;
 
-            const { deleteFolderFromServer, getFolders, loadFolderImages, loadSidebarImages } = await import('../api.js');
-            if (!await deleteFolderFromServer(folder.id)) return;
+                const { deleteFolderFromServer, getFolders, loadFolderImages, loadSidebarImages } = await import('../api.js');
+                if (!await deleteFolderFromServer(folder.id)) return;
 
-            const updatedFolders = await getFolders({ force: true });
-            setFolders(updatedFolders);
+                const updatedFolders = await getFolders({ force: true });
+                setFolders(updatedFolders);
 
-            if (currentFolderId === folder.id) {
-                if (updatedFolders.length) {
-                    await loadFolderImages(updatedFolders[0].id, updatedFolders[0].name, { force: true });
-                } else {
-                    setImages([]);
-                    setTotalImages(0);
-                    setCurrentFolderId(null);
-                    setCurrentPage(0);
-                    setAllLoaded(true);
-                    setActiveIndex(-1);
-                    dom.folderNameEl.textContent = '';
-                    if (galleryActive) {
-                        const { renderGallery } = await import('../gallery.js');
-                        renderGallery();
+                if (currentFolderId === folder.id) {
+                    if (updatedFolders.length) {
+                        await loadFolderImages(updatedFolders[0].id, updatedFolders[0].name, { force: true });
                     } else {
-                        const { renderImageMeta } = await import('../detail-loader.js');
-                        await renderImageMeta(null);
+                        setImages([]);
+                        setTotalImages(0);
+                        setCurrentFolderId(null);
+                        setCurrentPage(0);
+                        setAllLoaded(true);
+                        setActiveIndex(-1);
+                        dom.folderNameEl.textContent = '';
+                        if (galleryActive) {
+                            const { renderGallery } = await import('../gallery.js');
+                            renderGallery();
+                        } else {
+                            const { renderImageMeta } = await import('../detail-loader.js');
+                            await renderImageMeta(null);
+                        }
                     }
                 }
-            }
 
-            // Refresh the global Images tab list
-            await loadSidebarImages({ force: true });
+                // Refresh the global Images tab list
+                await loadSidebarImages({ force: true });
 
-            await renderFoldersList(updatedFolders);
-            const { showToast } = await import('../state.js');
-            showToast('Folder deleted from database');
-        };
+                await renderFoldersList(updatedFolders);
+                const { showToast } = await import('../state.js');
+                showToast('Folder deleted from database');
+            };
+        }
 
         dom.folderList.appendChild(item);
     });

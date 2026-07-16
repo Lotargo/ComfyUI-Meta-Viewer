@@ -329,6 +329,9 @@ def api_thumbnail(image_id: int):
     img_path = db.get_image_path(image_id)
     if not img_path:
         return jsonify({"error": "not found"}), 404
+    
+    db.ensure_image_processed(image_id, img_path)
+
     thumb_data = make_thumbnail_bytes(img_path)
     if not thumb_data:
         return jsonify({"error": "failed"}), 500

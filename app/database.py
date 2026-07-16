@@ -220,6 +220,54 @@ def delete_images_by_ids(image_ids: list[int]) -> None:
         conn.close()
 
 
+def ensure_image_processed(image_id: int, img_path: str) -> None:
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT metadata_json, error FROM images WHERE id = ?", (image_id,)
+        ).fetchone()
+        if row and row["metadata_json"] is None and row["error"] is None:
+            # Process it
+            from .extractor import extract_metadata
+            abs_path = Path(img_path)
+            if abs_path.is_file():
+                try:
+                    meta = extract_metadata(abs_path)
+                    conn.execute(
+                        """UPDATE images SET
+                            format = ?, width = ?, height = ?, mode = ?, error = ?, metadata_json = ?,
+                            created_at = datetime('now')
+                        WHERE id = ?""",
+                        (
+                            meta.format,
+                            meta.size[0] if meta.size else 0,
+                            meta.size[1] if meta.size else 0,
+                            meta.mode,
+                            meta.error,
+                            meta.model_dump_json(),
+                            image_id,
+                        ),
+                    )
+                    conn.commit()
+                except Exception as e:
+                    import traceback
+                    err_str = str(e) + "\n" + traceback.format_exc()
+                    conn.execute(
+                        "UPDATE images SET error = ? WHERE id = ?",
+                        (err_str, image_id),
+                    )
+                    conn.commit()
+            else:
+                err_str = f"File not found: {abs_path}"
+                conn.execute(
+                    "UPDATE images SET error = ? WHERE id = ?",
+                    (err_str, image_id),
+                )
+                conn.commit()
+    finally:
+        conn.close()
+
+
 def get_images_page(
     folder_id: int | None, page: int = 1, per_page: int = 50
 ) -> ImagesResponse:
@@ -235,73 +283,21 @@ def get_images_page(
         offset = (page - 1) * per_page
         if folder_id is not None:
             rows = conn.execute(
-                """SELECT i.id, i.rel_path, i.file_name, i.format, i.width, i.height, i.mode, i.error, i.metadata_json, f.path AS folder_path
-                FROM images i
-                JOIN folders f ON f.id = i.folder_id
-                WHERE i.folder_id = ?
-                ORDER BY i.file_name LIMIT ? OFFSET ?""",
+                """SELECT id, file_name, format, width, height, mode, error, metadata_json
+                FROM images WHERE folder_id = ?
+                ORDER BY file_name LIMIT ? OFFSET ?""",
                 (folder_id, per_page, offset),
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT i.id, i.rel_path, i.file_name, i.format, i.width, i.height, i.mode, i.error, i.metadata_json, f.path AS folder_path
-                FROM images i
-                JOIN folders f ON f.id = i.folder_id
-                ORDER BY i.file_name LIMIT ? OFFSET ?""",
+                """SELECT id, file_name, format, width, height, mode, error, metadata_json
+                FROM images
+                ORDER BY file_name LIMIT ? OFFSET ?""",
                 (per_page, offset),
             ).fetchall()
         images = []
         for r in rows:
             d = dict(r)
-            if d.get("metadata_json") is None and d.get("error") is None:
-                img_id = d["id"]
-                rel_path = d["rel_path"]
-                folder_path = d["folder_path"]
-                if folder_path != "__uploads__":
-                    abs_path = Path(folder_path) / rel_path
-                    if abs_path.is_file():
-                        try:
-                            from .extractor import extract_metadata
-                            meta = extract_metadata(abs_path)
-                            conn.execute(
-                                """UPDATE images SET
-                                    format = ?, width = ?, height = ?, mode = ?, error = ?, metadata_json = ?,
-                                    created_at = datetime('now')
-                                WHERE id = ?""",
-                                (
-                                    meta.format,
-                                    meta.size[0] if meta.size else 0,
-                                    meta.size[1] if meta.size else 0,
-                                    meta.mode,
-                                    meta.error,
-                                    meta.model_dump_json(),
-                                    img_id,
-                                ),
-                            )
-                            conn.commit()
-                            d["format"] = meta.format
-                            d["width"] = meta.size[0] if meta.size else 0
-                            d["height"] = meta.size[1] if meta.size else 0
-                            d["mode"] = meta.mode
-                            d["error"] = meta.error
-                            d["metadata_json"] = meta.model_dump_json()
-                        except Exception as e:
-                            import traceback
-                            err_str = str(e) + "\n" + traceback.format_exc()
-                            conn.execute(
-                                "UPDATE images SET error = ? WHERE id = ?",
-                                (err_str, img_id),
-                            )
-                            conn.commit()
-                            d["error"] = err_str
-                    else:
-                        err_str = f"File not found: {abs_path}"
-                        conn.execute(
-                            "UPDATE images SET error = ? WHERE id = ?",
-                            (err_str, img_id),
-                        )
-                        conn.commit()
-                        d["error"] = err_str
             w, h = d.get("width"), d.get("height")
             meta_json = d.get("metadata_json")
             prompt_parameters = None

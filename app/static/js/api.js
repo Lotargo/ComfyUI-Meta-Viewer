@@ -197,6 +197,25 @@ export async function loadFromFiles(files) {
 export async function loadMore() {
     if (isLoading || allLoaded || !currentFolderId) return;
     setIsLoading(true);
+    let spinner = document.querySelector('#gallery-load-more-spinner');
+    if (!spinner && dom.contentArea) {
+        spinner = document.createElement('div');
+        spinner.id = 'gallery-load-more-spinner';
+        spinner.style.cssText = 'display: flex; justify-content: center; padding: 24px; width: 100%;';
+        spinner.innerHTML = `
+            <svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--accent)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="anim-spin">
+                <line x1="12" y1="2" x2="12" y2="6"></line>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                <line x1="2" y1="12" x2="6" y2="12"></line>
+                <line x1="18" y1="12" x2="22" y2="12"></line>
+                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+            </svg>
+        `;
+        dom.contentArea.appendChild(spinner);
+    }
     const nextPage = currentPage + 1;
     try {
         const data = await fetchJson(`/api/images?folder_id=${currentFolderId}&page=${nextPage}&per_page=${PAGE_SIZE}`);
@@ -212,6 +231,7 @@ export async function loadMore() {
         console.error('loadMore error:', e);
     } finally {
         setIsLoading(false);
+        if (spinner) spinner.remove();
     }
 }
 
@@ -231,6 +251,25 @@ export async function loadSidebarImages({ force = false, render = true } = {}) {
 export async function loadMoreSidebarImages() {
     if (isLoading || sidebarAllLoaded) return;
     setIsLoading(true);
+    let spinner = document.querySelector('#sidebar-load-more-spinner');
+    if (!spinner && dom.imageList) {
+        spinner = document.createElement('div');
+        spinner.id = 'sidebar-load-more-spinner';
+        spinner.style.cssText = 'display: flex; justify-content: center; padding: 12px; width: 100%;';
+        spinner.innerHTML = `
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="var(--accent)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="anim-spin">
+                <line x1="12" y1="2" x2="12" y2="6"></line>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                <line x1="2" y1="12" x2="6" y2="12"></line>
+                <line x1="18" y1="12" x2="22" y2="12"></line>
+                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+            </svg>
+        `;
+        dom.imageList.appendChild(spinner);
+    }
     const nextPage = sidebarPage + 1;
     try {
         const data = await fetchJson(`/api/images?page=${nextPage}&per_page=${PAGE_SIZE}`);
@@ -248,6 +287,7 @@ export async function loadMoreSidebarImages() {
         console.error('loadMoreSidebarImages error:', e);
     } finally {
         setIsLoading(false);
+        if (spinner) spinner.remove();
     }
 }
 

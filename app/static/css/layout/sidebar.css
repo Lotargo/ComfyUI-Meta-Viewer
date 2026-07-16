@@ -453,3 +453,26 @@
 .image-item:focus-within .sidebar-delete {
     opacity: 1;
 }
+
+.folder-control-btn {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.folder-control-btn:hover {
+    color: var(--accent);
+    background: var(--surface3);
+}

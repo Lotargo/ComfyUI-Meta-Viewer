@@ -37,6 +37,7 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             path TEXT UNIQUE NOT NULL,
             name TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'idle',
             scanned_at TEXT DEFAULT (datetime('now')),
             created_at TEXT DEFAULT (datetime('now'))
         );
@@ -65,6 +66,10 @@ def init_db() -> None:
     """)
     try:
         conn.execute("ALTER TABLE images ADD COLUMN original_data BLOB")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute("ALTER TABLE folders ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'")
     except sqlite3.OperationalError:
         pass
     conn.commit()
@@ -156,11 +161,61 @@ def get_folders() -> list[FolderInfo]:
     conn = get_conn()
     try:
         rows = conn.execute(
-            """SELECT f.id, f.path, f.name, f.scanned_at, COUNT(i.id) AS image_count
+            """SELECT f.id, f.path, f.name, f.scanned_at, f.status, COUNT(i.id) AS image_count,
+               SUM(CASE WHEN i.metadata_json IS NOT NULL OR i.error IS NOT NULL THEN 1 ELSE 0 END) AS processed_count
             FROM folders f LEFT JOIN images i ON i.folder_id = f.id
             GROUP BY f.id ORDER BY f.scanned_at DESC"""
         ).fetchall()
         return [FolderInfo.model_validate(dict(r)) for r in rows]
+    finally:
+        conn.close()
+
+
+def update_folder_status(folder_id: int, status: str) -> None:
+    conn = get_conn()
+    try:
+        conn.execute("UPDATE folders SET status = ? WHERE id = ?", (status, folder_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_image_ids_by_rel_paths(folder_id: int, rel_paths: list[str]) -> list[int]:
+    if not rel_paths:
+        return []
+    conn = get_conn()
+    try:
+        ids = []
+        for i in range(0, len(rel_paths), 500):
+            chunk = rel_paths[i : i + 500]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = conn.execute(
+                f"SELECT id FROM images WHERE folder_id = ? AND rel_path IN ({placeholders})",
+                [folder_id] + chunk,
+            ).fetchall()
+            ids.extend(r["id"] for r in rows)
+        return ids
+    finally:
+        conn.close()
+
+
+def delete_images_by_ids(image_ids: list[int]) -> None:
+    if not image_ids:
+        return
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN")
+        for i in range(0, len(image_ids), 500):
+            chunk = image_ids[i : i + 500]
+            placeholders = ",".join("?" for _ in chunk)
+            conn.execute(
+                f"DELETE FROM images WHERE id IN ({placeholders})",
+                chunk,
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -180,21 +235,73 @@ def get_images_page(
         offset = (page - 1) * per_page
         if folder_id is not None:
             rows = conn.execute(
-                """SELECT id, file_name, format, width, height, mode, error, metadata_json
-                FROM images WHERE folder_id = ?
-                ORDER BY file_name LIMIT ? OFFSET ?""",
+                """SELECT i.id, i.rel_path, i.file_name, i.format, i.width, i.height, i.mode, i.error, i.metadata_json, f.path AS folder_path
+                FROM images i
+                JOIN folders f ON f.id = i.folder_id
+                WHERE i.folder_id = ?
+                ORDER BY i.file_name LIMIT ? OFFSET ?""",
                 (folder_id, per_page, offset),
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT id, file_name, format, width, height, mode, error, metadata_json
-                FROM images
-                ORDER BY file_name LIMIT ? OFFSET ?""",
+                """SELECT i.id, i.rel_path, i.file_name, i.format, i.width, i.height, i.mode, i.error, i.metadata_json, f.path AS folder_path
+                FROM images i
+                JOIN folders f ON f.id = i.folder_id
+                ORDER BY i.file_name LIMIT ? OFFSET ?""",
                 (per_page, offset),
             ).fetchall()
         images = []
         for r in rows:
             d = dict(r)
+            if d.get("metadata_json") is None and d.get("error") is None:
+                img_id = d["id"]
+                rel_path = d["rel_path"]
+                folder_path = d["folder_path"]
+                if folder_path != "__uploads__":
+                    abs_path = Path(folder_path) / rel_path
+                    if abs_path.is_file():
+                        try:
+                            from .extractor import extract_metadata
+                            meta = extract_metadata(abs_path)
+                            conn.execute(
+                                """UPDATE images SET
+                                    format = ?, width = ?, height = ?, mode = ?, error = ?, metadata_json = ?,
+                                    created_at = datetime('now')
+                                WHERE id = ?""",
+                                (
+                                    meta.format,
+                                    meta.size[0] if meta.size else 0,
+                                    meta.size[1] if meta.size else 0,
+                                    meta.mode,
+                                    meta.error,
+                                    meta.model_dump_json(),
+                                    img_id,
+                                ),
+                            )
+                            conn.commit()
+                            d["format"] = meta.format
+                            d["width"] = meta.size[0] if meta.size else 0
+                            d["height"] = meta.size[1] if meta.size else 0
+                            d["mode"] = meta.mode
+                            d["error"] = meta.error
+                            d["metadata_json"] = meta.model_dump_json()
+                        except Exception as e:
+                            import traceback
+                            err_str = str(e) + "\n" + traceback.format_exc()
+                            conn.execute(
+                                "UPDATE images SET error = ? WHERE id = ?",
+                                (err_str, img_id),
+                            )
+                            conn.commit()
+                            d["error"] = err_str
+                    else:
+                        err_str = f"File not found: {abs_path}"
+                        conn.execute(
+                            "UPDATE images SET error = ? WHERE id = ?",
+                            (err_str, img_id),
+                        )
+                        conn.commit()
+                        d["error"] = err_str
             w, h = d.get("width"), d.get("height")
             meta_json = d.get("metadata_json")
             prompt_parameters = None
@@ -237,10 +344,66 @@ def get_image_path(image_id: int) -> str | None:
 def get_image_detail(image_id: int) -> ImageDetail | None:
     conn = get_conn()
     try:
-        row = conn.execute("SELECT * FROM images WHERE id = ?", (image_id,)).fetchone()
+        row = conn.execute(
+            """SELECT i.*, f.path AS folder_path
+            FROM images i
+            JOIN folders f ON f.id = i.folder_id
+            WHERE i.id = ?""",
+            (image_id,),
+        ).fetchone()
         if not row:
             return None
         d = dict(row)
+        if d.get("metadata_json") is None and d.get("error") is None:
+            img_id = d["id"]
+            rel_path = d["rel_path"]
+            folder_path = d["folder_path"]
+            if folder_path != "__uploads__":
+                abs_path = Path(folder_path) / rel_path
+                if abs_path.is_file():
+                    try:
+                        from .extractor import extract_metadata
+                        meta = extract_metadata(abs_path)
+                        conn.execute(
+                            """UPDATE images SET
+                                format = ?, width = ?, height = ?, mode = ?, error = ?, metadata_json = ?,
+                                created_at = datetime('now')
+                            WHERE id = ?""",
+                            (
+                                meta.format,
+                                meta.size[0] if meta.size else 0,
+                                meta.size[1] if meta.size else 0,
+                                meta.mode,
+                                meta.error,
+                                meta.model_dump_json(),
+                                img_id,
+                            ),
+                        )
+                        conn.commit()
+                        d["format"] = meta.format
+                        d["width"] = meta.size[0] if meta.size else 0
+                        d["height"] = meta.size[1] if meta.size else 0
+                        d["mode"] = meta.mode
+                        d["error"] = meta.error
+                        d["metadata_json"] = meta.model_dump_json()
+                    except Exception as e:
+                        import traceback
+                        err_str = str(e) + "\n" + traceback.format_exc()
+                        conn.execute(
+                            "UPDATE images SET error = ? WHERE id = ?",
+                            (err_str, img_id),
+                        )
+                        conn.commit()
+                        d["error"] = err_str
+                else:
+                    err_str = f"File not found: {abs_path}"
+                    conn.execute(
+                        "UPDATE images SET error = ? WHERE id = ?",
+                        (err_str, img_id),
+                    )
+                    conn.commit()
+                    d["error"] = err_str
+
         meta_json = d.pop("metadata_json", None)
         merged: dict[str, Any] = {}
         if meta_json:

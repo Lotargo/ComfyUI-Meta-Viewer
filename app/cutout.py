@@ -4,6 +4,7 @@ from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageFilter, ImageOps
+Image.MAX_IMAGE_PIXELS = None
 
 from . import database as db
 

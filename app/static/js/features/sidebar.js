@@ -5,7 +5,6 @@
 
 import {
     images,
-    activeIndex,
     galleryActive,
     currentFolderId,
     sidebarAllLoaded,
@@ -173,11 +172,54 @@ export async function renderFoldersList(folderList = null) {
     visibleFolders.forEach(folder => {
         const item = document.createElement('div');
         item.className = 'folder-item' + (folder.id === currentFolderId ? ' active' : '');
+        
+        const percentage = folder.image_count > 0 ? Math.round((folder.processed_count / folder.image_count) * 100) : 0;
+        let progressHtml = '';
+        let controlBtnHtml = '';
+        
+        if (folder.status === 'processing') {
+            controlBtnHtml = `
+                <button class="folder-control-btn folder-pause-btn" data-id="${folder.id}" title="Pause processing" aria-label="Pause processing ${escapeHtml(folder.name)}">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                </button>
+            `;
+            progressHtml = `
+                <div class="folder-progress-wrapper" style="width: 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; align-items: center;">
+                    <div style="font-size: 9px; color: var(--text-dim); display: flex; justify-content: space-between; width: 100%;">
+                        <span>Scanning...</span>
+                        <span>${percentage}%</span>
+                    </div>
+                    <div style="width: 100%; height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; position: relative;">
+                        <div style="width: ${percentage}%; height: 100%; background: var(--accent); transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+            `;
+        } else if (folder.status === 'paused') {
+            controlBtnHtml = `
+                <button class="folder-control-btn folder-resume-btn" data-id="${folder.id}" title="Resume processing" aria-label="Resume processing ${escapeHtml(folder.name)}">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </button>
+            `;
+            progressHtml = `
+                <div class="folder-progress-wrapper" style="width: 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; align-items: center;">
+                    <div style="font-size: 9px; color: var(--text-muted); display: flex; justify-content: space-between; width: 100%;">
+                        <span>Paused</span>
+                        <span>${percentage}%</span>
+                    </div>
+                    <div style="width: 100%; height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; position: relative;">
+                        <div style="width: ${percentage}%; height: 100%; background: var(--text-muted); transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+            `;
+        }
+
         item.innerHTML = `
+            ${controlBtnHtml}
             <div class="folder-item-content">
                 <div class="folder-item-icon">📁</div>
                 <div class="folder-item-name" title="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</div>
                 ${folder.scanned_at ? `<div class="folder-item-meta"><span class="folder-item-count">${folder.image_count}</span></div>` : ''}
+                ${progressHtml}
             </div>
             <button class="folder-delete-btn" data-id="${folder.id}" title="Delete folder" aria-label="Delete folder ${escapeHtml(folder.name)}">
                 <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -190,12 +232,42 @@ export async function renderFoldersList(folderList = null) {
             await renderFoldersList(visibleFolders);
         };
 
+        const pauseBtn = item.querySelector('.folder-pause-btn');
+        if (pauseBtn) {
+            pauseBtn.onclick = async event => {
+                event.stopPropagation();
+                try {
+                    await fetch(`/api/folders/${folder.id}/pause`, { method: 'POST' });
+                    const { getFolders } = await import('../api.js');
+                    const list = await getFolders({ force: true });
+                    await renderFoldersList(list);
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+        }
+
+        const resumeBtn = item.querySelector('.folder-resume-btn');
+        if (resumeBtn) {
+            resumeBtn.onclick = async event => {
+                event.stopPropagation();
+                try {
+                    await fetch(`/api/folders/${folder.id}/resume`, { method: 'POST' });
+                    const { getFolders } = await import('../api.js');
+                    const list = await getFolders({ force: true });
+                    await renderFoldersList(list);
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+        }
+
         item.querySelector('.folder-delete-btn').onclick = async event => {
             event.stopPropagation();
             const confirmed = await customConfirm('Delete Folder', `Are you sure you want to remove folder "${folder.name}" from the database? This does not delete any files from your disk.`);
             if (!confirmed) return;
 
-            const { deleteFolderFromServer, getFolders, loadFolderImages } = await import('../api.js');
+            const { deleteFolderFromServer, getFolders, loadFolderImages, loadSidebarImages } = await import('../api.js');
             if (!await deleteFolderFromServer(folder.id)) return;
 
             const updatedFolders = await getFolders({ force: true });
@@ -222,6 +294,9 @@ export async function renderFoldersList(folderList = null) {
                 }
             }
 
+            // Refresh the global Images tab list
+            await loadSidebarImages({ force: true });
+
             await renderFoldersList(updatedFolders);
             const { showToast } = await import('../state.js');
             showToast('Folder deleted from database');
@@ -229,4 +304,50 @@ export async function renderFoldersList(folderList = null) {
 
         dom.folderList.appendChild(item);
     });
+
+    initFoldersSSE();
+}
+
+let foldersEventSource = null;
+
+function initFoldersSSE() {
+    if (foldersEventSource) return;
+
+    foldersEventSource = new EventSource('/api/folders/events');
+    foldersEventSource.onmessage = async (event) => {
+        try {
+            const state = JSON.parse(event.data);
+            
+            let changed = false;
+            const updatedFolders = folders.map(f => {
+                const update = state[String(f.id)];
+                if (update) {
+                    if (f.status !== update.status || f.processed_count !== update.processed_count || f.image_count !== update.image_count) {
+                        changed = true;
+                        return {
+                            ...f,
+                            status: update.status,
+                            processed_count: update.processed_count,
+                            image_count: update.image_count
+                        };
+                    }
+                }
+                return f;
+            });
+            
+            if (changed) {
+                setFolders(updatedFolders);
+                await renderFoldersList(updatedFolders);
+            }
+        } catch (e) {
+            console.error('SSE message parsing error:', e);
+        }
+    };
+    
+    foldersEventSource.onerror = (e) => {
+        console.warn('SSE connection error, closing...', e);
+        foldersEventSource.close();
+        foldersEventSource = null;
+        setTimeout(initFoldersSSE, 5000);
+    };
 }

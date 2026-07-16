@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import traceback
 import webbrowser
 import threading
@@ -62,6 +63,49 @@ def api_folders():
     return jsonify({"folders": [f.model_dump() for f in folders]})
 
 
+@app.route("/api/folders/events", methods=["GET"])
+def api_folders_events():
+    def event_stream():
+        last_state = None
+        while True:
+            try:
+                folders_data = db.get_folders()
+                state = {
+                    str(f.id): {
+                        "status": f.status,
+                        "processed_count": f.processed_count,
+                        "image_count": f.image_count,
+                    }
+                    for f in folders_data
+                }
+                if state != last_state:
+                    yield f"data: {json.dumps(state)}\n\n"
+                    last_state = state
+                has_processing = any(f.status == "processing" for f in folders_data)
+                sleep_time = 1.0 if has_processing else 5.0
+                time.sleep(sleep_time)
+            except GeneratorExit:
+                break
+            except Exception:
+                time.sleep(5.0)
+
+    return Response(event_stream(), mimetype="text/event-stream")
+
+
+@app.route("/api/folders/<int:folder_id>/pause", methods=["POST"])
+def api_pause_folder(folder_id: int):
+    db.update_folder_status(folder_id, "paused")
+    return jsonify(OkResponse().model_dump())
+
+
+@app.route("/api/folders/<int:folder_id>/resume", methods=["POST"])
+def api_resume_folder(folder_id: int):
+    db.update_folder_status(folder_id, "processing")
+    from .worker import start_worker
+    start_worker()
+    return jsonify(OkResponse().model_dump())
+
+
 @app.route("/api/scan", methods=["POST"])
 def api_scan():
     try:
@@ -82,6 +126,21 @@ def api_scan():
         if f.is_file() and f.suffix.lower() in SUPPORTED
     )
 
+    # 1. Detect deleted files and remove them from DB + cache
+    files_set = {f.name for f in files}
+    deleted_files = [name for name in old_mtimes if name not in files_set]
+    if deleted_files:
+        deleted_ids = db.get_image_ids_by_rel_paths(folder_id, deleted_files)
+        db.delete_images_by_ids(deleted_ids)
+        
+        # Clean up cache files
+        thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
+        cutout_dir = Path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"))
+        for d_id in deleted_ids:
+            (thumb_dir / f"{d_id}.jpg").unlink(missing_ok=True)
+            clear_cutout(cutout_dir, d_id)
+
+    # 2. Detect new/modified files
     to_process: list[tuple[str, Path]] = []
     cached_count = 0
     for f in files:
@@ -95,32 +154,26 @@ def api_scan():
     if to_process:
         new_images: list[ImageInsertRow] = []
         for rel_path, f in to_process:
-            try:
-                meta = extract_metadata(f)
-                stat = f.stat()
-                new_images.append(ImageInsertRow(
-                    rel_path=rel_path,
-                    file_name=f.name,
-                    file_size=stat.st_size,
-                    file_mtime=stat.st_mtime,
-                    format=meta.format,
-                    width=meta.size[0] if meta.size else 0,
-                    height=meta.size[1] if meta.size else 0,
-                    mode=meta.mode,
-                    error=meta.error,
-                    metadata_json=meta.model_dump_json(),
-                ))
-            except Exception as e:
-                stat = f.stat()
-                new_images.append(ImageInsertRow(
-                    rel_path=rel_path,
-                    file_name=f.name,
-                    file_size=stat.st_size,
-                    file_mtime=stat.st_mtime,
-                    error=str(e) + "\n" + traceback.format_exc(),
-                ))
+            stat = f.stat()
+            new_images.append(ImageInsertRow(
+                rel_path=rel_path,
+                file_name=f.name,
+                file_size=stat.st_size,
+                file_mtime=stat.st_mtime,
+                format=None,
+                width=0,
+                height=0,
+                mode=None,
+                error=None,
+                metadata_json=None,
+            ))
 
         db.insert_images(folder_id, new_images)
+
+    # Set status to processing and start background worker
+    db.update_folder_status(folder_id, "processing")
+    from .worker import start_worker
+    start_worker()
 
     first_page = db.get_images_page(folder_id, page=1, per_page=50)
     folder_info = db.get_folders()
@@ -393,6 +446,10 @@ def main():
     db_path = upload_dir / "meta.db"
     db.set_db_path(db_path)
     db.init_db()
+
+    # Start queue background worker
+    from .worker import start_worker
+    start_worker()
 
     port = int(os.environ.get("COMFY_META_PORT", "7860"))
 

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from PIL import Image, ImageOps
+Image.MAX_IMAGE_PIXELS = None
 from PIL.ExifTags import TAGS
 
 from .schemas import ImageMetadata

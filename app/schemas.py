@@ -46,6 +46,8 @@ class FolderInfo(BaseModel):
     scanned_at: str | None = None
     created_at: str | None = None
     image_count: int = 0
+    status: str = "idle"
+    processed_count: int = 0
 
 
 # ── API Request models ──────────────────────────────────────────

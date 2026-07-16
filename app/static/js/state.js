@@ -3,7 +3,6 @@ export const dom = {
     imageList: document.getElementById('image-list'),
     imageCount: document.getElementById('image-count'),
     folderNameEl: document.getElementById('folder-name'),
-    fileInput: document.getElementById('file-input'),
     addFileInput: document.getElementById('add-file-input'),
     btnOpenFolder: document.getElementById('btn-open-folder'),
     toast: document.getElementById('toast'),
@@ -92,7 +91,7 @@ export let sidebarSortKey = 'date';
 export let sidebarSortDir = 'desc';
 export let foldersSortKey = 'scanned_at';
 export let foldersSortDir = 'desc';
-export let foldersViewMode = 'tile';
+export let foldersViewMode = 'list';
 
 export function setSortKey(v) { sortKey = v; }
 export function setSortDir(v) { sortDir = v; }
@@ -193,7 +192,7 @@ export function resetRuntimeState() {
     sidebarSortDir = 'desc';
     foldersSortKey = 'scanned_at';
     foldersSortDir = 'desc';
-    foldersViewMode = 'tile';
+    foldersViewMode = 'list';
 }
 
 export function showToast(msg) {

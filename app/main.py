@@ -15,7 +15,7 @@ from flask import Flask, Response, jsonify, render_template, request
 from . import database as db
 from .cutout import clear_cutout, get_cutout_path, make_cutout_png
 from .extractor import (
-    extract_metadata,
+    has_generation_metadata,
     make_thumbnail_bytes,
     make_thumbnail_bytes_from_bytes,
     make_thumbnail_b64,
@@ -27,7 +27,6 @@ from .schemas import (
     FolderInfo,
     ImageInsertRow,
     ImageListItem,
-    ImageMetadata,
     ImagesResponse,
     OkResponse,
     ScanRequest,
@@ -358,7 +357,7 @@ def api_original(image_id: int):
     original = db.get_image_original_data(image_id)
     if original:
         fmt = db.get_image_format(image_id)
-        mime = MIME_MAP.get(f".{fmt}" if fmt else "", "application/octet-stream")
+        mime = MIME_MAP.get(f".{fmt}".lower() if fmt else "", "application/octet-stream")
         return Response(original, mimetype=mime)
 
     img_path = db.get_image_path(image_id)
@@ -404,32 +403,18 @@ def api_upload():
             continue
         try:
             original_data = f.read()
-            upload_dir = Path(app.config["UPLOAD_FOLDER"])
-            upload_dir.mkdir(parents=True, exist_ok=True)
-            safe_name = f.filename
-            tmp = upload_dir / safe_name
-            counter = 0
-            while tmp.exists():
-                counter += 1
-                stem = Path(safe_name).stem
-                ext = Path(safe_name).suffix
-                tmp = upload_dir / f"{stem}_{counter}{ext}"
-            tmp.write_bytes(original_data)
-            meta = extract_metadata(tmp)
-            thumbnail = make_thumbnail_b64(tmp)
-            tmp.unlink(missing_ok=True)
             img_id, fid = db.insert_upload_image(
                 file_name=f.filename,
                 original_data=original_data,
-                metadata=meta,
-                thumbnail_b64=thumbnail,
+                has_metadata=has_generation_metadata(original_data, f.filename),
             )
             folder_id = fid
-            result = meta.model_dump()
-            result["id"] = img_id
-            result["folder_id"] = fid
-            result["thumbnail"] = thumbnail
-            results.append(result)
+            results.append({
+                "id": img_id,
+                "folder_id": fid,
+                "file_name": Path(f.filename).name,
+                "file_size": len(original_data),
+            })
         except Exception as e:
             tb = traceback.format_exc()
             results.append({"file": f.filename, "error": f"{e}\n{tb}"})

@@ -157,7 +157,7 @@ Extracts metadata from explicit local file paths without indexing them into the 
 
 ### `POST /api/upload`
 
-Uploads image files through `multipart/form-data`. Uploaded originals are stored as SQLite BLOBs and grouped under the special `Uploads` folder.
+Uploads image files through `multipart/form-data`. Uploaded originals are stored as SQLite BLOBs. A lightweight format-aware probe checks PNG text keys and JPEG/WebP EXIF, XMP, or comment blocks to place each file in `Uploads` or `Uploads (no metadata)`. It does not decode image pixels or create a preview. Full metadata extraction is deferred until `GET /api/images/{image_id}` is called.
 
 **Request:** `multipart/form-data` with one or more `files` fields.
 
@@ -167,17 +167,10 @@ Uploads image files through `multipart/form-data`. Uploaded originals are stored
 {
   "images": [
     {
-      "file": "uploaded.png",
-      "path": ".comfy_meta_uploads/uploaded.png",
-      "format": "PNG",
-      "size": [512, 512],
-      "mode": "RGBA",
-      "error": null,
-      "prompt_parameters": {},
-      "workflow": {},
       "id": 1,
       "folder_id": 1,
-      "thumbnail": "data:image/jpeg;base64,..."
+      "file_name": "uploaded.png",
+      "file_size": 123456
     }
   ],
   "count": 1,
@@ -228,7 +221,7 @@ Returns a paginated list of images for a folder.
 
 ### `GET /api/images/{image_id}`
 
-Returns full metadata for a single image.
+Returns full metadata for a single image. If an uploaded image has not been opened before, this request extracts its metadata from the stored original and caches the resulting JSON in SQLite. Other uploaded images remain unprocessed.
 
 **Response:**
 

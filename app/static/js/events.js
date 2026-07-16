@@ -130,11 +130,6 @@ export function initEvents() {
         }
     });
 
-    dom.fileInput.addEventListener('change', () => {
-        if (dom.fileInput.files.length) loadFromFiles(dom.fileInput.files);
-        dom.fileInput.value = '';
-    });
-
     dom.addFileInput.addEventListener('change', () => {
         if (dom.addFileInput.files.length) loadFromFiles(dom.addFileInput.files);
         dom.addFileInput.value = '';

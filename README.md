@@ -33,6 +33,7 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 - **Metadata extraction** from PNG chunks, EXIF, and ComfyUI workflow JSON
 - **Interactive workflow graph** visualization with color-coded nodes
 - **Folder scanning** in-place (no file copying)
+- **Lazy upload indexing** — a quick PNG/JPEG/WebP marker probe categorizes imports; full metadata is parsed when opened
 - **Object cutout** — automatic background removal with transparent PNG export
 - **SQLite persistence** — all data survives restarts
 - **Keyboard-first** workflow with 14 shortcuts

@@ -138,15 +138,19 @@ User drops image files
   POST /api/upload (multipart/form-data)
        │
        ▼
-  main.py: save temporary file to upload directory
+  extractor.py: probe container metadata only
        │
-       ├──► extractor.extract_metadata(saved_path)
-       ├──► make thumbnail preview
-       ├──► database.py: store original_data BLOB
+       ├──► PNG prompt/workflow/parameters → Uploads
+       ├──► JPEG/WebP generation markers → Uploads
+       └──► no known generation marker → Uploads (no metadata)
+       │
+       ▼
+  database.py: store original_data BLOB + basic file fields
+       │
        └──► Return {images: [...], folder_id}
 ```
 
-Uploaded files are stored as BLOBs in SQLite, while scanned folder images remain referenced by their original local paths.
+Uploaded files are stored as BLOBs in SQLite without eager metadata extraction, while scanned folder images remain referenced by their original local paths. The upload probe recognizes known PNG text keys and generation-specific markers inside JPEG/WebP EXIF, XMP, and comment blocks. Ordinary camera EXIF alone does not classify an image as generated metadata. Duplicate uploaded names receive unique internal `rel_path` values so every original is retained.
 
 ### 3. Metadata Viewing
 
@@ -159,6 +163,9 @@ User clicks an image
        ▼
   database.py: get_image_detail(id)
        │
+       ├──► Ensure metadata exists
+       │      ├──► Use cached metadata when present
+       │      └──► Otherwise extract from the selected path/BLOB and cache it
        ├──► Deserialize metadata_json
        ├──► Attach prompt parameters
        ├──► Attach parsed workflow data
@@ -295,6 +302,7 @@ api.js
 - No authentication layer is included by default.
 - The Flask server binds to `127.0.0.1` in the default launcher.
 - Uploaded originals are stored as SQLite BLOBs.
+- Uploaded metadata is extracted lazily when an image is opened.
 - Scanned folder files are not copied; only metadata and file references are stored.
 - Thumbnail and cutout caches are stored on disk.
 

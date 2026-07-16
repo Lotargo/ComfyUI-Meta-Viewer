@@ -227,7 +227,7 @@ function initHelpCenter() {
                         </div>
                         <div class="shortcut-group">
                             <h4>Uploaded Files</h4>
-                            <p class="help-text">Files added through Open Files or drag-and-drop are stored inside the app database as originals, so they can be previewed later even without a source folder path.</p>
+                            <p class="help-text">Files added through Add Files or drag-and-drop are stored inside the app database as originals. A quick marker check separates files with and without generation metadata; full metadata is extracted only when an image is opened.</p>
                         </div>
                         <div class="shortcut-group">
                             <h4>Cache And Reset</h4>

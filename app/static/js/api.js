@@ -187,7 +187,7 @@ export async function loadFromFiles(files) {
 
     const formData = new FormData();
     for (const file of validFiles) formData.append('files', file);
-    showLoading('Processing ' + validFiles.length + ' files...');
+    showLoading('Adding ' + validFiles.length + ' files...');
     try {
         const data = await fetchJson('/api/upload', {
             options: { method: 'POST', body: formData },

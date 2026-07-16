@@ -69,7 +69,6 @@
             <button id="btn-view-list" title="List view"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg></button>
             <button id="btn-view-gallery" class="active" title="Gallery view"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>
         </div>
-        <label class="btn" for="file-input">Open Files</label>
         <label class="btn" for="add-file-input">Add Files</label>
         <button class="btn" id="btn-open-folder">Open Folder</button>
         <button class="btn" id="btn-paste">Paste Path</button>
@@ -78,7 +77,6 @@
     </div>
 </header>
 
-<input type="file" id="file-input" class="hidden-input" multiple accept="image/*">
 <input type="file" id="add-file-input" class="hidden-input" multiple accept="image/*">
 
 <main class="app-main">
@@ -107,7 +105,7 @@
                     </div>
                 </div>
             </div>
-            <div class="folder-list" id="folder-list">
+            <div class="folder-list view-list" id="folder-list">
                 <div style="padding: 24px; text-align: center; color: var(--text-muted)">
                     <div style="font-size: 24px; margin-bottom: 8px;">&#128193;</div>
                     <p style="font-size: 12px;">No scanned folders yet.</p>
@@ -246,7 +244,7 @@
                     <h4>Features</h4>
                     <ul class="features-list">
                         <li>📂 <strong>Folder Browser:</strong> Scan and store folder paths directly inside the SQLite database.</li>
-                        <li>💾 <strong>Originals Storage:</strong> Supports drag-and-drop file uploads cached on the server.</li>
+                        <li>💾 <strong>Originals Storage:</strong> Added files are stored in the database and indexed when opened.</li>
                         <li>📊 <strong>Interactive Graph:</strong> Navigate and inspect active workflow generation nodes.</li>
                         <li>🔍 <strong>EXIF extraction:</strong> Extracts raw metadata chunks from PNG, JPEG, WEBP files.</li>
                     </ul>

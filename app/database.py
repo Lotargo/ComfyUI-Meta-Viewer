@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 
@@ -315,6 +316,28 @@ def delete_images_by_ids(image_ids: list[int]) -> None:
         conn.close()
 
 
+def _update_image_metadata(
+    conn: sqlite3.Connection,
+    image_id: int,
+    metadata: ImageMetadata,
+) -> None:
+    conn.execute(
+        """UPDATE images SET
+            format = ?, width = ?, height = ?, mode = ?, error = ?, metadata_json = ?,
+            created_at = datetime('now')
+        WHERE id = ?""",
+        (
+            metadata.format,
+            metadata.size[0] if metadata.size else 0,
+            metadata.size[1] if metadata.size else 0,
+            metadata.mode,
+            metadata.error,
+            metadata.model_dump_json(),
+            image_id,
+        ),
+    )
+
+
 def ensure_image_processed(image_id: int, img_path: str) -> None:
     conn = get_conn()
     try:
@@ -328,21 +351,7 @@ def ensure_image_processed(image_id: int, img_path: str) -> None:
             if abs_path.is_file():
                 try:
                     meta = extract_metadata(abs_path)
-                    conn.execute(
-                        """UPDATE images SET
-                            format = ?, width = ?, height = ?, mode = ?, error = ?, metadata_json = ?,
-                            created_at = datetime('now')
-                        WHERE id = ?""",
-                        (
-                            meta.format,
-                            meta.size[0] if meta.size else 0,
-                            meta.size[1] if meta.size else 0,
-                            meta.mode,
-                            meta.error,
-                            meta.model_dump_json(),
-                            image_id,
-                        ),
-                    )
+                    _update_image_metadata(conn, image_id, meta)
                     conn.commit()
                 except Exception as e:
                     import traceback
@@ -461,7 +470,10 @@ def get_image_detail(image_id: int) -> ImageDetail | None:
     conn = get_conn()
     try:
         row = conn.execute(
-            """SELECT i.*, f.path AS folder_path
+            """SELECT i.id, i.folder_id, i.rel_path, i.file_name, i.format,
+                i.width, i.height, i.mode, i.error, i.metadata_json,
+                i.original_data IS NOT NULL AS has_original_data,
+                f.path AS folder_path
             FROM images i
             JOIN folders f ON f.id = i.folder_id
             WHERE i.id = ?""",
@@ -472,53 +484,43 @@ def get_image_detail(image_id: int) -> ImageDetail | None:
         d = dict(row)
         if d.get("metadata_json") is None and d.get("error") is None:
             img_id = d["id"]
-            rel_path = d["rel_path"]
-            folder_path = d["folder_path"]
-            if folder_path != "__uploads__":
-                abs_path = Path(folder_path) / rel_path
-                if abs_path.is_file():
-                    try:
-                        from .extractor import extract_metadata
-                        meta = extract_metadata(abs_path)
-                        conn.execute(
-                            """UPDATE images SET
-                                format = ?, width = ?, height = ?, mode = ?, error = ?, metadata_json = ?,
-                                created_at = datetime('now')
-                            WHERE id = ?""",
-                            (
-                                meta.format,
-                                meta.size[0] if meta.size else 0,
-                                meta.size[1] if meta.size else 0,
-                                meta.mode,
-                                meta.error,
-                                meta.model_dump_json(),
-                                img_id,
-                            ),
-                        )
-                        conn.commit()
-                        d["format"] = meta.format
-                        d["width"] = meta.size[0] if meta.size else 0
-                        d["height"] = meta.size[1] if meta.size else 0
-                        d["mode"] = meta.mode
-                        d["error"] = meta.error
-                        d["metadata_json"] = meta.model_dump_json()
-                    except Exception as e:
-                        import traceback
-                        err_str = str(e) + "\n" + traceback.format_exc()
-                        conn.execute(
-                            "UPDATE images SET error = ? WHERE id = ?",
-                            (err_str, img_id),
-                        )
-                        conn.commit()
-                        d["error"] = err_str
-                else:
-                    err_str = f"File not found: {abs_path}"
-                    conn.execute(
-                        "UPDATE images SET error = ? WHERE id = ?",
-                        (err_str, img_id),
+            try:
+                if d.get("has_original_data"):
+                    original_row = conn.execute(
+                        "SELECT original_data FROM images WHERE id = ?",
+                        (img_id,),
+                    ).fetchone()
+                    if not original_row or original_row["original_data"] is None:
+                        raise FileNotFoundError("Database original not found")
+                    from .extractor import extract_metadata_from_bytes
+                    meta = extract_metadata_from_bytes(
+                        bytes(original_row["original_data"]),
+                        d["file_name"],
                     )
-                    conn.commit()
-                    d["error"] = err_str
+                else:
+                    abs_path = Path(d["folder_path"]) / d["rel_path"]
+                    if not abs_path.is_file():
+                        raise FileNotFoundError(f"File not found: {abs_path}")
+                    from .extractor import extract_metadata
+                    meta = extract_metadata(abs_path)
+
+                _update_image_metadata(conn, img_id, meta)
+                conn.commit()
+                d["format"] = meta.format
+                d["width"] = meta.size[0] if meta.size else 0
+                d["height"] = meta.size[1] if meta.size else 0
+                d["mode"] = meta.mode
+                d["error"] = meta.error
+                d["metadata_json"] = meta.model_dump_json()
+            except Exception as e:
+                import traceback
+                err_str = str(e) + "\n" + traceback.format_exc()
+                conn.execute(
+                    "UPDATE images SET error = ? WHERE id = ?",
+                    (err_str, img_id),
+                )
+                conn.commit()
+                d["error"] = err_str
 
         meta_json = d.pop("metadata_json", None)
         merged: dict[str, Any] = {}
@@ -542,6 +544,7 @@ def get_image_detail(image_id: int) -> ImageDetail | None:
             raw_chunks=merged.get("raw_chunks"),
             raw_parameters=merged.get("raw_parameters"),
             raw_params=merged.get("raw_parameters"),
+            folder_id=d.get("folder_id"),
         )
     finally:
         conn.close()
@@ -594,16 +597,12 @@ def get_diagnostics() -> dict[str, Any]:
 def insert_upload_image(
     file_name: str,
     original_data: bytes,
-    metadata: ImageMetadata,
-    thumbnail_b64: str,
+    has_metadata: bool,
 ) -> tuple[int, int]:
     conn = get_conn()
     try:
-        has_meta = metadata.error is None and (
-            metadata.prompt_parameters is not None or metadata.workflow is not None
-        )
-        folder_path = "__uploads__" if has_meta else "__uploads_no_metadata__"
-        folder_name = "Uploads" if has_meta else "Uploads (no metadata)"
+        folder_path = "__uploads__" if has_metadata else "__uploads_no_metadata__"
+        folder_name = "Uploads" if has_metadata else "Uploads (no metadata)"
 
         folder_row = conn.execute(
             "SELECT id FROM folders WHERE path = ?", (folder_path,)
@@ -617,43 +616,38 @@ def insert_upload_image(
             ).fetchone()
         folder_id = folder_row["id"]
 
-        cur = conn.execute(
-            """INSERT INTO images (folder_id, rel_path, file_name, file_size,
-                format, width, height, mode, error, metadata_json, thumbnail_b64, original_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            RETURNING id""",
-            (
-                folder_id,
-                file_name,
-                file_name,
-                len(original_data),
-                metadata.format,
-                metadata.size[0] if metadata.size else 0,
-                metadata.size[1] if metadata.size else 0,
-                metadata.mode,
-                metadata.error,
-                metadata.model_dump_json(),
-                thumbnail_b64,
-                original_data,
-            ),
-        )
+        safe_name = Path(file_name).name or "upload"
+        stem = Path(safe_name).stem
+        suffix = Path(safe_name).suffix
+        counter = 0
+        while True:
+            rel_path = safe_name if counter == 0 else f"{stem}_{counter}{suffix}"
+            try:
+                cur = conn.execute(
+                    """INSERT INTO images (
+                        folder_id, rel_path, file_name, file_size, file_mtime, original_data
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    RETURNING id""",
+                    (
+                        folder_id,
+                        rel_path,
+                        safe_name,
+                        len(original_data),
+                        time.time(),
+                        original_data,
+                    ),
+                )
+                break
+            except sqlite3.IntegrityError as exc:
+                if "images.folder_id, images.rel_path" not in str(exc):
+                    raise
+                counter += 1
+
         row = cur.fetchone()
         image_id = row["id"]
         conn.commit()
         return image_id, folder_id
-    except sqlite3.IntegrityError:
-        conn.rollback()
-        try:
-            # Query for the existing image's ID using a new cursor
-            row = conn.execute(
-                "SELECT id FROM images WHERE folder_id = ? AND rel_path = ?",
-                (folder_id, file_name)
-            ).fetchone()
-            if row:
-                return row["id"], folder_id
-        except Exception:
-            pass
-        raise
     except Exception:
         conn.rollback()
         raise
@@ -678,12 +672,13 @@ def get_image_format(image_id: int) -> str | None:
     conn = get_conn()
     try:
         row = conn.execute(
-            "SELECT format FROM images WHERE id = ?", (image_id,)
+            "SELECT format, file_name FROM images WHERE id = ?", (image_id,)
         ).fetchone()
         if row:
-            return row["format"]
+            if row["format"]:
+                return row["format"]
+            suffix = Path(row["file_name"]).suffix.lower().lstrip(".")
+            return suffix or None
         return None
     finally:
         conn.close()
-
-

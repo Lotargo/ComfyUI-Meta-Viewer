@@ -118,8 +118,9 @@ SQLite stores the local image index, folder list, metadata JSON, upload BLOBs, a
 - WAL mode is enabled for better local read/write behavior.
 - Foreign keys are enabled.
 - Folder deletion removes related image rows.
-- Uploaded images are stored as `original_data` BLOBs.
+- Uploaded images are categorized by a lightweight PNG/JPEG/WebP generation-marker probe and stored as `original_data` BLOBs without eager metadata extraction.
 - Scanned images remain on disk and are served from their original local paths.
+- Uploaded metadata is extracted and cached when the image is first opened.
 
 ---
 
@@ -242,10 +243,10 @@ The app supports adding images through the browser UI.
 
 - Drag and drop image files.
 - File input upload.
-- Folder selection where supported by the browser.
+- Folder drag-and-drop where supported by the browser.
 - Local path extraction through the `/api/extract` flow.
 
-Uploaded originals are stored as SQLite BLOBs and can be served later through `/api/original/{image_id}`.
+Uploaded originals are stored immediately as SQLite BLOBs and can be served later through `/api/original/{image_id}`. Import checks known PNG text-chunk keys plus generation markers in JPEG/WebP EXIF, XMP, and comment blocks so it can separate `Uploads` from `Uploads (no metadata)`. It does not decode pixels or create a base64 thumbnail. Full metadata is processed only when the image detail is opened.
 
 ---
 

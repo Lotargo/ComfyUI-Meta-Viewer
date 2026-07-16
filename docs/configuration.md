@@ -81,7 +81,7 @@ ComfyUI-Meta-Viewer/
 | `cache/thumbnails/` | Generated JPEG thumbnails | yes |
 | `cache/cutouts/` | Generated transparent PNG cutouts | yes |
 
-Scanned folder images are not copied. The database stores their metadata and local path references. Uploaded files are stored as BLOBs in SQLite.
+Scanned folder images are not copied. The database stores their metadata and local path references. Uploaded files are stored as BLOBs in SQLite; their metadata is extracted only when an image is first opened.
 
 ---
 
@@ -90,9 +90,9 @@ Scanned folder images are not copied. The database stores their metadata and loc
 | Extension | Metadata Support | Notes |
 |-----------|------------------|-------|
 | `.png` | Full | PNG `tEXt` / `iTXt` chunks and ComfyUI workflow JSON |
-| `.jpg` | Basic/EXIF | EXIF and common image metadata |
-| `.jpeg` | Basic/EXIF | EXIF and common image metadata |
-| `.webp` | Basic | Pillow-dependent metadata support |
+| `.jpg` | EXIF/XMP | Generation parameters in UserComment, XMP, and comment blocks |
+| `.jpeg` | EXIF/XMP | Generation parameters in UserComment, XMP, and comment blocks |
+| `.webp` | EXIF/XMP | Generation parameters in EXIF and XMP container chunks |
 | `.bmp` | Dimensions only | No rich ComfyUI metadata expected |
 | `.tiff` | Basic/EXIF | EXIF when available |
 | `.tif` | Basic/EXIF | Served as TIFF by the API MIME map |

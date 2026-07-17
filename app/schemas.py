@@ -36,6 +36,7 @@ class ImageInsertRow(BaseModel):
     error: str | None = None
     metadata_json: str | None = None
     thumbnail_b64: str | None = None
+    content_fingerprint: str | None = None
 
 
 class FolderInfo(BaseModel):
@@ -74,6 +75,37 @@ class SourceUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     enabled: bool | None = None
     recursive: bool | None = None
+
+
+class AlbumCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+
+
+class AlbumUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    cover_image_id: int | None = Field(default=None, ge=1)
+    clear_cover: bool = False
+
+
+class LibraryAssetUpdateRequest(BaseModel):
+    favorite: bool | None = None
+    rating: int | None = Field(default=None, ge=0, le=5)
+    note: str | None = Field(default=None, max_length=5000)
+    tags: list[str] | None = Field(default=None, max_length=50)
+
+
+class LibraryBulkRequest(BaseModel):
+    asset_ids: list[int] = Field(..., min_length=1, max_length=1000)
+    action: Literal[
+        "favorite",
+        "unfavorite",
+        "add_to_album",
+        "remove_from_album",
+        "remove_from_index",
+        "set_rating",
+    ]
+    album_id: int | None = Field(default=None, ge=1)
+    rating: int | None = Field(default=None, ge=0, le=5)
 
 
 class ExtractRequest(BaseModel):

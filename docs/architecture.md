@@ -36,7 +36,7 @@
                 └───────────────────────┘
 ```
 
-ComfyUI Meta Viewer is a local-first web application. The browser hosts a single-page interface, while the Flask backend exposes a small REST API for monitored sources, metadata, thumbnails/previews/original images, and cached cutouts. SQLite stores the indexed metadata and source state.
+ComfyUI Meta Viewer is a local-first web application. The browser hosts the metadata viewer plus a separate Library page, while the Flask backend exposes a REST API for monitored sources, virtual albums, metadata, thumbnails/previews/original images, and cached cutouts. SQLite stores the indexed metadata, source state, and virtual organization.
 
 ## Technology Stack
 
@@ -60,6 +60,7 @@ comfy-meta-viewer/
 ├── app/                          # Python backend + frontend static assets
 │   ├── main.py                   # Flask app, API routes, startup wiring
 │   ├── database.py               # SQLite CRUD and persistence helpers
+│   ├── library.py                # Albums, favorites, tags, filters, bulk actions
 │   ├── config_store.py           # Atomic source configuration outside SQLite
 │   ├── indexing.py               # Reusable source indexing service
 │   ├── source_monitor.py         # Native events + periodic reconciliation
@@ -76,7 +77,8 @@ comfy-meta-viewer/
 │   │   │   ├── features/         # Meta panel, workflow, gallery
 │   │   │   └── utils/            # Responsive breakpoints
 │   │   └── js/                   # Modular JavaScript
-│   │       ├── app.js            # Entry point
+│   │       ├── app.js            # Viewer entry point
+│   │       ├── library.js        # Standalone Library page
 │   │       ├── state.js          # Reactive store
 │   │       ├── preferences.js    # Versioned preference schema and validation
 │   │       ├── api.js            # HTTP client
@@ -90,7 +92,8 @@ comfy-meta-viewer/
 │   │       ├── features/         # Feature modules
 │   │       └── vendor/           # Third-party frontend dependencies
 │   └── templates/
-│       └── index.html            # SPA entry template
+│       ├── index.html            # Viewer entry template
+│       └── library.html          # Media Library entry template
 ├── cache/
 │   ├── thumbnails/               # JPEG thumbnails (*.jpg)
 │   ├── previews/                 # Bounded JPEG/WebP lightbox previews
@@ -249,15 +252,28 @@ CREATE TABLE images (
     metadata_json TEXT,
     thumbnail_b64 TEXT,
     original_data BLOB,
+    content_fingerprint TEXT,
+    is_favorite INTEGER NOT NULL DEFAULT 0,
+    rating INTEGER,
+    note TEXT NOT NULL DEFAULT '',
+    indexed_at TEXT DEFAULT (datetime('now')),
     created_at TEXT DEFAULT (datetime('now')),
     UNIQUE(folder_id, rel_path)
 );
 
 CREATE INDEX idx_images_folder ON images(folder_id);
 CREATE INDEX idx_images_folder_mtime ON images(folder_id, file_mtime);
+
+CREATE TABLE albums (...);
+CREATE TABLE album_images (...); -- many-to-many album membership
+CREATE TABLE tags (...);
+CREATE TABLE image_tags (...);   -- many-to-many asset tags
 ```
 
-The schema is intentionally small. The application stores rich metadata as JSON while keeping folder/image identity and pagination fields relational.
+Rich generation metadata stays in JSON. Source identity, content fingerprints, availability,
+favorites, ratings, albums, and tags are relational. Album membership references the stable
+image row ID; reconciliation updates that row in-place when a new path has a unique matching
+SHA-256 fingerprint.
 
 ## Frontend Modules
 

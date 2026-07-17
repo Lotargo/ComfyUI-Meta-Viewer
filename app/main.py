@@ -21,6 +21,7 @@ from flask import (
 )
 
 from . import database as db
+from . import library as media_library
 from .cutout import clear_cutout, get_cutout_path, make_cutout_png
 from .config_store import ConfigStore, ConfigStoreError
 from .extractor import (
@@ -48,10 +49,14 @@ from .preview import (
 )
 from .reset_service import ResetOperationError, reset_application_index
 from .schemas import (
+    AlbumCreateRequest,
+    AlbumUpdateRequest,
     ExtractRequest,
     FolderInfo,
     ImageListItem,
     ImagesResponse,
+    LibraryAssetUpdateRequest,
+    LibraryBulkRequest,
     OkResponse,
     ScanRequest,
     ScanResponse,
@@ -105,9 +110,132 @@ def config_store_error(error):
     return jsonify({"error": str(error), "code": "configuration_error"}), 500
 
 
+@app.errorhandler(media_library.LibraryError)
+def library_error(error):
+    if isinstance(error, media_library.LibraryNotFoundError):
+        status = 404
+    elif isinstance(error, media_library.LibraryConflictError):
+        status = 409
+    else:
+        status = 400
+    return jsonify({"error": str(error), "code": "library_error"}), status
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/library")
+def library_page():
+    return render_template("library.html")
+
+
+@app.route("/api/library", methods=["GET"])
+def api_library_summary():
+    return jsonify({
+        "system_collections": media_library.SYSTEM_COLLECTIONS,
+        "summary": media_library.library_summary(),
+        "albums": media_library.list_albums(),
+    })
+
+
+@app.route("/api/library/assets", methods=["GET"])
+def api_library_assets():
+    result = media_library.get_assets(
+        collection=request.args.get("collection", "all"),
+        album_id=request.args.get("album_id", type=int),
+        page=request.args.get("page", 1, type=int),
+        per_page=request.args.get("per_page", 80, type=int),
+        sort_by=request.args.get("sort_by", "date"),
+        sort_dir=request.args.get("sort_dir", "desc"),
+        query=request.args.get("q", ""),
+        source_id=request.args.get("source_id", type=int),
+        tag=request.args.get("tag"),
+    )
+    return jsonify(result)
+
+
+@app.route("/api/library/assets/<int:asset_id>", methods=["PATCH"])
+def api_update_library_asset(asset_id: int):
+    try:
+        payload = LibraryAssetUpdateRequest.model_validate(
+            request.get_json(silent=True) or {}
+        )
+    except ValidationError as exc:
+        return jsonify({"error": exc.errors()[0]["msg"]}), 400
+    asset = media_library.update_asset(
+        asset_id,
+        favorite=payload.favorite,
+        rating=payload.rating,
+        note=payload.note,
+        tags=payload.tags,
+    )
+    return jsonify({"asset": asset})
+
+
+@app.route("/api/library/assets/bulk", methods=["POST"])
+def api_library_bulk():
+    try:
+        payload = LibraryBulkRequest.model_validate(
+            request.get_json(silent=True) or {}
+        )
+    except ValidationError as exc:
+        return jsonify({"error": exc.errors()[0]["msg"]}), 400
+    result = media_library.bulk_action(
+        payload.asset_ids,
+        payload.action,
+        album_id=payload.album_id,
+        rating=payload.rating,
+    )
+    for image_id in result["removed_ids"]:
+        (storage_path("THUMBNAIL_FOLDER") / f"{image_id}.jpg").unlink(missing_ok=True)
+        clear_cutout(storage_path("CUTOUT_FOLDER"), image_id)
+        clear_preview_cache(storage_path("PREVIEW_FOLDER"), image_id)
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/api/albums", methods=["GET", "POST"])
+def api_albums():
+    if request.method == "GET":
+        return jsonify({"albums": media_library.list_albums()})
+    try:
+        payload = AlbumCreateRequest.model_validate(request.get_json(silent=True) or {})
+    except ValidationError as exc:
+        return jsonify({"error": exc.errors()[0]["msg"]}), 400
+    return jsonify({"album": media_library.create_album(payload.name)}), 201
+
+
+@app.route("/api/albums/<int:album_id>", methods=["PATCH", "DELETE"])
+def api_album(album_id: int):
+    if request.method == "DELETE":
+        if not media_library.delete_album(album_id):
+            raise media_library.LibraryNotFoundError("Album not found")
+        return jsonify(OkResponse().model_dump())
+    try:
+        payload = AlbumUpdateRequest.model_validate(request.get_json(silent=True) or {})
+    except ValidationError as exc:
+        return jsonify({"error": exc.errors()[0]["msg"]}), 400
+    album = media_library.update_album(
+        album_id,
+        name=payload.name,
+        cover_image_id=payload.cover_image_id,
+        clear_cover=payload.clear_cover,
+    )
+    return jsonify({"album": album})
+
+
+@app.route("/api/albums/<int:album_id>/assets", methods=["POST", "DELETE"])
+def api_album_assets(album_id: int):
+    body = request.get_json(silent=True) or {}
+    asset_ids = body.get("asset_ids")
+    if not isinstance(asset_ids, list) or not asset_ids:
+        return jsonify({"error": "asset_ids must be a non-empty list"}), 400
+    if request.method == "POST":
+        affected = media_library.add_assets_to_album(album_id, asset_ids)
+    else:
+        affected = media_library.remove_assets_from_album(album_id, asset_ids)
+    return jsonify({"ok": True, "affected": affected})
 
 
 @app.route("/api/folders", methods=["GET"])

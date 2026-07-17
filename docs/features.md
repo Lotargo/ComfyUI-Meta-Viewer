@@ -12,6 +12,7 @@ ComfyUI Meta Viewer is a local-first metadata browser for AI-generated images. I
 - [ComfyUI Workflow Inspection](#comfyui-workflow-inspection)
 - [Source Monitoring](#source-monitoring)
 - [SQLite Persistence](#sqlite-persistence)
+- [Media Library](#media-library)
 - [Gallery View](#gallery-view)
 - [Lightbox](#lightbox)
 - [Fuzzy Search](#fuzzy-search)
@@ -119,6 +120,8 @@ SQLite stores the local image index, folder list, metadata JSON, upload BLOBs, a
 |-------|---------|
 | `folders` | Indexed local folders and the special `Uploads` collection |
 | `images` | Image rows, metadata JSON, thumbnails, uploaded BLOBs |
+| `albums` / `album_images` | Virtual many-to-many collections and cover selection |
+| `tags` / `image_tags` | Normalized user tags attached to indexed assets |
 
 ### Notes
 
@@ -128,6 +131,36 @@ SQLite stores the local image index, folder list, metadata JSON, upload BLOBs, a
 - Uploaded images are categorized by a lightweight PNG/JPEG/WebP generation-marker probe and stored as `original_data` BLOBs without eager metadata extraction.
 - Scanned images remain on disk and are served from their original local paths.
 - Uploaded metadata is extracted and cached when the image is first opened.
+- Content fingerprints let a unique rename retain the same image ID and virtual relations.
+
+---
+
+## Media Library
+
+**Page:** `/library`
+
+**Main files:** `app/library.py`, `app/static/js/library.js`
+
+The Library is a separate page for organizing indexed assets without changing their source
+directories. One asset can belong to multiple albums and can independently carry a favorite
+flag, zero-to-five-star rating, tags, and a note.
+
+### Capabilities
+
+- Create, rename, and delete virtual albums.
+- Add or remove many selected assets at once.
+- Set a member asset as the album cover.
+- Favorite, rate, tag, and annotate assets.
+- Filter through system collections: Favorites, Without metadata, Recently added,
+  Unavailable, Images, Videos, and Not rated.
+- Search names, notes, and tags; sort by name, file date, indexed date, size, or rating.
+- Keep album and favorite relations while a source is disabled or temporarily unavailable.
+- Preserve the indexed identity across an unambiguous content-matched file rename.
+
+Removing an asset from an album changes only the album membership. Removing it from the
+index also clears its virtual relations and generated caches, but still leaves the physical
+file untouched. A remaining file can be discovered again during source reconciliation.
+Physical deletion is intentionally not exposed by the Library.
 
 ---
 
@@ -318,7 +351,8 @@ Diagnostics expose basic local runtime information:
 
 Reset Index physically removes the SQLite database, WAL/SHM sidecars, thumbnails, previews,
 and cutouts. It then creates a clean schema and reindexes active source directories saved in
-the separate `config.json` file. This also removes uploaded originals stored inside SQLite.
+the separate `config.json` file. This also removes virtual library organization and uploaded
+originals stored inside SQLite.
 
 Factory Reset is a separate, more destructive action. It additionally forgets saved source
 directories and clears browser preferences after a successful reset. Both actions require

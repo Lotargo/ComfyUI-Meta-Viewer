@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sqlite3
 import threading
 import time
@@ -139,12 +140,47 @@ def init_db() -> None:
                 metadata_json TEXT,
                 thumbnail_b64 TEXT,
                 original_data BLOB,
+                content_fingerprint TEXT,
+                is_favorite INTEGER NOT NULL DEFAULT 0,
+                rating INTEGER,
+                note TEXT NOT NULL DEFAULT '',
+                indexed_at TEXT DEFAULT (datetime('now')),
                 created_at TEXT DEFAULT (datetime('now')),
                 UNIQUE(folder_id, rel_path)
             );
 
+            CREATE TABLE IF NOT EXISTS albums (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                cover_image_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS album_images (
+                album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+                image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL DEFAULT 0,
+                added_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (album_id, image_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                name_key TEXT NOT NULL UNIQUE
+            );
+
+            CREATE TABLE IF NOT EXISTS image_tags (
+                image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                PRIMARY KEY (image_id, tag_id)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
             CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
+            CREATE INDEX IF NOT EXISTS idx_album_images_image ON album_images(image_id);
+            CREATE INDEX IF NOT EXISTS idx_image_tags_tag ON image_tags(tag_id);
         """)
         migrations = (
             "ALTER TABLE images ADD COLUMN original_data BLOB",
@@ -154,6 +190,11 @@ def init_db() -> None:
             "ALTER TABLE folders ADD COLUMN source_status TEXT NOT NULL DEFAULT 'available'",
             "ALTER TABLE folders ADD COLUMN last_error TEXT",
             "ALTER TABLE folders ADD COLUMN revision INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE images ADD COLUMN content_fingerprint TEXT",
+            "ALTER TABLE images ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE images ADD COLUMN rating INTEGER",
+            "ALTER TABLE images ADD COLUMN note TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE images ADD COLUMN indexed_at TEXT",
         )
         for migration in migrations:
             try:
@@ -161,6 +202,13 @@ def init_db() -> None:
             except sqlite3.OperationalError as exc:
                 if "duplicate column name" not in str(exc).lower():
                     raise
+        conn.execute(
+            "UPDATE images SET indexed_at = COALESCE(indexed_at, created_at, datetime('now'))"
+        )
+        conn.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_images_favorite ON images(is_favorite);
+            CREATE INDEX IF NOT EXISTS idx_images_fingerprint ON images(content_fingerprint);
+        """)
         conn.commit()
     finally:
         conn.close()
@@ -244,6 +292,64 @@ def get_folder_file_stats(folder_id: int) -> dict[str, tuple[int, float]]:
         conn.close()
 
 
+def get_folder_file_records(folder_id: int) -> dict[str, dict[str, Any]]:
+    """Return the identity fields needed to reconcile a physical source."""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """SELECT id, rel_path, file_size, file_mtime, content_fingerprint
+            FROM images WHERE folder_id = ?""",
+            (folder_id,),
+        ).fetchall()
+        return {str(row["rel_path"]): dict(row) for row in rows}
+    finally:
+        conn.close()
+
+
+def update_image_fingerprints(fingerprints: list[tuple[int, str]]) -> None:
+    if not fingerprints:
+        return
+    conn = get_conn()
+    try:
+        conn.executemany(
+            "UPDATE images SET content_fingerprint = ? WHERE id = ?",
+            [(fingerprint, image_id) for image_id, fingerprint in fingerprints],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def rename_image_record(
+    image_id: int,
+    *,
+    rel_path: str,
+    file_name: str,
+    file_size: int,
+    file_mtime: float,
+    content_fingerprint: str,
+) -> None:
+    """Move an indexed identity to a new relative path without losing virtual links."""
+    conn = get_conn()
+    try:
+        conn.execute(
+            """UPDATE images SET rel_path = ?, file_name = ?, file_size = ?,
+                file_mtime = ?, content_fingerprint = ?
+            WHERE id = ?""",
+            (
+                rel_path,
+                file_name,
+                file_size,
+                file_mtime,
+                content_fingerprint,
+                image_id,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def insert_images(folder_id: int, images: list[ImageInsertRow]) -> None:
     if not images:
         return
@@ -253,14 +359,16 @@ def insert_images(folder_id: int, images: list[ImageInsertRow]) -> None:
         for img in images:
             conn.execute(
                 """INSERT INTO images (folder_id, rel_path, file_name, file_size, file_mtime,
-                    format, width, height, mode, error, metadata_json, thumbnail_b64)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    format, width, height, mode, error, metadata_json, thumbnail_b64,
+                    content_fingerprint)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(folder_id, rel_path) DO UPDATE SET
                     file_name=excluded.file_name,
                     file_size=excluded.file_size, file_mtime=excluded.file_mtime,
                     format=excluded.format, width=excluded.width, height=excluded.height,
                     mode=excluded.mode, error=excluded.error,
                     metadata_json=excluded.metadata_json, thumbnail_b64=excluded.thumbnail_b64,
+                    content_fingerprint=excluded.content_fingerprint,
                     created_at=datetime('now')""",
                 (
                     folder_id,
@@ -275,6 +383,7 @@ def insert_images(folder_id: int, images: list[ImageInsertRow]) -> None:
                     img.error,
                     img.metadata_json,
                     img.thumbnail_b64,
+                    img.content_fingerprint,
                 ),
             )
         conn.commit()
@@ -993,9 +1102,10 @@ def insert_upload_image(
             try:
                 cur = conn.execute(
                     """INSERT INTO images (
-                        folder_id, rel_path, file_name, file_size, file_mtime, original_data
+                        folder_id, rel_path, file_name, file_size, file_mtime,
+                        original_data, content_fingerprint
                     )
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     RETURNING id""",
                     (
                         folder_id,
@@ -1004,6 +1114,7 @@ def insert_upload_image(
                         len(original_data),
                         time.time(),
                         original_data,
+                        hashlib.sha256(original_data).hexdigest(),
                     ),
                 )
                 break

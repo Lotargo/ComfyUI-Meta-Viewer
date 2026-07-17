@@ -283,6 +283,7 @@ class ResetApiTest(ResetTestCase):
         self.assertIn('id="btn-reset-index"', html)
         self.assertIn('id="btn-factory-reset"', html)
         self.assertIn("uploaded originals", events)
+        self.assertIn("virtual albums", events)
         self.assertIn("browser preferences", events)
 
 

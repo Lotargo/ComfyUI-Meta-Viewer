@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,6 +43,15 @@ class IndexResult:
     processed: int
     deleted: int = 0
     errors: tuple[str, ...] = ()
+
+
+def content_fingerprint(path: Path, chunk_size: int = 1024 * 1024) -> str:
+    """Return a stable content identity without loading the whole asset into memory."""
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while chunk := source.read(chunk_size):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def scan_source_directory(folder_path: Path, *, recursive: bool) -> SourceSnapshot:
@@ -126,14 +136,89 @@ def index_source_directory(
         enabled=True,
         recursive=recursive,
     )
-    old_stats = db.get_folder_file_stats(folder_id)
+    old_records = db.get_folder_file_records(folder_id)
     forced = force_rel_paths or set()
+
+    fingerprints: dict[str, str] = {}
+    for rel_path, file in current.files.items():
+        previous = old_records.get(rel_path)
+        unchanged = (
+            previous is not None
+            and int(previous["file_size"]) == file.size
+            and abs(float(previous["file_mtime"]) - file.mtime) < 0.001
+            and rel_path not in forced
+        )
+        if unchanged and previous.get("content_fingerprint"):
+            fingerprints[rel_path] = str(previous["content_fingerprint"])
+            continue
+        try:
+            fingerprints[rel_path] = content_fingerprint(file.path)
+        except OSError as exc:
+            fingerprints[rel_path] = ""
+            current = SourceSnapshot(
+                root=current.root,
+                recursive=current.recursive,
+                files=current.files,
+                errors=(*current.errors, f"{file.path}: {exc}"),
+            )
+
+    # Backfill identities for unchanged records once so later renames can retain IDs.
+    fingerprint_backfill: list[tuple[int, str]] = []
+    for rel_path, fingerprint in fingerprints.items():
+        previous = old_records.get(rel_path)
+        if previous is not None and fingerprint and not previous.get("content_fingerprint"):
+            fingerprint_backfill.append((int(previous["id"]), fingerprint))
+            previous["content_fingerprint"] = fingerprint
+    db.update_image_fingerprints(fingerprint_backfill)
+
+    deleted_files = [
+        rel_path for rel_path in old_records if rel_path not in current.files
+    ]
+    new_files = [
+        rel_path for rel_path in current.files if rel_path not in old_records
+    ]
+
+    # A unique content match is treated as a rename and updates the existing row.
+    # Album, favorite, rating, tag, and note relations therefore stay attached.
+    old_by_identity: dict[tuple[int, str], list[str]] = {}
+    new_by_identity: dict[tuple[int, str], list[str]] = {}
+    for rel_path in deleted_files:
+        record = old_records[rel_path]
+        fingerprint = record.get("content_fingerprint")
+        if fingerprint:
+            old_by_identity.setdefault(
+                (int(record["file_size"]), str(fingerprint)), []
+            ).append(rel_path)
+    for rel_path in new_files:
+        fingerprint = fingerprints.get(rel_path)
+        if fingerprint:
+            new_by_identity.setdefault(
+                (current.files[rel_path].size, fingerprint), []
+            ).append(rel_path)
+
+    renamed_old: set[str] = set()
+    renamed_new: set[str] = set()
+    for identity, old_paths in old_by_identity.items():
+        new_paths = new_by_identity.get(identity, [])
+        if len(old_paths) != 1 or len(new_paths) != 1:
+            continue
+        old_path = old_paths[0]
+        new_path = new_paths[0]
+        file = current.files[new_path]
+        db.rename_image_record(
+            int(old_records[old_path]["id"]),
+            rel_path=new_path,
+            file_name=file.path.name,
+            file_size=file.size,
+            file_mtime=file.mtime,
+            content_fingerprint=fingerprints[new_path],
+        )
+        renamed_old.add(old_path)
+        renamed_new.add(new_path)
 
     deleted_ids: list[int] = []
     if not current.errors:
-        deleted_files = [
-            rel_path for rel_path in old_stats if rel_path not in current.files
-        ]
+        deleted_files = [path for path in deleted_files if path not in renamed_old]
         deleted_ids = db.get_image_ids_by_rel_paths(folder_id, deleted_files)
         db.delete_images_by_ids(deleted_ids)
         for image_id in deleted_ids:
@@ -144,11 +229,14 @@ def index_source_directory(
     new_images: list[ImageInsertRow] = []
     cached_count = 0
     for rel_path, file in current.files.items():
-        previous = old_stats.get(rel_path)
+        if rel_path in renamed_new:
+            cached_count += 1
+            continue
+        previous = old_records.get(rel_path)
         unchanged = (
             previous is not None
-            and previous[0] == file.size
-            and abs(previous[1] - file.mtime) < 0.001
+            and int(previous["file_size"]) == file.size
+            and abs(float(previous["file_mtime"]) - file.mtime) < 0.001
             and rel_path not in forced
         )
         if unchanged:
@@ -173,6 +261,7 @@ def index_source_directory(
             mode=None,
             error=None,
             metadata_json=None,
+            content_fingerprint=fingerprints.get(rel_path) or None,
         ))
 
     db.insert_images(folder_id, new_images)
@@ -180,7 +269,7 @@ def index_source_directory(
     if folder is None or folder["status"] != "paused":
         has_pending = bool(new_images) or db.folder_has_unprocessed_images(folder_id)
         db.update_folder_status(folder_id, "processing" if has_pending else "completed")
-    changed = bool(new_images or deleted_ids)
+    changed = bool(new_images or deleted_ids or renamed_new)
     db.mark_folder_scanned(folder_id, changed=changed)
     if current.errors:
         db.update_source_state(

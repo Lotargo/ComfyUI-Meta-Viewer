@@ -36,6 +36,7 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 - **Lazy upload indexing** — a quick PNG/JPEG/WebP marker probe categorizes imports; full metadata is parsed when opened
 - **Object cutout** — automatic background removal with transparent PNG export
 - **SQLite persistence** — all data survives restarts
+- **Media Library** — virtual albums, favorites, ratings, tags, notes, and bulk selection without moving source files
 - **Keyboard-first** workflow with 14 shortcuts
 
 ---

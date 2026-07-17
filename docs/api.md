@@ -13,6 +13,7 @@ The API is intentionally local-first and single-user oriented. Responses are JSO
 - [Folders](#folders)
 - [Scanning and Uploads](#scanning-and-uploads)
 - [Images](#images)
+- [Library and Albums](#library-and-albums)
 - [Thumbnails and Originals](#thumbnails-and-originals)
 - [Cutouts](#cutouts)
 - [System](#system)
@@ -314,13 +315,81 @@ Returns full metadata for a single image. If an uploaded image has not been open
 
 ### `DELETE /api/images/{image_id}`
 
-Deletes an image row and clears related thumbnail/preview/cutout cache files.
+Deletes an image row, its virtual library relations, and related thumbnail/preview/cutout
+cache files. The physical source file is not deleted.
 
 **Response:**
 
 ```json
 { "ok": true }
 ```
+
+---
+
+## Library and Albums
+
+The separate `/library` page uses these endpoints for virtual organization. Library reads
+include disabled and temporarily unavailable sources so album membership, favorites, tags,
+notes, and ratings remain visible while a drive or cloud mirror is offline.
+
+### `GET /api/library`
+
+Returns system collection definitions, summary counts, and the current album list.
+
+### `GET /api/library/assets`
+
+Returns paginated library cards. Supported query parameters are `collection`, `album_id`,
+`page`, `per_page`, `sort_by`, `sort_dir`, `q`, `source_id`, and `tag`. `collection` is one
+of `all`, `favorites`, `without_metadata`, `recently_added`, `unavailable`, `images`,
+`videos`, `not_rated`, or `album`.
+
+Each asset includes source/availability fields, favorite/rating/note/tags, all album IDs,
+and thumbnail/original URLs.
+
+### `PATCH /api/library/assets/{asset_id}`
+
+Updates any combination of virtual per-asset fields:
+
+```json
+{
+  "favorite": true,
+  "rating": 4,
+  "note": "Primary launch direction",
+  "tags": ["hero", "approved"]
+}
+```
+
+A rating of `0` clears the rating.
+
+### `POST /api/library/assets/bulk`
+
+Applies a mass action to as many as 1,000 selected assets. Actions are `favorite`,
+`unfavorite`, `add_to_album`, `remove_from_album`, `set_rating`, and `remove_from_index`.
+Album actions require `album_id`; rating requires `rating`.
+
+```json
+{
+  "asset_ids": [12, 13, 14],
+  "action": "add_to_album",
+  "album_id": 3
+}
+```
+
+`remove_from_album` changes only the join table. `remove_from_index` deletes database rows,
+virtual relations, and generated caches. Neither action deletes physical source files.
+An indexed file that remains inside an enabled monitored source can be discovered again by
+a later reconciliation.
+
+### Album endpoints
+
+| Method and path | Behavior |
+|-----------------|----------|
+| `GET /api/albums` | List albums with asset counts and resolved cover IDs |
+| `POST /api/albums` | Create an album from `{ "name": "..." }` |
+| `PATCH /api/albums/{album_id}` | Rename it or set/clear a member asset as its cover |
+| `DELETE /api/albums/{album_id}` | Delete only the virtual album |
+| `POST /api/albums/{album_id}/assets` | Add `asset_ids` without copying files |
+| `DELETE /api/albums/{album_id}/assets` | Remove `asset_ids` from the album only |
 
 ---
 
@@ -403,8 +472,9 @@ Deletes the cached cutout file for an image.
 Stops background indexing, waits for application SQLite connections to close, physically
 deletes `meta.db`, `meta.db-wal`, `meta.db-shm`, and generated caches, creates a fresh
 schema, and queues saved active source directories for reindexing. `/api/reset` is retained
-as a compatibility alias. Uploaded originals stored as SQLite BLOBs are permanently deleted;
-files in scanned source directories are not modified.
+as a compatibility alias. Virtual albums, favorites, ratings, tags, notes, and uploaded
+originals stored as SQLite BLOBs are permanently deleted; files in scanned source
+directories are not modified.
 
 **Request:**
 

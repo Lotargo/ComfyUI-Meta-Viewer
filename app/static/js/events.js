@@ -143,13 +143,13 @@ export function initEvents() {
     dom.btnResetIndex?.addEventListener('click', () => performReset({
         factoryReset: false,
         title: 'Reset Index',
-        message: 'Delete the SQLite index and all generated caches? Saved source folders will be reindexed. Source files stay untouched, but uploaded originals stored only in CMV will be permanently deleted.',
+        message: 'Delete the SQLite index and all generated caches? Saved source folders will be reindexed. Source files stay untouched, but virtual albums, favorites, ratings, tags, notes, and uploaded originals stored only in CMV will be permanently deleted.',
     }));
 
     dom.btnFactoryReset?.addEventListener('click', () => performReset({
         factoryReset: true,
         title: 'Factory Reset',
-        message: 'Delete the index, generated caches, saved source folders, uploaded originals, and browser preferences? Source files in scanned folders stay untouched. This cannot be undone.',
+        message: 'Delete the index, virtual library organization, generated caches, saved source folders, uploaded originals, and browser preferences? Source files in scanned folders stay untouched. This cannot be undone.',
     }));
 
     document.querySelectorAll('.btn-paste').forEach(el => {

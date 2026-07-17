@@ -88,7 +88,7 @@ The Workflow tab renders parsed ComfyUI nodes as an SVG graph and groups known n
 
 **Main route:** `POST /api/scan`
 
-Folder scanning indexes images in-place. Original files are not copied during a scan; the database stores metadata and references to their local paths.
+Folder scanning indexes images in-place. Original files are not copied during a scan; the database stores metadata and references to their normalized absolute local paths. Cache and database files remain in application-owned directories rather than the selected source folder.
 
 ### Behavior
 

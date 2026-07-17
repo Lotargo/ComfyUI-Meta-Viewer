@@ -10,6 +10,7 @@ from PIL import Image
 
 from . import database as db
 from .extractor import extract_metadata, make_thumbnail_bytes
+from .paths import build_runtime_paths, normalize_path
 
 # Disable PIL limit globally
 Image.MAX_IMAGE_PIXELS = None
@@ -17,11 +18,14 @@ Image.MAX_IMAGE_PIXELS = None
 _worker_thread: threading.Thread | None = None
 _worker_lock = threading.Lock()
 _should_stop = False
+_thumbnail_dir = build_runtime_paths().thumbnails
 
 
-def start_worker():
-    global _worker_thread, _should_stop
+def start_worker(thumbnail_dir: str | Path | None = None):
+    global _worker_thread, _should_stop, _thumbnail_dir
     with _worker_lock:
+        if thumbnail_dir is not None:
+            _thumbnail_dir = normalize_path(thumbnail_dir)
         _should_stop = False
         if _worker_thread is None or not _worker_thread.is_alive():
             _worker_thread = threading.Thread(
@@ -118,9 +122,8 @@ def _worker_loop():
 
                     # Save thumbnail file
                     if thumb_data:
-                        thumb_dir = Path("cache/thumbnails")
-                        thumb_dir.mkdir(parents=True, exist_ok=True)
-                        (thumb_dir / f"{img_id}.jpg").write_bytes(thumb_data)
+                        _thumbnail_dir.mkdir(parents=True, exist_ok=True)
+                        (_thumbnail_dir / f"{img_id}.jpg").write_bytes(thumb_data)
                 except Exception as e:
                     err_str = str(e) + "\n" + traceback.format_exc()
                     conn = db.get_conn()

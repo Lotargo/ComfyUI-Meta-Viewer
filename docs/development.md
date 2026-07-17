@@ -227,6 +227,10 @@ npm run lint
 
 The Python suite covers Flask/database/image-processing behavior. The Node test suite uses the built-in test runner for the versioned preference schema and state-persistence boundary. ESLint checks all frontend modules.
 
+GitHub Actions runs the same checks on Windows, Ubuntu, and macOS. The path suite also
+verifies stable service directories, native directory scanning, Unicode and spaces,
+Windows/POSIX upload filenames, and that scanning does not write into a source folder.
+
 ### Manual Test Checklist
 
 1. Start the server.

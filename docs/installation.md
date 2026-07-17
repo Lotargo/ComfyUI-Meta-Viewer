@@ -44,7 +44,12 @@ The app opens at `http://127.0.0.1:7860`.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `COMFY_META_PORT` | `7860` | Server port |
-| `COMFY_META_UPLOAD` | `.comfy_meta_uploads` | Upload/database directory |
+| `COMFY_META_DATA_DIR` | `.comfy_meta_uploads` | Database/application data directory |
+| `COMFY_META_CACHE_DIR` | `cache` | Generated cache directory |
+| `COMFY_META_UPLOAD` | — | Legacy alias for `COMFY_META_DATA_DIR` |
+
+Relative data and cache overrides are resolved from the project root, so launching the
+application from another working directory does not create data in an unexpected location.
 
 ### Command Line Flags
 

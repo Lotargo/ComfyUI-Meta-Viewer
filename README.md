@@ -176,6 +176,7 @@ poetry run python -m app.main
 # Windows:
 start.bat
 # Linux/macOS:
+chmod +x start.sh
 ./start.sh
 ```
 
@@ -295,7 +296,9 @@ Full structure: [docs/architecture.md#directory-structure](docs/architecture.md#
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `COMFY_META_PORT` | `7860` | Server port |
-| `COMFY_META_UPLOAD` | `.comfy_meta_uploads` | Upload + database directory |
+| `COMFY_META_DATA_DIR` | `.comfy_meta_uploads` | Database and application data directory |
+| `COMFY_META_CACHE_DIR` | `cache` | Thumbnail, preview, and cutout cache directory |
+| `COMFY_META_UPLOAD` | — | Legacy alias for `COMFY_META_DATA_DIR` |
 
 Full configuration: [docs/configuration.md](docs/configuration.md)
 

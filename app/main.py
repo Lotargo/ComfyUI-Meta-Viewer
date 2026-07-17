@@ -30,6 +30,14 @@ from .extractor import (
     scan_paths,
     SUPPORTED,
 )
+from .folder_picker import FolderPickerUnavailable, choose_folder
+from .paths import (
+    PathValidationError,
+    RuntimePaths,
+    build_runtime_paths,
+    normalize_existing_directory,
+    portable_filename,
+)
 from .preview import (
     PreviewBusyError,
     clear_preview_cache,
@@ -50,7 +58,12 @@ from .schemas import (
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 app.config["SEND_FILE_MAX_AGE"] = 3600
+app.config.update(build_runtime_paths().flask_config())
 app.jinja_env.auto_reload = True
+
+
+def storage_path(config_key: str) -> Path:
+    return Path(app.config[config_key])
 
 
 @app.after_request
@@ -115,7 +128,7 @@ def api_pause_folder(folder_id: int):
 def api_resume_folder(folder_id: int):
     db.update_folder_status(folder_id, "processing")
     from .worker import start_worker
-    start_worker()
+    start_worker(storage_path("THUMBNAIL_FOLDER"))
     return jsonify(OkResponse().model_dump())
 
 
@@ -126,11 +139,12 @@ def api_scan():
     except ValidationError as e:
         return jsonify({"error": e.errors()[0]["msg"]}), 400
 
-    folder_path = Path(req.path)
-    if not folder_path.is_dir():
-        return jsonify({"error": f"Not a directory: {req.path}"}), 400
+    try:
+        folder_path = normalize_existing_directory(req.path)
+    except PathValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
 
-    folder_id = db.upsert_folder(req.path)
+    folder_id = db.upsert_folder(str(folder_path))
     old_mtimes = db.get_folder_mtimes(folder_id)
 
     files = sorted(
@@ -147,9 +161,9 @@ def api_scan():
         db.delete_images_by_ids(deleted_ids)
         
         # Clean up cache files
-        thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
-        cutout_dir = Path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"))
-        preview_dir = Path(app.config.get("PREVIEW_FOLDER", "cache/previews"))
+        thumb_dir = storage_path("THUMBNAIL_FOLDER")
+        cutout_dir = storage_path("CUTOUT_FOLDER")
+        preview_dir = storage_path("PREVIEW_FOLDER")
         for d_id in deleted_ids:
             (thumb_dir / f"{d_id}.jpg").unlink(missing_ok=True)
             clear_cutout(cutout_dir, d_id)
@@ -188,7 +202,7 @@ def api_scan():
     # Set status to processing and start background worker
     db.update_folder_status(folder_id, "processing")
     from .worker import start_worker
-    start_worker()
+    start_worker(storage_path("THUMBNAIL_FOLDER"))
 
     first_page = db.get_images_page(folder_id, page=1, per_page=50)
     folder_info = db.get_folders()
@@ -232,10 +246,10 @@ def api_delete_image(image_id: int):
     if not ok:
         return jsonify({"error": "Image not found"}), 404
 
-    thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
+    thumb_dir = storage_path("THUMBNAIL_FOLDER")
     (thumb_dir / f"{image_id}.jpg").unlink(missing_ok=True)
-    clear_cutout(app.config.get("CUTOUT_FOLDER", "cache/cutouts"), image_id)
-    clear_preview_cache(app.config.get("PREVIEW_FOLDER", "cache/previews"), image_id)
+    clear_cutout(storage_path("CUTOUT_FOLDER"), image_id)
+    clear_preview_cache(storage_path("PREVIEW_FOLDER"), image_id)
     return jsonify(OkResponse().model_dump())
 
 
@@ -243,9 +257,9 @@ def api_delete_image(image_id: int):
 def api_delete_folder(folder_id: int):
     image_ids = db.get_folder_image_ids(folder_id)
     db.delete_folder(folder_id)
-    thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
-    cutout_dir = Path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"))
-    preview_dir = Path(app.config.get("PREVIEW_FOLDER", "cache/previews"))
+    thumb_dir = storage_path("THUMBNAIL_FOLDER")
+    cutout_dir = storage_path("CUTOUT_FOLDER")
+    preview_dir = storage_path("PREVIEW_FOLDER")
     for image_id in image_ids:
         (thumb_dir / f"{image_id}.jpg").unlink(missing_ok=True)
         clear_cutout(cutout_dir, image_id)
@@ -257,7 +271,7 @@ def api_delete_folder(folder_id: int):
 def api_reset():
     try:
         db.clear_db()
-        thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
+        thumb_dir = storage_path("THUMBNAIL_FOLDER")
         if thumb_dir.exists() and thumb_dir.is_dir():
             for f in thumb_dir.iterdir():
                 if f.is_file():
@@ -265,7 +279,7 @@ def api_reset():
                         f.unlink()
                     except Exception:
                         pass
-        cutout_dir = Path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"))
+        cutout_dir = storage_path("CUTOUT_FOLDER")
         if cutout_dir.exists() and cutout_dir.is_dir():
             for f in cutout_dir.iterdir():
                 if f.is_file():
@@ -273,7 +287,7 @@ def api_reset():
                         f.unlink()
                     except Exception:
                         pass
-        clear_preview_cache(app.config.get("PREVIEW_FOLDER", "cache/previews"))
+        clear_preview_cache(storage_path("PREVIEW_FOLDER"))
         return jsonify(OkResponse().model_dump())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -281,9 +295,9 @@ def api_reset():
 
 @app.route("/api/diagnostics", methods=["GET"])
 def api_diagnostics():
-    thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
-    cutout_dir = Path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"))
-    preview_dir = Path(app.config.get("PREVIEW_FOLDER", "cache/previews"))
+    thumb_dir = storage_path("THUMBNAIL_FOLDER")
+    cutout_dir = storage_path("CUTOUT_FOLDER")
+    preview_dir = storage_path("PREVIEW_FOLDER")
     thumb_count = 0
     if thumb_dir.exists() and thumb_dir.is_dir():
         thumb_count = sum(1 for f in thumb_dir.iterdir() if f.is_file())
@@ -302,14 +316,14 @@ def api_diagnostics():
         "cutout_count": cutout_count,
         "preview_dir": str(preview_dir),
         "preview_count": preview_count,
-        "upload_dir": str(Path(app.config["UPLOAD_FOLDER"])),
+        "upload_dir": str(storage_path("UPLOAD_FOLDER")),
     })
     return jsonify(diagnostics)
 
 
 @app.route("/api/cutout/<int:image_id>", methods=["GET"])
 def api_get_cutout(image_id: int):
-    cutout_path = get_cutout_path(app.config.get("CUTOUT_FOLDER", "cache/cutouts"), image_id)
+    cutout_path = get_cutout_path(storage_path("CUTOUT_FOLDER"), image_id)
     if not cutout_path.exists():
         return jsonify({"error": "Cutout not found"}), 404
     return Response(cutout_path.read_bytes(), mimetype="image/png")
@@ -320,7 +334,7 @@ def api_create_cutout(image_id: int):
     try:
         _, cached = make_cutout_png(
             image_id,
-            app.config.get("CUTOUT_FOLDER", "cache/cutouts"),
+            storage_path("CUTOUT_FOLDER"),
         )
     except FileNotFoundError:
         return jsonify({"error": "Image source not found"}), 404
@@ -337,14 +351,14 @@ def api_create_cutout(image_id: int):
 
 @app.route("/api/cutout/<int:image_id>", methods=["DELETE"])
 def api_delete_cutout(image_id: int):
-    deleted = clear_cutout(app.config.get("CUTOUT_FOLDER", "cache/cutouts"), image_id)
+    deleted = clear_cutout(storage_path("CUTOUT_FOLDER"), image_id)
     return jsonify({"ok": True, "deleted": deleted})
 
 
 @app.route("/api/thumbnail/<int:image_id>")
 
 def api_thumbnail(image_id: int):
-    thumb_dir = Path(app.config.get("THUMBNAIL_FOLDER", "cache/thumbnails"))
+    thumb_dir = storage_path("THUMBNAIL_FOLDER")
     thumb_path = thumb_dir / f"{image_id}.jpg"
 
     if thumb_path.exists():
@@ -378,7 +392,7 @@ def api_preview(image_id: int):
     try:
         preview_path = get_or_create_preview(
             image_id,
-            app.config.get("PREVIEW_FOLDER", "cache/previews"),
+            storage_path("PREVIEW_FOLDER"),
         )
     except PreviewBusyError:
         response = jsonify({"status": "busy"})
@@ -476,21 +490,22 @@ def api_upload():
     for f in files:
         if not f.filename:
             continue
-        suffix = Path(f.filename).suffix.lower()
+        safe_name = portable_filename(f.filename)
+        suffix = Path(safe_name).suffix.lower()
         if suffix not in SUPPORTED:
             continue
         try:
             original_data = f.read()
             img_id, fid = db.insert_upload_image(
-                file_name=f.filename,
+                file_name=safe_name,
                 original_data=original_data,
-                has_metadata=has_generation_metadata(original_data, f.filename),
+                has_metadata=has_generation_metadata(original_data, safe_name),
             )
             folder_id = fid
             results.append({
                 "id": img_id,
                 "folder_id": fid,
-                "file_name": Path(f.filename).name,
+                "file_name": safe_name,
                 "file_size": len(original_data),
             })
         except Exception as e:
@@ -504,37 +519,38 @@ def api_upload():
 
 @app.route("/api/choose-folder", methods=["POST"])
 def api_choose_folder():
-    import tkinter as tk
-    from tkinter import filedialog
     try:
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        folder_path = filedialog.askdirectory(parent=root, title="Select Folder")
-        root.destroy()
+        folder_path = choose_folder()
         if folder_path:
-            return jsonify({"path": str(Path(folder_path).absolute())})
+            return jsonify({"path": str(folder_path)})
         return jsonify({"path": None})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except (FolderPickerUnavailable, PathValidationError) as exc:
+        return jsonify({
+            "error": str(exc),
+            "code": "folder_picker_unavailable",
+            "fallback": "Enter the folder path manually",
+        }), 503
 
 
 def open_browser(port: int):
     threading.Timer(1.5, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
 
 
-def main():
-    upload_dir = Path(os.environ.get("COMFY_META_UPLOAD", ".comfy_meta_uploads"))
-    upload_dir.mkdir(exist_ok=True)
-    app.config["UPLOAD_FOLDER"] = str(upload_dir)
-
-    db_path = upload_dir / "meta.db"
-    db.set_db_path(db_path)
+def configure_runtime(paths: RuntimePaths | None = None) -> RuntimePaths:
+    runtime_paths = paths or build_runtime_paths()
+    runtime_paths.ensure_directories()
+    app.config.update(runtime_paths.flask_config())
+    db.set_db_path(runtime_paths.database)
     db.init_db()
+    return runtime_paths
+
+
+def main():
+    configure_runtime()
 
     # Start queue background worker
     from .worker import start_worker
-    start_worker()
+    start_worker(storage_path("THUMBNAIL_FOLDER"))
 
     port = int(os.environ.get("COMFY_META_PORT", "7860"))
 

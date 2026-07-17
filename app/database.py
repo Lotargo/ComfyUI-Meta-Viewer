@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .paths import build_runtime_paths, normalize_path, portable_filename
 from .schemas import FolderInfo, ImageDetail, ImageInsertRow, ImageListItem, ImageMetadata, ImagesResponse
 
 _DB_PATH: str | None = None
@@ -14,13 +15,13 @@ _DB_PATH: str | None = None
 def get_db_path() -> str:
     global _DB_PATH
     if _DB_PATH is None:
-        _DB_PATH = str(Path("cache") / "meta.db")
+        _DB_PATH = str(build_runtime_paths().database)
     return _DB_PATH
 
 
 def set_db_path(path: str | Path) -> None:
     global _DB_PATH
-    _DB_PATH = str(path)
+    _DB_PATH = str(normalize_path(path))
 
 
 def get_conn() -> sqlite3.Connection:
@@ -32,6 +33,7 @@ def get_conn() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    Path(get_db_path()).parent.mkdir(parents=True, exist_ok=True)
     conn = get_conn()
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS folders (
@@ -677,7 +679,7 @@ def insert_upload_image(
             ).fetchone()
         folder_id = folder_row["id"]
 
-        safe_name = Path(file_name).name or "upload"
+        safe_name = portable_filename(file_name)
         stem = Path(safe_name).stem
         suffix = Path(safe_name).suffix
         counter = 0

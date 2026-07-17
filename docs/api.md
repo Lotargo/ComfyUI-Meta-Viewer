@@ -106,10 +106,33 @@ Scans a local folder in-place. Existing rows are reused when the file `mtime` di
 **Behavior:**
 
 - Scans files in the selected folder.
+- Expands and normalizes the folder to an absolute path before saving it.
 - Supports `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.tiff`, and `.tif` when supported by the parser.
 - Skips unchanged files using stored `mtime` values.
 - Stores metadata in SQLite.
 - Returns the first paginated page of indexed images.
+
+---
+
+### `POST /api/choose-folder`
+
+Opens the local operating system's folder dialog. A successful selection returns an
+absolute native path; cancellation returns `null`.
+
+```json
+{ "path": "/path/to/folder" }
+```
+
+If a graphical picker is unavailable, the endpoint returns HTTP `503` and the web client
+falls back to a manual path prompt:
+
+```json
+{
+  "error": "Tk folder picker is not installed",
+  "code": "folder_picker_unavailable",
+  "fallback": "Enter the folder path manually"
+}
+```
 
 ---
 
@@ -363,17 +386,17 @@ Returns local diagnostics and cache statistics.
 
 ```json
 {
-  "db_path": ".comfy_meta_uploads/meta.db",
+  "db_path": "/absolute/path/to/project/.comfy_meta_uploads/meta.db",
   "folders": 3,
   "images": 150,
   "uploads": 12,
-  "thumbnail_dir": "cache/thumbnails",
+  "thumbnail_dir": "/absolute/path/to/project/cache/thumbnails",
   "thumbnail_count": 138,
-  "preview_dir": "cache/previews",
+  "preview_dir": "/absolute/path/to/project/cache/previews",
   "preview_count": 7,
-  "cutout_dir": "cache/cutouts",
+  "cutout_dir": "/absolute/path/to/project/cache/cutouts",
   "cutout_count": 5,
-  "upload_dir": ".comfy_meta_uploads"
+  "upload_dir": "/absolute/path/to/project/.comfy_meta_uploads"
 }
 ```
 

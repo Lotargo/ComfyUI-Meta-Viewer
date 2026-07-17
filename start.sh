@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-cd "$(dirname "$0")"
+set -e
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir"
 
 if ! command -v poetry &> /dev/null; then
     echo "[ERROR] Poetry not found. Install: pip install poetry"
@@ -10,4 +13,4 @@ echo "Installing dependencies..."
 poetry install --no-root --quiet
 
 echo "Starting ComfyUI Meta Viewer..."
-poetry run python -m app.main "$@"
+exec poetry run python -m app.main "$@"

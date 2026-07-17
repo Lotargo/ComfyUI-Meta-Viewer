@@ -143,14 +143,15 @@ export function initEvents() {
         try {
             const response = await fetch('/api/choose-folder', { method: 'POST' });
             const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Folder picker is unavailable');
             if (data.path) {
                 await scanFolder(data.path);
             }
         } catch (err) {
-            console.error('Error choosing folder:', err);
+            console.warn('Using manual folder path fallback:', err);
             const input = await customPrompt('Open Folder', 'Enter folder path:');
             const path = input?.trim();
-            if (path) scanFolder(path);
+            if (path) await scanFolder(path);
         }
     });
 

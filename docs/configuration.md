@@ -25,18 +25,21 @@ The application is designed to run locally with a small set of environment varia
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `COMFY_META_PORT` | `7860` | HTTP server port |
-| `COMFY_META_UPLOAD` | `.comfy_meta_uploads` | Directory for uploaded originals and the SQLite database |
+| `COMFY_META_DATA_DIR` | `.comfy_meta_uploads` | Directory for the SQLite database and application data |
+| `COMFY_META_CACHE_DIR` | `cache` | Directory for thumbnails, previews, and cutouts |
+| `COMFY_META_UPLOAD` | — | Backward-compatible alias for `COMFY_META_DATA_DIR` |
 
 ### Examples
 
 ```bash
 # Windows CMD
 set COMFY_META_PORT=8080
-set COMFY_META_UPLOAD=D:\my_data
+set COMFY_META_DATA_DIR=D:\my_data
+set COMFY_META_CACHE_DIR=D:\my_cache
 start.bat
 
 # Linux/macOS
-COMFY_META_PORT=8080 COMFY_META_UPLOAD=/data/comfy-meta ./start.sh
+COMFY_META_PORT=8080 COMFY_META_DATA_DIR=/data/comfy-meta ./start.sh
 
 # Poetry run with a custom port
 COMFY_META_PORT=8080 poetry run python -m app.main
@@ -85,6 +88,16 @@ ComfyUI-Meta-Viewer/
 | `cache/thumbnails/` | Generated JPEG thumbnails | yes |
 | `cache/previews/` | Generated lightbox previews up to 4096 px | yes |
 | `cache/cutouts/` | Generated transparent PNG cutouts | yes |
+
+All default and relative service paths are anchored to the project root rather than the
+process working directory. Absolute Windows drive and UNC paths, Linux paths, and macOS
+paths are handled by the native `pathlib` implementation on each operating system.
+
+Folder paths selected for scanning are expanded, normalized to an absolute native path,
+and checked before they are saved. The application indexes source files in place and does
+not create cache files, marker files, or watcher scripts inside a selected source folder.
+If the system folder dialog is unavailable (for example, Tk is missing in a minimal Linux
+environment), the web interface asks for the path manually.
 
 Scanned folder images are not copied. The database stores their metadata and local path references. Uploaded files are stored as BLOBs in SQLite; their metadata is extracted only when an image is first opened.
 

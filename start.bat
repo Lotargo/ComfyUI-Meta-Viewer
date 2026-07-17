@@ -1,6 +1,11 @@
 @echo off
 title ComfyUI Meta Viewer
 cd /d "%~dp0"
+if errorlevel 1 (
+    echo [ERROR] Failed to open the application directory.
+    pause
+    exit /b 1
+)
 
 where poetry >nul 2>&1
 if %errorlevel% neq 0 (

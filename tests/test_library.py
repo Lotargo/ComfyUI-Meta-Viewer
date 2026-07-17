@@ -223,6 +223,8 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("Only the virtual album will be deleted", script)
         self.assertIn(".library-body [hidden]", styles)
         self.assertIn("overflow-y: auto", styles)
+        self.assertIn("background-position: right 11px center", styles)
+        self.assertIn("padding-right: 34px", styles)
         self.assertIn('href="/library"', viewer)
 
 

@@ -6,33 +6,13 @@ import {
     images,
     activeIndex,
     viewMode,
-    activeSidebarTab,
-    refreshCacheBuster,
     setActiveSidebarTab,
-    setSidebarImages,
-    setSidebarTotalImages,
-    setSidebarPage,
-    setSidebarAllLoaded,
-    setFolders,
-    resetRuntimeState,
-    loadState,
     saveState,
-    setCurrentFolderId,
+    clearStoredPreferences,
 } from './state.js';
 import { loadFromFiles, loadFromPaths, scanFolder, invalidateApiCache } from './api.js';
 import { renderSidebar } from './features/sidebar.js';
 import { customConfirm, customPrompt } from './utils.js';
-
-function renderEmptyContent() {
-    dom.contentArea.innerHTML = `
-        <div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-dim);">
-            <div class="empty-state-icon" style="margin-bottom: 16px;">
-                <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-            </div>
-            <p>No images found</p>
-        </div>
-    `;
-}
 
 export async function renderCurrentContent() {
     if (viewMode === 'upload') {
@@ -160,47 +140,17 @@ export function initEvents() {
     dom.btnViewGallery.addEventListener('click', () => setViewMode('gallery'));
 
 
-    dom.btnHardReset?.addEventListener('click', async () => {
-        const ok = await customConfirm('Hard Reset', 'Are you sure you want to perform a hard reset? This will clear all folders, database entries, and thumbnail cache.');
-        if (!ok) return;
+    dom.btnResetIndex?.addEventListener('click', () => performReset({
+        factoryReset: false,
+        title: 'Reset Index',
+        message: 'Delete the SQLite index and all generated caches? Saved source folders will be reindexed. Source files stay untouched, but uploaded originals stored only in CMV will be permanently deleted.',
+    }));
 
-        const { showLoading, showError } = await import('./utils.js');
-        const { showToast } = await import('./state.js');
-        showLoading('Resetting database and cache...');
-
-        try {
-            const resp = await fetch('/api/reset', { method: 'POST' });
-            const data = await resp.json();
-            if (!resp.ok || data.error) {
-                showError('Reset failed: ' + (data.error || resp.statusText));
-                return;
-            }
-
-            invalidateApiCache();
-            resetRuntimeState();
-            loadState();
-            setCurrentFolderId(null);
-            setFolders([]);
-            setSidebarImages([]);
-            setSidebarTotalImages(0);
-            setSidebarPage(0);
-            setSidebarAllLoaded(true);
-            refreshCacheBuster();
-            saveState();
-            const { applySidebarLayout } = await import('./features/sidebar.js');
-            applySidebarLayout();
-            setViewMode(viewMode, { render: false, persist: false });
-            await switchSidebarTab(activeSidebarTab, { render: false, load: false, persist: false });
-
-            renderSidebar();
-            const { renderFoldersList } = await import('./features/sidebar.js');
-            await renderFoldersList([]);
-            renderEmptyContent();
-            showToast('Database reset successfully!');
-        } catch (e) {
-            showError('Error during reset: ' + e.message);
-        }
-    });
+    dom.btnFactoryReset?.addEventListener('click', () => performReset({
+        factoryReset: true,
+        title: 'Factory Reset',
+        message: 'Delete the index, generated caches, saved source folders, uploaded originals, and browser preferences? Source files in scanned folders stay untouched. This cannot be undone.',
+    }));
 
     document.querySelectorAll('.btn-paste').forEach(el => {
         el.addEventListener('click', async () => {
@@ -238,6 +188,35 @@ export function initEvents() {
         saveState();
         await renderFoldersList();
     });
+}
+
+async function performReset({ factoryReset, title, message }) {
+    const ok = await customConfirm(title, message);
+    if (!ok) return;
+
+    const { showLoading, showError } = await import('./utils.js');
+    const endpoint = factoryReset ? '/api/factory-reset' : '/api/reset-index';
+    const confirm = factoryReset ? 'factory-reset' : 'reset-index';
+    showLoading(factoryReset ? 'Restoring factory defaults...' : 'Recreating index...');
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirm }),
+        });
+        const data = await response.json();
+        if (!response.ok || data.error) {
+            showError(`${title} failed: ${data.error || response.statusText}`);
+            return;
+        }
+
+        invalidateApiCache();
+        if (factoryReset) clearStoredPreferences();
+        window.location.reload();
+    } catch (error) {
+        showError(`${title} failed: ${error.message}`);
+    }
 }
 
 export function setViewMode(mode, { render = true, persist = true } = {}) {

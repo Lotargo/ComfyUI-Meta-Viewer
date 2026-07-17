@@ -22,7 +22,7 @@ ComfyUI Meta Viewer is a local-first metadata browser for AI-generated images. I
 - [Drag-and-Drop Upload](#drag-and-drop-upload)
 - [Thumbnails and Originals](#thumbnails-and-originals)
 - [Diagnostics](#diagnostics)
-- [Hard Reset](#hard-reset)
+- [Index and Factory Reset](#index-and-factory-reset)
 - [Responsive Design](#responsive-design)
 
 ---
@@ -306,17 +306,20 @@ Diagnostics expose basic local runtime information:
 
 ---
 
-## Hard Reset
+## Index and Factory Reset
 
-**Main route:** `POST /api/reset`
+**Main routes:** `POST /api/reset-index`, `POST /api/factory-reset`
 
-Hard reset clears:
+Reset Index physically removes the SQLite database, WAL/SHM sidecars, thumbnails, previews,
+and cutouts. It then creates a clean schema and reindexes active source directories saved in
+the separate `config.json` file. This also removes uploaded originals stored inside SQLite.
 
-- SQLite database tables.
-- Thumbnail cache files.
-- Cutout cache files.
+Factory Reset is a separate, more destructive action. It additionally forgets saved source
+directories and clears browser preferences after a successful reset. Both actions require
+distinct confirmation tokens and neither action deletes files from scanned source folders.
 
-It does not delete original scanned images from their source folders.
+If SQLite corruption prevents the web app from starting, the same operations are available
+through `python -m app.main --reset-index` and `--factory-reset`.
 
 ---
 

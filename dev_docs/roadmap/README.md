@@ -19,7 +19,7 @@
 ### Core
 
 - [x] [00. Cross-platform foundation](core/00_CROSS_PLATFORM_FOUNDATION.md)
-- [ ] [01. Database and index reset](core/01_DATABASE_AND_INDEX_RESET.md)
+- [x] [01. Database and index reset](core/01_DATABASE_AND_INDEX_RESET.md)
 - [ ] [02. Source monitoring and cloud directories](core/02_SOURCE_MONITORING_AND_CLOUD_DIRECTORIES.md)
 
 ### Library

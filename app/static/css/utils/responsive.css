@@ -40,6 +40,10 @@
         display: inline-flex;
     }
 
+    .reset-actions {
+        display: none;
+    }
+
     /* Sidebar */
     .sidebar {
         position: fixed;

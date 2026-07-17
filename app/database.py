@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,60 @@ from .paths import build_runtime_paths, normalize_path, portable_filename
 from .schemas import FolderInfo, ImageDetail, ImageInsertRow, ImageListItem, ImageMetadata, ImagesResponse
 
 _DB_PATH: str | None = None
+_connection_condition = threading.Condition()
+_active_connections = 0
+_maintenance_owner: int | None = None
+
+
+class DatabaseMaintenanceError(RuntimeError):
+    """Raised when the index is temporarily unavailable for maintenance."""
+
+
+class _TrackedConnection(sqlite3.Connection):
+    _cmv_counted = False
+
+    def close(self) -> None:
+        counted = self._cmv_counted
+        try:
+            super().close()
+        finally:
+            if counted:
+                self._cmv_counted = False
+                _release_connection()
+
+
+def _release_connection() -> None:
+    global _active_connections
+    with _connection_condition:
+        _active_connections -= 1
+        _connection_condition.notify_all()
+
+
+@contextmanager
+def database_maintenance(timeout: float = 10.0):
+    """Block new connections and wait until all current connections are closed."""
+    global _maintenance_owner
+    owner = threading.get_ident()
+    deadline = time.monotonic() + timeout
+    with _connection_condition:
+        if _maintenance_owner is not None:
+            raise DatabaseMaintenanceError("Database maintenance is already running")
+        _maintenance_owner = owner
+        while _active_connections:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _maintenance_owner = None
+                _connection_condition.notify_all()
+                raise DatabaseMaintenanceError(
+                    f"Timed out waiting for {_active_connections} database connection(s)"
+                )
+            _connection_condition.wait(remaining)
+    try:
+        yield
+    finally:
+        with _connection_condition:
+            _maintenance_owner = None
+            _connection_condition.notify_all()
 
 
 def get_db_path() -> str:
@@ -25,72 +81,79 @@ def set_db_path(path: str | Path) -> None:
 
 
 def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(get_db_path())
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
+    global _active_connections
+    with _connection_condition:
+        if (
+            _maintenance_owner is not None
+            and _maintenance_owner != threading.get_ident()
+        ):
+            raise DatabaseMaintenanceError("Database reset is in progress")
+        _active_connections += 1
+
+    try:
+        conn = sqlite3.connect(get_db_path(), factory=_TrackedConnection)
+        conn._cmv_counted = True
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
+    except Exception:
+        if "conn" in locals():
+            conn.close()
+        else:
+            _release_connection()
+        raise
 
 
 def init_db() -> None:
     Path(get_db_path()).parent.mkdir(parents=True, exist_ok=True)
     conn = get_conn()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS folders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            path TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL DEFAULT '',
-            status TEXT NOT NULL DEFAULT 'idle',
-            scanned_at TEXT DEFAULT (datetime('now')),
-            created_at TEXT DEFAULT (datetime('now'))
-        );
-
-        CREATE TABLE IF NOT EXISTS images (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            folder_id INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
-            rel_path TEXT NOT NULL,
-            file_name TEXT NOT NULL,
-            file_size INTEGER DEFAULT 0,
-            file_mtime REAL DEFAULT 0,
-            format TEXT,
-            width INTEGER DEFAULT 0,
-            height INTEGER DEFAULT 0,
-            mode TEXT,
-            error TEXT,
-            metadata_json TEXT,
-            thumbnail_b64 TEXT,
-            original_data BLOB,
-            created_at TEXT DEFAULT (datetime('now')),
-            UNIQUE(folder_id, rel_path)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
-        CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
-    """)
     try:
-        conn.execute("ALTER TABLE images ADD COLUMN original_data BLOB")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        conn.execute("ALTER TABLE folders ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'")
-    except sqlite3.OperationalError:
-        pass
-    conn.commit()
-    conn.close()
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS folders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                path TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'idle',
+                scanned_at TEXT DEFAULT (datetime('now')),
+                created_at TEXT DEFAULT (datetime('now'))
+            );
 
+            CREATE TABLE IF NOT EXISTS images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                folder_id INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+                rel_path TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                file_size INTEGER DEFAULT 0,
+                file_mtime REAL DEFAULT 0,
+                format TEXT,
+                width INTEGER DEFAULT 0,
+                height INTEGER DEFAULT 0,
+                mode TEXT,
+                error TEXT,
+                metadata_json TEXT,
+                thumbnail_b64 TEXT,
+                original_data BLOB,
+                created_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(folder_id, rel_path)
+            );
 
-def clear_db() -> None:
-    conn = get_conn()
-    try:
-        conn.execute("PRAGMA foreign_keys = OFF")
-        conn.execute("DROP TABLE IF EXISTS images")
-        conn.execute("DROP TABLE IF EXISTS folders")
-        conn.execute("DROP TABLE IF EXISTS sessions")
+            CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
+            CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
+        """)
+        try:
+            conn.execute("ALTER TABLE images ADD COLUMN original_data BLOB")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute(
+                "ALTER TABLE folders ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'"
+            )
+        except sqlite3.OperationalError:
+            pass
         conn.commit()
     finally:
         conn.close()
-    init_db()
-
 
 
 def upsert_folder(path: str) -> int:
@@ -173,6 +236,27 @@ def get_folders() -> list[FolderInfo]:
         ).fetchall()
         folders_list = [FolderInfo.model_validate(dict(r)) for r in rows]
         return folders_list
+    finally:
+        conn.close()
+
+
+def get_indexed_folder_paths() -> list[str]:
+    conn = get_conn()
+    try:
+        rows = conn.execute("SELECT path FROM folders ORDER BY id").fetchall()
+        return [str(row["path"]) for row in rows]
+    finally:
+        conn.close()
+
+
+def get_folder_path(folder_id: int) -> str | None:
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT path FROM folders WHERE id = ?",
+            (folder_id,),
+        ).fetchone()
+        return str(row["path"]) if row else None
     finally:
         conn.close()
 

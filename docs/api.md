@@ -366,14 +366,46 @@ Deletes the cached cutout file for an image.
 
 ## System
 
-### `POST /api/reset`
+### `POST /api/reset-index`
 
-Clears the SQLite database and thumbnail/preview/cutout caches.
+Stops background indexing, waits for application SQLite connections to close, physically
+deletes `meta.db`, `meta.db-wal`, `meta.db-shm`, and generated caches, creates a fresh
+schema, and queues saved active source directories for reindexing. `/api/reset` is retained
+as a compatibility alias. Uploaded originals stored as SQLite BLOBs are permanently deleted;
+files in scanned source directories are not modified.
+
+**Request:**
+
+```json
+{ "confirm": "reset-index" }
+```
 
 **Response:**
 
 ```json
-{ "ok": true }
+{
+  "ok": true,
+  "factory_reset": false,
+  "deleted": ["/path/to/meta.db", "/path/to/cache/thumbnails/1.jpg"],
+  "reindexed_sources": ["/path/to/source"],
+  "skipped_sources": []
+}
+```
+
+Saved sources that are temporarily unavailable remain in `config.json` and are returned in
+`skipped_sources`. A file deletion failure returns HTTP `500` with an explicit `failures`
+array instead of being ignored.
+
+---
+
+### `POST /api/factory-reset`
+
+Performs Reset Index and additionally deletes `config.json`. The web client also clears its
+versioned browser preferences after a successful response. This endpoint requires its own
+confirmation token.
+
+```json
+{ "confirm": "factory-reset" }
 ```
 
 ---

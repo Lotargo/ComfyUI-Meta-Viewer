@@ -281,6 +281,7 @@ comfy-meta-viewer/
 │       └── index.html       # SPA entry
 ├── docs/                    # Documentation
 ├── dev_docs/                # Internal dev docs
+├── .comfy_meta_uploads/     # Saved sources + disposable SQLite index
 ├── cache/                   # Thumbnails + display previews + cutouts
 ├── pyproject.toml           # Poetry config
 ├── start.bat                # Windows launcher

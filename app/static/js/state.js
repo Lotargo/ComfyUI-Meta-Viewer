@@ -23,7 +23,8 @@ export const dom = {
     lbCounter: document.getElementById('lb-counter'),
     lbImg: document.getElementById('lb-img'),
     lbMeta: document.getElementById('lb-meta'),
-    btnHardReset: document.getElementById('btn-hard-reset'),
+    btnResetIndex: document.getElementById('btn-reset-index'),
+    btnFactoryReset: document.getElementById('btn-factory-reset'),
     btnPaste: document.getElementById('btn-paste'),
     tabFolders: document.getElementById('tab-folders'),
     tabImages: document.getElementById('tab-images'),
@@ -233,6 +234,18 @@ export function saveState() {
         // Preference persistence must never break the application runtime.
     }
     return preferences;
+}
+
+export function clearStoredPreferences() {
+    try {
+        localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+        localStorage.removeItem(LEGACY_PREFERENCES_STORAGE_KEY);
+        localStorage.removeItem('cmv_state');
+        sessionStorage.removeItem(LEGACY_PREFERENCES_STORAGE_KEY);
+        sessionStorage.removeItem('cmv_state');
+    } catch (_error) {
+        // A factory reset must still succeed when browser storage is unavailable.
+    }
 }
 
 export function resetRuntimeState() {

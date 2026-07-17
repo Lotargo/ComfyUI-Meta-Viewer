@@ -77,6 +77,15 @@
     color: #fff;
 }
 
+.reset-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 3px;
+    padding-left: 10px;
+    border-left: 1px solid var(--border);
+}
+
 /* Sizes */
 .btn-xs {
     padding: 2px var(--space-sm);

@@ -10,6 +10,7 @@ from unittest.mock import patch
 from PIL import Image
 
 from app import database as db
+from app.config_store import ConfigStore
 from app.folder_picker import FolderPickerUnavailable
 from app.main import app
 from app.paths import (
@@ -110,6 +111,7 @@ class NativeDirectoryScanTest(unittest.TestCase):
                 "THUMBNAIL_FOLDER",
                 "PREVIEW_FOLDER",
                 "CUTOUT_FOLDER",
+                "CONFIG_FILE",
                 "UPLOAD_FOLDER",
             )
         }
@@ -120,6 +122,7 @@ class NativeDirectoryScanTest(unittest.TestCase):
             THUMBNAIL_FOLDER=str(self.root / "cache" / "thumbnails"),
             PREVIEW_FOLDER=str(self.root / "cache" / "previews"),
             CUTOUT_FOLDER=str(self.root / "cache" / "cutouts"),
+            CONFIG_FILE=str(self.root / "config.json"),
             UPLOAD_FOLDER=str(self.root / "data"),
         )
         self.client = app.test_client()
@@ -153,6 +156,10 @@ class NativeDirectoryScanTest(unittest.TestCase):
             conn.close()
         self.assertEqual(stored_folder, str(source.resolve()))
         self.assertEqual(stored_image, image_path.name)
+        self.assertEqual(
+            ConfigStore(app.config["CONFIG_FILE"]).active_sources(),
+            [source.resolve()],
+        )
 
     def test_folder_picker_reports_a_manual_fallback(self) -> None:
         with patch(

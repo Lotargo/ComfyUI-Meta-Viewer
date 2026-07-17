@@ -56,6 +56,12 @@ application from another working directory does not create data in an unexpected
 ```bash
 # Start without opening browser
 poetry run python -m app.main --no-browser
+
+# Recreate a corrupt or stale local index
+poetry run python -m app.main --reset-index
+
+# Also forget saved source folders
+poetry run python -m app.main --factory-reset
 ```
 
 ## Directory Structure
@@ -65,7 +71,8 @@ After first run:
 ```
 comfy-meta-viewer/
 ├── .comfy_meta_uploads/
-│   └── meta.db          ← SQLite database
+│   ├── config.json      ← Saved source folders
+│   └── meta.db          ← Disposable SQLite index
 ├── cache/
 │   ├── thumbnails/      ← Generated JPEG thumbnails
 │   └── cutouts/         ← Generated transparent PNGs
@@ -105,7 +112,13 @@ COMFY_META_PORT=7861 poetry run python -m app.main
 ```
 
 **Database locked:**
-Close other instances of the app, or delete `.comfy_meta_uploads/meta.db` and restart.
+Close other instances of the app, then run `poetry run python -m app.main --reset-index`.
+The command reports the exact file if the database, WAL, SHM, or cache remains locked.
+
+**Database corrupt / app does not start:**
+Run `poetry run python -m app.main --reset-index`. This command does not need to open the
+existing database before removing it and retains source paths previously saved in
+`.comfy_meta_uploads/config.json`.
 
 **Thumbnails not loading:**
 Delete `cache/thumbnails/` and restart. Thumbnails are auto-regenerated on request.

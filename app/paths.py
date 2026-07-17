@@ -59,6 +59,7 @@ class RuntimePaths:
     project_root: Path
     data_dir: Path
     database: Path
+    config: Path
     cache_dir: Path
     thumbnails: Path
     previews: Path
@@ -77,6 +78,7 @@ class RuntimePaths:
     def flask_config(self) -> dict[str, str]:
         return {
             "UPLOAD_FOLDER": str(self.data_dir),
+            "CONFIG_FILE": str(self.config),
             "THUMBNAIL_FOLDER": str(self.thumbnails),
             "PREVIEW_FOLDER": str(self.previews),
             "CUTOUT_FOLDER": str(self.cutouts),
@@ -102,6 +104,7 @@ def build_runtime_paths(
         project_root=root,
         data_dir=data_dir,
         database=data_dir / "meta.db",
+        config=data_dir / "config.json",
         cache_dir=cache_dir,
         thumbnails=cache_dir / "thumbnails",
         previews=cache_dir / "previews",

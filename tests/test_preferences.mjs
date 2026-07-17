@@ -149,4 +149,11 @@ test('state persistence restores stable preferences but not runtime collections'
     assert.equal(state.metadataTab, 'workflow');
     assert.deepEqual(state.images, []);
     assert.equal(state.currentPage, 0);
+
+    localStorage.setItem('cmv_preferences', 'legacy');
+    sessionStorage.setItem('cmv_state', 'legacy');
+    state.clearStoredPreferences();
+    assert.equal(localStorage.getItem(PREFERENCES_STORAGE_KEY), null);
+    assert.equal(localStorage.getItem('cmv_preferences'), null);
+    assert.equal(sessionStorage.getItem('cmv_state'), null);
 });

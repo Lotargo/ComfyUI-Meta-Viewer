@@ -83,6 +83,9 @@ COMFY_META_PORT=8080 poetry run python -m app.main
 
 # Do not auto-open the browser
 poetry run python -m app.main --no-browser
+
+# Exercise physical index recreation without starting Flask
+poetry run python -m app.main --reset-index
 ```
 
 Default URL: `http://localhost:7860`.

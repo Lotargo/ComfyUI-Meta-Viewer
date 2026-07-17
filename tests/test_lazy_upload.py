@@ -112,6 +112,7 @@ class LazyUploadTest(unittest.TestCase):
             THUMBNAIL_FOLDER=str(Path(self.temp_dir.name) / "thumbnails"),
             PREVIEW_FOLDER=str(self.preview_dir),
             CUTOUT_FOLDER=str(Path(self.temp_dir.name) / "cutouts"),
+            CONFIG_FILE=str(Path(self.temp_dir.name) / "config.json"),
             UPLOAD_FOLDER=str(Path(self.temp_dir.name) / "uploads"),
         )
         self.client = app.test_client()

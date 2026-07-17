@@ -66,7 +66,8 @@ By default, the Flask server binds to `127.0.0.1`, so it is intended for local u
 ```
 ComfyUI-Meta-Viewer/
 ├── .comfy_meta_uploads/
-│   └── meta.db                    # SQLite database
+│   ├── config.json                # Saved source directories
+│   └── meta.db                    # Disposable SQLite index
 ├── cache/
 │   ├── thumbnails/
 │   │   ├── 1.jpg                  # JPEG thumbnails
@@ -82,12 +83,14 @@ ComfyUI-Meta-Viewer/
 
 ### Description
 
-| Path | Contents | Cleared by reset |
-|------|----------|------------------|
-| `.comfy_meta_uploads/meta.db` | SQLite database | yes |
-| `cache/thumbnails/` | Generated JPEG thumbnails | yes |
-| `cache/previews/` | Generated lightbox previews up to 4096 px | yes |
-| `cache/cutouts/` | Generated transparent PNG cutouts | yes |
+| Path | Contents | Reset Index | Factory Reset |
+|------|----------|-------------|---------------|
+| `.comfy_meta_uploads/config.json` | Saved active source directories | preserved | deleted |
+| `.comfy_meta_uploads/meta.db` | Disposable SQLite index and uploaded BLOBs | recreated | recreated |
+| `.comfy_meta_uploads/meta.db-wal` / `-shm` | SQLite WAL sidecars | deleted | deleted |
+| `cache/thumbnails/` | Generated JPEG thumbnails | cleared | cleared |
+| `cache/previews/` | Generated lightbox previews up to 4096 px | cleared | cleared |
+| `cache/cutouts/` | Generated transparent PNG cutouts | cleared | cleared |
 
 All default and relative service paths are anchored to the project root rather than the
 process working directory. Absolute Windows drive and UNC paths, Linux paths, and macOS
@@ -99,7 +102,7 @@ not create cache files, marker files, or watcher scripts inside a selected sourc
 If the system folder dialog is unavailable (for example, Tk is missing in a minimal Linux
 environment), the web interface asks for the path manually.
 
-Scanned folder images are not copied. The database stores their metadata and local path references. Uploaded files are stored as BLOBs in SQLite; their metadata is extracted only when an image is first opened.
+Scanned folder images are not copied. The database stores their metadata and local path references. Uploaded files are stored as BLOBs in SQLite; their metadata is extracted only when an image is first opened. Because those uploaded originals live inside the disposable index, both reset operations permanently remove them. Source files in scanned directories are never deleted.
 
 ---
 
@@ -175,12 +178,14 @@ idx_images_folder_mtime  -- Incremental scan checks
 ## CLI Flags
 
 ```bash
-python -m app.main [--no-browser]
+python -m app.main [--no-browser | --reset-index | --factory-reset]
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--no-browser` | Start the server without automatically opening the browser |
+| `--reset-index` | Physically recreate SQLite and generated caches, preserving and reindexing saved sources |
+| `--factory-reset` | Recreate the index and caches and delete saved application configuration |
 
 ### Examples
 
@@ -190,6 +195,12 @@ poetry run python -m app.main
 
 # Start without opening a browser
 poetry run python -m app.main --no-browser
+
+# Recover even when a corrupt database prevents the web interface from starting
+poetry run python -m app.main --reset-index
+
+# Remove saved sources as well as the disposable index
+poetry run python -m app.main --factory-reset
 
 # Windows launcher
 start.bat

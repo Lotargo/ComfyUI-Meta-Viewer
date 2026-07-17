@@ -22,6 +22,7 @@ from flask import (
 
 from . import database as db
 from .cutout import clear_cutout, get_cutout_path, make_cutout_png
+from .config_store import ConfigStore, ConfigStoreError
 from .extractor import (
     has_generation_metadata,
     make_thumbnail_bytes,
@@ -31,6 +32,7 @@ from .extractor import (
     SUPPORTED,
 )
 from .folder_picker import FolderPickerUnavailable, choose_folder
+from .indexing import index_source_directory
 from .paths import (
     PathValidationError,
     RuntimePaths,
@@ -44,10 +46,10 @@ from .preview import (
     get_or_create_preview,
     preview_mimetype,
 )
+from .reset_service import ResetOperationError, reset_application_index
 from .schemas import (
     ExtractRequest,
     FolderInfo,
-    ImageInsertRow,
     ImageListItem,
     ImagesResponse,
     OkResponse,
@@ -66,6 +68,20 @@ def storage_path(config_key: str) -> Path:
     return Path(app.config[config_key])
 
 
+def configured_runtime_paths() -> RuntimePaths:
+    thumbnails = storage_path("THUMBNAIL_FOLDER")
+    return RuntimePaths(
+        project_root=build_runtime_paths().project_root,
+        data_dir=storage_path("UPLOAD_FOLDER"),
+        database=Path(db.get_db_path()),
+        config=storage_path("CONFIG_FILE"),
+        cache_dir=thumbnails.parent,
+        thumbnails=thumbnails,
+        previews=storage_path("PREVIEW_FOLDER"),
+        cutouts=storage_path("CUTOUT_FOLDER"),
+    )
+
+
 @app.after_request
 def add_cache_headers(response):
     if request.path.startswith("/static/"):
@@ -76,6 +92,16 @@ def add_cache_headers(response):
         else:
             response.headers["Cache-Control"] = "public, max-age=86400"
     return response
+
+
+@app.errorhandler(db.DatabaseMaintenanceError)
+def database_maintenance_error(error):
+    return jsonify({"error": str(error), "code": "database_maintenance"}), 503
+
+
+@app.errorhandler(ConfigStoreError)
+def config_store_error(error):
+    return jsonify({"error": str(error), "code": "configuration_error"}), 500
 
 
 @app.route("/")
@@ -144,79 +170,30 @@ def api_scan():
     except PathValidationError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    folder_id = db.upsert_folder(str(folder_path))
-    old_mtimes = db.get_folder_mtimes(folder_id)
-
-    files = sorted(
-        f
-        for f in folder_path.iterdir()
-        if f.is_file() and f.suffix.lower() in SUPPORTED
+    result = index_source_directory(
+        folder_path,
+        thumbnail_dir=storage_path("THUMBNAIL_FOLDER"),
+        cutout_dir=storage_path("CUTOUT_FOLDER"),
+        preview_dir=storage_path("PREVIEW_FOLDER"),
     )
+    ConfigStore(storage_path("CONFIG_FILE")).add_source(folder_path)
 
-    # 1. Detect deleted files and remove them from DB + cache
-    files_set = {f.name for f in files}
-    deleted_files = [name for name in old_mtimes if name not in files_set]
-    if deleted_files:
-        deleted_ids = db.get_image_ids_by_rel_paths(folder_id, deleted_files)
-        db.delete_images_by_ids(deleted_ids)
-        
-        # Clean up cache files
-        thumb_dir = storage_path("THUMBNAIL_FOLDER")
-        cutout_dir = storage_path("CUTOUT_FOLDER")
-        preview_dir = storage_path("PREVIEW_FOLDER")
-        for d_id in deleted_ids:
-            (thumb_dir / f"{d_id}.jpg").unlink(missing_ok=True)
-            clear_cutout(cutout_dir, d_id)
-            clear_preview_cache(preview_dir, d_id)
-
-    # 2. Detect new/modified files
-    to_process: list[tuple[str, Path]] = []
-    cached_count = 0
-    for f in files:
-        rel_path = f.name
-        mtime = f.stat().st_mtime
-        if rel_path in old_mtimes and abs(old_mtimes[rel_path] - mtime) < 0.001:
-            cached_count += 1
-        else:
-            to_process.append((rel_path, f))
-
-    if to_process:
-        new_images: list[ImageInsertRow] = []
-        for rel_path, f in to_process:
-            stat = f.stat()
-            new_images.append(ImageInsertRow(
-                rel_path=rel_path,
-                file_name=f.name,
-                file_size=stat.st_size,
-                file_mtime=stat.st_mtime,
-                format=None,
-                width=0,
-                height=0,
-                mode=None,
-                error=None,
-                metadata_json=None,
-            ))
-
-        db.insert_images(folder_id, new_images)
-
-    # Set status to processing and start background worker
-    db.update_folder_status(folder_id, "processing")
     from .worker import start_worker
     start_worker(storage_path("THUMBNAIL_FOLDER"))
 
-    first_page = db.get_images_page(folder_id, page=1, per_page=50)
+    first_page = db.get_images_page(result.folder_id, page=1, per_page=50)
     folder_info = db.get_folders()
-    current = next((f for f in folder_info if f.id == folder_id), None)
+    current = next((f for f in folder_info if f.id == result.folder_id), None)
 
     resp = ScanResponse(
-        folder_id=folder_id,
+        folder_id=result.folder_id,
         folder=current,
         page=1,
         per_page=50,
         total=first_page.total,
         images=first_page.images,
-        cached=cached_count,
-        processed=len(to_process),
+        cached=result.cached,
+        processed=result.processed,
     )
     return jsonify(resp.model_dump())
 
@@ -255,8 +232,13 @@ def api_delete_image(image_id: int):
 
 @app.route("/api/folders/<int:folder_id>", methods=["DELETE"])
 def api_delete_folder(folder_id: int):
+    folder_path = db.get_folder_path(folder_id)
     image_ids = db.get_folder_image_ids(folder_id)
     db.delete_folder(folder_id)
+    if folder_path:
+        ConfigStore(storage_path("CONFIG_FILE")).remove_source_for_index_path(
+            folder_path
+        )
     thumb_dir = storage_path("THUMBNAIL_FOLDER")
     cutout_dir = storage_path("CUTOUT_FOLDER")
     preview_dir = storage_path("PREVIEW_FOLDER")
@@ -267,30 +249,45 @@ def api_delete_folder(folder_id: int):
     return jsonify(OkResponse().model_dump())
 
 
-@app.route("/api/reset", methods=["POST"])
-def api_reset():
+def _perform_reset(*, factory_reset: bool):
+    expected_confirmation = "factory-reset" if factory_reset else "reset-index"
+    payload = request.get_json(silent=True) or {}
+    if payload.get("confirm") != expected_confirmation:
+        return jsonify({
+            "error": f"Confirmation must be '{expected_confirmation}'",
+            "code": "confirmation_required",
+        }), 400
+
+    app.config["RESET_IN_PROGRESS"] = True
     try:
-        db.clear_db()
-        thumb_dir = storage_path("THUMBNAIL_FOLDER")
-        if thumb_dir.exists() and thumb_dir.is_dir():
-            for f in thumb_dir.iterdir():
-                if f.is_file():
-                    try:
-                        f.unlink()
-                    except Exception:
-                        pass
-        cutout_dir = storage_path("CUTOUT_FOLDER")
-        if cutout_dir.exists() and cutout_dir.is_dir():
-            for f in cutout_dir.iterdir():
-                if f.is_file():
-                    try:
-                        f.unlink()
-                    except Exception:
-                        pass
-        clear_preview_cache(storage_path("PREVIEW_FOLDER"))
-        return jsonify(OkResponse().model_dump())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        result = reset_application_index(
+            configured_runtime_paths(),
+            factory_reset=factory_reset,
+        )
+        return jsonify(result.to_dict())
+    except ResetOperationError as exc:
+        return jsonify({
+            "error": str(exc),
+            "failures": exc.failures,
+            "code": "reset_failed",
+        }), 500
+    except Exception as exc:
+        return jsonify({"error": str(exc), "code": "reset_failed"}), 500
+    finally:
+        app.config["RESET_IN_PROGRESS"] = False
+        from .worker import start_worker
+        start_worker(storage_path("THUMBNAIL_FOLDER"))
+
+
+@app.route("/api/reset", methods=["POST"])
+@app.route("/api/reset-index", methods=["POST"])
+def api_reset_index():
+    return _perform_reset(factory_reset=False)
+
+
+@app.route("/api/factory-reset", methods=["POST"])
+def api_factory_reset():
+    return _perform_reset(factory_reset=True)
 
 
 @app.route("/api/diagnostics", methods=["GET"])
@@ -542,11 +539,54 @@ def configure_runtime(paths: RuntimePaths | None = None) -> RuntimePaths:
     app.config.update(runtime_paths.flask_config())
     db.set_db_path(runtime_paths.database)
     db.init_db()
+    _migrate_indexed_sources(ConfigStore(runtime_paths.config))
     return runtime_paths
 
 
+def _migrate_indexed_sources(store: ConfigStore) -> None:
+    candidates: list[Path] = []
+    for stored_path in db.get_indexed_folder_paths():
+        if stored_path.startswith("__uploads"):
+            continue
+        candidate = Path(stored_path)
+        if candidate.is_dir():
+            candidates.append(candidate)
+            continue
+        suffix = " (no metadata)"
+        if stored_path.endswith(suffix):
+            source = Path(stored_path.removesuffix(suffix))
+            if source.is_dir():
+                candidates.append(source)
+    store.add_sources(candidates)
+
+
+def _run_reset_command(paths: RuntimePaths, *, factory_reset: bool) -> None:
+    paths.ensure_directories()
+    app.config.update(paths.flask_config())
+    db.set_db_path(paths.database)
+    try:
+        result = reset_application_index(paths, factory_reset=factory_reset)
+    except Exception as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    print(json.dumps(result.to_dict(), ensure_ascii=True, indent=2))
+
+
 def main():
-    configure_runtime()
+    reset_index_requested = "--reset-index" in sys.argv
+    factory_reset_requested = "--factory-reset" in sys.argv
+    if reset_index_requested and factory_reset_requested:
+        raise SystemExit("Choose only one reset command")
+
+    runtime_paths = build_runtime_paths()
+    if reset_index_requested or factory_reset_requested:
+        _run_reset_command(
+            runtime_paths,
+            factory_reset=factory_reset_requested,
+        )
+        return
+
+    configure_runtime(runtime_paths)
 
     # Start queue background worker
     from .worker import start_worker

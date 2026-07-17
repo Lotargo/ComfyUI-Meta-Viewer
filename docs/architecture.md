@@ -59,6 +59,10 @@ comfy-meta-viewer/
 ├── app/                          # Python backend + frontend static assets
 │   ├── main.py                   # Flask app, API routes, startup wiring
 │   ├── database.py               # SQLite CRUD and persistence helpers
+│   ├── config_store.py           # Atomic source configuration outside SQLite
+│   ├── indexing.py               # Reusable source indexing service
+│   ├── reset_service.py          # Physical index/cache reset orchestration
+│   ├── paths.py                  # Cross-platform runtime paths
 │   ├── extractor.py              # Metadata parsing for PNG/JPG/WEBP/etc.
 │   ├── cutout.py                 # Heuristic background removal
 │   ├── schemas.py                # Pydantic request/response models
@@ -90,7 +94,8 @@ comfy-meta-viewer/
 │   ├── previews/                 # Bounded JPEG/WebP lightbox previews
 │   └── cutouts/                  # Transparent PNG cutouts (*.png)
 ├── .comfy_meta_uploads/
-│   └── meta.db                   # SQLite database by default
+│   ├── config.json               # Saved active source directories
+│   └── meta.db                   # Disposable SQLite index by default
 ├── dev_docs/                     # Internal development notes and sprint docs
 ├── docs/                         # Public documentation
 ├── pyproject.toml                # Poetry configuration

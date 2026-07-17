@@ -234,7 +234,7 @@ function initHelpCenter() {
                         </div>
                         <div class="shortcut-group">
                             <h4>Cache And Reset</h4>
-                            <p class="help-text">Thumbnails, display previews, and object cutouts are cached on disk for speed. Hard Reset clears folders, image records, and generated caches, but it does not delete source images from scanned folders.</p>
+                            <p class="help-text">Reset Index physically recreates SQLite and generated caches, then reindexes saved source folders. Factory Reset also forgets saved sources and browser preferences. Neither action deletes files from scanned folders, but uploaded originals stored only in CMV are removed.</p>
                         </div>
                     </div>
                 </section>

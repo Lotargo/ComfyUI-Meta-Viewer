@@ -37,7 +37,12 @@ Returns all indexed folders, including the special `Uploads` folder when uploade
       "name": "images",
       "scanned_at": "2026-06-17 12:00:00",
       "created_at": "2026-06-17 12:00:00",
-      "image_count": 42
+      "image_count": 42,
+      "enabled": true,
+      "recursive": true,
+      "source_status": "available",
+      "last_error": null,
+      "revision": 4
     }
   ]
 }
@@ -45,9 +50,34 @@ Returns all indexed folders, including the special `Uploads` folder when uploade
 
 ---
 
+### `PATCH /api/folders/{folder_id}`
+
+Updates a physical source. Every field is optional, but at least one must be present.
+Disabling a source stops observation and hides its images without deleting indexed rows.
+Enabling it queues a reconciliation.
+
+```json
+{ "enabled": true, "recursive": true, "name": "ComfyUI Output" }
+```
+
+`source_status` is one of `disabled`, `available`, `partially_available`, `unavailable`,
+`reconnecting`, or `error`.
+
+---
+
+### `POST /api/folders/{folder_id}/reconcile`
+
+Queues an immediate full reconciliation for an enabled source.
+
+```json
+{ "ok": true }
+```
+
+---
+
 ### `DELETE /api/folders/{folder_id}`
 
-Deletes a folder record and all related image rows.
+Forgets a source, stops its watcher, and deletes its indexed rows. Source files are untouched.
 
 **Response:**
 
@@ -61,7 +91,7 @@ Deletes a folder record and all related image rows.
 
 ### `POST /api/scan`
 
-Scans a local folder in-place. Existing rows are reused when the file `mtime` did not change.
+Connects and scans a local folder in-place. Existing rows are reused when file size and `mtime` did not change. The saved source is then maintained automatically by filesystem events and periodic reconciliation.
 
 **Request:**
 
@@ -105,12 +135,14 @@ Scans a local folder in-place. Existing rows are reused when the file `mtime` di
 
 **Behavior:**
 
-- Scans files in the selected folder.
+- Scans files in the selected folder, optionally including subfolders.
 - Expands and normalizes the folder to an absolute path before saving it.
 - Supports `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.tiff`, and `.tif` when supported by the parser.
-- Skips unchanged files using stored `mtime` values.
+- Skips unchanged files using stored size and `mtime` values.
 - Stores metadata in SQLite.
 - Returns the first paginated page of indexed images.
+- Debounces event bursts and waits for size/mtime stability before processing copied files.
+- Treats a temporarily unavailable root as offline rather than deleting its indexed rows.
 
 ---
 
@@ -120,7 +152,7 @@ Opens the local operating system's folder dialog. A successful selection returns
 absolute native path; cancellation returns `null`.
 
 ```json
-{ "path": "/path/to/folder" }
+{ "path": "/path/to/folder", "name": "My source", "recursive": true }
 ```
 
 If a graphical picker is unavailable, the endpoint returns HTTP `503` and the web client
@@ -207,7 +239,7 @@ Uploads image files through `multipart/form-data`. Uploaded originals are stored
 
 ### `GET /api/images`
 
-Returns a paginated list of images for a folder.
+Returns a paginated list of images for a folder. Images from disabled sources are omitted from folder and global listings.
 
 **Query Parameters:**
 

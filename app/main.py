@@ -55,6 +55,7 @@ from .schemas import (
     OkResponse,
     ScanRequest,
     ScanResponse,
+    SourceUpdateRequest,
 )
 
 app = Flask(__name__)
@@ -127,13 +128,23 @@ def api_folders_events():
                         "status": f.status,
                         "processed_count": f.processed_count,
                         "image_count": f.image_count,
+                        "enabled": f.enabled,
+                        "recursive": f.recursive,
+                        "source_status": f.source_status,
+                        "last_error": f.last_error,
+                        "revision": f.revision,
+                        "name": f.name,
                     }
                     for f in folders_data
                 }
                 if state != last_state:
                     yield f"data: {json.dumps(state)}\n\n"
                     last_state = state
-                has_processing = any(f.status == "processing" for f in folders_data)
+                has_processing = any(
+                    f.status == "processing"
+                    or f.source_status in ("reconnecting", "unavailable")
+                    for f in folders_data
+                )
                 sleep_time = 1.0 if has_processing else 5.0
                 time.sleep(sleep_time)
             except GeneratorExit:
@@ -158,6 +169,104 @@ def api_resume_folder(folder_id: int):
     return jsonify(OkResponse().model_dump())
 
 
+@app.route("/api/folders/<int:folder_id>", methods=["PATCH"])
+def api_update_source(folder_id: int):
+    try:
+        req = SourceUpdateRequest.model_validate(request.get_json(silent=True) or {})
+    except ValidationError as exc:
+        return jsonify({"error": exc.errors()[0]["msg"]}), 400
+    if req.name is None and req.enabled is None and req.recursive is None:
+        return jsonify({"error": "No source settings were provided"}), 400
+
+    record = db.get_folder_record(folder_id)
+    if record is None or str(record["path"]).startswith("__uploads"):
+        return jsonify({"error": "Source not found"}), 404
+
+    from .source_monitor import get_source_monitor
+
+    monitor = get_source_monitor()
+    if monitor is not None and monitor.running:
+        updated = monitor.update_source(
+            folder_id,
+            name=req.name,
+            enabled=req.enabled,
+            recursive=req.recursive,
+        )
+        if updated is None:
+            return jsonify({"error": "Source not found"}), 404
+    else:
+        settings = ConfigStore(storage_path("CONFIG_FILE")).update_source(
+            record["path"],
+            name=req.name,
+            enabled=req.enabled,
+            recursive=req.recursive,
+        )
+        if settings is None:
+            return jsonify({"error": "Source not found"}), 404
+        db.update_source_settings(
+            folder_id,
+            name=settings.name,
+            enabled=settings.enabled,
+            recursive=settings.recursive,
+        )
+        if not settings.enabled:
+            db.update_source_state(folder_id, "disabled")
+        elif req.enabled is True or req.recursive is not None:
+            source_path = Path(settings.path)
+            if source_path.is_dir():
+                result = index_source_directory(
+                    source_path,
+                    thumbnail_dir=storage_path("THUMBNAIL_FOLDER"),
+                    cutout_dir=storage_path("CUTOUT_FOLDER"),
+                    preview_dir=storage_path("PREVIEW_FOLDER"),
+                    name=settings.name,
+                    recursive=settings.recursive,
+                )
+                if result.processed:
+                    from .worker import start_worker
+
+                    start_worker(storage_path("THUMBNAIL_FOLDER"))
+            else:
+                db.update_source_state(
+                    folder_id,
+                    "unavailable",
+                    f"Source directory is unavailable: {source_path}",
+                )
+
+    current = next((item for item in db.get_folders() if item.id == folder_id), None)
+    return jsonify({"folder": current.model_dump() if current else None})
+
+
+@app.route("/api/folders/<int:folder_id>/reconcile", methods=["POST"])
+def api_reconcile_source(folder_id: int):
+    record = db.get_folder_record(folder_id)
+    if record is None or str(record["path"]).startswith("__uploads"):
+        return jsonify({"error": "Source not found"}), 404
+    if not bool(record["enabled"]):
+        return jsonify({"error": "Enable the source before reconciling it"}), 409
+
+    from .source_monitor import get_source_monitor
+
+    monitor = get_source_monitor()
+    if monitor is not None and monitor.running:
+        monitor.request_reconcile(folder_id)
+    else:
+        source_path = normalize_existing_directory(record["path"])
+        result = index_source_directory(
+            source_path,
+            thumbnail_dir=storage_path("THUMBNAIL_FOLDER"),
+            cutout_dir=storage_path("CUTOUT_FOLDER"),
+            preview_dir=storage_path("PREVIEW_FOLDER"),
+            name=record["name"],
+            recursive=bool(record["recursive"]),
+        )
+        if result.processed:
+            from .worker import start_worker
+
+            start_worker(storage_path("THUMBNAIL_FOLDER"))
+    return jsonify(OkResponse().model_dump())
+
+
 @app.route("/api/scan", methods=["POST"])
 def api_scan():
     try:
@@ -170,13 +279,26 @@ def api_scan():
     except PathValidationError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    store = ConfigStore(storage_path("CONFIG_FILE"))
+    settings = store.add_source(
+        folder_path,
+        name=req.name,
+        recursive=req.recursive,
+    )
     result = index_source_directory(
         folder_path,
         thumbnail_dir=storage_path("THUMBNAIL_FOLDER"),
         cutout_dir=storage_path("CUTOUT_FOLDER"),
         preview_dir=storage_path("PREVIEW_FOLDER"),
+        name=settings.name,
+        recursive=settings.recursive,
     )
-    ConfigStore(storage_path("CONFIG_FILE")).add_source(folder_path)
+
+    from .source_monitor import get_source_monitor
+
+    monitor = get_source_monitor()
+    if monitor is not None and monitor.running:
+        monitor.source_added(settings, result.folder_id)
 
     from .worker import start_worker
     start_worker(storage_path("THUMBNAIL_FOLDER"))
@@ -234,6 +356,11 @@ def api_delete_image(image_id: int):
 def api_delete_folder(folder_id: int):
     folder_path = db.get_folder_path(folder_id)
     image_ids = db.get_folder_image_ids(folder_id)
+    from .source_monitor import get_source_monitor
+
+    monitor = get_source_monitor()
+    if monitor is not None:
+        monitor.forget_source(folder_id)
     db.delete_folder(folder_id)
     if folder_path:
         ConfigStore(storage_path("CONFIG_FILE")).remove_source_for_index_path(
@@ -258,8 +385,20 @@ def _perform_reset(*, factory_reset: bool):
             "code": "confirmation_required",
         }), 400
 
+    from .source_monitor import (
+        source_monitor_is_running,
+        start_source_monitor,
+        stop_source_monitor,
+    )
+
+    monitor_was_running = source_monitor_is_running()
+    monitor_stopped = not monitor_was_running
     app.config["RESET_IN_PROGRESS"] = True
     try:
+        if monitor_was_running:
+            monitor_stopped = stop_source_monitor(timeout=10.0)
+            if not monitor_stopped:
+                raise ResetOperationError(["Source monitor did not stop"])
         result = reset_application_index(
             configured_runtime_paths(),
             factory_reset=factory_reset,
@@ -277,6 +416,8 @@ def _perform_reset(*, factory_reset: bool):
         app.config["RESET_IN_PROGRESS"] = False
         from .worker import start_worker
         start_worker(storage_path("THUMBNAIL_FOLDER"))
+        if monitor_was_running and monitor_stopped:
+            start_source_monitor(configured_runtime_paths())
 
 
 @app.route("/api/reset", methods=["POST"])
@@ -539,7 +680,11 @@ def configure_runtime(paths: RuntimePaths | None = None) -> RuntimePaths:
     app.config.update(runtime_paths.flask_config())
     db.set_db_path(runtime_paths.database)
     db.init_db()
-    _migrate_indexed_sources(ConfigStore(runtime_paths.config))
+    store = ConfigStore(runtime_paths.config)
+    _migrate_indexed_sources(store)
+    from .source_monitor import sync_configured_sources
+
+    sync_configured_sources(store)
     return runtime_paths
 
 
@@ -557,7 +702,7 @@ def _migrate_indexed_sources(store: ConfigStore) -> None:
             source = Path(stored_path.removesuffix(suffix))
             if source.is_dir():
                 candidates.append(source)
-    store.add_sources(candidates)
+    store.add_sources(candidates, reactivate=False)
 
 
 def _run_reset_command(paths: RuntimePaths, *, factory_reset: bool) -> None:
@@ -591,6 +736,9 @@ def main():
     # Start queue background worker
     from .worker import start_worker
     start_worker(storage_path("THUMBNAIL_FOLDER"))
+    from .source_monitor import start_source_monitor, stop_source_monitor
+
+    start_source_monitor(runtime_paths)
 
     port = int(os.environ.get("COMFY_META_PORT", "7860"))
 
@@ -601,7 +749,13 @@ def main():
     print(f"  http://127.0.0.1:{port}")
     print()
 
-    app.run(host="127.0.0.1", port=port, debug=False)
+    try:
+        app.run(host="127.0.0.1", port=port, debug=False)
+    finally:
+        stop_source_monitor()
+        from .worker import stop_worker
+
+        stop_worker(wait=True)
 
 
 if __name__ == "__main__":

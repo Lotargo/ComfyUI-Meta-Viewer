@@ -36,7 +36,7 @@
                 └───────────────────────┘
 ```
 
-ComfyUI Meta Viewer is a local-first web application. The browser hosts a single-page interface, while the Flask backend exposes a small REST API for scanning folders, extracting metadata, serving thumbnails/previews/original images, and managing cached cutouts. SQLite stores the indexed metadata and folder state.
+ComfyUI Meta Viewer is a local-first web application. The browser hosts a single-page interface, while the Flask backend exposes a small REST API for monitored sources, metadata, thumbnails/previews/original images, and cached cutouts. SQLite stores the indexed metadata and source state.
 
 ## Technology Stack
 
@@ -47,6 +47,7 @@ ComfyUI Meta Viewer is a local-first web application. The browser hosts a single
 | Database | SQLite3 | Built-in | Metadata persistence |
 | Validation | Pydantic | 2.x | Request and response models |
 | Images | Pillow | 11.x | Metadata extraction, thumbnails, display previews, cutouts |
+| Monitoring | Watchdog | 6.x | Cross-platform native filesystem events |
 | Frontend | Vanilla JS | ES Modules | SPA without a frontend framework |
 | CSS | Custom Properties | -- | Modular styling system |
 | Search | Fuse.js | 7.x | Client-side fuzzy search |
@@ -61,6 +62,7 @@ comfy-meta-viewer/
 │   ├── database.py               # SQLite CRUD and persistence helpers
 │   ├── config_store.py           # Atomic source configuration outside SQLite
 │   ├── indexing.py               # Reusable source indexing service
+│   ├── source_monitor.py         # Native events + periodic reconciliation
 │   ├── reset_service.py          # Physical index/cache reset orchestration
 │   ├── paths.py                  # Cross-platform runtime paths
 │   ├── extractor.py              # Metadata parsing for PNG/JPG/WEBP/etc.
@@ -94,7 +96,7 @@ comfy-meta-viewer/
 │   ├── previews/                 # Bounded JPEG/WebP lightbox previews
 │   └── cutouts/                  # Transparent PNG cutouts (*.png)
 ├── .comfy_meta_uploads/
-│   ├── config.json               # Saved active source directories
+│   ├── config.json               # Durable source paths and settings
 │   └── meta.db                   # Disposable SQLite index by default
 ├── dev_docs/                     # Internal development notes and sprint docs
 ├── docs/                         # Public documentation
@@ -105,36 +107,31 @@ comfy-meta-viewer/
 
 ## Data Flow
 
-### 1. Folder Scanning
+### 1. Source Monitoring
 
 ```
-User selects or drops a folder
+User connects a folder
        │
        ▼
-  POST /api/scan {"path": "..."}
+  POST /api/scan {"path": "...", "recursive": true}
        │
        ▼
-  database.py: upsert_folder()
+  config_store.py + database.py: persist source settings
        │
        ▼
-  main.py: compare file mtimes with cached rows
-       │
+  source_monitor.py
+       ├──► Watchdog native create/modify/move/delete events
+       ├──► Per-source debounce + two stable snapshots
+       └──► Periodic full reconciliation / reconnect retry
+                    │
+                    ▼
+  indexing.py: compare relative path, size, and mtime
        ├──► Reuse unchanged rows
-       │
-       └──► For changed/new images:
-             extractor.extract_metadata(path)
-               ├──► PNG: read tEXt/iTXt chunks
-               ├──► JPG/TIFF: read EXIF
-               └──► Parse ComfyUI workflow JSON
-       │
-       ▼
-  database.py: insert_images(rows)
-       │
-       ▼
-  Return {folder_id, images, cached, processed, page}
+       ├──► Remove rows only after a complete accessible scan
+       └──► Queue changed/new images for worker.py
 ```
 
-The scanner works in-place: original files are not copied when a folder is indexed. The database stores metadata and file timestamps so unchanged files can be skipped on later scans.
+The monitor works in-place: original files are not copied and no marker files are written into sources. Disabled and unavailable sources keep their indexed rows; normal image queries hide disabled sources. Re-enabling or reconnecting queues a full reconciliation.
 
 ### 2. Image Uploads
 
@@ -227,6 +224,12 @@ CREATE TABLE folders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     path TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'idle',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    recursive INTEGER NOT NULL DEFAULT 0,
+    source_status TEXT NOT NULL DEFAULT 'available',
+    last_error TEXT,
+    revision INTEGER NOT NULL DEFAULT 0,
     scanned_at TEXT DEFAULT (datetime('now')),
     created_at TEXT DEFAULT (datetime('now'))
 );

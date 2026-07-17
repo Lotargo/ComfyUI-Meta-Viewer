@@ -85,7 +85,7 @@ ComfyUI-Meta-Viewer/
 
 | Path | Contents | Reset Index | Factory Reset |
 |------|----------|-------------|---------------|
-| `.comfy_meta_uploads/config.json` | Saved active source directories | preserved | deleted |
+| `.comfy_meta_uploads/config.json` | Source paths, names, enabled flags, and recursion settings | preserved | deleted |
 | `.comfy_meta_uploads/meta.db` | Disposable SQLite index and uploaded BLOBs | recreated | recreated |
 | `.comfy_meta_uploads/meta.db-wal` / `-shm` | SQLite WAL sidecars | deleted | deleted |
 | `cache/thumbnails/` | Generated JPEG thumbnails | cleared | cleared |
@@ -103,6 +103,10 @@ If the system folder dialog is unavailable (for example, Tk is missing in a mini
 environment), the web interface asks for the path manually.
 
 Scanned folder images are not copied. The database stores their metadata and local path references. Uploaded files are stored as BLOBs in SQLite; their metadata is extracted only when an image is first opened. Because those uploaded originals live inside the disposable index, both reset operations permanently remove them. Source files in scanned directories are never deleted.
+
+Enabled sources use native filesystem events plus a periodic five-minute reconciliation.
+Bursts are debounced and two filesystem snapshots must agree before changed files enter the
+metadata queue. Missing roots are retried without treating their indexed contents as deleted.
 
 ---
 

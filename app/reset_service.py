@@ -104,7 +104,7 @@ def reset_application_index(
     store = ConfigStore(paths.config)
     result = ResetResult(factory_reset=factory_reset)
     try:
-        sources = [] if factory_reset else store.active_sources()
+        sources = [] if factory_reset else store.sources()
         if not stop_worker(wait=True, timeout=10.0):
             raise ResetOperationError(["Background index worker did not stop"])
 
@@ -126,18 +126,32 @@ def reset_application_index(
             db.init_db()
 
             for source in sources:
+                folder_id = db.upsert_source(
+                    str(source.path),
+                    name=source.name,
+                    enabled=source.enabled,
+                    recursive=source.recursive,
+                    source_status=(
+                        "reconnecting" if source.enabled else "disabled"
+                    ),
+                )
+                if not source.enabled:
+                    continue
                 try:
-                    source_path = normalize_existing_directory(source)
+                    source_path = normalize_existing_directory(source.path)
                     index_source_directory(
                         source_path,
                         thumbnail_dir=paths.thumbnails,
                         preview_dir=paths.previews,
                         cutout_dir=paths.cutouts,
+                        name=source.name,
+                        recursive=source.recursive,
                     )
                     result.reindexed_sources.append(str(source_path))
                 except (OSError, PathValidationError) as exc:
+                    db.update_source_state(folder_id, "unavailable", str(exc))
                     result.skipped_sources.append({
-                        "path": str(source),
+                        "path": str(source.path),
                         "error": str(exc),
                     })
 

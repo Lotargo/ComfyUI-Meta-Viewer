@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -48,12 +48,32 @@ class FolderInfo(BaseModel):
     image_count: int = 0
     status: str = "idle"
     processed_count: int = 0
+    enabled: bool = True
+    recursive: bool = False
+    source_status: Literal[
+        "disabled",
+        "available",
+        "partially_available",
+        "unavailable",
+        "reconnecting",
+        "error",
+    ] = "available"
+    last_error: str | None = None
+    revision: int = 0
 
 
 # ── API Request models ──────────────────────────────────────────
 
 class ScanRequest(BaseModel):
     path: str = Field(..., min_length=1)
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    recursive: bool = False
+
+
+class SourceUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    enabled: bool | None = None
+    recursive: bool | None = None
 
 
 class ExtractRequest(BaseModel):
@@ -122,4 +142,3 @@ class FolderListResponse(BaseModel):
 
 class OkResponse(BaseModel):
     ok: bool = True
-

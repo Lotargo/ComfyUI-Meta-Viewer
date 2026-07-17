@@ -44,13 +44,15 @@ def stop_worker(*, wait: bool = False, timeout: float = 10.0) -> bool:
 
 
 def _next_image() -> dict | None:
-    completed_folders: list[int] = []
     with closing(db.get_conn()) as conn:
         row = conn.execute(
-            """SELECT i.id, i.rel_path, f.path AS folder_path, i.folder_id
+            """SELECT i.id, i.rel_path, f.path AS folder_path, i.folder_id,
+                f.source_status
             FROM images i
             JOIN folders f ON f.id = i.folder_id
             WHERE f.status = 'processing'
+              AND f.enabled = 1
+              AND f.source_status IN ('available', 'partially_available')
               AND i.metadata_json IS NULL
               AND i.error IS NULL
             ORDER BY i.id ASC
@@ -74,11 +76,8 @@ def _next_image() -> dict | None:
                     "UPDATE folders SET status = 'completed' WHERE id = ?",
                     (folder_id,),
                 )
-                completed_folders.append(folder_id)
         conn.commit()
 
-    for folder_id in completed_folders:
-        db.split_folder_by_metadata(folder_id)
     return None
 
 
@@ -103,7 +102,6 @@ def _worker_loop():
             img_id = row["id"]
             rel_path = row["rel_path"]
             folder_path = row["folder_path"]
-            conn.close()
 
             # 2. Process the image
             if folder_path in ("__uploads__", "__uploads_no_metadata__"):
@@ -146,7 +144,15 @@ def _worker_loop():
                     err_str = str(e) + "\n" + traceback.format_exc()
                     _record_error(img_id, err_str)
             else:
-                _record_error(img_id, f"File not found: {abs_path}")
+                if not Path(folder_path).is_dir():
+                    db.update_source_state(
+                        row["folder_id"],
+                        "unavailable",
+                        f"Source directory is unavailable: {folder_path}",
+                    )
+                    _stop_event.wait(1.0)
+                else:
+                    _record_error(img_id, f"File not found: {abs_path}")
 
             # Small sleep to prevent tight loop CPU starvation
             _stop_event.wait(0.01)

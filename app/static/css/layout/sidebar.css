@@ -259,6 +259,10 @@
     box-shadow: var(--shadow-sm);
 }
 
+.folder-item.physical-source {
+    padding-top: 36px;
+}
+
 .folder-item.active {
     background: var(--accent-dim);
     border-color: var(--accent);
@@ -271,6 +275,126 @@
     align-items: center;
     width: 100%;
     min-width: 0;
+}
+
+.folder-item-details {
+    width: 100%;
+    min-width: 0;
+}
+
+.source-actions {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    display: inline-flex;
+    gap: 2px;
+    z-index: 2;
+}
+
+.source-action-btn {
+    width: 23px;
+    height: 23px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.source-action-btn:hover:not(:disabled),
+.source-action-btn.active {
+    color: var(--accent);
+    background: var(--accent-dim);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.source-action-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.source-badges {
+    min-height: 17px;
+    margin-top: 5px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.source-status,
+.source-recursive-badge {
+    padding: 2px 6px;
+    border-radius: var(--radius-full);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.source-status-available {
+    color: var(--green);
+    background: var(--green-dim);
+}
+
+.source-status-partially_available,
+.source-status-reconnecting {
+    color: var(--orange);
+    background: var(--orange-dim);
+}
+
+.source-status-unavailable,
+.source-status-error {
+    color: var(--red);
+    background: var(--red-dim);
+}
+
+.source-status-disabled {
+    color: var(--text-muted);
+    background: var(--surface3);
+}
+
+.source-recursive-badge {
+    color: var(--accent2);
+    background: var(--accent2-dim);
+}
+
+.folder-item.source-disabled .folder-item-content {
+    opacity: 0.58;
+}
+
+.folder-progress-wrapper {
+    width: 100%;
+    margin-top: 5px;
+}
+
+.folder-progress-label {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-dim);
+    font-size: 9px;
+}
+
+.folder-progress-track {
+    height: 3px;
+    margin-top: 3px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--surface3);
+}
+
+.folder-progress-track > div {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
 }
 
 .folder-item-topline {
@@ -500,12 +624,32 @@
     width: 100%;
 }
 
+.folder-list.view-list .folder-item.physical-source {
+    padding: 8px var(--space-sm);
+}
+
 .folder-list.view-list .folder-item-content {
     flex-direction: row;
     align-items: center;
     gap: 12px;
     width: 100%;
     min-width: 0;
+}
+
+.folder-list.view-list .folder-item-details {
+    flex: 1;
+}
+
+.folder-list.view-list .source-actions {
+    position: relative;
+    top: auto;
+    left: auto;
+    flex-shrink: 0;
+}
+
+.folder-list.view-list .source-badges {
+    justify-content: flex-start;
+    margin-top: 2px;
 }
 
 .folder-list.view-list .folder-item-icon {

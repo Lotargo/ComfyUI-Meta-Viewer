@@ -32,6 +32,7 @@ import {
     setSidebarWidth,
     sidebarCollapsed,
     sidebarWidth,
+    refreshCacheBuster,
 } from '../state.js';
 import { escapeHtml, customConfirm, formatImageCountLabel } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
@@ -204,8 +205,8 @@ export async function renderFoldersList(folderList = null) {
         dom.folderList.innerHTML = `
             <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: var(--text-muted); text-align: center;">
                 <div style="font-size: 48px; margin-bottom: 16px;">&#128193;</div>
-                <p style="font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text);">No scanned folders yet.</p>
-                <p style="font-size: 12px; line-height: 1.5; max-width: 200px;">Click "Open Folder" in the top bar to scan a directory.</p>
+                <p style="font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text);">No sources yet.</p>
+                <p style="font-size: 12px; line-height: 1.5; max-width: 200px;">Click "Open Folder" to connect a directory.</p>
             </div>
         `;
         return;
@@ -231,99 +232,110 @@ export async function renderFoldersList(folderList = null) {
         return 0;
     });
 
+    const statusLabels = {
+        disabled: 'Disabled',
+        available: 'Available',
+        partially_available: 'Partial',
+        unavailable: 'Unavailable',
+        reconnecting: 'Reconnecting',
+        error: 'Error',
+    };
+
     dom.folderList.innerHTML = '';
     sortedFolders.forEach(folder => {
         const item = document.createElement('div');
-        item.className = 'folder-item' + (folder.id === currentFolderId ? ' active' : '');
-        
-        const percentage = folder.image_count > 0 ? Math.round((folder.processed_count / folder.image_count) * 100) : 0;
-        let progressHtml = '';
-        let controlBtnHtml = '';
-        
-        if (folder.status === 'processing') {
-            controlBtnHtml = `
-                <button class="folder-control-btn folder-pause-btn" data-id="${folder.id}" title="Pause processing" aria-label="Pause processing ${escapeHtml(folder.name)}">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+        const isSource = !String(folder.path || '').startsWith('__uploads');
+        const sourceStatus = folder.source_status || (folder.enabled ? 'available' : 'disabled');
+        item.className = [
+            'folder-item',
+            folder.id === currentFolderId ? 'active' : '',
+            isSource ? 'physical-source' : '',
+            !folder.enabled ? 'source-disabled' : '',
+            `source-${sourceStatus}`,
+        ].filter(Boolean).join(' ');
+
+        const percentage = folder.image_count > 0
+            ? Math.round((folder.processed_count / folder.image_count) * 100)
+            : 0;
+        const progressHtml = folder.enabled && folder.status === 'processing' ? `
+            <div class="folder-progress-wrapper">
+                <div class="folder-progress-label"><span>Indexing</span><span>${percentage}%</span></div>
+                <div class="folder-progress-track"><div style="width: ${percentage}%"></div></div>
+            </div>
+        ` : '';
+        const errorTitle = folder.last_error ? ` title="${escapeHtml(folder.last_error)}"` : '';
+        const sourceActions = isSource ? `
+            <div class="source-actions">
+                <button class="source-action-btn source-toggle-btn ${folder.enabled ? 'active' : ''}"
+                    title="${folder.enabled ? 'Disable source' : 'Enable source'}"
+                    aria-label="${folder.enabled ? 'Disable' : 'Enable'} ${escapeHtml(folder.name)}">
+                    <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M12 2v10"></path><path d="M18.4 6.6a8 8 0 1 1-12.8 0"></path></svg>
                 </button>
-            `;
-            progressHtml = `
-                <div class="folder-progress-wrapper" style="width: 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; align-items: center;">
-                    <div style="font-size: 9px; color: var(--text-dim); display: flex; justify-content: space-between; width: 100%;">
-                        <span>Scanning...</span>
-                        <span>${percentage}%</span>
-                    </div>
-                    <div style="width: 100%; height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; position: relative;">
-                        <div style="width: ${percentage}%; height: 100%; background: var(--accent); transition: width 0.3s ease;"></div>
-                    </div>
-                </div>
-            `;
-        } else if (folder.status === 'paused') {
-            controlBtnHtml = `
-                <button class="folder-control-btn folder-resume-btn" data-id="${folder.id}" title="Resume processing" aria-label="Resume processing ${escapeHtml(folder.name)}">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <button class="source-action-btn source-recursive-btn ${folder.recursive ? 'active' : ''}"
+                    title="${folder.recursive ? 'Disable subfolder scanning' : 'Include subfolders'}"
+                    aria-label="Toggle recursive scanning for ${escapeHtml(folder.name)}">R</button>
+                <button class="source-action-btn source-reconcile-btn" title="Reconcile now"
+                    aria-label="Reconcile ${escapeHtml(folder.name)}" ${folder.enabled ? '' : 'disabled'}>
+                    <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6v5h-5"></path><path d="M4 18v-5h5"></path><path d="M18.5 9A7 7 0 0 0 6 6.5L4 11"></path><path d="M5.5 15A7 7 0 0 0 18 17.5l2-4.5"></path></svg>
                 </button>
-            `;
-            progressHtml = `
-                <div class="folder-progress-wrapper" style="width: 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; align-items: center;">
-                    <div style="font-size: 9px; color: var(--text-muted); display: flex; justify-content: space-between; width: 100%;">
-                        <span>Paused</span>
-                        <span>${percentage}%</span>
-                    </div>
-                    <div style="width: 100%; height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; position: relative;">
-                        <div style="width: ${percentage}%; height: 100%; background: var(--text-muted); transition: width 0.3s ease;"></div>
-                    </div>
-                </div>
-            `;
-        }
+            </div>
+        ` : '';
 
         item.innerHTML = `
-            ${controlBtnHtml}
+            ${sourceActions}
             <div class="folder-item-content">
                 <div class="folder-item-icon">📁</div>
-                <div class="folder-item-name" title="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</div>
+                <div class="folder-item-details">
+                    <div class="folder-item-name" title="${escapeHtml(folder.path || folder.name)}">${escapeHtml(folder.name)}</div>
+                    <div class="source-badges">
+                        ${isSource ? `<span class="source-status source-status-${sourceStatus}"${errorTitle}>${statusLabels[sourceStatus] || sourceStatus}</span>` : ''}
+                        ${folder.recursive && isSource ? '<span class="source-recursive-badge">Subfolders</span>' : ''}
+                    </div>
+                    ${progressHtml}
+                </div>
                 ${folder.scanned_at ? `<div class="folder-item-meta"><span class="folder-item-count">${folder.image_count}</span></div>` : ''}
-                ${progressHtml}
             </div>
-            <button class="folder-delete-btn" data-id="${folder.id}" title="Delete folder" aria-label="Delete folder ${escapeHtml(folder.name)}">
+            <button class="folder-delete-btn" data-id="${folder.id}" title="Forget source" aria-label="Forget ${escapeHtml(folder.name)}">
                 <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </button>
         `;
 
         item.onclick = async () => {
+            if (!folder.enabled) {
+                const { showToast } = await import('../state.js');
+                showToast('Enable the source to view its images');
+                return;
+            }
             const { loadFolderImages } = await import('../api.js');
             await loadFolderImages(folder.id, folder.name);
             await renderFoldersList(visibleFolders);
         };
 
-        const pauseBtn = item.querySelector('.folder-pause-btn');
-        if (pauseBtn) {
-            pauseBtn.onclick = async event => {
-                event.stopPropagation();
-                try {
-                    await fetch(`/api/folders/${folder.id}/pause`, { method: 'POST' });
-                    const { getFolders } = await import('../api.js');
-                    const list = await getFolders({ force: true });
-                    await renderFoldersList(list);
-                } catch (e) {
-                    console.error(e);
-                }
-            };
-        }
+        item.querySelector('.source-toggle-btn')?.addEventListener('click', async event => {
+            event.stopPropagation();
+            const { updateSourceOnServer } = await import('../api.js');
+            await updateSourceOnServer(folder.id, { enabled: !folder.enabled });
+            await refreshAfterSourceMutation(folder.id);
+            const { showToast } = await import('../state.js');
+            showToast(folder.enabled ? 'Source disabled' : 'Source enabled; reconciling changes');
+        });
 
-        const resumeBtn = item.querySelector('.folder-resume-btn');
-        if (resumeBtn) {
-            resumeBtn.onclick = async event => {
-                event.stopPropagation();
-                try {
-                    await fetch(`/api/folders/${folder.id}/resume`, { method: 'POST' });
-                    const { getFolders } = await import('../api.js');
-                    const list = await getFolders({ force: true });
-                    await renderFoldersList(list);
-                } catch (e) {
-                    console.error(e);
-                }
-            };
-        }
+        item.querySelector('.source-recursive-btn')?.addEventListener('click', async event => {
+            event.stopPropagation();
+            const { updateSourceOnServer } = await import('../api.js');
+            await updateSourceOnServer(folder.id, { recursive: !folder.recursive });
+            await refreshAfterSourceMutation(folder.id);
+            const { showToast } = await import('../state.js');
+            showToast(folder.recursive ? 'Subfolder scanning disabled' : 'Subfolder scanning enabled');
+        });
+
+        item.querySelector('.source-reconcile-btn')?.addEventListener('click', async event => {
+            event.stopPropagation();
+            const { reconcileSource } = await import('../api.js');
+            await reconcileSource(folder.id);
+            const { showToast } = await import('../state.js');
+            showToast('Source reconciliation queued');
+        });
 
         const deleteBtn = item.querySelector('.folder-delete-btn');
         if (deleteBtn) {
@@ -339,8 +351,9 @@ export async function renderFoldersList(folderList = null) {
                 setFolders(updatedFolders);
 
                 if (currentFolderId === folder.id) {
-                    if (updatedFolders.length) {
-                        await loadFolderImages(updatedFolders[0].id, updatedFolders[0].name, { force: true });
+                    const nextFolder = updatedFolders.find(candidate => candidate.enabled);
+                    if (nextFolder) {
+                        await loadFolderImages(nextFolder.id, nextFolder.name, { force: true });
                     } else {
                         setImages([]);
                         setTotalImages(0);
@@ -375,6 +388,38 @@ export async function renderFoldersList(folderList = null) {
     initFoldersSSE();
 }
 
+async function refreshAfterSourceMutation(folderId) {
+    const { getFolders, loadFolderImages, loadSidebarImages } = await import('../api.js');
+    const updatedFolders = await getFolders({ force: true });
+    setFolders(updatedFolders);
+    const changedFolder = updatedFolders.find(folder => folder.id === folderId);
+
+    if (currentFolderId === folderId) {
+        if (changedFolder?.enabled) {
+            await loadFolderImages(folderId, changedFolder.name, { force: true });
+        } else {
+            const nextFolder = updatedFolders.find(folder => folder.enabled);
+            if (nextFolder) {
+                await loadFolderImages(nextFolder.id, nextFolder.name, { force: true });
+            } else {
+                setImages([]);
+                setTotalImages(0);
+                setCurrentFolderId(null);
+                setCurrentPage(0);
+                setAllLoaded(true);
+                setActiveIndex(-1);
+                dom.folderNameEl.textContent = '';
+                saveState();
+                const { renderCurrentContent } = await import('../events.js');
+                await renderCurrentContent();
+            }
+        }
+    }
+
+    await loadSidebarImages({ force: true });
+    await renderFoldersList(updatedFolders);
+}
+
 let foldersEventSource = null;
 
 function initFoldersSSE() {
@@ -385,13 +430,12 @@ function initFoldersSSE() {
         try {
             const state = JSON.parse(event.data);
 
-            // Check if any new or removed folders appeared (e.g. after split_folder_by_metadata)
+            // Source rows can appear or disappear after add/remove/reset operations.
             const serverIds = new Set(Object.keys(state));
             const localIds = new Set(folders.map(f => String(f.id)));
             const idsChanged = serverIds.size !== localIds.size || [...serverIds].some(id => !localIds.has(id));
 
             if (idsChanged) {
-                // New folders appeared (or were removed) — do a full refetch
                 const { getFolders } = await import('../api.js');
                 const freshFolders = await getFolders({ force: true });
                 setFolders(freshFolders);
@@ -400,25 +444,49 @@ function initFoldersSSE() {
             }
             
             let changed = false;
+            let revisionChanged = false;
+            let activeSourceDisabled = false;
+            const trackedFields = [
+                'status',
+                'processed_count',
+                'image_count',
+                'enabled',
+                'recursive',
+                'source_status',
+                'last_error',
+                'revision',
+                'name',
+            ];
             const updatedFolders = folders.map(f => {
                 const update = state[String(f.id)];
                 if (update) {
-                    if (f.status !== update.status || f.processed_count !== update.processed_count || f.image_count !== update.image_count) {
+                    if (trackedFields.some(field => f[field] !== update[field])) {
                         changed = true;
-                        return {
-                            ...f,
-                            status: update.status,
-                            processed_count: update.processed_count,
-                            image_count: update.image_count
-                        };
+                        revisionChanged ||= f.revision !== update.revision;
+                        activeSourceDisabled ||= f.id === currentFolderId && !update.enabled;
+                        return { ...f, ...update };
                     }
                 }
                 return f;
             });
-            
+
             if (changed) {
                 setFolders(updatedFolders);
                 await renderFoldersList(updatedFolders);
+            }
+            if (activeSourceDisabled) {
+                await refreshAfterSourceMutation(currentFolderId);
+                return;
+            }
+            if (revisionChanged) {
+                refreshCacheBuster();
+                const { invalidateApiCache, loadFolderImages, loadSidebarImages } = await import('../api.js');
+                invalidateApiCache();
+                await loadSidebarImages({ force: true });
+                const activeFolder = updatedFolders.find(folder => folder.id === currentFolderId && folder.enabled);
+                if (activeFolder) {
+                    await loadFolderImages(activeFolder.id, activeFolder.name, { force: true });
+                }
             }
         } catch (e) {
             console.error('SSE message parsing error:', e);

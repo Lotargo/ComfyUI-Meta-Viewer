@@ -81,7 +81,7 @@ class ConfigStoreTest(ResetTestCase):
         self.assertEqual(store.active_sources(), [source.resolve()])
         self.assertFalse(store.temporary_path.exists())
         raw = json.loads(self.paths.config.read_text(encoding="utf-8"))
-        self.assertEqual(raw["version"], 1)
+        self.assertEqual(raw["version"], 2)
         self.assertEqual(len(raw["sources"]), 1)
 
     def test_existing_inactive_source_is_reactivated(self) -> None:

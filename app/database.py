@@ -115,6 +115,11 @@ def init_db() -> None:
                 path TEXT UNIQUE NOT NULL,
                 name TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL DEFAULT 'idle',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                recursive INTEGER NOT NULL DEFAULT 0,
+                source_status TEXT NOT NULL DEFAULT 'available',
+                last_error TEXT,
+                revision INTEGER NOT NULL DEFAULT 0,
                 scanned_at TEXT DEFAULT (datetime('now')),
                 created_at TEXT DEFAULT (datetime('now'))
             );
@@ -141,16 +146,21 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
             CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
         """)
-        try:
-            conn.execute("ALTER TABLE images ADD COLUMN original_data BLOB")
-        except sqlite3.OperationalError:
-            pass
-        try:
-            conn.execute(
-                "ALTER TABLE folders ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'"
-            )
-        except sqlite3.OperationalError:
-            pass
+        migrations = (
+            "ALTER TABLE images ADD COLUMN original_data BLOB",
+            "ALTER TABLE folders ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'",
+            "ALTER TABLE folders ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE folders ADD COLUMN recursive INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE folders ADD COLUMN source_status TEXT NOT NULL DEFAULT 'available'",
+            "ALTER TABLE folders ADD COLUMN last_error TEXT",
+            "ALTER TABLE folders ADD COLUMN revision INTEGER NOT NULL DEFAULT 0",
+        )
+        for migration in migrations:
+            try:
+                conn.execute(migration)
+            except sqlite3.OperationalError as exc:
+                if "duplicate column name" not in str(exc).lower():
+                    raise
         conn.commit()
     finally:
         conn.close()
@@ -172,6 +182,42 @@ def upsert_folder(path: str) -> int:
         conn.close()
 
 
+def upsert_source(
+    path: str,
+    *,
+    name: str | None = None,
+    enabled: bool = True,
+    recursive: bool = False,
+    source_status: str | None = None,
+) -> int:
+    """Create or update a physical source without discarding its indexed assets."""
+    conn = get_conn()
+    try:
+        source_name = (name or "").strip() or Path(path).name or path
+        state = source_status or ("available" if enabled else "disabled")
+        cur = conn.execute(
+            """INSERT INTO folders
+                (path, name, enabled, recursive, source_status)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+                name=excluded.name,
+                enabled=excluded.enabled,
+                recursive=excluded.recursive,
+                source_status=CASE
+                    WHEN excluded.enabled = 0 THEN 'disabled'
+                    WHEN folders.source_status = 'disabled' THEN 'reconnecting'
+                    ELSE folders.source_status
+                END
+            RETURNING id""",
+            (path, source_name, int(enabled), int(recursive), state),
+        )
+        folder_id = int(cur.fetchone()["id"])
+        conn.commit()
+        return folder_id
+    finally:
+        conn.close()
+
+
 def get_folder_mtimes(folder_id: int) -> dict[str, float]:
     conn = get_conn()
     try:
@@ -179,6 +225,21 @@ def get_folder_mtimes(folder_id: int) -> dict[str, float]:
             "SELECT rel_path, file_mtime FROM images WHERE folder_id = ?", (folder_id,)
         ).fetchall()
         return {r["rel_path"]: r["file_mtime"] for r in rows}
+    finally:
+        conn.close()
+
+
+def get_folder_file_stats(folder_id: int) -> dict[str, tuple[int, float]]:
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT rel_path, file_size, file_mtime FROM images WHERE folder_id = ?",
+            (folder_id,),
+        ).fetchall()
+        return {
+            str(row["rel_path"]): (int(row["file_size"]), float(row["file_mtime"]))
+            for row in rows
+        }
     finally:
         conn.close()
 
@@ -195,6 +256,7 @@ def insert_images(folder_id: int, images: list[ImageInsertRow]) -> None:
                     format, width, height, mode, error, metadata_json, thumbnail_b64)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(folder_id, rel_path) DO UPDATE SET
+                    file_name=excluded.file_name,
                     file_size=excluded.file_size, file_mtime=excluded.file_mtime,
                     format=excluded.format, width=excluded.width, height=excluded.height,
                     mode=excluded.mode, error=excluded.error,
@@ -228,7 +290,8 @@ def get_folders() -> list[FolderInfo]:
     try:
         # Query all folders, counting all images in them
         rows = conn.execute(
-            """SELECT f.id, f.path, f.name, f.scanned_at, f.status,
+            """SELECT f.id, f.path, f.name, f.scanned_at, f.created_at, f.status,
+               f.enabled, f.recursive, f.source_status, f.last_error, f.revision,
                COUNT(i.id) AS image_count,
                COUNT(CASE WHEN i.id IS NOT NULL AND (i.metadata_json IS NOT NULL OR i.error IS NOT NULL) THEN 1 END) AS processed_count
             FROM folders f LEFT JOIN images i ON i.folder_id = f.id
@@ -245,6 +308,35 @@ def get_indexed_folder_paths() -> list[str]:
     try:
         rows = conn.execute("SELECT path FROM folders ORDER BY id").fetchall()
         return [str(row["path"]) for row in rows]
+    finally:
+        conn.close()
+
+
+def get_source_records() -> list[dict[str, Any]]:
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """SELECT id, path, name, status, enabled, recursive, source_status,
+                last_error, revision, scanned_at
+            FROM folders
+            WHERE path NOT LIKE '__uploads%'
+            ORDER BY id"""
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def get_folder_record(folder_id: int) -> dict[str, Any] | None:
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            """SELECT id, path, name, status, enabled, recursive, source_status,
+                last_error, revision, scanned_at
+            FROM folders WHERE id = ?""",
+            (folder_id,),
+        ).fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()
 
@@ -269,6 +361,127 @@ def update_folder_status(folder_id: int, status: str) -> None:
             (status, folder_id),
         )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def update_source_settings(
+    folder_id: int,
+    *,
+    name: str | None = None,
+    enabled: bool | None = None,
+    recursive: bool | None = None,
+) -> None:
+    assignments: list[str] = []
+    values: list[Any] = []
+    if name is not None:
+        assignments.append("name = ?")
+        values.append(name)
+    if enabled is not None:
+        assignments.append("enabled = ?")
+        values.append(int(enabled))
+        assignments.append("source_status = ?")
+        values.append("reconnecting" if enabled else "disabled")
+        assignments.append("status = ?")
+        values.append("processing" if enabled else "paused")
+    if recursive is not None:
+        assignments.append("recursive = ?")
+        values.append(int(recursive))
+    if not assignments:
+        return
+
+    conn = get_conn()
+    try:
+        values.append(folder_id)
+        conn.execute(
+            f"UPDATE folders SET {', '.join(assignments)} WHERE id = ?",
+            values,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def update_source_state(
+    folder_id: int,
+    source_status: str,
+    error: str | None = None,
+) -> None:
+    conn = get_conn()
+    try:
+        conn.execute(
+            "UPDATE folders SET source_status = ?, last_error = ? WHERE id = ?",
+            (source_status, error, folder_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def mark_folder_scanned(folder_id: int, *, changed: bool) -> None:
+    conn = get_conn()
+    try:
+        conn.execute(
+            """UPDATE folders
+            SET scanned_at = datetime('now'),
+                revision = revision + ?
+            WHERE id = ?""",
+            (int(changed), folder_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def folder_has_unprocessed_images(folder_id: int) -> bool:
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            """SELECT 1 FROM images
+            WHERE folder_id = ? AND metadata_json IS NULL AND error IS NULL
+            LIMIT 1""",
+            (folder_id,),
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+def consolidate_legacy_source(path: str) -> None:
+    """Merge the former '<source> (no metadata)' pseudo-folder into its source."""
+    derived_path = f"{path} (no metadata)"
+    conn = get_conn()
+    try:
+        source = conn.execute(
+            "SELECT id FROM folders WHERE path = ?",
+            (path,),
+        ).fetchone()
+        derived = conn.execute(
+            "SELECT id FROM folders WHERE path = ?",
+            (derived_path,),
+        ).fetchone()
+        if not source or not derived or source["id"] == derived["id"]:
+            return
+
+        source_id = int(source["id"])
+        derived_id = int(derived["id"])
+        conn.execute("BEGIN")
+        conn.execute(
+            """DELETE FROM images
+            WHERE folder_id = ? AND rel_path IN (
+                SELECT rel_path FROM images WHERE folder_id = ?
+            )""",
+            (derived_id, source_id),
+        )
+        conn.execute(
+            "UPDATE images SET folder_id = ? WHERE folder_id = ?",
+            (source_id, derived_id),
+        )
+        conn.execute("DELETE FROM folders WHERE id = ?", (derived_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -481,12 +694,16 @@ def get_images_page(
     try:
         if folder_id is not None:
             total_row = conn.execute(
-                "SELECT COUNT(*) AS c FROM images WHERE folder_id = ?",
+                """SELECT COUNT(*) AS c FROM images i
+                JOIN folders f ON f.id = i.folder_id
+                WHERE i.folder_id = ? AND f.enabled = 1""",
                 (folder_id,),
             ).fetchone()
         else:
             total_row = conn.execute(
-                "SELECT COUNT(*) AS c FROM images"
+                """SELECT COUNT(*) AS c FROM images i
+                JOIN folders f ON f.id = i.folder_id
+                WHERE f.enabled = 1"""
             ).fetchone()
 
         total = total_row["c"] if total_row else 0
@@ -510,15 +727,19 @@ def get_images_page(
 
         if folder_id is not None:
             rows = conn.execute(
-                f"""SELECT id, file_name, format, width, height, mode, error, metadata_json
-                FROM images WHERE folder_id = ?
+                f"""SELECT i.id, i.file_name, i.format, i.width, i.height, i.mode,
+                    i.error, i.metadata_json
+                FROM images i JOIN folders f ON f.id = i.folder_id
+                WHERE i.folder_id = ? AND f.enabled = 1
                 {order_clause} LIMIT ? OFFSET ?""",
                 (folder_id, per_page, offset),
             ).fetchall()
         else:
             rows = conn.execute(
-                f"""SELECT id, file_name, format, width, height, mode, error, metadata_json
-                FROM images
+                f"""SELECT i.id, i.file_name, i.format, i.width, i.height, i.mode,
+                    i.error, i.metadata_json
+                FROM images i JOIN folders f ON f.id = i.folder_id
+                WHERE f.enabled = 1
                 {order_clause} LIMIT ? OFFSET ?""",
                 (per_page, offset),
             ).fetchall()

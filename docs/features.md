@@ -10,7 +10,7 @@ ComfyUI Meta Viewer is a local-first metadata browser for AI-generated images. I
 
 - [Metadata Extraction](#metadata-extraction)
 - [ComfyUI Workflow Inspection](#comfyui-workflow-inspection)
-- [Folder Scanning](#folder-scanning)
+- [Source Monitoring](#source-monitoring)
 - [SQLite Persistence](#sqlite-persistence)
 - [Gallery View](#gallery-view)
 - [Lightbox](#lightbox)
@@ -84,20 +84,26 @@ The Workflow tab renders parsed ComfyUI nodes as an SVG graph and groups known n
 
 ---
 
-## Folder Scanning
+## Source Monitoring
 
 **Main route:** `POST /api/scan`
 
-Folder scanning indexes images in-place. Original files are not copied during a scan; the database stores metadata and references to their normalized absolute local paths. Cache and database files remain in application-owned directories rather than the selected source folder.
+Source monitoring indexes images in-place. Original files are not copied during a scan; the database stores metadata and references to their normalized absolute local paths. Cache and database files remain in application-owned directories rather than the selected source folder. This works with ordinary folders and directories synchronized by desktop clients such as OneDrive, Google Drive, Dropbox, Syncthing, or Яндекс Диск.
 
 ### Behavior
 
 - Reads a local folder path.
 - Creates or updates a folder row.
-- Compares current file `mtime` values with cached database rows.
+- Supports optional recursive subfolder scanning.
+- Compares current file size and `mtime` with cached database rows.
 - Reprocesses only new or changed files.
 - Stores normalized metadata in SQLite.
 - Returns the first paginated page of results.
+- Uses native filesystem events for fast create/modify/rename/delete updates.
+- Coalesces event bursts and waits for files to become stable before indexing.
+- Runs periodic reconciliation to recover missed events and reconnect changes.
+- Keeps indexed rows when a source becomes unavailable.
+- Lets the user disable a source without deleting its rows, then reconciles on re-enable.
 
 ---
 

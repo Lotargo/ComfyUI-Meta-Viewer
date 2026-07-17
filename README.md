@@ -32,7 +32,7 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 
 - **Metadata extraction** from PNG chunks, EXIF, and ComfyUI workflow JSON
 - **Interactive workflow graph** visualization with color-coded nodes
-- **Folder scanning** in-place (no file copying)
+- **Live source monitoring** for local and desktop-synced cloud folders, with no file copying
 - **Lazy upload indexing** — a quick PNG/JPEG/WebP marker probe categorizes imports; full metadata is parsed when opened
 - **Object cutout** — automatic background removal with transparent PNG export
 - **SQLite persistence** — all data survives restarts
@@ -85,8 +85,8 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
     </td>
     <td>
       <img src="docs/icons/folder.svg" width="20" alt="Folders">
-      <strong>Local Folder Index</strong><br>
-      <sub>Single-user library, no sessions</sub>
+      <strong>Live Source Index</strong><br>
+      <sub>Watcher + periodic reconciliation</sub>
     </td>
     <td>
       <img src="docs/icons/diagnostic.svg" width="20" alt="Diagnostics">
@@ -184,7 +184,7 @@ The app will be available at **http://localhost:7860**
 
 ### Usage
 
-1. **Scan a folder** — drag a folder onto the window or use the scan input
+1. **Connect a folder** — use Open Folder, then toggle monitoring or recursive subfolder scanning from the source card
 2. **Browse images** — use the sidebar to navigate, click to view details
 3. **View metadata** — Summary tab shows prompt + settings
 4. **Explore workflow** — Workflow tab shows the ComfyUI node graph
@@ -202,6 +202,7 @@ The app will be available at **http://localhost:7860**
 | **Database** | SQLite (WAL mode) | Metadata storage |
 | **Validation** | Pydantic v2 | Request/response models |
 | **Images** | Pillow 11.0 | Metadata extraction, thumbnails, cutout |
+| **Monitoring** | Watchdog 6.0 | Cross-platform filesystem events |
 | **Frontend** | Vanilla JS (ES modules) | SPA interface |
 | **CSS** | Custom Properties | Modular styling |
 | **Search** | Fuse.js 7.0 | Fuzzy search (vendored in `app/static/js/vendor/`) |
@@ -214,7 +215,7 @@ The app will be available at **http://localhost:7860**
 | Document | Description |
 |----------|-------------|
 | [Architecture](docs/architecture.md) | System overview, data flow, database schema |
-| [API Reference](docs/api.md) | All 18 REST endpoints with examples |
+| [API Reference](docs/api.md) | REST endpoints with examples |
 | [Features](docs/features.md) | Detailed feature descriptions |
 | [Configuration](docs/configuration.md) | Environment variables, paths, CLI flags |
 | [Development](docs/development.md) | Guide for contributors |
@@ -229,7 +230,9 @@ The app will be available at **http://localhost:7860**
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/scan` | Scan a folder for images |
+| `POST` | `/api/scan` | Connect and index a source directory |
+| `PATCH` | `/api/folders/{id}` | Enable/disable a source or change recursion |
+| `POST` | `/api/folders/{id}/reconcile` | Queue a full source reconciliation |
 | `POST` | `/api/upload` | Upload image files |
 | `GET` | `/api/images` | List images (paginated) |
 | `GET` | `/api/images/{id}` | Get image details + metadata |

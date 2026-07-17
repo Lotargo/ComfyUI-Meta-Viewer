@@ -98,7 +98,9 @@ export async function loadBootstrap({ preferredFolderId = null } = {}) {
     ]);
     const folderList = folderData.folders || [];
     const preferredId = Number.isInteger(preferredFolderId) ? preferredFolderId : null;
-    const defaultFolder = folderList.find(folder => folder.id === preferredId) || folderList[0] || null;
+    const defaultFolder = folderList.find(folder => folder.id === preferredId && folder.enabled)
+        || folderList.find(folder => folder.enabled)
+        || null;
     const folderPage = defaultFolder
         ? await fetchJson(`/api/images?folder_id=${defaultFolder.id}&page=1&per_page=${PAGE_SIZE}&sort_by=${sortKey}&sort_dir=${sortDir}`, { force: true })
         : { images: [], total: 0, page: 0, per_page: PAGE_SIZE };
@@ -111,14 +113,14 @@ export async function loadBootstrap({ preferredFolderId = null } = {}) {
     };
 }
 
-export async function scanFolder(path) {
+export async function scanFolder(path, { recursive = false } = {}) {
     showLoading('Scanning folder...');
     try {
         const data = await fetchJson('/api/scan', {
             options: {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({path}),
+                body: JSON.stringify({ path, recursive }),
             },
         });
 
@@ -333,6 +335,25 @@ export async function deleteFolderFromServer(folderId) {
         console.error('Failed to delete folder:', e);
         return false;
     }
+}
+
+export async function updateSourceOnServer(folderId, patch) {
+    const data = await fetchJson(`/api/folders/${folderId}`, {
+        options: {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+        },
+    });
+    invalidateApiCache();
+    return data.folder;
+}
+
+export async function reconcileSource(folderId) {
+    await fetchJson(`/api/folders/${folderId}/reconcile`, {
+        options: { method: 'POST' },
+    });
+    invalidateApiCache();
 }
 
 export async function deleteImageById(imageId) {

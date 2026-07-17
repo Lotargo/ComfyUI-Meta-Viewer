@@ -1,6 +1,7 @@
 .library-body {
     min-height: 100vh;
     overflow-x: hidden;
+    overflow-y: auto;
     background:
         radial-gradient(circle at 78% -10%, hsla(var(--h-primary), 62%, 40%, 0.12), transparent 34rem),
         var(--bg);

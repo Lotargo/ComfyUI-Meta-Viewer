@@ -53,6 +53,47 @@
     color: var(--text);
 }
 
+/* Primary navigation from the viewer into the separate Library page. */
+.library-entry-btn {
+    min-height: 36px;
+    margin-right: 3px;
+    padding: 7px 13px 7px 10px;
+    border-color: color-mix(in srgb, var(--accent2) 58%, var(--border));
+    background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--accent2) 20%, var(--surface2)),
+        color-mix(in srgb, var(--surface2) 92%, black)
+    );
+    color: var(--text);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent2) 10%, transparent),
+        0 5px 16px var(--accent2-dim);
+    font-family: var(--font-title);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.library-entry-btn svg {
+    color: var(--accent2);
+    filter: drop-shadow(0 0 4px var(--accent2-dim));
+}
+
+.library-entry-btn:hover {
+    border-color: var(--accent2);
+    background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--accent2) 29%, var(--surface2)),
+        var(--surface2)
+    );
+    color: #fff;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent2) 18%, transparent),
+        0 7px 20px var(--accent2-dim);
+    transform: translateY(-1px);
+}
+
+.library-entry-btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
 /* Ghost */
 .btn-ghost {
     background: transparent;

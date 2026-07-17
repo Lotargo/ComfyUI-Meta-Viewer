@@ -226,6 +226,11 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("background-position: right 11px center", styles)
         self.assertIn("padding-right: 34px", styles)
         self.assertIn('href="/library"', viewer)
+        self.assertIn('class="btn library-entry-btn"', viewer)
+        buttons = (
+            root / "app" / "static" / "css" / "components" / "buttons.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn(".library-entry-btn", buttons)
 
 
 class LibraryMigrationTest(unittest.TestCase):

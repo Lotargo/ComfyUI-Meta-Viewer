@@ -8,7 +8,9 @@
 .gallery-masonry {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-auto-rows: 10px;
     gap: 14px;
+    align-items: start;
 }
 
 .gallery-card {
@@ -124,4 +126,5 @@
     display: flex;
     flex-direction: column;
     width: 100%;
+    grid-row-end: span 10;
 }

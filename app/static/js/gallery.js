@@ -14,6 +14,29 @@ import {
 import { escapeHtml, thumbUrl } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
 
+let resizeTimeout = null;
+export function resizeAllGridItems() {
+    if (resizeTimeout) cancelAnimationFrame(resizeTimeout);
+    resizeTimeout = requestAnimationFrame(() => {
+        const grid = document.querySelector('.gallery-masonry');
+        if (!grid) return;
+        const items = grid.querySelectorAll('.gallery-card');
+        items.forEach(item => {
+            const wrapper = item.querySelector('.img-wrapper');
+            if (!wrapper) return;
+            const cardHeight = wrapper.getBoundingClientRect().height;
+            const rowHeight = 10;
+            const rowGap = 14;
+            // Add 2px to account for borders (1px top + 1px bottom)
+            const rowSpan = Math.ceil((cardHeight + 2 + rowGap) / (rowHeight + rowGap));
+            item.style.gridRowEnd = `span ${rowSpan}`;
+        });
+        resizeTimeout = null;
+    });
+}
+
+window.addEventListener('resize', resizeAllGridItems);
+
 let nextGalleryPagePromise = null;
 
 export function loadNextGalleryPage() {
@@ -71,7 +94,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
             newHtml += `
                 <div class="gallery-card${isActive}" data-index="${index}">
                     <div class="img-wrapper"${ratioStyle}>
-                        <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth)this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight">
+                        <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}">
                     </div>
                     <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
                         <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
@@ -107,6 +130,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
             }
         });
 
+        resizeAllGridItems();
         import('./components/search-bar.js').then(module => module.applySearchFilter());
     } else {
         const folderName = dom.folderNameEl ? dom.folderNameEl.textContent : '';
@@ -141,7 +165,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
             html += `
                 <div class="gallery-card${isActive}" data-index="${index}">
                     <div class="img-wrapper"${ratioStyle}>
-                        <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth)this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight">
+                        <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}">
                     </div>
                     <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
                         <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
@@ -174,6 +198,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
             });
         });
 
+        resizeAllGridItems();
         import('./features/sorting.js').then(module => module.bindCentralSortEvents());
     }
 
@@ -215,4 +240,5 @@ export function renderGallerySkeleton() {
     for (let i = 0; i < 12; i++) html += skeletonGalleryCard();
     html += '</div>';
     dom.contentArea.innerHTML = html;
+    resizeAllGridItems();
 }

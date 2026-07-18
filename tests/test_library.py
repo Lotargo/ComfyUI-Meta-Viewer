@@ -367,7 +367,7 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("Edit details", script)
         self.assertIn("Remove from index", script)
         self.assertIn("Delete uploaded asset", script)
-        self.assertIn("Select object", lightbox_script)
+        self.assertIn("Create transparent PNG", lightbox_script)
         self.assertIn("activeImageResolver", cutout_script)
         self.assertIn("initCutoutEvents({ getActiveImage: getDetailForLightbox })", lightbox_script)
         self.assertIn("setAttribute('role', 'menu')", context_menu)

@@ -638,7 +638,7 @@ export function initLightboxEvents() {
             hasLocalFile: Boolean(img.id && img.has_local_file),
             detail: img,
             extraSections: [[{
-                label: 'Select object',
+                label: 'Create transparent PNG',
                 icon: 'cutout',
                 run: openCutoutPanel,
             }]],

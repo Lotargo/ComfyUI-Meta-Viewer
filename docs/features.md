@@ -210,7 +210,7 @@ Right-clicking an indexed image in Viewer or Library exposes a compact shared me
 - Show a scanned source in the operating system's file manager.
 - Copy the resolved local file path.
 - Copy positive/negative prompts and workflow JSON when present.
-- Start Select Object directly from Viewer.
+- Create a transparent PNG cutout directly from Viewer.
 
 Library adds contextual organization actions: toggle favorite, add to an album through a
 submenu, edit asset details, or remove the item from the index without deleting its

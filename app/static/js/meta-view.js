@@ -154,7 +154,7 @@ export function renderMeta(img) {
             hasLocalFile: Boolean(detail.id && detail.has_local_file),
             detail,
             extraSections: [[{
-                label: 'Select object',
+                label: 'Create transparent PNG',
                 icon: 'cutout',
                 run: async () => {
                     const isImagesTab = dom.tabImages?.classList.contains('active');

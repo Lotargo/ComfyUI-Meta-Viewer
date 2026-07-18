@@ -102,7 +102,7 @@ function bindGalleryCard(card) {
             canAccessOriginal: true,
             hasLocalFile: Boolean(img.id && img.has_local_file),
             extraSections: [[{
-                label: 'Select object',
+                label: 'Create transparent PNG',
                 icon: 'cutout',
                 run: async () => {
                     const lightbox = await import('./lightbox.js');

@@ -303,9 +303,11 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("function renderAlbumsList", viewer_sidebar)
         self.assertIn("loadAlbumImages(album.id, album.name)", viewer_sidebar)
         self.assertIn('draggable="false"', viewer_sidebar)
-        self.assertIn("aspect-ratio: 3 / 4", (
+        sidebar_styles = (
             root / "app" / "static" / "css" / "layout" / "sidebar.css"
-        ).read_text(encoding="utf-8"))
+        ).read_text(encoding="utf-8")
+        self.assertIn(".viewer-album-stack", sidebar_styles)
+        self.assertIn("aspect-ratio: 4 / 5", sidebar_styles)
         self.assertIn('href="/library"', viewer)
         self.assertIn('class="btn library-entry-btn"', viewer)
         buttons = (

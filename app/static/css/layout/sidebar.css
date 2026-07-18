@@ -1149,30 +1149,124 @@
     color: var(--text-dim);
 }
 
+.album-list:not(.view-list) {
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+    column-gap: 10px;
+    row-gap: 16px;
+    padding: 13px 10px;
+}
+
 .album-item {
+    --album-outline: color-mix(in srgb, var(--border) 90%, transparent);
+    min-width: 0;
     justify-content: flex-start;
-    padding: 8px;
+    padding: 10px;
+}
+
+.album-list:not(.view-list) .album-item {
+    overflow: visible;
+    border-color: transparent;
+    border-radius: var(--radius-lg);
+    background: transparent;
+    box-shadow: none;
+    transform: translateY(0);
+    transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.album-list:not(.view-list) .album-item:hover {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--surface2) 54%, transparent);
+    box-shadow: none;
+    transform: translateY(-2px);
+}
+
+.album-list:not(.view-list) .album-item.active {
+    --album-outline: var(--accent);
+    border-color: transparent;
+    background: color-mix(in srgb, var(--accent-dim) 64%, transparent);
+    box-shadow: none;
 }
 
 .album-item .folder-item-content {
-    gap: 9px;
+    align-items: stretch;
+    gap: 12px;
+}
+
+.viewer-album-stack {
+    position: relative;
+    width: calc(100% - 10px);
+    aspect-ratio: 4 / 5;
+    margin: 3px 5px 1px;
+    isolation: isolate;
+    flex-shrink: 0;
+}
+
+.viewer-album-stack::before,
+.viewer-album-stack::after {
+    position: absolute;
+    z-index: -1;
+    inset: 1px;
+    border: 1px solid color-mix(in srgb, var(--album-outline) 86%, transparent);
+    border-radius: var(--radius);
+    background: linear-gradient(145deg, var(--surface3), var(--surface2));
+    box-shadow: var(--shadow-sm);
+    content: '';
+    pointer-events: none;
+    transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.viewer-album-stack::before {
+    transform: translate(-3px, 2px) rotate(-2.5deg);
+}
+
+.viewer-album-stack::after {
+    transform: translate(3px, 2px) rotate(2.5deg);
+}
+
+.album-item:hover .viewer-album-stack::before {
+    transform: translate(-5px, 3px) rotate(-3.5deg);
+}
+
+.album-item:hover .viewer-album-stack::after {
+    transform: translate(5px, 3px) rotate(3.5deg);
 }
 
 .viewer-album-cover {
     position: relative;
+    z-index: 1;
     width: 100%;
-    aspect-ratio: 3 / 4;
+    height: 100%;
     overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    display: block;
+    border: 1px solid var(--album-outline);
+    border-radius: var(--radius);
     background: linear-gradient(145deg, var(--surface2), var(--surface3));
-    flex-shrink: 0;
+    box-shadow: 0 7px 16px rgba(0, 0, 0, 0.28);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), filter var(--transition-fast);
+}
+
+.album-item.active .viewer-album-cover {
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3), 0 0 0 2px var(--accent-glow);
+}
+
+.album-item.empty-album {
+    --album-outline: color-mix(in srgb, var(--accent) 36%, var(--border));
+}
+
+.album-item:hover .viewer-album-cover {
+    filter: brightness(1.04);
 }
 
 .viewer-album-cover img {
     width: 100%;
     height: 100%;
+    display: block;
     object-fit: cover;
+    transition: transform var(--transition-slow);
+}
+
+.album-item:hover .viewer-album-cover img {
+    transform: scale(1.025);
 }
 
 .viewer-album-placeholder {
@@ -1182,22 +1276,94 @@
     align-items: center;
     justify-content: center;
     color: var(--accent);
+    background:
+        radial-gradient(circle at 72% 24%, color-mix(in srgb, var(--accent2-dim) 70%, transparent), transparent 30%),
+        linear-gradient(145deg, var(--surface2), var(--surface3));
+}
+
+.album-item .folder-item-details {
+    min-width: 0;
+    text-align: left;
+}
+
+.album-item .folder-item-name {
+    font-family: var(--font-title);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: left;
+}
+
+.album-item.active .folder-item-name {
+    color: var(--accent-hover);
 }
 
 .viewer-album-meta {
-    margin-top: 4px;
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: 9px;
+    font-weight: 550;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.viewer-album-meta svg {
+    color: var(--accent2);
+    flex-shrink: 0;
 }
 
 .album-list.view-list .album-item {
-    min-height: 62px;
+    min-height: 68px;
+    overflow: hidden;
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--surface) 92%, white);
+    box-shadow: none;
+}
+
+.album-list.view-list .album-item:hover {
+    border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
+    background: var(--surface2);
+}
+
+.album-list.view-list .album-item.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.album-list.view-list .folder-item-content {
+    gap: 13px;
+}
+
+.album-list.view-list .viewer-album-stack {
+    width: 50px;
+    height: 50px;
+    aspect-ratio: 1;
+    margin: 0 2px;
+}
+
+.album-list.view-list .viewer-album-stack::before {
+    transform: translate(-2px, 1px) rotate(-2deg);
+}
+
+.album-list.view-list .viewer-album-stack::after {
+    transform: translate(2px, 1px) rotate(2deg);
+}
+
+.album-list.view-list .album-item:hover .viewer-album-stack::before {
+    transform: translate(-3px, 1px) rotate(-2.5deg);
+}
+
+.album-list.view-list .album-item:hover .viewer-album-stack::after {
+    transform: translate(3px, 1px) rotate(2.5deg);
 }
 
 .album-list.view-list .viewer-album-cover {
-    width: 48px;
-    height: 48px;
-    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
 }
 
 .album-list.view-list .folder-item-details {
@@ -1205,7 +1371,8 @@
 }
 
 .album-list.view-list .viewer-album-meta {
-    margin-top: 2px;
+    margin-top: 3px;
+    font-size: 10px;
 }
 
 .viewer-albums-empty {
@@ -1222,9 +1389,16 @@
 }
 
 .viewer-albums-empty-icon {
-    margin-bottom: 4px;
+    width: 52px;
+    height: 52px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+    border-radius: var(--radius-lg);
+    background: var(--accent-dim);
     color: var(--accent);
-    font-size: 36px;
 }
 
 .viewer-albums-empty strong {

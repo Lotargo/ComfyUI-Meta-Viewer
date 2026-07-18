@@ -205,7 +205,9 @@ export async function renderAlbumsList(albumList = null) {
     if (visibleAlbums.length === 0) {
         dom.albumList.innerHTML = `
             <div class="viewer-albums-empty">
-                <div class="viewer-albums-empty-icon">▤</div>
+                <div class="viewer-albums-empty-icon" aria-hidden="true">
+                    <svg viewBox="0 0 32 32" width="32" height="32" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="6" width="18" height="20" rx="3"></rect><path d="M8 22H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v1"></path><circle cx="14" cy="12" r="2"></circle><path d="m11 21 4-4 3 3 2.5-2.5L24 21"></path></svg>
+                </div>
                 <strong>No albums yet</strong>
                 <p>Create and organize albums in Library.</p>
                 <a class="btn btn-sm btn-secondary" href="/library">Open Library</a>
@@ -231,6 +233,7 @@ export async function renderAlbumsList(albumList = null) {
         item.className = [
             'folder-item',
             'album-item',
+            !album.display_cover_image_id ? 'empty-album' : '',
             currentCollection.type === 'album' && currentCollection.id === album.id ? 'active' : '',
         ].filter(Boolean).join(' ');
         item.setAttribute('aria-label', `Open album ${album.name}`);
@@ -240,12 +243,15 @@ export async function renderAlbumsList(albumList = null) {
                 <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M3 9h18"></path><path d="m8 16 2.5-3 2 2 2.5-3 3 4"></path></svg>
             </span>`;
         const count = Number(album.asset_count) || 0;
+        const countLabel = `${count.toLocaleString()} image${count === 1 ? '' : 's'}`;
         item.innerHTML = `
             <span class="folder-item-content">
-                <span class="viewer-album-cover">${cover}</span>
+                <span class="viewer-album-stack" aria-hidden="true">
+                    <span class="viewer-album-cover">${cover}</span>
+                </span>
                 <span class="folder-item-details">
                     <span class="folder-item-name" title="${escapeHtml(album.name)}">${escapeHtml(album.name)}</span>
-                    <span class="viewer-album-meta">${count} image${count === 1 ? '' : 's'}</span>
+                    <span class="viewer-album-meta"><svg viewBox="0 0 16 16" width="12" height="12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="9" height="10" rx="1.5"></rect><path d="M4 11H3a1.5 1.5 0 0 1-1.5-1.5v-6A1.5 1.5 0 0 1 3 2h7a1.5 1.5 0 0 1 1.5 1.5"></path></svg>${countLabel}</span>
                 </span>
             </span>`;
         item.addEventListener('click', async () => {

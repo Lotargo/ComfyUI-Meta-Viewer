@@ -16,6 +16,7 @@ The API is intentionally local-first and single-user oriented. Responses are JSO
 - [Library and Albums](#library-and-albums)
 - [Thumbnails and Originals](#thumbnails-and-originals)
 - [Cutouts](#cutouts)
+- [AI Providers](#ai-providers)
 - [System](#system)
 - [Data Models](#data-models)
 
@@ -545,6 +546,124 @@ Deletes the cached cutout file for an image.
   "deleted": true
 }
 ```
+
+---
+
+## AI Providers
+
+The management UI is available at `GET /settings/ai`. Provider APIs never return API key
+values. A `has_credentials` flag reports only whether the selected system entry or environment
+variable is currently available.
+
+### `GET /api/ai/profiles`
+
+Lists sanitized profiles, default assignments, and the system credential-store status.
+
+```json
+{
+  "profiles": [
+    {
+      "id": "3ea89b7d-3bd5-40ed-8486-86aa8e600711",
+      "kind": "openai_compatible",
+      "name": "Local vision",
+      "base_url": "http://127.0.0.1:1234/v1",
+      "model": "local-vision-model",
+      "api_key_source": "none",
+      "api_key_env": null,
+      "timeout_seconds": 90,
+      "multimodal": true,
+      "extra_body": {},
+      "has_credentials": true
+    }
+  ],
+  "defaults": {
+    "text_profile_id": null,
+    "multimodal_profile_id": "3ea89b7d-3bd5-40ed-8486-86aa8e600711"
+  },
+  "secret_store": {
+    "available": true,
+    "backend": "keyring.backends.Windows.WinVaultKeyring",
+    "message": "API keys are stored in the operating system credential store."
+  }
+}
+```
+
+### `POST /api/ai/profiles`
+
+Creates an OpenAI-compatible or CLI profile. For `api_key_source: "system"`, `api_key` is
+required on creation and is handed directly to the OS keyring. It is not written into the JSON
+configuration.
+
+```json
+{
+  "kind": "openai_compatible",
+  "name": "Example provider",
+  "base_url": "https://provider.example/v1",
+  "api_key_source": "system",
+  "api_key": "secret value",
+  "model": "exact-model-id",
+  "timeout_seconds": 60,
+  "multimodal": true,
+  "extra_body": { "temperature": 0.2 }
+}
+```
+
+A local CLI profile delegates authorization to the executable:
+
+```json
+{
+  "kind": "cli",
+  "name": "OpenCode vision",
+  "cli_type": "opencode",
+  "executable": "C:\\Users\\me\\AppData\\Roaming\\npm\\opencode.cmd",
+  "model": "provider/model",
+  "timeout_seconds": 120,
+  "multimodal": true
+}
+```
+
+### `PATCH /api/ai/profiles/{profile_id}`
+
+Updates supplied fields. Omitting `api_key`, or sending it as an empty string while retaining
+system storage, preserves the current key. Changing away from system storage deletes the old
+keyring entry after the new configuration is saved.
+
+### `DELETE /api/ai/profiles/{profile_id}`
+
+Deletes the profile, clears any default assignment using it, and removes its system-keyring
+entry. It does not modify credentials owned by external CLI tools.
+
+### `PATCH /api/ai/defaults`
+
+Assigns default text and multimodal profiles. Either value can be `null`; the multimodal default
+must refer to a profile explicitly marked `multimodal: true`.
+
+```json
+{
+  "text_profile_id": "2e62129d-3f6b-4370-8204-e53087229acf",
+  "multimodal_profile_id": "3ea89b7d-3bd5-40ed-8486-86aa8e600711"
+}
+```
+
+### `POST /api/ai/profiles/{profile_id}/test`
+
+Performs a minimal real request using the exact configured model. `{ "multimodal": true }`
+adds a generated one-pixel PNG for OpenAI-compatible and OpenCode profiles. Known failures use
+distinct codes including `authentication_error`, `content_rejected`, `incompatible_format`,
+`network_error`, `timeout`, `cli_authentication`, and `provider_error`.
+
+### `GET /api/ai/cli-integrations`
+
+Detects `opencode`, `claude`, and `agy`/`antigravity` through PATH and invokes documented version
+and authorization-status commands. The response includes executable path, version, capability
+flags, and an authorization state. No credential file is opened.
+
+### `GET /api/ai/cli-integrations/{cli_type}/models`
+
+Asks the installed CLI for model IDs when it exposes a model-list command. OpenCode IDs use the
+`provider/model` form. Claude Code currently returns `source: "manual"`; enter an exact model ID
+or supported alias. Antigravity support is experimental because its documented print mode does
+not expose a stable JSON response protocol.
 
 ---
 

@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import database as db
+from .ai.profiles import AIProfileStore
+from .ai.secrets import SecretStore
 from .config_store import ConfigStore, ConfigStoreError
 from .indexing import index_source_directory
 from .paths import PathValidationError, RuntimePaths, normalize_existing_directory
@@ -96,6 +98,7 @@ def reset_application_index(
     paths: RuntimePaths,
     *,
     factory_reset: bool = False,
+    secret_store: SecretStore | None = None,
 ) -> ResetResult:
     """Physically recreate the index and caches, optionally deleting configuration."""
     if not _reset_lock.acquire(blocking=False):
@@ -105,6 +108,11 @@ def reset_application_index(
     result = ResetResult(factory_reset=factory_reset)
     try:
         sources = [] if factory_reset else store.sources()
+        if factory_reset:
+            # Do this before deleting config so failed keyring cleanup cannot orphan keys.
+            AIProfileStore(
+                paths.config, secret_store=secret_store
+            ).delete_all_secrets()
         if not stop_worker(wait=True, timeout=10.0):
             raise ResetOperationError(["Background index worker did not stop"])
 

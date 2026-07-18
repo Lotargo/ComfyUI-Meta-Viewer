@@ -39,6 +39,7 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 - **Media Library** — virtual albums, favorites, ratings, tags, notes, and bulk selection without moving source files
 - **Unified image and video assets** — shared sources, albums, favorites, previews, and technical metadata
 - **Unified media browsing** — folders, albums, the central gallery, and the Media sidebar can show images and videos together or filter either type independently
+- **BYOK provider profiles** — OpenAI-compatible endpoints with OS-keyring or environment-variable credentials, plus detected OpenCode, Claude Code, and Antigravity CLI adapters
 - **Keyboard-first** workflow with 14 shortcuts
 
 ---
@@ -193,6 +194,7 @@ The app will be available at **http://localhost:7860**
 4. **Explore workflow** — Workflow tab shows the ComfyUI node graph
 5. **Search** — Ctrl+F to fuzzy search across all metadata
 6. **Cutout** — Select an image and generate a transparent PNG
+7. **Configure AI** — open the AI page, add an endpoint or import a detected local CLI, choose exact model IDs, and test text or image support
 
 ---
 
@@ -206,6 +208,7 @@ The app will be available at **http://localhost:7860**
 | **Validation** | Pydantic v2 | Request/response models |
 | **Images** | Pillow 11.0 | Metadata extraction, thumbnails, cutout |
 | **Monitoring** | Watchdog 6.0 | Cross-platform filesystem events |
+| **Secrets** | Keyring 25.x | Windows Credential Manager, macOS Keychain, or Linux Secret Service |
 | **Frontend** | Vanilla JS (ES modules) | SPA interface |
 | **CSS** | Custom Properties | Modular styling |
 | **Search** | Fuse.js 7.0 | Fuzzy search (vendored in `app/static/js/vendor/`) |
@@ -247,6 +250,8 @@ The app will be available at **http://localhost:7860**
 | `POST` | `/api/cutout/{id}` | Generate transparent cutout |
 | `GET` | `/api/folders` | List scanned folders |
 | `GET` | `/api/diagnostics` | System statistics |
+| `GET/POST` | `/api/ai/profiles` | List or create masked AI provider profiles |
+| `GET` | `/api/ai/cli-integrations` | Detect supported authenticated local CLIs |
 
 Full API documentation: [docs/api.md](docs/api.md)
 

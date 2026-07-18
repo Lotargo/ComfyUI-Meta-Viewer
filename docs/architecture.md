@@ -48,6 +48,7 @@ ComfyUI Meta Viewer is a local-first web application. The browser hosts the meta
 | Validation | Pydantic | 2.x | Request and response models |
 | Images | Pillow | 11.x | Metadata extraction, thumbnails, display previews, cutouts |
 | Monitoring | Watchdog | 6.x | Cross-platform native filesystem events |
+| Secrets | Keyring | 25.x | Cross-platform system credential-store API |
 | Frontend | Vanilla JS | ES Modules | SPA without a frontend framework |
 | CSS | Custom Properties | -- | Modular styling system |
 | Search | Fuse.js | 7.x | Client-side fuzzy search |
@@ -62,6 +63,7 @@ comfy-meta-viewer/
 │   ├── database.py               # SQLite CRUD and persistence helpers
 │   ├── library.py                # Albums, favorites, tags, filters, bulk actions
 │   ├── config_store.py           # Atomic source configuration outside SQLite
+│   ├── ai/                       # BYOK profiles, keyring, CLI discovery, transports, routes
 │   ├── indexing.py               # Reusable source indexing service
 │   ├── source_monitor.py         # Native events + periodic reconciliation
 │   ├── reset_service.py          # Physical index/cache reset orchestration
@@ -79,6 +81,7 @@ comfy-meta-viewer/
 │   │   └── js/                   # Modular JavaScript
 │   │       ├── app.js            # Viewer entry point
 │   │       ├── library.js        # Standalone Library page
+│   │       ├── ai-settings.js    # Provider and local CLI settings page
 │   │       ├── state.js          # Reactive store
 │   │       ├── preferences.js    # Versioned preference schema and validation
 │   │       ├── api.js            # HTTP client
@@ -93,7 +96,8 @@ comfy-meta-viewer/
 │   │       └── vendor/           # Third-party frontend dependencies
 │   └── templates/
 │       ├── index.html            # Viewer entry template
-│       └── library.html          # Media Library entry template
+│       ├── library.html          # Media Library entry template
+│       └── ai_settings.html      # AI connection management
 ├── cache/
 │   ├── thumbnails/               # JPEG thumbnails (*.jpg)
 │   ├── previews/                 # Bounded JPEG/WebP lightbox previews
@@ -198,6 +202,29 @@ Source file
 
 Original embedded metadata is stored independently from relational user metadata and
 `ai_annotations_json`, preventing future AI reconstruction from being represented as source data.
+
+### AI provider configuration
+
+```text
+AI settings page
+    │
+    ├── OpenAI-compatible profile
+    │      ├── non-secret settings → config.json
+    │      ├── API key → OS keyring, environment, or none
+    │      └── request → /chat/completions
+    │
+    └── Local CLI profile
+           ├── detect executable through PATH
+           ├── inspect auth through documented CLI command
+           └── request → non-interactive OpenCode / Claude / Antigravity process
+```
+
+`config_store.py` version 3 preserves AI profiles and text/multimodal defaults next to source
+settings. The `app/ai/` package validates profiles, prevents authorization fields inside additional
+request JSON, rejects credential-bearing remote HTTP endpoints, and classifies provider errors.
+CLI adapters execute argument arrays without a shell and never parse credential files. OpenCode
+supports file attachment for the image connection test; Claude and Antigravity remain text-only
+until their documented non-interactive image inputs are stable.
 
 ### 4. Thumbnail, Preview, and Original Image Serving
 
@@ -362,6 +389,10 @@ api.js
 - Uploaded metadata is extracted lazily when an image is opened.
 - Scanned folder files are not copied; only metadata and file references are stored.
 - Thumbnail, display preview, and cutout caches are stored on disk.
+- OpenAI-compatible API keys are excluded from JSON, SQLite, diagnostics, normal logs, and API responses.
+- System-stored API keys live under per-profile UUID entries in the OS credential store.
+- Local CLI authorization stays owned by the CLI; CMV stores only integration type, executable path, and model ID.
+- Remote endpoints cannot receive credentials over plaintext HTTP; unauthenticated localhost endpoints remain supported.
 
 ## Extensibility
 

@@ -10,7 +10,7 @@ from typing import Any, Iterable
 from .paths import normalize_path
 
 
-CONFIG_VERSION = 2
+CONFIG_VERSION = 3
 _config_lock = threading.RLock()
 
 
@@ -38,11 +38,18 @@ def _default_config() -> dict[str, Any]:
     return {
         "version": CONFIG_VERSION,
         "sources": [],
+        "ai": {
+            "profiles": [],
+            "defaults": {
+                "text_profile_id": None,
+                "multimodal_profile_id": None,
+            },
+        },
     }
 
 
 class ConfigStore:
-    """Persist source paths separately from the disposable SQLite index."""
+    """Persist durable app settings separately from the disposable SQLite index."""
 
     def __init__(self, path: str | Path):
         self.path = normalize_path(path)
@@ -59,7 +66,11 @@ class ConfigStore:
                     f"Cannot read application configuration: {self.path}: {exc}"
                 ) from exc
 
-            if not isinstance(raw, dict) or raw.get("version") not in (1, CONFIG_VERSION):
+            if not isinstance(raw, dict) or raw.get("version") not in (
+                1,
+                2,
+                CONFIG_VERSION,
+            ):
                 raise ConfigStoreError(
                     f"Unsupported application configuration: {self.path}"
                 )
@@ -91,9 +102,29 @@ class ConfigStore:
                     "recursive": item.get("recursive") is True,
                 })
 
+            raw_ai = raw.get("ai")
+            ai = raw_ai if isinstance(raw_ai, dict) else {}
+            raw_profiles = ai.get("profiles")
+            profiles = (
+                [dict(item) for item in raw_profiles if isinstance(item, dict)]
+                if isinstance(raw_profiles, list)
+                else []
+            )
+            raw_defaults = ai.get("defaults")
+            defaults = raw_defaults if isinstance(raw_defaults, dict) else {}
+
             return {
                 "version": CONFIG_VERSION,
                 "sources": sources,
+                "ai": {
+                    "profiles": profiles,
+                    "defaults": {
+                        "text_profile_id": defaults.get("text_profile_id"),
+                        "multimodal_profile_id": defaults.get(
+                            "multimodal_profile_id"
+                        ),
+                    },
+                },
             }
 
     def save(self, config: dict[str, Any]) -> None:

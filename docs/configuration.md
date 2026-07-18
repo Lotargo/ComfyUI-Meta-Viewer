@@ -11,6 +11,7 @@ The application is designed to run locally with a small set of environment varia
 - [Environment Variables](#environment-variables)
 - [Ports and Addresses](#ports-and-addresses)
 - [Storage Paths](#storage-paths)
+- [AI Credentials](#ai-credentials)
 - [Supported File Extensions](#supported-file-extensions)
 - [SQLite Settings](#sqlite-settings)
 - [Thumbnail Cache](#thumbnail-cache)
@@ -66,7 +67,7 @@ By default, the Flask server binds to `127.0.0.1`, so it is intended for local u
 ```
 ComfyUI-Meta-Viewer/
 ├── .comfy_meta_uploads/
-│   ├── config.json                # Saved source directories
+│   ├── config.json                # Saved sources and non-secret AI profiles
 │   └── meta.db                    # Disposable SQLite index
 ├── cache/
 │   ├── thumbnails/
@@ -85,7 +86,7 @@ ComfyUI-Meta-Viewer/
 
 | Path | Contents | Reset Index | Factory Reset |
 |------|----------|-------------|---------------|
-| `.comfy_meta_uploads/config.json` | Source paths, names, enabled flags, and recursion settings | preserved | deleted |
+| `.comfy_meta_uploads/config.json` | Source paths plus non-secret AI profile settings and defaults | preserved | deleted |
 | `.comfy_meta_uploads/meta.db` | Disposable SQLite index, virtual library data, and uploaded BLOBs | recreated | recreated |
 | `.comfy_meta_uploads/meta.db-wal` / `-shm` | SQLite WAL sidecars | deleted | deleted |
 | `cache/thumbnails/` | Generated JPEG thumbnails | cleared | cleared |
@@ -111,6 +112,31 @@ operations permanently remove them. Source files in scanned directories are neve
 Enabled sources use native filesystem events plus a periodic five-minute reconciliation.
 Bursts are debounced and two filesystem snapshots must agree before changed files enter the
 metadata queue. Missing roots are retried without treating their indexed contents as deleted.
+
+---
+
+## AI Credentials
+
+AI profile names, endpoints, model IDs, timeouts, capability flags, and additional request
+parameters are stored in `config.json`. API key values are explicitly excluded from that file,
+SQLite, normal logs, diagnostics, and API responses.
+
+An OpenAI-compatible profile supports three credential sources:
+
+| Source | Storage and behavior |
+|--------|----------------------|
+| System credential store | The `keyring` package uses Windows Credential Manager, macOS Keychain, or a Linux Secret Service backend. Entries use the profile UUID and service name `comfyui-meta-viewer`. |
+| Environment variable | Only the variable name is saved. The server reads its current value when a request starts. |
+| No key | Intended for local endpoints such as LM Studio when authentication is disabled. |
+
+Remote endpoints may receive credentials only over HTTPS. Plain HTTP with a key is accepted only
+for `localhost`, `127.0.0.1`, or `::1`. If a supported Linux keyring is unavailable, use an
+environment variable rather than a plaintext fallback.
+
+CLI profiles store the detected executable path and invoke the CLI itself, allowing OpenCode,
+Claude Code, or Antigravity to retain ownership of its authorization. The application does not
+read or copy their credential files. Factory Reset removes CMV's system-keyring entries before
+deleting `config.json`; Reset Index preserves profiles and credentials.
 
 ---
 

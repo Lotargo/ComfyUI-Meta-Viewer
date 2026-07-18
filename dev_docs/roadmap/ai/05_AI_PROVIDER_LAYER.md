@@ -55,6 +55,46 @@ AI-результаты сохраняются отдельно от metadata и
 - результат;
 - дату создания.
 
+## Текущий срез реализации — 2026-07-19
+
+Готов механизм BYOK и выбора транспорта:
+
+- несколько OpenAI-compatible профилей с точным Model ID, Base URL, timeout,
+  дополнительными JSON-параметрами и явным признаком мультимодальности;
+- ключ в системном credential store через Python Keyring, ссылка на переменную окружения
+  или режим без ключа для локального endpoint;
+- ключ не сохраняется в JSON/SQLite, не возвращается API и удаляется вместе с профилем
+  или до удаления конфигурации при Factory Reset;
+- отдельные default-профили для текста и мультимодальных операций;
+- обнаружение OpenCode, Claude Code и Antigravity CLI через PATH без чтения их файлов
+  авторизации;
+- импорт CLI как профиля, получение списка моделей там, где CLI предоставляет команду,
+  и реальная проверка соединения в non-interactive режиме;
+- единая классификация ошибок авторизации, сети, timeout, content policy и несовместимого
+  формата.
+
+OpenCode использует `run --format json` и `--file` для изображения. Claude Code использует
+`--print --output-format json`, но пока считается текстовым адаптером. Antigravity использует
+`agy --print` и отмечен экспериментальным, потому что документированный CLI не предоставляет
+стабильный JSON-формат ответа.
+
+Принципиальное решение: приложение вызывает установленный CLI и тем самым использует его
+штатную авторизацию, но никогда не читает и не копирует токены OpenCode, Claude Code или
+Antigravity. Это уменьшает поверхность утечки и сохраняет штатное обновление/отзыв OAuth.
+
+Следующий срез перед закрытием задания: серверные cancellable jobs для прикладных операций,
+запись технических ошибок и результатов в отдельные AI-аннотации asset, затем браузерная
+проверка реальных text/vision провайдеров.
+
+Актуальные источники решения:
+
+- [OpenCode CLI: `auth`, `models`, `run`, `--file`, JSON events](https://opencode.ai/docs/cli/)
+- [OpenCode providers and owned authorization](https://opencode.ai/docs/providers/)
+- [Claude Code CLI: print and JSON modes](https://code.claude.com/docs/en/cli-usage)
+- [Claude Code installation and credential ownership](https://code.claude.com/docs/en/getting-started)
+- [Google Antigravity CLI print mode and OAuth flow](https://codelabs.developers.google.com/sdd-agy-cli)
+- [Python Keyring API and backend behavior](https://keyring.readthedocs.io/en/stable/)
+
 ## Критерии готовности
 
 - Пользователь может создать несколько OpenAI-compatible профилей.

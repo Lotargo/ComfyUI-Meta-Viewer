@@ -10,6 +10,7 @@ from unittest.mock import patch
 from PIL import Image
 
 from app import database as db
+from app.ai.profiles import AIProfileStore
 from app.config_store import ConfigStore, ConfigStoreError
 from app.indexing import index_source_directory
 from app.main import app, configure_runtime
@@ -81,7 +82,7 @@ class ConfigStoreTest(ResetTestCase):
         self.assertEqual(store.active_sources(), [source.resolve()])
         self.assertFalse(store.temporary_path.exists())
         raw = json.loads(self.paths.config.read_text(encoding="utf-8"))
-        self.assertEqual(raw["version"], 2)
+        self.assertEqual(raw["version"], 3)
         self.assertEqual(len(raw["sources"]), 1)
 
     def test_existing_inactive_source_is_reactivated(self) -> None:
@@ -151,15 +152,45 @@ class PhysicalResetTest(ResetTestCase):
         self.assertEqual(diagnostics["uploads"], 0)
 
     def test_factory_reset_removes_configuration_without_touching_sources(self) -> None:
+        class TestSecrets:
+            def __init__(self):
+                self.values = {}
+
+            def get(self, profile_id):
+                return self.values.get(profile_id)
+
+            def set(self, profile_id, value):
+                self.values[profile_id] = value
+
+            def delete(self, profile_id):
+                self.values.pop(profile_id, None)
+
         source, image = self.make_source()
         before = image.read_bytes()
         ConfigStore(self.paths.config).add_source(source)
         self.index_source(source)
+        secrets = TestSecrets()
+        profile = AIProfileStore(
+            self.paths.config, secret_store=secrets
+        ).create({
+            "kind": "openai_compatible",
+            "name": "Reset test",
+            "base_url": "https://provider.example/v1",
+            "api_key_source": "system",
+            "api_key": "factory-reset-secret",
+            "model": "test-model",
+        })
+        self.assertEqual(secrets.values[profile["id"]], "factory-reset-secret")
 
-        result = reset_application_index(self.paths, factory_reset=True)
+        result = reset_application_index(
+            self.paths,
+            factory_reset=True,
+            secret_store=secrets,
+        )
 
         self.assertTrue(result.factory_reset)
         self.assertFalse(self.paths.config.exists())
+        self.assertEqual(secrets.values, {})
         self.assertEqual(db.get_diagnostics()["folders"], 0)
         self.assertEqual(image.read_bytes(), before)
 

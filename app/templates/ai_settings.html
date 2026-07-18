@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI providers — ComfyUI Meta Viewer</title>
+    <link rel="preload" href="/static/fonts/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/static/css/fonts.css">
+    <link rel="stylesheet" href="/static/css/base/variables.css">
+    <link rel="stylesheet" href="/static/css/base/reset.css">
+    <link rel="stylesheet" href="/static/css/base/typography.css">
+    <link rel="stylesheet" href="/static/css/components/buttons.css">
+    <link rel="stylesheet" href="/static/css/components/header.css">
+    <link rel="stylesheet" href="/static/css/features/ai-settings.css?v={{ static_version('css/features/ai-settings.css') }}">
+</head>
+<body class="ai-settings-body">
+    <header class="global-header ai-settings-header">
+        <div class="global-header-left">
+            <a class="header-logo" href="/"><span>Comfy</span>UI Meta Viewer</a>
+            <nav class="app-switcher" aria-label="Primary navigation">
+                <a class="app-switcher-link" href="/">Viewer</a>
+                <a class="app-switcher-link" href="/library">Library</a>
+                <a class="app-switcher-link active" href="/settings/ai" aria-current="page">AI</a>
+            </nav>
+        </div>
+        <div class="global-header-actions">
+            <button id="refresh-all" class="header-primary-action" type="button">Refresh status</button>
+        </div>
+    </header>
+
+    <main class="ai-settings-main">
+        <section class="ai-hero">
+            <div>
+                <p class="ai-eyebrow">Bring your own provider</p>
+                <h1>AI connections</h1>
+                <p>Connect an OpenAI-compatible endpoint or reuse an authenticated local CLI. API keys never enter the media index.</p>
+            </div>
+            <div id="secret-store-status" class="security-status" role="status">
+                <span class="status-dot"></span>
+                <div><strong>Checking credential storage…</strong><span></span></div>
+            </div>
+        </section>
+
+        <div id="page-feedback" class="page-feedback" role="status" aria-live="polite" hidden></div>
+
+        <section class="settings-section" aria-labelledby="profiles-heading">
+            <div class="section-heading">
+                <div>
+                    <p class="section-kicker">Configured</p>
+                    <h2 id="profiles-heading">Provider profiles</h2>
+                    <p>Each operation uses the exact model ID and timeout saved in its profile.</p>
+                </div>
+                <button id="add-provider" class="btn btn-primary" type="button">Add provider</button>
+            </div>
+
+            <div class="default-profile-panel">
+                <label>
+                    <span>Default text profile</span>
+                    <select id="default-text-profile"><option value="">Not selected</option></select>
+                </label>
+                <label>
+                    <span>Default multimodal profile</span>
+                    <select id="default-multimodal-profile"><option value="">Not selected</option></select>
+                </label>
+                <p>Only profiles explicitly marked as multimodal can receive images or video frames.</p>
+            </div>
+
+            <div id="profiles-grid" class="profiles-grid"></div>
+            <div id="profiles-empty" class="empty-panel" hidden>
+                <strong>No provider profiles yet</strong>
+                <p>Add an endpoint below or import one of the detected command-line tools.</p>
+            </div>
+        </section>
+
+        <section class="settings-section" aria-labelledby="cli-heading">
+            <div class="section-heading">
+                <div>
+                    <p class="section-kicker">Existing authorization</p>
+                    <h2 id="cli-heading">Local AI command-line tools</h2>
+                    <p>Detection invokes only documented status commands. Credential files are never opened or copied.</p>
+                </div>
+                <button id="refresh-cli" class="btn btn-secondary" type="button">Scan again</button>
+            </div>
+            <div id="cli-grid" class="cli-grid" aria-live="polite"></div>
+        </section>
+
+        <section class="security-note">
+            <div class="security-note-icon" aria-hidden="true">✓</div>
+            <div>
+                <h2>Credential boundary</h2>
+                <p>System-stored API keys are addressed by profile UUID and are never returned by the API. CLI profiles delegate authentication to OpenCode, Claude Code, or Antigravity. Environment-variable profiles store only the variable name.</p>
+            </div>
+        </section>
+    </main>
+
+    <dialog id="profile-dialog" class="profile-dialog" aria-labelledby="profile-dialog-title">
+        <form id="profile-form" method="dialog">
+            <header class="dialog-header">
+                <div>
+                    <p class="section-kicker" id="profile-dialog-kicker">OpenAI-compatible</p>
+                    <h2 id="profile-dialog-title">Add provider profile</h2>
+                </div>
+                <button id="close-profile-dialog" class="dialog-close" type="button" aria-label="Close">×</button>
+            </header>
+
+            <input id="profile-id" type="hidden">
+            <input id="profile-kind" type="hidden" value="openai_compatible">
+            <input id="profile-cli-type" type="hidden">
+            <input id="profile-executable" type="hidden">
+
+            <div class="form-grid">
+                <label class="field field-wide">
+                    <span>Profile name</span>
+                    <input id="profile-name" name="name" maxlength="80" required placeholder="My provider">
+                </label>
+
+                <div id="openai-fields" class="form-grid form-grid-nested field-wide">
+                    <label class="field field-wide">
+                        <span>Base URL</span>
+                        <input id="profile-base-url" type="url" placeholder="https://api.example.com/v1">
+                        <small>The app calls <code>/chat/completions</code> unless the path already ends with it.</small>
+                    </label>
+
+                    <label class="field">
+                        <span>API key source</span>
+                        <select id="profile-key-source">
+                            <option value="system">System credential store</option>
+                            <option value="environment">Environment variable</option>
+                            <option value="none">No key required</option>
+                        </select>
+                    </label>
+
+                    <label id="api-key-field" class="field">
+                        <span>API key</span>
+                        <input id="profile-api-key" type="password" autocomplete="new-password" placeholder="Stored securely after save">
+                        <small id="api-key-help">Required for a new system-stored profile.</small>
+                    </label>
+
+                    <label id="api-key-env-field" class="field" hidden>
+                        <span>Environment variable</span>
+                        <input id="profile-api-key-env" placeholder="PROVIDER_API_KEY" spellcheck="false">
+                        <small>The value stays outside the application.</small>
+                    </label>
+                </div>
+
+                <label class="field field-wide">
+                    <span>Exact model ID</span>
+                    <input id="profile-model" list="profile-model-options" maxlength="200" required placeholder="provider/model-or-id" spellcheck="false">
+                    <datalist id="profile-model-options"></datalist>
+                </label>
+
+                <label class="field">
+                    <span>Timeout, seconds</span>
+                    <input id="profile-timeout" type="number" min="5" max="600" value="60" required>
+                </label>
+
+                <label class="check-field">
+                    <input id="profile-multimodal" type="checkbox">
+                    <span><strong>Multimodal profile</strong><small>Allow image and video-frame requests.</small></span>
+                </label>
+
+                <label id="extra-body-field" class="field field-wide">
+                    <span>Additional request parameters <em>optional</em></span>
+                    <textarea id="profile-extra-body" rows="4" spellcheck="false" placeholder='{"temperature": 0.2}'></textarea>
+                    <small>JSON object only. Authentication fields are rejected.</small>
+                </label>
+            </div>
+
+            <div id="profile-form-error" class="form-error" role="alert" hidden></div>
+            <footer class="dialog-actions">
+                <button id="cancel-profile" class="btn btn-secondary" type="button">Cancel</button>
+                <button id="save-profile" class="btn btn-primary" type="submit">Save profile</button>
+            </footer>
+        </form>
+    </dialog>
+
+    <script type="module" src="/static/js/ai-settings.js?v={{ static_version('js/ai-settings.js') }}"></script>
+</body>
+</html>

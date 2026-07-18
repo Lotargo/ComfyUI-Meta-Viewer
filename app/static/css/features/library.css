@@ -615,6 +615,11 @@
 .editor-actions { justify-content: flex-end; gap: var(--space-sm); }
 
 .library-guide-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
     width: min(880px, calc(100vw - 32px));
     max-height: min(820px, calc(100vh - 32px));
     padding: 0;
@@ -654,8 +659,12 @@
 
 .guide-close {
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 34px;
     height: 34px;
+    padding: 0;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-full);
     background: var(--surface);
@@ -665,6 +674,7 @@
     cursor: pointer;
 }
 
+.guide-close svg { display: block; }
 .guide-close:hover { border-color: var(--border); color: var(--text); }
 .library-guide-content { display: grid; gap: var(--space-lg); padding: clamp(18px, 3vw, 30px); overflow-y: auto; }
 

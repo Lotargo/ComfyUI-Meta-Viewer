@@ -70,6 +70,18 @@ app.config.update(build_runtime_paths().flask_config())
 app.jinja_env.auto_reload = True
 
 
+def static_version(filename: str) -> str:
+    try:
+        static_file = Path(app.static_folder or "") / filename
+        stat = static_file.stat()
+        return f"{stat.st_mtime_ns:x}-{stat.st_size:x}"
+    except OSError:
+        return "missing"
+
+
+app.jinja_env.globals["static_version"] = static_version
+
+
 def storage_path(config_key: str) -> Path:
     return Path(app.config[config_key])
 

@@ -59,6 +59,40 @@ const dom = {
     toast: document.getElementById('library-toast'),
 };
 
+const storageKeys = {
+    previewVisible: 'library-preview-visible',
+    previewWidth: 'library-preview-width',
+    sidebarCollapsed: 'library-sidebar-collapsed',
+};
+
+function readStoredBoolean(key, fallback) {
+    try {
+        const stored = localStorage.getItem(key);
+        return stored === null ? fallback : stored === 'true';
+    } catch {
+        return fallback;
+    }
+}
+
+function readStoredNumber(key, fallback) {
+    try {
+        const stored = Number(localStorage.getItem(key));
+        return Number.isFinite(stored) && stored > 0 ? stored : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+function writeStoredPreference(key, value) {
+    try {
+        localStorage.setItem(key, String(value));
+    } catch {
+        // The UI still works when browser storage is unavailable.
+    }
+}
+
+const storedSidebarCollapsed = readStoredBoolean(storageKeys.sidebarCollapsed, false);
+
 const state = {
     systemCollections: [],
     albums: [],
@@ -75,7 +109,7 @@ const state = {
     loading: false,
     ratingFilter: null,
     selectMode: false,
-    showPreview: true,
+    showPreview: readStoredBoolean(storageKeys.previewVisible, true),
     activeAssetId: null,
     metadataFilters: { node_types: [] },
     infiniteScrollObserver: null,
@@ -84,9 +118,9 @@ const state = {
     pointerDrag: null,
     suppressNextGridClick: false,
     lastGridClick: null,
-    previewWidth: Number(localStorage.getItem('library-preview-width')) || 450,
-    sidebarCollapsed: localStorage.getItem('library-sidebar-collapsed') === 'true',
-    sidebarExplicitlyCollapsed: localStorage.getItem('library-sidebar-explicitly-collapsed') === 'true',
+    previewWidth: readStoredNumber(storageKeys.previewWidth, 450),
+    sidebarCollapsed: storedSidebarCollapsed,
+    sidebarExplicitlyCollapsed: storedSidebarCollapsed,
 };
 
 const collectionIcons = {
@@ -324,6 +358,8 @@ let previewPanelTimer = null;
 
 function updateLayoutColumns() {
     const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
+    dom.btnTogglePreview.classList.toggle('active', state.showPreview);
+    dom.btnTogglePreview.setAttribute('aria-pressed', String(state.showPreview));
     if (state.showPreview && activeAsset) {
         dom.previewPanel.style.width = state.previewWidth + 'px';
         dom.previewPanel.style.borderLeftWidth = '1px';
@@ -335,7 +371,15 @@ function updateLayoutColumns() {
 
 function updateSidebarUI() {
     dom.shell.classList.toggle('sidebar-collapsed', state.sidebarCollapsed);
+    dom.btnToggleSidebar.setAttribute('aria-expanded', String(!state.sidebarCollapsed));
+    dom.btnToggleSidebar.title = state.sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar';
     updateLayoutColumns();
+}
+
+function setPreviewVisibility(visible) {
+    state.showPreview = visible;
+    writeStoredPreference(storageKeys.previewVisible, visible);
+    updatePreviewPanel();
 }
 
 function updatePreviewPanel() {
@@ -646,6 +690,99 @@ function toggleSelection(assetId, index, extend = false) {
     }
     state.lastSelectedIndex = index;
     renderAssets();
+}
+
+function captureLibraryScroll() {
+    const containers = [];
+    const seen = new Set();
+    const addContainer = element => {
+        if (!element || seen.has(element)) return;
+        seen.add(element);
+        containers.push({
+            element,
+            left: element.scrollLeft,
+            top: element.scrollTop,
+        });
+    };
+
+    let ancestor = dom.grid.parentElement;
+    while (ancestor) {
+        const overflowY = window.getComputedStyle(ancestor).overflowY;
+        if (/(auto|scroll|overlay)/.test(overflowY)) addContainer(ancestor);
+        ancestor = ancestor.parentElement;
+    }
+
+    addContainer(document.scrollingElement);
+    addContainer(document.documentElement);
+    addContainer(document.body);
+
+    return containers;
+}
+
+function restoreLibraryScroll(scrollState) {
+    scrollState.forEach(({ element, left, top }) => {
+        element.scrollLeft = left;
+        element.scrollTop = top;
+    });
+}
+
+function preserveVisibleCardPosition(anchor, scrollState) {
+    restoreLibraryScroll(scrollState);
+    if (!anchor) return;
+
+    const currentCard = dom.grid.querySelector(`[data-asset-id="${anchor.assetId}"]`);
+    if (!currentCard) return;
+
+    const offsetChange = currentCard.getBoundingClientRect().top - anchor.top;
+    if (Math.abs(offsetChange) <= 0.5) return;
+
+    const activeScroller = scrollState.find(({ top }) => top > 0)
+        || scrollState.find(({ element }) => element === document.scrollingElement)
+        || scrollState[0];
+    if (activeScroller) {
+        activeScroller.element.scrollTop += offsetChange;
+        activeScroller.top = activeScroller.element.scrollTop;
+    }
+}
+
+function clearGridSelection({ exitSelectMode = false } = {}) {
+    const scrollState = captureLibraryScroll();
+    const visibleCard = [...dom.grid.querySelectorAll('[data-asset-id]')].find(card => {
+        const rect = card.getBoundingClientRect();
+        return rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+    const anchor = visibleCard ? {
+        assetId: visibleCard.dataset.assetId,
+        top: visibleCard.getBoundingClientRect().top,
+    } : null;
+
+    const focusedElement = document.activeElement;
+    if (focusedElement?.closest?.('#selection-toolbar, .asset-select')) {
+        focusedElement.blur();
+    }
+
+    state.selected.clear();
+    state.lastSelectedIndex = null;
+    if (exitSelectMode) {
+        state.selectMode = false;
+        dom.btnToggleSelect.classList.remove('active');
+        dom.shell.classList.remove('select-mode-on');
+    }
+
+    dom.grid.querySelectorAll('.asset-card.selected').forEach(card => {
+        card.classList.remove('selected');
+        card.setAttribute('aria-selected', 'false');
+        const checkbox = card.querySelector('.asset-select');
+        if (checkbox) checkbox.checked = false;
+    });
+    updateSelectionToolbar();
+    updatePreviewPanel();
+
+    restoreLibraryScroll(scrollState);
+    window.requestAnimationFrame(() => {
+        preserveVisibleCardPosition(anchor, scrollState);
+        window.requestAnimationFrame(() => preserveVisibleCardPosition(anchor, scrollState));
+    });
 }
 
 function activateAssetSelection(assetId, index) {
@@ -1326,26 +1463,23 @@ document.addEventListener('keydown', async event => {
     const dialogOpen = dom.editor.open || dom.albumDialog.open || dom.guideDialog.open;
     const externalInteractive = !!activeElement?.closest?.('button, a, [role="button"]') && !activeElement.closest('.asset-card');
     if (event.key === 'Escape') {
+        let handled = true;
         if (dom.guideDialog.open) {
             dom.guideDialog.close();
-            event.preventDefault();
         } else if (dom.editor.open) {
             dom.editor.close();
-            event.preventDefault();
         } else if (dom.albumDialog.open) {
             dom.albumDialog.close();
-            event.preventDefault();
         } else if (state.selectMode) {
-            state.selectMode = false;
-            dom.btnToggleSelect.classList.remove('active');
-            dom.shell.classList.remove('select-mode-on');
-            state.selected.clear();
-            renderAssets();
-            updatePreviewPanel();
+            clearGridSelection({ exitSelectMode: true });
+        } else if (state.selected.size > 0) {
+            clearGridSelection();
         } else {
-            state.selected.clear();
-            renderAssets();
-            updatePreviewPanel();
+            handled = false;
+        }
+        if (handled) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
         }
     } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && !editing && !dialogOpen) {
         event.preventDefault();
@@ -1386,7 +1520,7 @@ document.addEventListener('keydown', async event => {
             showToast(error.message, true);
         }
     }
-});
+}, { capture: true });
 
 function setupDialogBackdropClose(dialogEl) {
     dialogEl.addEventListener('click', event => {
@@ -1425,12 +1559,10 @@ async function initialize() {
         });
         dom.guideDialog.addEventListener('close', () => {
             dom.btnLibraryGuide.setAttribute('aria-expanded', 'false');
-            dom.btnLibraryGuide.focus();
+            dom.btnLibraryGuide.focus({ preventScroll: true });
         });
         dom.closePreviewPanel.addEventListener('click', () => {
-            state.showPreview = false;
-            dom.btnTogglePreview.classList.remove('active');
-            updatePreviewPanel();
+            setPreviewVisibility(false);
         });
 
         dom.btnToggleSelect.addEventListener('click', () => {
@@ -1449,9 +1581,7 @@ async function initialize() {
         });
 
         dom.btnTogglePreview.addEventListener('click', () => {
-            state.showPreview = !state.showPreview;
-            dom.btnTogglePreview.classList.toggle('active', state.showPreview);
-            updatePreviewPanel();
+            setPreviewVisibility(!state.showPreview);
         });
 
         dom.previewCarousel.addEventListener('click', event => {
@@ -1520,7 +1650,6 @@ async function initialize() {
             // If so, automatically collapse the sidebar! (But don't touch sidebarExplicitlyCollapsed)
             if (!state.sidebarCollapsed && newWidth > window.innerWidth - 250 - 450) {
                 state.sidebarCollapsed = true;
-                localStorage.setItem('library-sidebar-collapsed', 'true');
                 updateSidebarUI();
             }
 
@@ -1529,7 +1658,6 @@ async function initialize() {
             // If so, automatically restore/expand the sidebar!
             if (state.sidebarCollapsed && !state.sidebarExplicitlyCollapsed && newWidth <= window.innerWidth - 250 - 450) {
                 state.sidebarCollapsed = false;
-                localStorage.setItem('library-sidebar-collapsed', 'false');
                 updateSidebarUI();
             }
 
@@ -1538,7 +1666,7 @@ async function initialize() {
             newWidth = Math.max(300, Math.min(maxAllowed, newWidth));
 
             state.previewWidth = newWidth;
-            localStorage.setItem('library-preview-width', String(newWidth));
+            writeStoredPreference(storageKeys.previewWidth, newWidth);
             updateLayoutColumns();
         }
 
@@ -1557,8 +1685,7 @@ async function initialize() {
         dom.btnToggleSidebar.addEventListener('click', () => {
             state.sidebarCollapsed = !state.sidebarCollapsed;
             state.sidebarExplicitlyCollapsed = state.sidebarCollapsed;
-            localStorage.setItem('library-sidebar-collapsed', String(state.sidebarCollapsed));
-            localStorage.setItem('library-sidebar-explicitly-collapsed', String(state.sidebarExplicitlyCollapsed));
+            writeStoredPreference(storageKeys.sidebarCollapsed, state.sidebarCollapsed);
 
             // If we are opening the sidebar and preview is visible,
             // we must make sure the middle pane has at least 450px of space.
@@ -1570,7 +1697,7 @@ async function initialize() {
                     const maxAllowedPreviewWidth = window.innerWidth - 250 - requiredGallerySpace;
                     if (state.previewWidth > maxAllowedPreviewWidth) {
                         state.previewWidth = Math.max(300, maxAllowedPreviewWidth);
-                        localStorage.setItem('library-preview-width', String(state.previewWidth));
+                        writeStoredPreference(storageKeys.previewWidth, state.previewWidth);
                     }
                 }
             }

@@ -20,6 +20,8 @@
             <span class="library-page-label">Library</span>
         </div>
         <nav class="library-nav" aria-label="Primary navigation">
+            <label class="btn" for="library-add-files-input" style="cursor:pointer">Add Files</label>
+            <input type="file" id="library-add-files-input" class="hidden-input" multiple accept="image/*" style="display:none">
             <a class="btn btn-ghost" href="/">Viewer</a>
             <a class="btn btn-primary" href="/library" aria-current="page">Library</a>
         </nav>
@@ -94,6 +96,9 @@
                         <option value="4">★★★★</option>
                         <option value="5">★★★★★</option>
                     </select>
+                    <button id="toolbar-copy-workflow" class="btn btn-sm" type="button" hidden>Copy Workflow</button>
+                    <button id="toolbar-copy-pos-prompt" class="btn btn-sm" type="button" hidden>Copy Positive</button>
+                    <button id="toolbar-copy-neg-prompt" class="btn btn-sm" type="button" hidden>Copy Negative</button>
                     <button id="edit-asset" class="btn btn-sm" type="button">Edit details</button>
                     <button id="set-album-cover" class="btn btn-sm" type="button" hidden>Set cover</button>
                     <button id="remove-from-index" class="btn btn-sm btn-danger" type="button">Remove from index</button>

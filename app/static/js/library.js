@@ -31,6 +31,10 @@ const dom = {
     albumDialogForm: document.getElementById('album-dialog-form'),
     albumDialogTitle: document.getElementById('album-dialog-title'),
     albumDialogName: document.getElementById('album-dialog-name'),
+    addFilesInput: document.getElementById('library-add-files-input'),
+    toolbarCopyWorkflow: document.getElementById('toolbar-copy-workflow'),
+    toolbarCopyPosPrompt: document.getElementById('toolbar-copy-pos-prompt'),
+    toolbarCopyNegPrompt: document.getElementById('toolbar-copy-neg-prompt'),
     toast: document.getElementById('library-toast'),
 };
 
@@ -209,6 +213,8 @@ function renderAssets() {
     updateSelectionToolbar();
 }
 
+let selectionToolbarTimer = null;
+
 function updateSelectionToolbar() {
     const count = state.selected.size;
     dom.toolbar.hidden = count === 0;
@@ -219,6 +225,41 @@ function updateSelectionToolbar() {
     dom.removeFromAlbum.hidden = !isAlbum;
     dom.setAlbumCover.hidden = !isAlbum || count !== 1;
     dom.editAsset.disabled = count !== 1;
+
+    if (selectionToolbarTimer) {
+        clearTimeout(selectionToolbarTimer);
+        selectionToolbarTimer = null;
+    }
+
+    if (count === 1) {
+        const assetId = selectedIds()[0];
+        selectionToolbarTimer = setTimeout(async () => {
+            try {
+                const detail = await fetchJson(`/api/images/${assetId}`);
+                if (state.selected.size === 1 && selectedIds()[0] === assetId) {
+                    currentSelectedDetail = detail;
+                    const hasWorkflow = !!(detail.workflow_ui_json || detail.workflow);
+                    const hasPos = !!detail.prompt_parameters?.positive_prompt;
+                    const hasNeg = !!detail.prompt_parameters?.negative_prompt;
+
+                    dom.toolbarCopyWorkflow.hidden = !hasWorkflow;
+                    dom.toolbarCopyPosPrompt.hidden = !hasPos;
+                    dom.toolbarCopyNegPrompt.hidden = !hasNeg;
+                }
+            } catch (error) {
+                console.error('Failed to load asset details for copy options:', error);
+                currentSelectedDetail = null;
+                dom.toolbarCopyWorkflow.hidden = true;
+                dom.toolbarCopyPosPrompt.hidden = true;
+                dom.toolbarCopyNegPrompt.hidden = true;
+            }
+        }, 100);
+    } else {
+        currentSelectedDetail = null;
+        dom.toolbarCopyWorkflow.hidden = true;
+        dom.toolbarCopyPosPrompt.hidden = true;
+        dom.toolbarCopyNegPrompt.hidden = true;
+    }
 }
 
 function buildAssetsUrl() {
@@ -619,6 +660,76 @@ dom.editorForm.addEventListener('submit', async event => {
         showToast('Asset details saved');
     } catch (error) {
         showToast(error.message, true);
+    }
+});
+
+let currentSelectedDetail = null;
+
+dom.toolbarCopyWorkflow.addEventListener('click', async () => {
+    const wf = currentSelectedDetail?.workflow_ui_json || currentSelectedDetail?.workflow;
+    if (!wf) return;
+    try {
+        await navigator.clipboard.writeText(JSON.stringify(wf, null, 2));
+        showToast('Workflow copied to clipboard');
+    } catch (error) {
+        showToast(error.message, true);
+    }
+});
+
+dom.toolbarCopyPosPrompt.addEventListener('click', async () => {
+    if (!currentSelectedDetail || !currentSelectedDetail.prompt_parameters?.positive_prompt) return;
+    try {
+        await navigator.clipboard.writeText(currentSelectedDetail.prompt_parameters.positive_prompt);
+        showToast('Positive prompt copied to clipboard');
+    } catch (error) {
+        showToast(error.message, true);
+    }
+});
+
+dom.toolbarCopyNegPrompt.addEventListener('click', async () => {
+    if (!currentSelectedDetail || !currentSelectedDetail.prompt_parameters?.negative_prompt) return;
+    try {
+        await navigator.clipboard.writeText(currentSelectedDetail.prompt_parameters.negative_prompt);
+        showToast('Negative prompt copied to clipboard');
+    } catch (error) {
+        showToast(error.message, true);
+    }
+});
+
+dom.addFilesInput.addEventListener('change', async () => {
+    if (!dom.addFilesInput.files.length) return;
+    const files = dom.addFilesInput.files;
+    const SUPPORTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff'];
+    const validFiles = Array.from(files).filter(file => {
+        const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+        return SUPPORTED_EXTENSIONS.includes(ext);
+    });
+
+    if (validFiles.length === 0) {
+        showToast('No supported images found', true);
+        return;
+    }
+
+    const formData = new FormData();
+    for (const file of validFiles) formData.append('files', file);
+
+    showToast(`Adding ${validFiles.length} file(s)...`);
+    try {
+        const data = await fetchJson('/api/upload', {
+            method: 'POST',
+            body: formData
+        });
+        if (data.images?.length) {
+            showToast(`${data.images.length} file(s) added successfully`);
+            await loadMetadata();
+            await loadAssets();
+        } else {
+            showToast('No images were added', true);
+        }
+    } catch (error) {
+        showToast(error.message, true);
+    } finally {
+        dom.addFilesInput.value = '';
     }
 });
 

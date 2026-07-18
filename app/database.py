@@ -1017,6 +1017,7 @@ def get_image_detail(image_id: int) -> ImageDetail | None:
             error=d.get("error"),
             prompt_parameters=merged.get("prompt_parameters"),
             workflow=merged.get("workflow"),
+            workflow_ui_json=merged.get("workflow_ui_json"),
             exif=merged.get("exif"),
             raw_chunks=merged.get("raw_chunks"),
             raw_parameters=merged.get("raw_parameters"),

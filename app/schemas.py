@@ -133,6 +133,7 @@ class ImageDetail(ImageListItem):
     """Full image metadata."""
     prompt_parameters: dict[str, Any] | None = None
     workflow: dict[str, Any] | None = None
+    workflow_ui_json: dict[str, Any] | None = None
     exif: dict[str, str] | None = None
     raw_chunks: dict[str, Any] | None = None
     raw_parameters: str | None = None

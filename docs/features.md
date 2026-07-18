@@ -213,6 +213,8 @@ Right-clicking an indexed image in Viewer or Library exposes a compact shared me
 - Copy positive/negative prompts and workflow JSON when present.
 - Set or clear a 1–5 star rating without leaving the current view.
 - Create a transparent PNG cutout directly from Viewer.
+- Delete the physical file from Library or the fullscreen Viewer by moving it to the
+  operating system's Recycle Bin or Trash.
 
 Viewer can filter folders, albums, and the global Images feed by an exact rating or show
 only unrated images. The selected rating filter is retained with the other local viewer
@@ -220,7 +222,10 @@ preferences and applies to subsequent pages as they load.
 
 Library adds contextual organization actions: toggle favorite, add to an album through a
 submenu, edit asset details, or remove the item from the index without deleting its
-physical source. For originals uploaded into the app, the destructive action is labeled
+physical source. `Delete file from computer` is a separate action that moves a physical
+source file to the system Recycle Bin or Trash and removes its index entry without an
+additional confirmation dialog. For originals uploaded into the app, the destructive
+action is labeled
 `Delete uploaded asset` and explicitly warns that the stored original will be removed.
 
 Physical-path actions are disabled for uploaded originals stored inside the app and for
@@ -278,7 +283,7 @@ Keyboard shortcuts are designed for fast browsing and metadata inspection.
 | `←` / `→` | Navigate images |
 | `Enter` | Open lightbox |
 | `Escape` | Close lightbox or active panel |
-| `Delete` | Delete selected image |
+| `Delete` | Move the current fullscreen file or selected Library files to the system Recycle Bin / Trash |
 | `Ctrl+F` | Focus/open search |
 | `G` | Toggle gallery/list view |
 | `?` | Open Help Center |

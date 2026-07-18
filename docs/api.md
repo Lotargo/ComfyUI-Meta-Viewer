@@ -410,6 +410,22 @@ virtual relations, and generated caches. Neither action deletes physical source 
 An indexed file that remains inside an enabled monitored source can be discovered again by
 a later reconciliation.
 
+### `POST /api/library/assets/trash`
+
+Moves the physical files for up to 1,000 indexed assets to the operating system's Recycle
+Bin or Trash, then removes successfully moved assets and generated caches from the index.
+Uploaded originals stored inside the app and unavailable local files are not removed. A
+mixed request can therefore return both `removed_ids` and per-asset `failures`.
+
+```json
+{
+  "asset_ids": [12, 13, 14]
+}
+```
+
+This endpoint does not require a confirmation token. Recovery is handled by the operating
+system's Recycle Bin or Trash.
+
 ### Album endpoints
 
 | Method and path | Behavior |

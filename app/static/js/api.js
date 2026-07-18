@@ -445,6 +445,46 @@ export async function reconcileSource(folderId) {
     invalidateApiCache();
 }
 
+function removeImageFromRuntime(imageId) {
+    invalidateApiCache();
+    delete detailCache[imageId];
+
+    const centralIndex = images.findIndex(item => item.id === imageId);
+    if (centralIndex >= 0) {
+        images.splice(centralIndex, 1);
+        setTotalImages(Math.max(0, totalImages - 1));
+        if (!images.length) setActiveIndex(-1);
+        else if (activeIndex >= images.length) setActiveIndex(images.length - 1);
+        else if (centralIndex < activeIndex) setActiveIndex(activeIndex - 1);
+    }
+
+    const sidebarIndex = sidebarImages.findIndex(item => item.id === imageId);
+    if (sidebarIndex >= 0) {
+        sidebarImages.splice(sidebarIndex, 1);
+        setSidebarTotalImages(Math.max(0, sidebarTotalImages - 1));
+    }
+}
+
+async function renderAfterImageRemoval() {
+    const [updatedAlbums, updatedFolders] = await Promise.all([
+        getAlbums({ force: true }),
+        getFolders({ force: true }),
+    ]);
+    setAlbums(updatedAlbums);
+    setFolders(updatedFolders);
+    const {
+        renderAlbumsList,
+        renderFoldersList,
+        renderSidebar,
+    } = await import('./features/sidebar.js');
+    renderSidebar();
+    await Promise.all([
+        renderAlbumsList(updatedAlbums),
+        renderFoldersList(updatedFolders),
+    ]);
+    await renderCurrentContent();
+}
+
 export async function deleteImageById(imageId) {
     const img = images.find(item => item.id === imageId) || sidebarImages.find(item => item.id === imageId);
     if (!img) return false;
@@ -455,34 +495,41 @@ export async function deleteImageById(imageId) {
 
     try {
         await fetchJson(`/api/images/${imageId}`, { options: { method: 'DELETE' } });
-        invalidateApiCache();
-        delete detailCache[imageId];
-
-        const centralIndex = images.findIndex(item => item.id === imageId);
-        if (centralIndex >= 0) {
-            images.splice(centralIndex, 1);
-            setTotalImages(Math.max(0, totalImages - 1));
-            if (!images.length) setActiveIndex(-1);
-            else if (activeIndex >= images.length) setActiveIndex(images.length - 1);
-            else if (centralIndex < activeIndex) setActiveIndex(activeIndex - 1);
-        }
-
-        const sidebarIndex = sidebarImages.findIndex(item => item.id === imageId);
-        if (sidebarIndex >= 0) {
-            sidebarImages.splice(sidebarIndex, 1);
-            setSidebarTotalImages(Math.max(0, sidebarTotalImages - 1));
-        }
-
-        const updatedAlbums = await getAlbums({ force: true });
-        setAlbums(updatedAlbums);
-        const { renderAlbumsList, renderSidebar } = await import('./features/sidebar.js');
-        renderSidebar();
-        await renderAlbumsList(updatedAlbums);
-        await renderCurrentContent();
+        removeImageFromRuntime(imageId);
+        await renderAfterImageRemoval();
         showToast('Image removed');
         return true;
     } catch(e) {
         showError('Delete failed: ' + e.message);
+        return false;
+    }
+}
+
+export async function deleteImageFileById(imageId) {
+    const img = images.find(item => item.id === imageId)
+        || sidebarImages.find(item => item.id === imageId);
+    if (!img?.has_local_file) {
+        showToast('This image has no available physical file');
+        return false;
+    }
+
+    try {
+        const result = await fetchJson('/api/library/assets/trash', {
+            options: {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ asset_ids: [imageId] }),
+            },
+        });
+        if (!(result.removed_ids || []).includes(imageId)) {
+            throw new Error(result.failures?.[0]?.error || 'The physical file could not be deleted');
+        }
+        removeImageFromRuntime(imageId);
+        await renderAfterImageRemoval();
+        showToast('File moved to the Recycle Bin / Trash');
+        return true;
+    } catch (error) {
+        showToast('Delete failed: ' + error.message);
         return false;
     }
 }

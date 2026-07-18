@@ -23,6 +23,7 @@ const dom = {
     removeFromAlbum: document.getElementById('remove-from-album'),
     setAlbumCover: document.getElementById('set-album-cover'),
     editAsset: document.getElementById('edit-asset'),
+    deleteFiles: document.getElementById('delete-files'),
     removeFromIndex: document.getElementById('remove-from-index'),
     clearSelection: document.getElementById('clear-selection'),
     feedback: document.getElementById('library-feedback'),
@@ -122,6 +123,7 @@ const state = {
     pointerDrag: null,
     suppressNextGridClick: false,
     lastGridClick: null,
+    trashInProgress: false,
     previewWidth: readStoredNumber(storageKeys.previewWidth, 450),
     sidebarCollapsed: storedSidebarCollapsed,
     sidebarExplicitlyCollapsed: storedSidebarCollapsed,
@@ -404,6 +406,9 @@ function updateSelectionToolbar() {
     dom.removeFromAlbum.hidden = !isAlbum;
     dom.setAlbumCover.hidden = !isAlbum || count !== 1;
     dom.editAsset.disabled = count !== 1;
+    dom.deleteFiles.disabled = !state.assets.some(
+        asset => state.selected.has(asset.id) && asset.has_local_file,
+    );
 
     if (selectionToolbarTimer) {
         clearTimeout(selectionToolbarTimer);
@@ -1097,6 +1102,46 @@ async function removeSingleAssetFromIndex(asset) {
         : 'Removed from index; physical file was not deleted');
 }
 
+async function deleteAssetFiles(assetIds) {
+    if (state.trashInProgress) return null;
+    const uniqueIds = [...new Set(assetIds.map(Number).filter(Number.isInteger))];
+    if (!uniqueIds.length) return null;
+
+    state.trashInProgress = true;
+    cancelPendingAssetLoad();
+    try {
+        const result = await fetchJson('/api/library/assets/trash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asset_ids: uniqueIds }),
+        });
+        const removedIds = new Set(result.removed_ids || []);
+        removedIds.forEach(imageId => state.selected.delete(imageId));
+
+        if (removedIds.size) {
+            await Promise.all([
+                loadMetadata(),
+                refreshAssets({ reconcile: true, preserveScroll: true }),
+            ]);
+        } else {
+            renderAssets({ reconcile: true });
+            updatePreviewPanel();
+        }
+
+        const failed = result.failures?.length || 0;
+        if (removedIds.size && failed) {
+            showToast(`${removedIds.size} file${removedIds.size === 1 ? '' : 's'} moved to the Recycle Bin / Trash; ${failed} could not be deleted`, true);
+        } else if (removedIds.size) {
+            showToast(`${removedIds.size} file${removedIds.size === 1 ? '' : 's'} moved to the Recycle Bin / Trash`);
+        } else {
+            showToast(result.failures?.[0]?.error || 'No physical files could be deleted', true);
+        }
+        return result;
+    } finally {
+        state.trashInProgress = false;
+    }
+}
+
 dom.createAlbum.addEventListener('click', () => {
     dom.albumDialog.dataset.action = 'create';
     dom.albumDialog.dataset.albumId = '';
@@ -1239,12 +1284,22 @@ function openLibraryImageContextMenu(event, asset, anchor) {
                     run: () => openAssetEditor(asset),
                 },
             ],
-            [{
-                label: asset.has_original_data ? 'Delete uploaded asset' : 'Remove from index',
-                icon: 'remove',
-                tone: 'danger',
-                run: () => removeSingleAssetFromIndex(asset),
-            }],
+            [
+                {
+                    label: 'Delete file from computer',
+                    icon: 'remove',
+                    tone: 'danger',
+                    enabled: Boolean(asset.has_local_file),
+                    disabledReason: 'This asset has no available physical file to move to the Recycle Bin / Trash',
+                    run: () => deleteAssetFiles([asset.id]),
+                },
+                {
+                    label: asset.has_original_data ? 'Delete uploaded asset' : 'Remove from index',
+                    icon: 'remove',
+                    tone: asset.has_original_data ? 'danger' : undefined,
+                    run: () => removeSingleAssetFromIndex(asset),
+                },
+            ],
         ],
         anchor,
         notify: showToast,
@@ -1487,6 +1542,10 @@ dom.removeFromIndex.addEventListener('click', async () => {
     } catch (error) {
         showToast(error.message, true);
     }
+});
+
+dom.deleteFiles.addEventListener('click', () => {
+    deleteAssetFiles(selectedIds()).catch(error => showToast(error.message, true));
 });
 
 dom.clearSelection.addEventListener('click', () => {
@@ -1754,6 +1813,14 @@ document.addEventListener('keydown', async event => {
         if (event.repeat || !state.activeAssetId) return;
         try {
             await toggleFavorite(state.activeAssetId);
+        } catch (error) {
+            showToast(error.message, true);
+        }
+    } else if (!editing && !dialogOpen && !externalInteractive && !event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'Delete') {
+        event.preventDefault();
+        if (event.repeat || state.selected.size === 0) return;
+        try {
+            await deleteAssetFiles(selectedIds());
         } catch (error) {
             showToast(error.message, true);
         }

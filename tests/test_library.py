@@ -5,6 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -317,6 +318,58 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIsNone(db.get_image_path(image_id))
         self.assertTrue(physical.is_file())
 
+    @patch("app.file_actions.send2trash")
+    def test_physical_file_deletion_uses_system_trash_and_skips_uploads(
+        self, send_to_trash
+    ) -> None:
+        physical = self.make_image("delete-from-computer.png")
+        result = self.index()
+        image_id = db.get_folder_image_ids(result.folder_id)[0]
+        uploaded_id, _folder_id = db.insert_upload_image(
+            "stored-upload.png", physical.read_bytes(), True
+        )
+        self.paths.thumbnails.joinpath(f"{image_id}.jpg").write_bytes(b"thumb")
+        self.paths.previews.joinpath(f"{image_id}-preview.jpg").write_bytes(b"preview")
+        client = app.test_client()
+
+        response = client.post(
+            "/api/library/assets/trash",
+            json={"asset_ids": [image_id, uploaded_id]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["affected"], 1)
+        self.assertEqual(payload["removed_ids"], [image_id])
+        self.assertEqual(payload["failures"][0]["id"], uploaded_id)
+        self.assertEqual(payload["failures"][0]["code"], "no_local_file")
+        send_to_trash.assert_called_once_with(str(physical.resolve()))
+        self.assertIsNone(db.get_image_path(image_id))
+        self.assertIsNotNone(db.get_image_source_info(uploaded_id))
+        self.assertFalse(self.paths.thumbnails.joinpath(f"{image_id}.jpg").exists())
+        self.assertFalse(
+            self.paths.previews.joinpath(f"{image_id}-preview.jpg").exists()
+        )
+
+    @patch("app.file_actions.send2trash", side_effect=OSError("Trash unavailable"))
+    def test_physical_file_deletion_failure_keeps_the_index(
+        self, _send_to_trash
+    ) -> None:
+        physical = self.make_image("keep-after-trash-error.png")
+        result = self.index()
+        image_id = db.get_folder_image_ids(result.folder_id)[0]
+
+        response = app.test_client().post(
+            "/api/library/assets/trash", json={"asset_ids": [image_id]}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["affected"], 0)
+        self.assertEqual(payload["failures"][0]["code"], "image_trash_failed")
+        self.assertIsNotNone(db.get_image_path(image_id))
+        self.assertTrue(physical.is_file())
+
     def test_library_ui_explains_virtual_and_physical_deletion(self) -> None:
         root = Path(__file__).parents[1]
         template = (root / "app" / "templates" / "library.html").read_text(
@@ -334,8 +387,18 @@ class LibraryApiTest(LibraryTestCase):
         viewer_sidebar = (
             root / "app" / "static" / "js" / "features" / "sidebar.js"
         ).read_text(encoding="utf-8")
+        viewer_api = (root / "app" / "static" / "js" / "api.js").read_text(
+            encoding="utf-8"
+        )
+        keyboard_script = (
+            root / "app" / "static" / "js" / "features" / "keyboard.js"
+        ).read_text(encoding="utf-8")
         self.assertIn("Virtual organization", template)
         self.assertIn("Physical files will remain on disk", script)
+        self.assertIn("Delete file from computer", script)
+        self.assertIn("/api/library/assets/trash", script)
+        self.assertIn("event.key === 'Delete'", script)
+        self.assertIn('id="delete-files"', template)
         self.assertIn("may be indexed again", script)
         self.assertIn("Only the virtual album will be deleted", script)
         self.assertIn(".library-body [hidden]", styles)
@@ -445,6 +508,20 @@ class LibraryApiTest(LibraryTestCase):
         lightbox_script = (
             root / "app" / "static" / "js" / "lightbox.js"
         ).read_text(encoding="utf-8")
+        self.assertIn("deleteCurrentLightboxFile", lightbox_script)
+        self.assertIn(
+            "setLightboxIndex(Math.min(currentIndex, currentImagesArray.length - 1))",
+            lightbox_script,
+        )
+        self.assertIn("lightboxOnly: true", keyboard_script)
+        physical_delete = viewer_api.split(
+            "export async function deleteImageFileById", 1
+        )[1].split("export async function applyImageRename", 1)[0]
+        self.assertNotIn("customConfirm", physical_delete)
+        library_delete = script.split("async function deleteAssetFiles", 1)[1].split(
+            "dom.createAlbum.addEventListener", 1
+        )[0]
+        self.assertNotIn("window.confirm", library_delete)
         self.assertIn("showImageContextMenu", script)
         self.assertIn("addEventListener('contextmenu'", script)
         self.assertIn("Show in folder", context_menu)

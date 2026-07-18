@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from send2trash import send2trash
+
 from . import database as db
 
 
@@ -32,6 +34,11 @@ class ImageLocalFileUnavailableError(ImageFileActionError):
 class FileManagerUnavailableError(ImageFileActionError):
     code = "file_manager_unavailable"
     status_code = 503
+
+
+class ImageTrashFailedError(ImageFileActionError):
+    code = "image_trash_failed"
+    status_code = 500
 
 
 def get_local_image_path(image_id: int) -> Path:
@@ -93,4 +100,16 @@ def reveal_in_file_manager(path: Path) -> None:
 def reveal_image_file(image_id: int) -> Path:
     path = get_local_image_path(image_id)
     reveal_in_file_manager(path)
+    return path
+
+
+def move_image_file_to_trash(image_id: int) -> Path:
+    """Move an indexed physical image to the operating system's trash."""
+    path = get_local_image_path(image_id)
+    try:
+        send2trash(str(path))
+    except Exception as exc:
+        raise ImageTrashFailedError(
+            f"The file could not be moved to the system trash: {path.name}"
+        ) from exc
     return path

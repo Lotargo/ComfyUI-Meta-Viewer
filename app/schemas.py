@@ -109,6 +109,10 @@ class LibraryBulkRequest(BaseModel):
     rating: int | None = Field(default=None, ge=0, le=5)
 
 
+class LibraryAssetIdsRequest(BaseModel):
+    asset_ids: list[int] = Field(..., min_length=1, max_length=1000)
+
+
 class ExtractRequest(BaseModel):
     paths: list[str] = Field(..., min_length=1)
 

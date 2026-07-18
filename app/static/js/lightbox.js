@@ -40,6 +40,7 @@ let displayedPreviewToken = -1;
 let displayedImageId = null;
 let currentImagesArray = [];
 let usesGalleryPagination = false;
+let fileDeleteInProgress = false;
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 10;
 const ZOOM_STEP = 0.15;
@@ -333,6 +334,12 @@ export function updateLightbox() {
     loadLightboxImage(img);
     displayedImageId = nextImageId;
     if (dom.lbViewOriginal) dom.lbViewOriginal.disabled = !img.id;
+    if (dom.lbDelete) {
+        dom.lbDelete.disabled = !img.id || !img.has_local_file;
+        dom.lbDelete.title = img.has_local_file
+            ? 'Delete file from computer (Delete) — moves it to the Recycle Bin / Trash'
+            : 'No available physical file to delete';
+    }
 
     // Update meta panel visibility
     if (dom.lbMeta) {
@@ -526,6 +533,38 @@ export function downloadImage() {
     document.body.removeChild(a);
 }
 
+export async function deleteCurrentLightboxFile() {
+    if (fileDeleteInProgress) return false;
+    const currentIndex = lightboxIndex;
+    const img = currentImagesArray[currentIndex];
+    if (!img?.id || !img.has_local_file) {
+        showToast('This image has no available physical file');
+        return false;
+    }
+
+    fileDeleteInProgress = true;
+    if (dom.lbDelete) dom.lbDelete.disabled = true;
+    try {
+        const { deleteImageFileById } = await import('./api.js');
+        const deleted = await deleteImageFileById(img.id);
+        if (!deleted) return false;
+        if (currentImagesArray.length === 0) {
+            closeLightbox();
+            return true;
+        }
+        setLightboxIndex(Math.min(currentIndex, currentImagesArray.length - 1));
+        resetZoom();
+        resetCutoutPanel();
+        updateLightbox();
+        return true;
+    } finally {
+        fileDeleteInProgress = false;
+        if (dom.lbDelete) {
+            dom.lbDelete.disabled = !currentImagesArray[lightboxIndex]?.has_local_file;
+        }
+    }
+}
+
 export function viewOriginal() {
     const img = getDetailForLightbox();
     if (!img?.id) return;
@@ -556,18 +595,7 @@ export function initLightboxEvents() {
     dom.lbViewOriginal?.addEventListener('click', viewOriginal);
     dom.lbDownload?.addEventListener('click', downloadImage);
 
-    dom.lbDelete?.addEventListener('click', async () => {
-        const currentIndex = lightboxIndex;
-        const { deleteImageAt } = await import('./api.js');
-        const deleted = await deleteImageAt(currentIndex);
-        if (!deleted) return;
-        if (currentImagesArray.length === 0) {
-            closeLightbox();
-            return;
-        }
-        setLightboxIndex(Math.min(currentIndex, currentImagesArray.length - 1));
-        updateLightbox();
-    });
+    dom.lbDelete?.addEventListener('click', deleteCurrentLightboxFile);
 
     // Zoom controls
     dom.lbZoomIn?.addEventListener('click', zoomIn);
@@ -640,11 +668,21 @@ export function initLightboxEvents() {
             detail: img,
             onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
             onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
-            extraSections: [[{
-                label: 'Create transparent PNG',
-                icon: 'cutout',
-                run: openCutoutPanel,
-            }]],
+            extraSections: [
+                [{
+                    label: 'Create transparent PNG',
+                    icon: 'cutout',
+                    run: openCutoutPanel,
+                }],
+                [{
+                    label: 'Delete file from computer',
+                    icon: 'remove',
+                    tone: 'danger',
+                    enabled: Boolean(img.has_local_file),
+                    disabledReason: 'This image has no available physical file to move to the Recycle Bin / Trash',
+                    run: deleteCurrentLightboxFile,
+                }],
+            ],
             notify: showToast,
         });
     });

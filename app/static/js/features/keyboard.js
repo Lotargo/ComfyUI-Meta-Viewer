@@ -21,7 +21,13 @@ const shortcuts = {
     '+': { description: 'Zoom in', action: zoomIn },
     '-': { description: 'Zoom out', action: zoomOut },
     '0': { description: 'Reset zoom', action: resetZoom },
-    'm': { description: 'Toggle metadata panel', action: toggleMetaPanel }
+    'm': { description: 'Toggle metadata panel', action: toggleMetaPanel },
+    'delete': {
+        description: 'Move current file to Recycle Bin / Trash',
+        action: deleteCurrentLightboxFile,
+        preventDefault: true,
+        lightboxOnly: true,
+    },
 };
 
 export function initKeyboardShortcuts() {
@@ -55,13 +61,18 @@ function handleKeydown(e) {
 
     const key = e.key.toLowerCase();
     const shortcut = shortcuts[key];
+    if (key === 'delete' && (e.repeat || e.ctrlKey || e.metaKey || e.altKey)) return;
 
-    if (shortcut) {
+    if (shortcut && (!shortcut.lightboxOnly || dom.lightbox.classList.contains('open'))) {
         if (shortcut.preventDefault) {
             e.preventDefault();
         }
         shortcut.action();
     }
+}
+
+function deleteCurrentLightboxFile() {
+    import('../lightbox.js').then(m => m.deleteCurrentLightboxFile());
 }
 
 function prevImage() {
@@ -198,6 +209,7 @@ function initHelpCenter() {
                             <div class="shortcut-row"><span><kbd>+</kbd> <kbd>-</kbd></span><span>Zoom in / out</span></div>
                             <div class="shortcut-row"><span><kbd>0</kbd></span><span>Reset zoom</span></div>
                             <div class="shortcut-row"><span><kbd>M</kbd></span><span>Toggle metadata panel</span></div>
+                            <div class="shortcut-row"><span><kbd>Delete</kbd></span><span>Delete file from computer (Recycle Bin / Trash)</span></div>
                             <div class="shortcut-row"><span><kbd>?</kbd></span><span>Open this Help Center</span></div>
                         </div>
                     </div>

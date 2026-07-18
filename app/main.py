@@ -56,6 +56,7 @@ from .schemas import (
     FolderInfo,
     ImageListItem,
     ImagesResponse,
+    LibraryAssetIdsRequest,
     LibraryAssetUpdateRequest,
     LibraryBulkRequest,
     OkResponse,
@@ -85,6 +86,12 @@ app.jinja_env.globals["static_version"] = static_version
 
 def storage_path(config_key: str) -> Path:
     return Path(app.config[config_key])
+
+
+def clear_image_caches(image_id: int) -> None:
+    (storage_path("THUMBNAIL_FOLDER") / f"{image_id}.jpg").unlink(missing_ok=True)
+    clear_cutout(storage_path("CUTOUT_FOLDER"), image_id)
+    clear_preview_cache(storage_path("PREVIEW_FOLDER"), image_id)
 
 
 def configured_runtime_paths() -> RuntimePaths:
@@ -219,10 +226,43 @@ def api_library_bulk():
         rating=payload.rating,
     )
     for image_id in result["removed_ids"]:
-        (storage_path("THUMBNAIL_FOLDER") / f"{image_id}.jpg").unlink(missing_ok=True)
-        clear_cutout(storage_path("CUTOUT_FOLDER"), image_id)
-        clear_preview_cache(storage_path("PREVIEW_FOLDER"), image_id)
+        clear_image_caches(image_id)
     return jsonify({"ok": True, **result})
+
+
+@app.route("/api/library/assets/trash", methods=["POST"])
+def api_trash_library_assets():
+    try:
+        payload = LibraryAssetIdsRequest.model_validate(
+            request.get_json(silent=True) or {}
+        )
+    except ValidationError as exc:
+        return jsonify({"error": exc.errors()[0]["msg"]}), 400
+
+    removed_ids: list[int] = []
+    failures: list[dict[str, str | int]] = []
+    for image_id in dict.fromkeys(payload.asset_ids):
+        try:
+            file_actions.move_image_file_to_trash(image_id)
+        except file_actions.ImageFileActionError as exc:
+            failures.append({
+                "id": image_id,
+                "error": str(exc),
+                "code": exc.code,
+            })
+            continue
+
+        # The source watcher may remove the row before this request reaches it.
+        db.delete_image(image_id)
+        clear_image_caches(image_id)
+        removed_ids.append(image_id)
+
+    return jsonify({
+        "ok": not failures,
+        "affected": len(removed_ids),
+        "removed_ids": removed_ids,
+        "failures": failures,
+    })
 
 
 @app.route("/api/albums", methods=["GET", "POST"])
@@ -521,10 +561,7 @@ def api_delete_image(image_id: int):
     if not ok:
         return jsonify({"error": "Image not found"}), 404
 
-    thumb_dir = storage_path("THUMBNAIL_FOLDER")
-    (thumb_dir / f"{image_id}.jpg").unlink(missing_ok=True)
-    clear_cutout(storage_path("CUTOUT_FOLDER"), image_id)
-    clear_preview_cache(storage_path("PREVIEW_FOLDER"), image_id)
+    clear_image_caches(image_id)
     return jsonify(OkResponse().model_dump())
 
 

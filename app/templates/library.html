@@ -27,6 +27,10 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="3" width="7" height="18" rx="1"></rect><rect x="3" y="3" width="7" height="18" rx="1"></rect></svg>
                 <span>Preview</span>
             </button>
+            <button id="btn-library-guide" class="btn btn-ghost btn-library-guide" type="button" title="Open library guide" aria-haspopup="dialog" aria-expanded="false">
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.7 9a2.5 2.5 0 0 1 4.8 1c0 1.7-2.5 2-2.5 3.5"></path><path d="M12 17h.01"></path></svg>
+                <span>Guide</span>
+            </button>
             <label class="btn" for="library-add-files-input" style="cursor:pointer">Add Files</label>
             <input type="file" id="library-add-files-input" class="hidden-input" multiple accept="image/*" style="display:none">
             <a class="btn btn-ghost" href="/">Viewer</a>
@@ -105,9 +109,6 @@
                     </select>
                     <button id="btn-toggle-select" class="btn" type="button" title="Toggle selection mode">Select</button>
                 </div>
-                <p class="library-keyboard-hint" aria-label="Grid keyboard shortcuts">
-                    <span>← ↑ ↓ → navigate</span><span>Space select</span><span>F favorite</span><span>1–5 rate</span>
-                </p>
 
                 <div id="selection-toolbar" class="selection-toolbar" hidden>
                     <label class="select-visible"><input id="select-visible" type="checkbox"> Select visible</label>
@@ -164,6 +165,58 @@
             </div>
         </div>
     </div>
+
+    <dialog id="library-guide-dialog" class="library-guide-dialog" aria-labelledby="library-guide-title">
+        <div class="library-guide-shell">
+            <header class="library-guide-header">
+                <div>
+                    <p class="library-eyebrow">Library guide</p>
+                    <h2 id="library-guide-title">Work faster with your library</h2>
+                    <p>Keyboard shortcuts and core workflows in one place.</p>
+                </div>
+                <button id="close-library-guide" class="guide-close" type="button" aria-label="Close library guide">×</button>
+            </header>
+
+            <div class="library-guide-content">
+                <section class="guide-section guide-shortcuts-section">
+                    <div class="guide-section-heading">
+                        <span class="guide-step">01</span>
+                        <div><h3>Keyboard navigation</h3><p>Keep your hands on the keyboard while reviewing.</p></div>
+                    </div>
+                    <div class="guide-shortcut-grid">
+                        <div class="guide-shortcut"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><span><strong>Navigate</strong><small>Move the active image through the grid</small></span></div>
+                        <div class="guide-shortcut"><kbd>Space</kbd><span><strong>Select</strong><small>Toggle selection for the active image</small></span></div>
+                        <div class="guide-shortcut"><kbd>F</kbd><span><strong>Favorite</strong><small>Add or remove the active image from favorites</small></span></div>
+                        <div class="guide-shortcut"><kbd>1–5</kbd><span><strong>Rate</strong><small>Set the active image rating instantly</small></span></div>
+                    </div>
+                </section>
+
+                <section class="guide-section">
+                    <div class="guide-section-heading">
+                        <span class="guide-step">02</span>
+                        <div><h3>Selection</h3><p>Use Select Mode for bulk actions.</p></div>
+                    </div>
+                    <div class="guide-workflow-grid">
+                        <article><strong>Double-click</strong><p>Double-click an image to enter Select Mode and select it.</p></article>
+                        <article><strong>Range selection</strong><p>Hold Shift while selecting to include the images between two points.</p></article>
+                        <article><strong>Bulk actions</strong><p>Favorite, rate, edit, or remove all selected images from the toolbar.</p></article>
+                    </div>
+                </section>
+
+                <section class="guide-section">
+                    <div class="guide-section-heading">
+                        <span class="guide-step">03</span>
+                        <div><h3>Albums and organization</h3><p>Albums are virtual and never move physical files.</p></div>
+                    </div>
+                    <div class="guide-workflow-grid">
+                        <article><strong>Drag one image</strong><p>Outside Select Mode, drag any image directly onto an album.</p></article>
+                        <article><strong>Drag a selection</strong><p>In Select Mode, drag one selected image to move the whole selection.</p></article>
+                        <article><strong>Smart filters</strong><p>Narrow the grid by model family, orientation, ComfyUI node, or rating.</p></article>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </dialog>
 
     <dialog id="asset-editor" class="asset-editor">
         <form method="dialog" id="asset-editor-form">

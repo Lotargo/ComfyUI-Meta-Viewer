@@ -3,6 +3,9 @@ const dom = {
     albumList: document.getElementById('album-list'),
     sidebarAlbumTotal: document.getElementById('sidebar-album-total'),
     createAlbum: document.getElementById('create-album'),
+    btnLibraryGuide: document.getElementById('btn-library-guide'),
+    guideDialog: document.getElementById('library-guide-dialog'),
+    closeLibraryGuide: document.getElementById('close-library-guide'),
     collectionTitle: document.getElementById('collection-title'),
     collectionSummary: document.getElementById('collection-summary'),
     search: document.getElementById('library-search'),
@@ -80,6 +83,7 @@ const state = {
     draggingAssetIds: [],
     pointerDrag: null,
     suppressNextGridClick: false,
+    lastGridClick: null,
     previewWidth: Number(localStorage.getItem('library-preview-width')) || 450,
     sidebarCollapsed: localStorage.getItem('library-sidebar-collapsed') === 'true',
     sidebarExplicitlyCollapsed: localStorage.getItem('library-sidebar-explicitly-collapsed') === 'true',
@@ -644,6 +648,18 @@ function toggleSelection(assetId, index, extend = false) {
     renderAssets();
 }
 
+function activateAssetSelection(assetId, index) {
+    state.selectMode = true;
+    state.selected.add(assetId);
+    state.lastSelectedIndex = index;
+    state.activeAssetId = assetId;
+    dom.btnToggleSelect.classList.add('active');
+    dom.shell.classList.add('select-mode-on');
+    renderAssets();
+    updatePreviewPanel();
+    focusActiveCard();
+}
+
 function focusActiveCard({ smooth = false } = {}) {
     window.requestAnimationFrame(() => {
         const card = dom.grid.querySelector(`[data-asset-id="${state.activeAssetId}"]`);
@@ -833,6 +849,22 @@ dom.grid.addEventListener('click', async event => {
         return;
     }
 
+    if (!event.target.closest('button, input, a')) {
+        const clickTime = performance.now();
+        const isDoubleClick = (
+            state.lastGridClick?.assetId === assetId
+            && clickTime - state.lastGridClick.time <= 400
+        );
+        state.lastGridClick = isDoubleClick ? null : { assetId, time: clickTime };
+        if (isDoubleClick) {
+            event.preventDefault();
+            activateAssetSelection(assetId, index);
+            return;
+        }
+    } else {
+        state.lastGridClick = null;
+    }
+
     if (state.selectMode) {
         toggleSelection(assetId, index, event.shiftKey);
         state.activeAssetId = assetId;
@@ -843,13 +875,6 @@ dom.grid.addEventListener('click', async event => {
         renderAssets();
         updatePreviewPanel();
     }
-});
-
-dom.grid.addEventListener('dblclick', event => {
-    const card = event.target.closest('[data-asset-id]');
-    if (!card || event.target.closest('button, input')) return;
-    const asset = state.assets.find(item => item.id === Number(card.dataset.assetId));
-    if (asset) window.open(asset.original_url, '_blank', 'noopener');
 });
 
 function createAssetDragPreview(asset, count) {
@@ -1298,10 +1323,13 @@ async function moveActiveAsset(key) {
 document.addEventListener('keydown', async event => {
     const activeElement = document.activeElement;
     const editing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement?.tagName) || activeElement?.isContentEditable;
-    const dialogOpen = dom.editor.open || dom.albumDialog.open;
+    const dialogOpen = dom.editor.open || dom.albumDialog.open || dom.guideDialog.open;
     const externalInteractive = !!activeElement?.closest?.('button, a, [role="button"]') && !activeElement.closest('.asset-card');
     if (event.key === 'Escape') {
-        if (dom.editor.open) {
+        if (dom.guideDialog.open) {
+            dom.guideDialog.close();
+            event.preventDefault();
+        } else if (dom.editor.open) {
             dom.editor.close();
             event.preventDefault();
         } else if (dom.albumDialog.open) {
@@ -1381,12 +1409,23 @@ async function initialize() {
         makeDraggable(dom.albumDialog, dom.albumDialog.querySelector('.editor-heading'));
         setupDialogBackdropClose(dom.editor);
         setupDialogBackdropClose(dom.albumDialog);
+        setupDialogBackdropClose(dom.guideDialog);
+
+        dom.btnLibraryGuide.addEventListener('click', () => {
+            dom.guideDialog.showModal();
+            dom.btnLibraryGuide.setAttribute('aria-expanded', 'true');
+        });
+        dom.closeLibraryGuide.addEventListener('click', () => dom.guideDialog.close());
 
         dom.editor.addEventListener('close', () => {
             setTimeout(() => document.activeElement?.blur(), 0);
         });
         dom.albumDialog.addEventListener('close', () => {
             setTimeout(() => document.activeElement?.blur(), 0);
+        });
+        dom.guideDialog.addEventListener('close', () => {
+            dom.btnLibraryGuide.setAttribute('aria-expanded', 'false');
+            dom.btnLibraryGuide.focus();
         });
         dom.closePreviewPanel.addEventListener('click', () => {
             state.showPreview = false;

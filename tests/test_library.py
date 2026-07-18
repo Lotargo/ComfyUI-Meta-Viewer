@@ -228,7 +228,12 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("padding-right: 34px", styles)
         self.assertIn('id="infinite-scroll-sentinel"', template)
         self.assertIn('id="library-model-filter"', template)
+        self.assertIn('id="btn-library-guide"', template)
+        self.assertIn('id="library-guide-dialog"', template)
+        self.assertIn("Keyboard navigation", template)
+        self.assertNotIn("library-keyboard-hint", template)
         self.assertIn("new IntersectionObserver", script)
+        self.assertIn("dom.guideDialog.showModal()", script)
         self.assertIn("beginPointerAssetDrag", script)
         self.assertIn("addEventListener('pointerdown'", script)
         self.assertIn(
@@ -237,8 +242,12 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn(
             "dragSelectedGroup ? selectedIds() : [session.assetId]", script
         )
+        self.assertIn("function activateAssetSelection", script)
+        self.assertIn("state.lastGridClick?.assetId === assetId", script)
+        self.assertNotIn("window.open(asset.original_url", script)
         self.assertIn("event.key.toLowerCase() === 'f'", script)
         self.assertIn(".sidebar-album-card.drag-over", styles)
+        self.assertIn(".library-guide-dialog", styles)
         self.assertIn('class="album-sidebar-list"', template)
         self.assertIn('href="/library"', viewer)
         self.assertIn('class="btn library-entry-btn"', viewer)

@@ -609,8 +609,28 @@
     color: var(--text-muted);
     text-align: center;
 }
-.asset-video-placeholder span { color: var(--accent2); font-size: 28px; }
 .asset-video-placeholder small { font-size: 9px; line-height: 1.35; }
+.asset-video-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 2;
+    width: clamp(46px, 24%, 62px);
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--bg) 64%, transparent);
+    color: #fff;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: background var(--transition-fast), transform var(--transition-fast);
+    backdrop-filter: blur(8px);
+}
+.asset-video-play svg { width: 54%; height: 54%; margin-left: 4%; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.38)); }
+.asset-card:hover .asset-video-play { background: color-mix(in srgb, var(--accent) 76%, transparent); transform: translate(-50%, -50%) scale(1.06); }
 .asset-media-badge {
     position: absolute;
     right: 9px;

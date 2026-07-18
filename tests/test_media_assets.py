@@ -161,8 +161,14 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         self.assertIn("media_type=${selectedMediaTypes()}", api_script)
         self.assertIn("loadMediaCollection", api_script)
         self.assertIn("loadMediaCollection({ render: false })", events_script)
+        upload_script = api_script.split(
+            "export async function loadFromFiles", 1
+        )[1].split("export async function loadMore", 1)[0]
+        self.assertIn("isBrowsableCollection(currentCollection)", upload_script)
+        self.assertIn("preserveCount: true", upload_script)
         self.assertIn("loadCollectionImages(", filter_script)
         self.assertIn("gallery-media-type-badge", gallery_script)
+        self.assertIn("gallery-video-play", gallery_script)
         self.assertIn("img.media_type === 'video' ? []", gallery_script)
         self.assertIn("mediaType: img.media_type || 'image'", gallery_script)
         self.assertIn("onDeleteFile:", gallery_script)

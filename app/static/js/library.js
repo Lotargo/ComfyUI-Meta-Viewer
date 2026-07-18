@@ -291,8 +291,13 @@ function assetCardHtml(asset) {
         ? 'Install ffmpeg for previews'
         : asset.preview_status === 'error' ? 'Preview unavailable' : 'Preparing preview…';
     const thumbnail = previewPending
-        ? `<div class="asset-video-placeholder" title="${escapeHtml(asset.preview_error || previewMessage)}"><span aria-hidden="true">▶</span><small>${escapeHtml(previewMessage)}</small></div>`
+        ? `<div class="asset-video-placeholder" title="${escapeHtml(asset.preview_error || previewMessage)}"><small>${escapeHtml(previewMessage)}</small></div>`
         : `<img class="asset-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy" draggable="false">`;
+    const videoPlayOverlay = isVideo
+        ? `<span class="asset-video-play" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="m9 7 8 5-8 5z"></path></svg>
+        </span>`
+        : '';
     const isActive = asset.id === state.activeAssetId;
     return `
         <article class="asset-card ${selected ? 'selected' : ''} ${isActive ? 'active' : ''} ${asset.available ? '' : 'unavailable'}"
@@ -301,6 +306,7 @@ function assetCardHtml(asset) {
                  aria-label="${escapeHtml(asset.file_name)}">
             <div class="asset-thumb-wrap">
                 ${thumbnail}
+                ${videoPlayOverlay}
                 <span class="asset-media-badge">${isVideo ? 'VIDEO' : 'IMAGE'}</span>
                 <input class="asset-select" type="checkbox" ${selected ? 'checked' : ''}
                        aria-label="Select ${escapeHtml(asset.file_name)}">

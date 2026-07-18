@@ -60,8 +60,11 @@ function galleryCardHtml(img, index) {
         </span>`
         : '';
     const videoPlaceholder = isVideo
-        ? `<span class="gallery-video-placeholder" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="42" height="42" stroke="currentColor" stroke-width="1.6" fill="none"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m10 9 5 3-5 3z"></path></svg>
+        ? '<span class="gallery-video-placeholder" aria-hidden="true"></span>'
+        : '';
+    const videoPlayOverlay = isVideo
+        ? `<span class="gallery-video-play" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="m9 7 8 5-8 5z"></path></svg>
         </span>`
         : '';
 
@@ -70,6 +73,7 @@ function galleryCardHtml(img, index) {
             <div class="img-wrapper"${ratioStyle}>
                 ${videoPlaceholder}
                 <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}" onerror="if(this.dataset.mediaType==='video'){this.hidden=true;}" data-media-type="${isVideo ? 'video' : 'image'}">
+                ${videoPlayOverlay}
                 ${mediaBadge}
             </div>
             <button class="image-delete-btn gallery-delete" data-index="${index}" title="${removeLabel}" aria-label="${removeLabel}: ${escapeHtml(fileName)}">

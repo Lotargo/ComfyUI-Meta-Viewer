@@ -265,7 +265,12 @@ export async function loadFromFiles(files) {
         const primaryAsset = addedAssets[0];
         const uploadFolder = folders.find(folder => folder.id === primaryAsset?.folder_id);
         const refreshTasks = [loadSidebarImages({ force: true, render: false })];
-        if (primaryAsset?.folder_id) {
+        if (isBrowsableCollection(currentCollection)) {
+            refreshTasks.push(loadCollectionImages(
+                { ...currentCollection },
+                { force: true, render: false, preserveCount: true },
+            ));
+        } else if (primaryAsset?.folder_id) {
             refreshTasks.push(loadFolderImages(
                 primaryAsset.folder_id,
                 uploadFolder?.name || 'Uploads',

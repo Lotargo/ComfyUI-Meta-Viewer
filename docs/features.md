@@ -197,10 +197,15 @@ folder or album.
 
 - Masonry-style layout.
 - Lazy image thumbnails and video poster frames, with a video placeholder when no poster is available.
+- Centered translucent play overlays distinguish video tiles in Viewer and Library.
 - Infinite scrolling through paginated results.
 - List/gallery switching.
 - Quick preview through the lightbox flow.
 - Media context menu for opening/copying the original and local-file actions; cutout remains image-only.
+
+Browser uploads refresh the current central collection in place. In `All Media`, a newly
+uploaded video is inserted without replacing the loaded image page with the upload folder;
+folder and album views remain scoped to their selected collection.
 
 ---
 

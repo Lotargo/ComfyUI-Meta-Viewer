@@ -537,6 +537,7 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("image-context-menu--submenu", context_menu)
         self.assertIn("Add to album", script)
         self.assertIn("Add to favorites", script)
+        self.assertIn("asset-video-play", script)
         self.assertIn("Edit details", script)
         self.assertIn("Remove from index", script)
         self.assertIn("Delete uploaded asset", script)

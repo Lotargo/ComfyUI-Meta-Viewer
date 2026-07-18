@@ -50,6 +50,7 @@ const dom = {
     closePreviewPanel: document.getElementById('close-preview-panel'),
     btnToggleSelect: document.getElementById('btn-toggle-select'),
     btnTogglePreview: document.getElementById('btn-toggle-preview'),
+    previewActions: document.getElementById('preview-actions'),
     previewCopyWorkflow: document.getElementById('preview-copy-workflow'),
     previewCopyPosPrompt: document.getElementById('preview-copy-pos-prompt'),
     previewCopyNegPrompt: document.getElementById('preview-copy-neg-prompt'),
@@ -356,6 +357,38 @@ function updateSelectionToolbar() {
 }
 
 let previewPanelTimer = null;
+const previewCopyFeedbackTimers = new WeakMap();
+
+function previewCopyButtons() {
+    return [dom.previewCopyWorkflow, dom.previewCopyPosPrompt, dom.previewCopyNegPrompt];
+}
+
+function clearPreviewCopyFeedback() {
+    previewCopyButtons().forEach(button => {
+        const timer = previewCopyFeedbackTimers.get(button);
+        if (timer) clearTimeout(timer);
+        previewCopyFeedbackTimers.delete(button);
+        button.classList.remove('copied');
+    });
+}
+
+function showPreviewCopyFeedback(button) {
+    const currentTimer = previewCopyFeedbackTimers.get(button);
+    if (currentTimer) clearTimeout(currentTimer);
+    button.classList.add('copied');
+    const timer = setTimeout(() => {
+        button.classList.remove('copied');
+        previewCopyFeedbackTimers.delete(button);
+    }, 1100);
+    previewCopyFeedbackTimers.set(button, timer);
+}
+
+function setPreviewActionsAvailability({ workflow = false, positive = false, negative = false } = {}) {
+    dom.previewCopyWorkflow.hidden = !workflow;
+    dom.previewCopyPosPrompt.hidden = !positive;
+    dom.previewCopyNegPrompt.hidden = !negative;
+    dom.previewActions.hidden = !(workflow || positive || negative);
+}
 
 function updateLayoutColumns() {
     const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
@@ -391,6 +424,8 @@ function updatePreviewPanel() {
         clearTimeout(previewPanelTimer);
         previewPanelTimer = null;
     }
+    clearPreviewCopyFeedback();
+    setPreviewActionsAvailability();
 
     const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
     if (state.showPreview && activeAsset) {
@@ -430,15 +465,15 @@ function updatePreviewPanel() {
                     const hasPos = !!detail.prompt_parameters?.positive_prompt;
                     const hasNeg = !!detail.prompt_parameters?.negative_prompt;
 
-                    dom.previewCopyWorkflow.hidden = !hasWorkflow;
-                    dom.previewCopyPosPrompt.hidden = !hasPos;
-                    dom.previewCopyNegPrompt.hidden = !hasNeg;
+                    setPreviewActionsAvailability({
+                        workflow: hasWorkflow,
+                        positive: hasPos,
+                        negative: hasNeg,
+                    });
                 }
             } catch (error) {
                 console.error('Failed to load asset details for preview options:', error);
-                dom.previewCopyWorkflow.hidden = true;
-                dom.previewCopyPosPrompt.hidden = true;
-                dom.previewCopyNegPrompt.hidden = true;
+                setPreviewActionsAvailability();
             }
         }, 100);
     } else {
@@ -447,9 +482,6 @@ function updatePreviewPanel() {
         dom.previewPanelImg.src = '';
         dom.previewPanelImg.removeAttribute('data-loaded-id');
         dom.previewBackdrop.style.backgroundImage = '';
-        dom.previewCopyWorkflow.hidden = true;
-        dom.previewCopyPosPrompt.hidden = true;
-        dom.previewCopyNegPrompt.hidden = true;
         dom.previewCarousel.hidden = true;
         dom.previewCarousel.innerHTML = '';
     }
@@ -1604,6 +1636,7 @@ async function initialize() {
             if (!wf) return;
             try {
                 await navigator.clipboard.writeText(JSON.stringify(wf, null, 2));
+                showPreviewCopyFeedback(dom.previewCopyWorkflow);
                 showToast('Workflow copied to clipboard');
             } catch (error) {
                 showToast(error.message, true);
@@ -1614,6 +1647,7 @@ async function initialize() {
             if (!currentSelectedDetail || !currentSelectedDetail.prompt_parameters?.positive_prompt) return;
             try {
                 await navigator.clipboard.writeText(currentSelectedDetail.prompt_parameters.positive_prompt);
+                showPreviewCopyFeedback(dom.previewCopyPosPrompt);
                 showToast('Positive prompt copied to clipboard');
             } catch (error) {
                 showToast(error.message, true);
@@ -1624,6 +1658,7 @@ async function initialize() {
             if (!currentSelectedDetail || !currentSelectedDetail.prompt_parameters?.negative_prompt) return;
             try {
                 await navigator.clipboard.writeText(currentSelectedDetail.prompt_parameters.negative_prompt);
+                showPreviewCopyFeedback(dom.previewCopyNegPrompt);
                 showToast('Negative prompt copied to clipboard');
             } catch (error) {
                 showToast(error.message, true);

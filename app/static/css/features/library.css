@@ -813,10 +813,10 @@
 
 .library-toast {
     position: fixed;
-    right: 22px;
-    bottom: 22px;
+    top: calc(var(--header-height) + 14px);
+    right: 18px;
     z-index: var(--z-toast);
-    max-width: 380px;
+    max-width: min(380px, calc(100vw - 36px));
     padding: 10px 14px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -824,13 +824,22 @@
     color: var(--text);
     box-shadow: var(--shadow-lg);
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(-10px);
     pointer-events: none;
     transition: all var(--transition-fast);
 }
 
 .library-toast.visible { opacity: 1; transform: translateY(0); }
 .library-toast.error { border-color: var(--red); color: hsl(0, 86%, 78%); }
+
+@media (max-width: 560px) {
+    .library-toast {
+        top: calc(var(--header-height) + 10px);
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+}
 
 @media (max-width: 850px) {
     .library-shell { flex-direction: column; }
@@ -1006,6 +1015,7 @@
     width: 0px;
     box-sizing: border-box;
     transition: width var(--transition-fast), border-left-width var(--transition-fast);
+    container: preview-panel / inline-size;
 }
 
 .preview-resize-handle {
@@ -1134,21 +1144,117 @@
 
 .preview-actions {
     position: absolute;
-    bottom: var(--space-lg);
+    bottom: 18px;
     left: 50%;
-    transform: translateX(-50%);
     z-index: 10;
+    max-width: calc(100% - 24px);
+    padding: 4px;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
-    gap: var(--space-xs);
-    background: rgba(8, 11, 13, 0.65);
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--radius);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    max-width: calc(100% - var(--space-lg) * 2);
+    gap: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.74);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    -webkit-backdrop-filter: blur(16px) saturate(125%);
+    backdrop-filter: blur(16px) saturate(125%);
     box-sizing: border-box;
+    transform: translateX(-50%);
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.preview-action {
+    min-width: 0;
+    min-height: 36px;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 0;
+    border-radius: 8px;
+    outline: none;
+    background: transparent;
+    color: rgba(8, 12, 14, 0.84);
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+}
+
+.preview-action:hover {
+    background: rgba(255, 255, 255, 0.72);
+    color: rgba(2, 5, 7, 0.96);
+}
+
+.preview-action:active {
+    transform: scale(0.97);
+}
+
+.preview-action:focus-visible {
+    background: rgba(255, 255, 255, 0.76);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 68%, transparent);
+}
+
+.preview-action-icon,
+.preview-action-success {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.preview-action-success {
+    display: none;
+}
+
+.preview-action.copied {
+    background: rgba(205, 249, 221, 0.82);
+    color: rgb(12, 92, 50);
+}
+
+.preview-action.copied .preview-action-icon {
+    display: none;
+}
+
+.preview-action.copied .preview-action-success {
+    display: inline-flex;
+}
+
+@container preview-panel (max-width: 380px) {
+    .preview-actions {
+        bottom: 12px;
+    }
+
+    .preview-action {
+        width: 38px;
+        height: 38px;
+        padding: 0;
+    }
+
+    .preview-action-label {
+        display: none;
+    }
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .preview-actions {
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, 8px);
+    }
+
+    .library-preview-panel:hover .preview-actions,
+    .library-preview-panel:focus-within .preview-actions {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translate(-50%, 0);
+    }
 }
 
 /* === Selection Mode Controls === */

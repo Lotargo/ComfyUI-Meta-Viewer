@@ -174,10 +174,22 @@
                 </div>
                 <div id="preview-carousel" class="preview-carousel" hidden></div>
             </div>
-            <div class="preview-actions">
-                <button id="preview-copy-workflow" class="btn btn-sm btn-secondary" type="button" hidden>Copy Workflow</button>
-                <button id="preview-copy-pos-prompt" class="btn btn-sm btn-secondary" type="button" hidden>Copy Positive</button>
-                <button id="preview-copy-neg-prompt" class="btn btn-sm btn-secondary" type="button" hidden>Copy Negative</button>
+            <div id="preview-actions" class="preview-actions" aria-label="Copy image metadata" hidden>
+                <button id="preview-copy-workflow" class="preview-action" type="button" title="Copy workflow" aria-label="Copy workflow" hidden>
+                    <span class="preview-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"></circle><circle cx="18" cy="6" r="2"></circle><circle cx="12" cy="18" r="2"></circle><path d="m7.7 7.1 3.2 8.1M16.3 7.1l-3.2 8.1M8 6h8"></path></svg></span>
+                    <span class="preview-action-success" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg></span>
+                    <span class="preview-action-label">Workflow</span>
+                </button>
+                <button id="preview-copy-pos-prompt" class="preview-action" type="button" title="Copy positive prompt" aria-label="Copy positive prompt" hidden>
+                    <span class="preview-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v13H8l-3 3z"></path><path d="M12 8v5M9.5 10.5h5"></path></svg></span>
+                    <span class="preview-action-success" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg></span>
+                    <span class="preview-action-label">Positive</span>
+                </button>
+                <button id="preview-copy-neg-prompt" class="preview-action" type="button" title="Copy negative prompt" aria-label="Copy negative prompt" hidden>
+                    <span class="preview-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v13H8l-3 3z"></path><path d="M9.5 10.5h5"></path></svg></span>
+                    <span class="preview-action-success" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg></span>
+                    <span class="preview-action-label">Negative</span>
+                </button>
             </div>
         </div>
     </div>

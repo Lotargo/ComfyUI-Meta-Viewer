@@ -475,11 +475,16 @@ def api_scan():
 @app.route("/api/images", methods=["GET"])
 def api_images():
     folder_id = request.args.get("folder_id", type=int)
+    album_id = request.args.get("album_id", type=int)
+    if folder_id is not None and album_id is not None:
+        return jsonify({"error": "folder_id and album_id cannot be combined"}), 400
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 50, type=int)
     sort_by = request.args.get("sort_by", "date")
     sort_dir = request.args.get("sort_dir", "desc")
-    result = db.get_images_page(folder_id, page, per_page, sort_by, sort_dir)
+    result = db.get_images_page(
+        folder_id, page, per_page, sort_by, sort_dir, album_id=album_id
+    )
     return jsonify(result.model_dump())
 
 

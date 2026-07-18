@@ -162,6 +162,26 @@ class VirtualOrganizationTest(LibraryTestCase):
 
 
 class LibraryApiTest(LibraryTestCase):
+    def test_viewer_images_endpoint_filters_an_album(self) -> None:
+        self.make_image("album-member.png")
+        self.make_image("outside-album.png", "blue")
+        result = self.index()
+        image_ids = db.get_folder_image_ids(result.folder_id)
+        album = library.create_album("Viewer album")
+        library.add_assets_to_album(album["id"], [image_ids[0]])
+        client = app.test_client()
+
+        response = client.get(f"/api/images?album_id={album['id']}")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["images"][0]["id"], image_ids[0])
+
+        conflict = client.get(
+            f"/api/images?folder_id={result.folder_id}&album_id={album['id']}"
+        )
+        self.assertEqual(conflict.status_code, 400)
+
     def test_page_album_bulk_and_index_removal_have_distinct_semantics(self) -> None:
         physical = self.make_image("kept-on-disk.png")
         result = self.index()
@@ -218,6 +238,9 @@ class LibraryApiTest(LibraryTestCase):
         viewer = (root / "app" / "templates" / "index.html").read_text(
             encoding="utf-8"
         )
+        viewer_sidebar = (
+            root / "app" / "static" / "js" / "features" / "sidebar.js"
+        ).read_text(encoding="utf-8")
         self.assertIn("Virtual organization", template)
         self.assertIn("Physical files will remain on disk", script)
         self.assertIn("may be indexed again", script)
@@ -273,6 +296,16 @@ class LibraryApiTest(LibraryTestCase):
             styles,
         )
         self.assertIn('class="album-sidebar-list"', template)
+        self.assertIn('id="tab-albums"', viewer)
+        self.assertIn('id="panel-albums"', viewer)
+        self.assertIn('id="viewer-album-list"', viewer)
+        self.assertIn('title="Details view"', viewer)
+        self.assertIn("function renderAlbumsList", viewer_sidebar)
+        self.assertIn("loadAlbumImages(album.id, album.name)", viewer_sidebar)
+        self.assertIn('draggable="false"', viewer_sidebar)
+        self.assertIn("aspect-ratio: 3 / 4", (
+            root / "app" / "static" / "css" / "layout" / "sidebar.css"
+        ).read_text(encoding="utf-8"))
         self.assertIn('href="/library"', viewer)
         self.assertIn('class="btn library-entry-btn"', viewer)
         buttons = (

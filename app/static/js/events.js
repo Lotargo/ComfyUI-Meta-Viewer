@@ -31,10 +31,13 @@ export async function renderCurrentContent() {
 
 function applySidebarTabClasses(tab) {
     const showFolders = tab === 'folders';
+    const showAlbums = tab === 'albums';
     dom.tabFolders?.classList.toggle('active', showFolders);
-    dom.tabImages?.classList.toggle('active', !showFolders);
+    dom.tabAlbums?.classList.toggle('active', showAlbums);
+    dom.tabImages?.classList.toggle('active', !showFolders && !showAlbums);
     dom.panelFolders?.classList.toggle('active', showFolders);
-    dom.panelImages?.classList.toggle('active', !showFolders);
+    dom.panelAlbums?.classList.toggle('active', showAlbums);
+    dom.panelImages?.classList.toggle('active', !showFolders && !showAlbums);
 }
 
 async function scanDragAndDropItems(items) {
@@ -179,6 +182,7 @@ export function initEvents() {
     });
 
     dom.tabFolders?.addEventListener('click', () => switchSidebarTab('folders'));
+    dom.tabAlbums?.addEventListener('click', () => switchSidebarTab('albums'));
     dom.tabImages?.addEventListener('click', () => switchSidebarTab('images'));
 
     dom.foldersViewBtn?.addEventListener('click', async () => {
@@ -187,6 +191,14 @@ export function initEvents() {
         setFoldersViewMode(foldersViewMode === 'list' ? 'tile' : 'list');
         saveState();
         await renderFoldersList();
+    });
+
+    dom.albumsViewBtn?.addEventListener('click', async () => {
+        const { albumsViewMode, setAlbumsViewMode } = await import('./state.js');
+        const { renderAlbumsList } = await import('./features/sidebar.js');
+        setAlbumsViewMode(albumsViewMode === 'list' ? 'tile' : 'list');
+        saveState();
+        await renderAlbumsList();
     });
 }
 
@@ -231,7 +243,7 @@ export function setViewMode(mode, { render = true, persist = true } = {}) {
 }
 
 export async function switchSidebarTab(tab, { render = true, load = true, persist = true } = {}) {
-    const normalized = tab === 'folders' ? 'folders' : 'images';
+    const normalized = ['folders', 'albums'].includes(tab) ? tab : 'images';
     setActiveSidebarTab(normalized);
     applySidebarTabClasses(normalized);
     if (persist) saveState();
@@ -240,6 +252,12 @@ export async function switchSidebarTab(tab, { render = true, load = true, persis
     if (normalized === 'folders') {
         const { renderFoldersList } = await import('./features/sidebar.js');
         await renderFoldersList();
+        return;
+    }
+
+    if (normalized === 'albums') {
+        const { renderAlbumsList } = await import('./features/sidebar.js');
+        await renderAlbumsList();
         return;
     }
 

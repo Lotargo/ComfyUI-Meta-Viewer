@@ -5,7 +5,7 @@
 import {
     images,
     activeIndex,
-    currentFolderId,
+    currentCollection,
     allLoaded,
     galleryScrollObserver,
     dom,
@@ -61,7 +61,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
     if (galleryScrollObserver) galleryScrollObserver.disconnect();
 
     if (images.length === 0) {
-        if (!allLoaded && currentFolderId) {
+        if (!allLoaded && currentCollection.id) {
             renderGallerySkeleton();
             return;
         }
@@ -202,7 +202,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
         import('./features/sorting.js').then(module => module.bindCentralSortEvents());
     }
 
-    if (!allLoaded && currentFolderId) {
+    if (!allLoaded && currentCollection.id) {
         let sentinel = document.querySelector('#gallery-sentinel');
         if (!sentinel) {
             sentinel = document.createElement('div');

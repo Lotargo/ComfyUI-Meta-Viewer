@@ -1,4 +1,11 @@
-type ViewMode = 'list' | 'gallery';
+type ViewMode = 'list' | 'gallery' | 'upload';
+type CollectionType = 'folder' | 'album' | 'temporary';
+
+interface CollectionContext {
+  type: CollectionType;
+  id: number | null;
+  name: string;
+}
 
 interface ImageListItem {
   id?: number;
@@ -38,7 +45,18 @@ interface FolderInfo {
   image_count: number;
 }
 
+interface AlbumInfo {
+  id: number;
+  name: string;
+  cover_image_id?: number | null;
+  display_cover_image_id?: number | null;
+  asset_count: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
 interface AppState {
+  currentCollection: CollectionContext;
   folderId: number | null;
   page: number;
   activeIndex: number;
@@ -82,4 +100,8 @@ interface ExtractResponse {
 
 interface FolderListResponse {
   folders: FolderInfo[];
+}
+
+interface AlbumListResponse {
+  albums: AlbumInfo[];
 }

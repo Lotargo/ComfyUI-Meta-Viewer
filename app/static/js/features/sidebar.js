@@ -1,6 +1,6 @@
 /**
  * Sidebar component. The Images tab owns the global image collection;
- * the Folders tab only selects the central folder collection.
+ * the Folders and Albums tabs select the central Viewer collection.
  */
 
 import {
@@ -17,7 +17,10 @@ import {
     sidebarActiveImageId,
     setSidebarActiveImageId,
     folders,
+    albums,
+    currentCollection,
     setFolders,
+    setAlbums,
     setImages,
     setTotalImages,
     setCurrentFolderId,
@@ -27,6 +30,9 @@ import {
     foldersSortKey,
     foldersSortDir,
     foldersViewMode,
+    albumsSortKey,
+    albumsSortDir,
+    albumsViewMode,
     saveState,
     setSidebarCollapsed,
     setSidebarWidth,
@@ -172,6 +178,83 @@ export function toggleSidebar() {
         applySidebarLayout();
         saveState();
     }
+}
+
+export async function renderAlbumsList(albumList = null) {
+    if (!dom.albumList) return;
+
+    let visibleAlbums = Array.isArray(albumList) ? albumList : albums;
+    if (!Array.isArray(albumList) && visibleAlbums.length === 0) {
+        const { getAlbums } = await import('../api.js');
+        visibleAlbums = await getAlbums();
+        setAlbums(visibleAlbums);
+    } else if (Array.isArray(albumList)) {
+        setAlbums(albumList);
+    }
+
+    dom.albumList.classList.toggle('view-list', albumsViewMode === 'list');
+    if (dom.albumsCount) dom.albumsCount.textContent = `(${visibleAlbums.length})`;
+    if (dom.albumsViewBtn) {
+        const listMode = albumsViewMode === 'list';
+        dom.albumsViewBtn.innerHTML = listMode
+            ? '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>'
+            : '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>';
+        dom.albumsViewBtn.title = listMode ? 'Switch to Tile View' : 'Switch to List View';
+    }
+
+    if (visibleAlbums.length === 0) {
+        dom.albumList.innerHTML = `
+            <div class="viewer-albums-empty">
+                <div class="viewer-albums-empty-icon">▤</div>
+                <strong>No albums yet</strong>
+                <p>Create and organize albums in Library.</p>
+                <a class="btn btn-sm btn-secondary" href="/library">Open Library</a>
+            </div>`;
+        return;
+    }
+
+    const sortedAlbums = [...visibleAlbums].sort((a, b) => {
+        const valueA = a[albumsSortKey] ?? '';
+        const valueB = b[albumsSortKey] ?? '';
+        if (typeof valueA === 'string' && typeof valueB === 'string') {
+            const compared = valueA.localeCompare(valueB, undefined, { sensitivity: 'base' });
+            return albumsSortDir === 'asc' ? compared : -compared;
+        }
+        const compared = Number(valueA) - Number(valueB);
+        return albumsSortDir === 'asc' ? compared : -compared;
+    });
+
+    dom.albumList.innerHTML = '';
+    sortedAlbums.forEach(album => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = [
+            'folder-item',
+            'album-item',
+            currentCollection.type === 'album' && currentCollection.id === album.id ? 'active' : '',
+        ].filter(Boolean).join(' ');
+        item.setAttribute('aria-label', `Open album ${album.name}`);
+        const cover = album.display_cover_image_id
+            ? `<img src="/api/thumbnail/${album.display_cover_image_id}" alt="" loading="lazy" draggable="false">`
+            : `<span class="viewer-album-placeholder" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M3 9h18"></path><path d="m8 16 2.5-3 2 2 2.5-3 3 4"></path></svg>
+            </span>`;
+        const count = Number(album.asset_count) || 0;
+        item.innerHTML = `
+            <span class="folder-item-content">
+                <span class="viewer-album-cover">${cover}</span>
+                <span class="folder-item-details">
+                    <span class="folder-item-name" title="${escapeHtml(album.name)}">${escapeHtml(album.name)}</span>
+                    <span class="viewer-album-meta">${count} image${count === 1 ? '' : 's'}</span>
+                </span>
+            </span>`;
+        item.addEventListener('click', async () => {
+            const { loadAlbumImages } = await import('../api.js');
+            await loadAlbumImages(album.id, album.name);
+            await renderAlbumsList();
+        });
+        dom.albumList.appendChild(item);
+    });
 }
 
 export async function renderFoldersList(folderList = null) {

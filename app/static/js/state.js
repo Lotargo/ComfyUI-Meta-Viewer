@@ -12,6 +12,7 @@ export const dom = {
     imageList: document.getElementById('image-list'),
     imageCount: document.getElementById('image-count'),
     folderNameEl: document.getElementById('folder-name'),
+    collectionKindEl: document.getElementById('collection-kind'),
     addFileInput: document.getElementById('add-file-input'),
     btnOpenFolder: document.getElementById('btn-open-folder'),
     toast: document.getElementById('toast'),
@@ -27,17 +28,24 @@ export const dom = {
     btnFactoryReset: document.getElementById('btn-factory-reset'),
     btnPaste: document.getElementById('btn-paste'),
     tabFolders: document.getElementById('tab-folders'),
+    tabAlbums: document.getElementById('tab-albums'),
     tabImages: document.getElementById('tab-images'),
     panelFolders: document.getElementById('panel-folders'),
+    panelAlbums: document.getElementById('panel-albums'),
     panelImages: document.getElementById('panel-images'),
     sidebar: document.getElementById('sidebar'),
     sidebarResize: document.getElementById('sidebar-resize'),
     sidebarToggle: document.getElementById('sidebar-toggle'),
     folderList: document.getElementById('folder-list'),
+    albumList: document.getElementById('viewer-album-list'),
     foldersCount: document.getElementById('folders-count'),
+    albumsCount: document.getElementById('viewer-albums-count'),
     foldersViewBtn: document.getElementById('folders-view-btn'),
+    albumsViewBtn: document.getElementById('viewer-albums-view-btn'),
     foldersSortBtn: document.getElementById('folders-sort-btn'),
     foldersSortDropdown: document.getElementById('folders-sort-dropdown-menu'),
+    albumsSortBtn: document.getElementById('viewer-albums-sort-btn'),
+    albumsSortDropdown: document.getElementById('viewer-albums-sort-dropdown-menu'),
     searchInput: document.getElementById('search-input'),
     searchSettingsBtn: document.getElementById('search-settings-btn'),
     searchSettingsDropdown: document.getElementById('search-settings-dropdown'),
@@ -70,11 +78,12 @@ export const dom = {
 };
 
 /**
- * Central content collection. It changes only when a folder is explicitly selected.
+ * Central content collection. It changes when a folder or album is selected.
  * @type {const Array} Must NOT be reassigned to preserve references in consumers.
  */
 export const images = [];
 export let activeIndex = -1;
+export const currentCollection = { type: 'folder', id: null, name: '' };
 export let currentFolderId = null;
 export let currentPage = 0;
 export let totalImages = 0;
@@ -92,10 +101,11 @@ export let sidebarActiveImageId = null;
 export let activeSidebarTab = 'images';
 
 /**
- * Folders collection.
+ * Read-only collection pickers used by the Viewer sidebar.
  * @type {const Array} Must NOT be reassigned to preserve references.
  */
 export const folders = [];
+export const albums = [];
 export let viewMode = 'gallery';
 export let galleryActive = true;
 export let lightboxIndex = -1;
@@ -113,6 +123,9 @@ export let sidebarSortDir = 'desc';
 export let foldersSortKey = 'scanned_at';
 export let foldersSortDir = 'desc';
 export let foldersViewMode = 'list';
+export let albumsSortKey = 'name';
+export let albumsSortDir = 'asc';
+export let albumsViewMode = 'list';
 export let sidebarWidth = 360;
 export let sidebarCollapsed = false;
 export let lightboxMetaOpen = true;
@@ -125,28 +138,59 @@ export function setSidebarSortDir(v) { sidebarSortDir = v; }
 export function setFoldersSortKey(v) { foldersSortKey = v; }
 export function setFoldersSortDir(v) { foldersSortDir = v; }
 export function setFoldersViewMode(v) { foldersViewMode = v === 'list' ? 'list' : 'tile'; }
+export function setAlbumsSortKey(v) { albumsSortKey = ['name', 'updated_at', 'asset_count'].includes(v) ? v : 'name'; }
+export function setAlbumsSortDir(v) { albumsSortDir = v === 'desc' ? 'desc' : 'asc'; }
+export function setAlbumsViewMode(v) { albumsViewMode = v === 'list' ? 'list' : 'tile'; }
 export function setSidebarWidth(v) { sidebarWidth = Number.isFinite(v) ? Math.min(500, Math.max(280, Math.round(v))) : 360; }
 export function setSidebarCollapsed(v) { sidebarCollapsed = Boolean(v); }
 export function setLightboxMetaOpen(v) { lightboxMetaOpen = Boolean(v); }
 export function setMetadataTab(v) { metadataTab = ['workflow', 'raw'].includes(v) ? v : 'summary'; }
 
 export function setImages(v) {
+    if (v === images) return;
     images.length = 0;
     if (Array.isArray(v)) images.push(...v);
 }
 export function setSidebarImages(v) {
+    if (v === sidebarImages) return;
     sidebarImages.length = 0;
     if (Array.isArray(v)) sidebarImages.push(...v);
 }
 export function setFolders(v) {
+    if (v === folders) return;
     folders.length = 0;
     if (Array.isArray(v)) folders.push(...v);
+}
+export function setAlbums(v) {
+    if (v === albums) return;
+    albums.length = 0;
+    if (Array.isArray(v)) albums.push(...v);
 }
 export function setActiveIndex(v) { activeIndex = Number.isInteger(v) ? v : -1; }
 export function setViewModeValue(v) { viewMode = v === 'list' ? 'list' : (v === 'upload' ? 'upload' : 'gallery'); }
 export function setGalleryActive(v) { galleryActive = Boolean(v); }
 export function setLightboxIndex(v) { lightboxIndex = v; }
-export function setCurrentFolderId(v) { currentFolderId = v ?? null; }
+export function setCurrentCollection(value) {
+    const type = value?.type === 'album' ? 'album' : (value?.type === 'temporary' ? 'temporary' : 'folder');
+    const id = Number.isInteger(value?.id) && value.id > 0 ? value.id : null;
+    currentCollection.type = type;
+    currentCollection.id = id;
+    currentCollection.name = typeof value?.name === 'string' ? value.name : '';
+    currentFolderId = type === 'folder' ? id : null;
+    if (dom.collectionKindEl) {
+        dom.collectionKindEl.textContent = id || currentCollection.name
+            ? (type === 'album' ? 'Album' : (type === 'temporary' ? 'Temporary' : 'Folder'))
+            : '';
+    }
+}
+export function setCurrentFolderId(v) {
+    const id = Number.isInteger(v) && v > 0 ? v : null;
+    setCurrentCollection({
+        type: 'folder',
+        id,
+        name: id && currentCollection.type === 'folder' ? currentCollection.name : '',
+    });
+}
 export function setCurrentPage(v) { currentPage = Number.isInteger(v) ? v : 0; }
 export function setSidebarPage(v) { sidebarPage = Number.isInteger(v) ? v : 0; }
 export function setTotalImages(v) { totalImages = Number.isFinite(v) ? v : 0; }
@@ -154,7 +198,7 @@ export function setSidebarTotalImages(v) { sidebarTotalImages = Number.isFinite(
 export function setAllLoaded(v) { allLoaded = Boolean(v); }
 export function setSidebarAllLoaded(v) { sidebarAllLoaded = Boolean(v); }
 export function setSidebarActiveImageId(v) { sidebarActiveImageId = v ?? null; }
-export function setActiveSidebarTab(v) { activeSidebarTab = v === 'folders' ? 'folders' : 'images'; }
+export function setActiveSidebarTab(v) { activeSidebarTab = ['folders', 'albums'].includes(v) ? v : 'images'; }
 export function setIsLoading(v) { isLoading = Boolean(v); }
 export function setDetailCache(v) { detailCache = v && typeof v === 'object' ? v : {}; }
 export function setScrollObserver(v) { scrollObserver = v; }
@@ -195,13 +239,14 @@ function getStoredPreferences() {
 }
 
 function applyPreferences(preferences) {
-    setCurrentFolderId(preferences.navigation.selectedFolderId);
+    setCurrentCollection(preferences.navigation.selectedCollection);
     setViewModeValue(preferences.navigation.viewMode);
     setGalleryActive(preferences.navigation.viewMode === 'gallery');
     setActiveSidebarTab(preferences.navigation.sidebarTab);
     setSidebarWidth(preferences.layout.sidebarWidth);
     setSidebarCollapsed(preferences.layout.sidebarCollapsed);
     setFoldersViewMode(preferences.layout.foldersViewMode);
+    setAlbumsViewMode(preferences.layout.albumsViewMode);
     setLightboxMetaOpen(preferences.layout.lightboxMetaOpen);
     setMetadataTab(preferences.layout.metadataTab);
     setSortKey(preferences.sorting.gallery.key);
@@ -210,6 +255,8 @@ function applyPreferences(preferences) {
     setSidebarSortDir(preferences.sorting.images.direction);
     setFoldersSortKey(preferences.sorting.folders.key);
     setFoldersSortDir(preferences.sorting.folders.direction);
+    setAlbumsSortKey(preferences.sorting.albums.key);
+    setAlbumsSortDir(preferences.sorting.albums.direction);
     setSearchSettings(preferences.searchSettings);
 }
 
@@ -224,6 +271,7 @@ export function saveState() {
     const preferences = normalizePreferences({
         version: PREFERENCES_VERSION,
         navigation: {
+            selectedCollection: { type: currentCollection.type, id: currentCollection.id },
             selectedFolderId: currentFolderId,
             viewMode,
             sidebarTab: activeSidebarTab,
@@ -232,6 +280,7 @@ export function saveState() {
             sidebarWidth,
             sidebarCollapsed,
             foldersViewMode,
+            albumsViewMode,
             lightboxMetaOpen,
             metadataTab,
         },
@@ -239,6 +288,7 @@ export function saveState() {
             gallery: { key: sortKey, direction: sortDir },
             images: { key: sidebarSortKey, direction: sidebarSortDir },
             folders: { key: foldersSortKey, direction: foldersSortDir },
+            albums: { key: albumsSortKey, direction: albumsSortDir },
         },
         searchSettings,
     });
@@ -271,9 +321,10 @@ export function resetRuntimeState() {
     setImages([]);
     setSidebarImages([]);
     setFolders([]);
+    setAlbums([]);
     setActiveIndex(-1);
     setSidebarActiveImageId(null);
-    setCurrentFolderId(null);
+    setCurrentCollection(defaults.navigation.selectedCollection);
     setCurrentPage(0);
     setSidebarPage(0);
     setTotalImages(0);
@@ -298,6 +349,9 @@ export function resetRuntimeState() {
     setFoldersSortKey(defaults.sorting.folders.key);
     setFoldersSortDir(defaults.sorting.folders.direction);
     setFoldersViewMode(defaults.layout.foldersViewMode);
+    setAlbumsSortKey(defaults.sorting.albums.key);
+    setAlbumsSortDir(defaults.sorting.albums.direction);
+    setAlbumsViewMode(defaults.layout.albumsViewMode);
     setSidebarWidth(defaults.layout.sidebarWidth);
     setSidebarCollapsed(defaults.layout.sidebarCollapsed);
     setLightboxMetaOpen(defaults.layout.lightboxMetaOpen);

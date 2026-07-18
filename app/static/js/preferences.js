@@ -3,12 +3,14 @@ export const PREFERENCES_STORAGE_KEY = 'cmv_preferences_v2';
 export const LEGACY_PREFERENCES_STORAGE_KEY = 'cmv_preferences';
 
 const VIEW_MODES = new Set(['gallery', 'list', 'upload']);
-const SIDEBAR_TABS = new Set(['folders', 'images']);
+const SIDEBAR_TABS = new Set(['folders', 'albums', 'images']);
+const COLLECTION_TYPES = new Set(['folder', 'album']);
 const FOLDER_VIEW_MODES = new Set(['list', 'tile']);
 const META_TABS = new Set(['summary', 'workflow', 'raw']);
 const SORT_DIRECTIONS = new Set(['asc', 'desc']);
 const IMAGE_SORT_KEYS = new Set(['name', 'date', 'size', 'type']);
 const FOLDER_SORT_KEYS = new Set(['name', 'scanned_at', 'image_count']);
+const ALBUM_SORT_KEYS = new Set(['name', 'updated_at', 'asset_count']);
 
 function isRecord(value) {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -26,6 +28,13 @@ function selectedFolderId(value) {
     return Number.isInteger(value) && value > 0 ? value : null;
 }
 
+function selectedCollection(value, legacyFolderId = null) {
+    const legacyId = selectedFolderId(legacyFolderId);
+    if (!isRecord(value)) return { type: 'folder', id: legacyId };
+    const type = enumValue(value.type, COLLECTION_TYPES, 'folder');
+    return { type, id: selectedFolderId(value.id) };
+}
+
 function sidebarWidth(value) {
     if (!Number.isFinite(value)) return 360;
     return Math.min(500, Math.max(280, Math.round(value)));
@@ -35,6 +44,7 @@ export function createDefaultPreferences() {
     return {
         version: PREFERENCES_VERSION,
         navigation: {
+            selectedCollection: { type: 'folder', id: null },
             selectedFolderId: null,
             viewMode: 'gallery',
             sidebarTab: 'images',
@@ -43,6 +53,7 @@ export function createDefaultPreferences() {
             sidebarWidth: 360,
             sidebarCollapsed: false,
             foldersViewMode: 'list',
+            albumsViewMode: 'list',
             lightboxMetaOpen: true,
             metadataTab: 'summary',
         },
@@ -50,6 +61,7 @@ export function createDefaultPreferences() {
             gallery: { key: 'date', direction: 'desc' },
             images: { key: 'date', direction: 'desc' },
             folders: { key: 'scanned_at', direction: 'desc' },
+            albums: { key: 'name', direction: 'asc' },
         },
         searchSettings: {
             exactMatch: false,
@@ -76,15 +88,18 @@ export function normalizePreferences(value) {
     const gallerySort = isRecord(sorting.gallery) ? sorting.gallery : {};
     const imagesSort = isRecord(sorting.images) ? sorting.images : {};
     const foldersSort = isRecord(sorting.folders) ? sorting.folders : {};
+    const albumsSort = isRecord(sorting.albums) ? sorting.albums : {};
     const search = isCurrentVersion || isLegacyVersion
         ? (isRecord(source.searchSettings) ? source.searchSettings : {})
         : {};
     const searchFields = isRecord(search.fields) ? search.fields : {};
 
+    const collection = selectedCollection(navigation.selectedCollection, navigation.selectedFolderId);
     return {
         version: PREFERENCES_VERSION,
         navigation: {
-            selectedFolderId: selectedFolderId(navigation.selectedFolderId),
+            selectedCollection: collection,
+            selectedFolderId: collection.type === 'folder' ? collection.id : null,
             viewMode: enumValue(navigation.viewMode, VIEW_MODES, defaults.navigation.viewMode),
             sidebarTab: enumValue(navigation.sidebarTab, SIDEBAR_TABS, defaults.navigation.sidebarTab),
         },
@@ -92,6 +107,7 @@ export function normalizePreferences(value) {
             sidebarWidth: sidebarWidth(layout.sidebarWidth),
             sidebarCollapsed: booleanValue(layout.sidebarCollapsed, defaults.layout.sidebarCollapsed),
             foldersViewMode: enumValue(layout.foldersViewMode, FOLDER_VIEW_MODES, defaults.layout.foldersViewMode),
+            albumsViewMode: enumValue(layout.albumsViewMode, FOLDER_VIEW_MODES, defaults.layout.albumsViewMode),
             lightboxMetaOpen: booleanValue(layout.lightboxMetaOpen, defaults.layout.lightboxMetaOpen),
             metadataTab: enumValue(layout.metadataTab, META_TABS, defaults.layout.metadataTab),
         },
@@ -107,6 +123,10 @@ export function normalizePreferences(value) {
             folders: {
                 key: enumValue(foldersSort.key, FOLDER_SORT_KEYS, defaults.sorting.folders.key),
                 direction: enumValue(foldersSort.direction, SORT_DIRECTIONS, defaults.sorting.folders.direction),
+            },
+            albums: {
+                key: enumValue(albumsSort.key, ALBUM_SORT_KEYS, defaults.sorting.albums.key),
+                direction: enumValue(albumsSort.direction, SORT_DIRECTIONS, defaults.sorting.albums.direction),
             },
         },
         searchSettings: {

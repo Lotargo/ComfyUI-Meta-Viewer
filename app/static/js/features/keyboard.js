@@ -2,7 +2,7 @@
  * Keyboard shortcuts handler
  */
 
-import { images, sidebarImages, activeIndex, detailCache, dom, totalImages, currentFolderId, showToast } from '../state.js';
+import { images, sidebarImages, activeIndex, detailCache, dom, totalImages, currentCollection, showToast } from '../state.js';
 import { toggleSidebar } from './sidebar.js';
 import { copyText } from '../utils.js';
 
@@ -303,7 +303,7 @@ async function getDiagnostics() {
         loaded_images: images.length,
         total_images: totalImages,
         active_index: activeIndex,
-        current_folder_id: currentFolderId,
+        current_collection: { type: currentCollection.type, id: currentCollection.id },
         view: document.querySelector('.view-toggle button.active')?.id || 'unknown',
     };
 }

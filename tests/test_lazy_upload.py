@@ -357,8 +357,11 @@ class LazyUploadTest(unittest.TestCase):
         preferences_source = preferences_path.read_text(encoding="utf-8")
 
         self.assertIn("export let foldersViewMode = 'list';", source)
+        self.assertIn("export let albumsViewMode = 'list';", source)
         self.assertIn("setFoldersViewMode(defaults.layout.foldersViewMode);", source)
+        self.assertIn("setAlbumsViewMode(defaults.layout.albumsViewMode);", source)
         self.assertIn("foldersViewMode: 'list'", preferences_source)
+        self.assertIn("albumsViewMode: 'list'", preferences_source)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ import {
     lightboxIndex,
     totalImages,
     allLoaded,
-    currentFolderId,
+    currentCollection,
     galleryActive,
     detailCache,
     dom,
@@ -45,7 +45,7 @@ const THUMBNAIL_FALLBACK_DELAY = 250;
 const GALLERY_PREFETCH_THRESHOLD = 5;
 
 function canLoadNextGalleryPage() {
-    return usesGalleryPagination && Boolean(currentFolderId) && !allLoaded;
+    return usesGalleryPagination && Boolean(currentCollection.id) && !allLoaded;
 }
 
 async function loadNextGalleryPage() {

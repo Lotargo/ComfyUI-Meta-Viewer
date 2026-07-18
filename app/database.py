@@ -798,10 +798,19 @@ def get_images_page(
     per_page: int = 50,
     sort_by: str = "date",
     sort_dir: str = "desc",
+    album_id: int | None = None,
 ) -> ImagesResponse:
     conn = get_conn()
     try:
-        if folder_id is not None:
+        if album_id is not None:
+            total_row = conn.execute(
+                """SELECT COUNT(*) AS c FROM images i
+                JOIN folders f ON f.id = i.folder_id
+                JOIN album_images ai ON ai.image_id = i.id
+                WHERE ai.album_id = ? AND f.enabled = 1""",
+                (album_id,),
+            ).fetchone()
+        elif folder_id is not None:
             total_row = conn.execute(
                 """SELECT COUNT(*) AS c FROM images i
                 JOIN folders f ON f.id = i.folder_id
@@ -820,21 +829,32 @@ def get_images_page(
 
         # Map sorting key to column names safely
         sort_by_map = {
-            "name": "file_name",
-            "date": "file_mtime",
-            "size": "file_size",
-            "type": "format",
+            "name": "i.file_name",
+            "date": "i.file_mtime",
+            "size": "i.file_size",
+            "type": "i.format",
         }
-        sort_column = sort_by_map.get(sort_by, "file_name")
+        sort_column = sort_by_map.get(sort_by, "i.file_name")
         direction = "DESC" if sort_dir.lower() == "desc" else "ASC"
 
         # Determine secondary sort order for stability
-        if sort_column == "file_name":
-            order_clause = f"ORDER BY file_name {direction}"
+        if sort_column == "i.file_name":
+            order_clause = f"ORDER BY i.file_name {direction}"
         else:
-            order_clause = f"ORDER BY {sort_column} {direction}, file_name ASC"
+            order_clause = f"ORDER BY {sort_column} {direction}, i.file_name ASC"
 
-        if folder_id is not None:
+        if album_id is not None:
+            rows = conn.execute(
+                f"""SELECT i.id, i.file_name, i.format, i.width, i.height, i.mode,
+                    i.error, i.metadata_json
+                FROM images i
+                JOIN folders f ON f.id = i.folder_id
+                JOIN album_images ai ON ai.image_id = i.id
+                WHERE ai.album_id = ? AND f.enabled = 1
+                {order_clause} LIMIT ? OFFSET ?""",
+                (album_id, per_page, offset),
+            ).fetchall()
+        elif folder_id is not None:
             rows = conn.execute(
                 f"""SELECT i.id, i.file_name, i.format, i.width, i.height, i.mode,
                     i.error, i.metadata_json

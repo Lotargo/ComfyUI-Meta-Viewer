@@ -1,15 +1,16 @@
 import {
     activeSidebarTab,
-    currentFolderId,
+    currentCollection,
     dom,
     loadState,
     resetRuntimeState,
     saveState,
     setActiveIndex,
     setAllLoaded,
-    setCurrentFolderId,
+    setCurrentCollection,
     setCurrentPage,
     setFolders,
+    setAlbums,
     setImages,
     setIsLoading,
     setSidebarAllLoaded,
@@ -21,7 +22,7 @@ import {
 } from './state.js';
 import { initEvents, renderCurrentContent, setViewMode, switchSidebarTab } from './events.js';
 import { initLightboxEvents } from './lightbox.js';
-import { applySidebarLayout, renderSidebar, initSidebarResize, toggleSidebar, renderFoldersList } from './features/sidebar.js';
+import { applySidebarLayout, renderSidebar, initSidebarResize, toggleSidebar, renderAlbumsList, renderFoldersList } from './features/sidebar.js';
 import { initSearch } from './components/search-bar.js';
 import { initKeyboardShortcuts } from './features/keyboard.js';
 import { initCentralCollectionShortcuts } from './central-shortcuts.js';
@@ -40,35 +41,37 @@ async function bootstrapApplication() {
     setIsLoading(true);
     resetRuntimeState();
     loadState();
-    const preferredFolderId = currentFolderId;
+    const preferredCollection = { type: currentCollection.type, id: currentCollection.id };
 
     applySidebarLayout();
     setViewMode(viewMode, { render: false, persist: false });
     await switchSidebarTab(activeSidebarTab, { render: false, load: false, persist: false });
 
     try {
-        const data = await loadBootstrap({ preferredFolderId });
+        const data = await loadBootstrap({ preferredCollection });
         const folderList = data.folders || [];
+        const albumList = data.albums || [];
         const globalPage = data.global_images || {};
-        const folderPage = data.folder_images || {};
-        const defaultFolder = data.default_folder || null;
+        const collectionPage = data.collection_images || {};
+        const defaultCollection = data.default_collection || null;
 
         setFolders(folderList);
+        setAlbums(albumList);
         setSidebarImages(globalPage.images || []);
         setSidebarTotalImages(globalPage.total || 0);
         setSidebarPage(globalPage.page || 1);
         setSidebarAllLoaded((globalPage.images || []).length >= (globalPage.total || 0));
 
-        if (defaultFolder) {
-            setCurrentFolderId(defaultFolder.id);
-            dom.folderNameEl.textContent = defaultFolder.name || '';
-            setImages(folderPage.images || []);
-            setTotalImages(folderPage.total || 0);
-            setCurrentPage(folderPage.page || 1);
-            setAllLoaded((folderPage.images || []).length >= (folderPage.total || 0));
-            setActiveIndex((folderPage.images || []).length ? 0 : -1);
+        if (defaultCollection) {
+            setCurrentCollection(defaultCollection);
+            dom.folderNameEl.textContent = defaultCollection.name || '';
+            setImages(collectionPage.images || []);
+            setTotalImages(collectionPage.total || 0);
+            setCurrentPage(collectionPage.page || 1);
+            setAllLoaded((collectionPage.images || []).length >= (collectionPage.total || 0));
+            setActiveIndex((collectionPage.images || []).length ? 0 : -1);
         } else {
-            setCurrentFolderId(null);
+            setCurrentCollection({ type: 'folder', id: null, name: '' });
             dom.folderNameEl.textContent = '';
             setImages([]);
             setTotalImages(0);
@@ -81,11 +84,13 @@ async function bootstrapApplication() {
         saveState();
 
         await renderFoldersList(folderList);
+        await renderAlbumsList(albumList);
         renderSidebar();
         await renderCurrentContent();
     } catch (error) {
         console.error('Application bootstrap failed:', error);
         await renderFoldersList([]);
+        await renderAlbumsList([]);
         renderSidebar();
         dom.contentArea.innerHTML = `
             <div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-dim); text-align: center; padding: 24px;">

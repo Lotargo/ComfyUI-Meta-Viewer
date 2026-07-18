@@ -10,7 +10,7 @@ import {
     detailCache,
     galleryActive,
     dom,
-    currentFolderId,
+    currentCollection,
     metadataTab,
     saveState,
     setMetadataTab,
@@ -33,7 +33,7 @@ export function renderUploadView() {
 
 export function renderMeta(img) {
     if (!img) {
-        if (!currentFolderId && images.length === 0) {
+        if (!currentCollection.id && images.length === 0) {
             renderUploadView();
             return;
         }

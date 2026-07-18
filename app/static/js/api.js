@@ -1,7 +1,7 @@
 import {
     images,
     activeIndex,
-    currentFolderId,
+    currentCollection,
     currentPage,
     totalImages,
     allLoaded,
@@ -10,7 +10,7 @@ import {
     dom,
     setImages,
     setActiveIndex,
-    setCurrentFolderId,
+    setCurrentCollection,
     setCurrentPage,
     setTotalImages,
     setAllLoaded,
@@ -27,6 +27,7 @@ import {
     sidebarAllLoaded,
     sidebarTotalImages,
     setFolders,
+    setAlbums,
     sortKey,
     sortDir,
     sidebarSortKey,
@@ -77,6 +78,18 @@ export function invalidateApiCache() {
     pendingRequests.clear();
 }
 
+function collectionFilter(collection = currentCollection) {
+    if (!collection?.id) return '';
+    return collection.type === 'album'
+        ? `album_id=${collection.id}`
+        : `folder_id=${collection.id}`;
+}
+
+function collectionImagesUrl(collection, page, perPage) {
+    const filter = collectionFilter(collection);
+    return `/api/images?${filter}&page=${page}&per_page=${perPage}&sort_by=${sortKey}&sort_dir=${sortDir}`;
+}
+
 async function renderCurrentContent() {
     const { viewMode } = await import('./state.js');
     if (viewMode === 'upload') {
@@ -92,26 +105,45 @@ async function renderCurrentContent() {
     await renderImageMeta(images[activeIndex] || images[0] || null);
 }
 
-export async function loadBootstrap({ preferredFolderId = null } = {}) {
+export async function loadBootstrap({ preferredCollection = null } = {}) {
     // Build one coherent startup snapshot without rendering intermediate states.
-    const [folderData, globalPage] = await Promise.all([
+    const [folderData, albumData, globalPage] = await Promise.all([
         fetchJson('/api/folders', { force: true }),
+        fetchJson('/api/albums', { force: true }),
         fetchJson(`/api/images?page=1&per_page=${PAGE_SIZE}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}`, { force: true }),
     ]);
     const folderList = folderData.folders || [];
-    const preferredId = Number.isInteger(preferredFolderId) ? preferredFolderId : null;
-    const defaultFolder = folderList.find(folder => folder.id === preferredId && folder.enabled)
-        || folderList.find(folder => folder.enabled)
-        || null;
-    const folderPage = defaultFolder
-        ? await fetchJson(`/api/images?folder_id=${defaultFolder.id}&page=1&per_page=${PAGE_SIZE}&sort_by=${sortKey}&sort_dir=${sortDir}`, { force: true })
+    const albumList = albumData.albums || [];
+    const preferredId = Number.isInteger(preferredCollection?.id) ? preferredCollection.id : null;
+    const preferredAlbum = preferredCollection?.type === 'album'
+        ? albumList.find(album => album.id === preferredId)
+        : null;
+    const preferredFolder = preferredCollection?.type !== 'album'
+        ? folderList.find(folder => folder.id === preferredId && folder.enabled)
+        : null;
+    const fallbackFolder = folderList.find(folder => folder.enabled) || null;
+    const defaultItem = preferredAlbum
+        ? { type: 'album', item: preferredAlbum }
+        : preferredFolder
+            ? { type: 'folder', item: preferredFolder }
+            : fallbackFolder
+                ? { type: 'folder', item: fallbackFolder }
+                : albumList[0]
+                    ? { type: 'album', item: albumList[0] }
+                    : null;
+    const defaultCollection = defaultItem
+        ? { type: defaultItem.type, id: defaultItem.item.id, name: defaultItem.item.name }
+        : null;
+    const collectionPage = defaultCollection
+        ? await fetchJson(collectionImagesUrl(defaultCollection, 1, PAGE_SIZE), { force: true })
         : { images: [], total: 0, page: 0, per_page: PAGE_SIZE };
 
     return {
         folders: folderList,
-        default_folder: defaultFolder,
+        albums: albumList,
+        default_collection: defaultCollection,
         global_images: globalPage,
-        folder_images: folderPage,
+        collection_images: collectionPage,
     };
 }
 
@@ -127,7 +159,7 @@ export async function scanFolder(path, { recursive = false } = {}) {
         });
 
         invalidateApiCache();
-        setCurrentFolderId(data.folder_id);
+        setCurrentCollection({ type: 'folder', id: data.folder_id, name: data.folder?.name || '' });
         setImages(data.images || []);
         setTotalImages(data.total || 0);
         setCurrentPage(data.page || 1);
@@ -166,7 +198,7 @@ export async function loadFromPaths(paths) {
             showError('No images found');
             return;
         }
-        setCurrentFolderId(null);
+        setCurrentCollection({ type: 'temporary', id: null, name: 'Temporary' });
         dom.folderNameEl.textContent = 'Temporary';
         setImages(data.images);
         setTotalImages(data.images.length);
@@ -224,7 +256,7 @@ export async function loadFromFiles(files) {
 }
 
 export async function loadMore() {
-    if (isLoading || allLoaded || !currentFolderId) return false;
+    if (isLoading || allLoaded || !currentCollection.id) return false;
     setIsLoading(true);
     let spinner = document.querySelector('#gallery-load-more-spinner');
     if (!spinner && dom.contentArea) {
@@ -248,7 +280,7 @@ export async function loadMore() {
     const nextPage = currentPage + 1;
     let didLoad = false;
     try {
-        const data = await fetchJson(`/api/images?folder_id=${currentFolderId}&page=${nextPage}&per_page=${PAGE_SIZE}&sort_by=${sortKey}&sort_dir=${sortDir}`);
+        const data = await fetchJson(collectionImagesUrl(currentCollection, nextPage, PAGE_SIZE));
         if (data.images?.length) {
             images.push(...data.images);
             setCurrentPage(nextPage);
@@ -344,6 +376,11 @@ export async function getFolders({ force = false } = {}) {
     return data.folders || [];
 }
 
+export async function getAlbums({ force = false } = {}) {
+    const data = await fetchJson('/api/albums', { force });
+    return data.albums || [];
+}
+
 export async function deleteFolderFromServer(folderId) {
     try {
         await fetchJson(`/api/folders/${folderId}`, { options: { method: 'DELETE' } });
@@ -402,8 +439,11 @@ export async function deleteImageById(imageId) {
             setSidebarTotalImages(Math.max(0, sidebarTotalImages - 1));
         }
 
-        const { renderSidebar } = await import('./features/sidebar.js');
+        const updatedAlbums = await getAlbums({ force: true });
+        setAlbums(updatedAlbums);
+        const { renderAlbumsList, renderSidebar } = await import('./features/sidebar.js');
         renderSidebar();
+        await renderAlbumsList(updatedAlbums);
         await renderCurrentContent();
         showToast('Image removed');
         return true;
@@ -418,17 +458,17 @@ export function deleteImageAt(index) {
     return img ? deleteImageById(img.id) : Promise.resolve(false);
 }
 
-export async function loadFolderImages(folderId, folderName, { force = false, render = true, preserveCount = false } = {}) {
+export async function loadCollectionImages(collection, { force = false, render = true, preserveCount = false } = {}) {
     setIsLoading(true);
-    if (render) showLoading('Loading folder images...');
+    if (render) showLoading(`Loading ${collection.type === 'album' ? 'album' : 'folder'} images...`);
     try {
         const limit = preserveCount ? Math.max(PAGE_SIZE, currentPage * PAGE_SIZE) : PAGE_SIZE;
-        const data = await fetchJson(`/api/images?folder_id=${folderId}&page=1&per_page=${limit}&sort_by=${sortKey}&sort_dir=${sortDir}`, { force });
+        const data = await fetchJson(collectionImagesUrl(collection, 1, limit), { force });
         
         const activeImageId = images[activeIndex]?.id;
         
-        setCurrentFolderId(folderId);
-        dom.folderNameEl.textContent = folderName || '';
+        setCurrentCollection(collection);
+        dom.folderNameEl.textContent = collection.name || '';
         setImages(data.images || []);
         setTotalImages(data.total || 0);
         
@@ -466,9 +506,17 @@ export async function loadFolderImages(folderId, folderName, { force = false, re
         
         return data;
     } catch(e) {
-        if (render) showError('Error loading folder: ' + e.message);
+        if (render) showError(`Error loading ${collection.type}: ` + e.message);
         throw e;
     } finally {
         setIsLoading(false);
     }
+}
+
+export function loadFolderImages(folderId, folderName, options = {}) {
+    return loadCollectionImages({ type: 'folder', id: folderId, name: folderName || '' }, options);
+}
+
+export function loadAlbumImages(albumId, albumName, options = {}) {
+    return loadCollectionImages({ type: 'album', id: albumId, name: albumName || '' }, options);
 }

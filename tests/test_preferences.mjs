@@ -44,14 +44,15 @@ test('current preferences are validated field by field', () => {
     const preferences = normalizePreferences({
         version: PREFERENCES_VERSION,
         navigation: {
-            selectedFolderId: 42,
+            selectedCollection: { type: 'album', id: 42 },
             viewMode: 'list',
-            sidebarTab: 'folders',
+            sidebarTab: 'albums',
         },
         layout: {
             sidebarWidth: 900,
             sidebarCollapsed: true,
             foldersViewMode: 'tile',
+            albumsViewMode: 'tile',
             lightboxMetaOpen: false,
             metadataTab: 'raw',
         },
@@ -59,6 +60,7 @@ test('current preferences are validated field by field', () => {
             gallery: { key: 'name', direction: 'asc' },
             images: { key: 'invalid', direction: 'asc' },
             folders: { key: 'image_count', direction: 'invalid' },
+            albums: { key: 'asset_count', direction: 'desc' },
         },
         searchSettings: {
             exactMatch: true,
@@ -66,17 +68,20 @@ test('current preferences are validated field by field', () => {
         },
     });
 
-    assert.equal(preferences.navigation.selectedFolderId, 42);
+    assert.deepEqual(preferences.navigation.selectedCollection, { type: 'album', id: 42 });
+    assert.equal(preferences.navigation.selectedFolderId, null);
     assert.equal(preferences.navigation.viewMode, 'list');
-    assert.equal(preferences.navigation.sidebarTab, 'folders');
+    assert.equal(preferences.navigation.sidebarTab, 'albums');
     assert.equal(preferences.layout.sidebarWidth, 500);
     assert.equal(preferences.layout.sidebarCollapsed, true);
     assert.equal(preferences.layout.foldersViewMode, 'tile');
+    assert.equal(preferences.layout.albumsViewMode, 'tile');
     assert.equal(preferences.layout.lightboxMetaOpen, false);
     assert.equal(preferences.layout.metadataTab, 'raw');
     assert.deepEqual(preferences.sorting.gallery, { key: 'name', direction: 'asc' });
     assert.deepEqual(preferences.sorting.images, { key: 'date', direction: 'asc' });
     assert.deepEqual(preferences.sorting.folders, { key: 'image_count', direction: 'desc' });
+    assert.deepEqual(preferences.sorting.albums, { key: 'asset_count', direction: 'desc' });
     assert.equal(preferences.searchSettings.exactMatch, true);
     assert.equal(preferences.searchSettings.fields.model, false);
     assert.equal(preferences.searchSettings.fields.positive_prompt, true);
@@ -123,6 +128,7 @@ test('state persistence restores stable preferences but not runtime collections'
     state.setSidebarWidth(444);
     state.setSidebarCollapsed(true);
     state.setFoldersViewMode('tile');
+    state.setAlbumsViewMode('tile');
     state.setSortKey('name');
     state.setSortDir('asc');
     state.setLightboxMetaOpen(false);
@@ -137,18 +143,32 @@ test('state persistence restores stable preferences but not runtime collections'
     state.loadState();
 
     assert.equal(state.currentFolderId, 77);
+    assert.deepEqual(state.currentCollection, { type: 'folder', id: 77, name: '' });
     assert.equal(state.viewMode, 'list');
     assert.equal(state.galleryActive, false);
     assert.equal(state.activeSidebarTab, 'folders');
     assert.equal(state.sidebarWidth, 444);
     assert.equal(state.sidebarCollapsed, true);
     assert.equal(state.foldersViewMode, 'tile');
+    assert.equal(state.albumsViewMode, 'tile');
     assert.equal(state.sortKey, 'name');
     assert.equal(state.sortDir, 'asc');
     assert.equal(state.lightboxMetaOpen, false);
     assert.equal(state.metadataTab, 'workflow');
     assert.deepEqual(state.images, []);
     assert.equal(state.currentPage, 0);
+
+    state.setCurrentCollection({ type: 'album', id: 91, name: 'Runtime-only name' });
+    state.setActiveSidebarTab('albums');
+    state.setAlbums([{ id: 91, name: 'Persistent array reference' }]);
+    state.setAlbums(state.albums);
+    assert.equal(state.albums.length, 1);
+    state.saveState();
+    state.resetRuntimeState();
+    state.loadState();
+    assert.deepEqual(state.currentCollection, { type: 'album', id: 91, name: '' });
+    assert.equal(state.currentFolderId, null);
+    assert.equal(state.activeSidebarTab, 'albums');
 
     localStorage.setItem('cmv_preferences', 'legacy');
     sessionStorage.setItem('cmv_state', 'legacy');

@@ -31,6 +31,11 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
                 <span>Add</span>
             </button>
+            <button id="btn-toggle-preview" class="header-preview-action active" type="button" title="Hide image preview" aria-label="Hide image preview" aria-pressed="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="3" width="7" height="18" rx="1"></rect><rect x="3" y="3" width="7" height="18" rx="1"></rect></svg>
+                <span class="header-preview-label">Preview image</span>
+                <span class="header-preview-switch" aria-hidden="true"></span>
+            </button>
             <button id="btn-library-guide" class="header-icon-button" type="button" title="Open library guide" aria-label="Open library guide" aria-haspopup="dialog" aria-expanded="false">
                 <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.7 9a2.5 2.5 0 0 1 4.8 1c0 1.7-2.5 2-2.5 3.5"></path><path d="M12 17h.01"></path></svg>
             </button>
@@ -72,50 +77,52 @@
 
             <div class="library-toolbar-sticky">
                 <div class="library-filters">
-                    <label class="library-search">
-                        <span class="sr-only">Search library</span>
-                        <input id="library-search" type="search" placeholder="Search names, notes, tags…" autocomplete="off">
-                    </label>
-                    <div id="rating-filter-buttons" class="rating-filter-buttons">
-                        <button type="button" class="rating-filter-btn" data-rating="1" title="Show 1 star">★</button>
-                        <button type="button" class="rating-filter-btn" data-rating="2" title="Show 2 stars">★★</button>
-                        <button type="button" class="rating-filter-btn" data-rating="3" title="Show 3 stars">★★★</button>
-                        <button type="button" class="rating-filter-btn" data-rating="4" title="Show 4 stars">★★★★</button>
-                        <button type="button" class="rating-filter-btn" data-rating="5" title="Show 5 stars">★★★★★</button>
+                    <div class="library-filter-primary" role="group" aria-label="Search and rating filters">
+                        <label class="library-search">
+                            <span class="sr-only">Search library</span>
+                            <input id="library-search" type="search" placeholder="Search names, notes, tags…" autocomplete="off">
+                        </label>
+                        <div id="rating-filter-buttons" class="rating-filter-buttons">
+                            <button type="button" class="rating-filter-btn" data-rating="1" title="Show 1 star">★</button>
+                            <button type="button" class="rating-filter-btn" data-rating="2" title="Show 2 stars">★★</button>
+                            <button type="button" class="rating-filter-btn" data-rating="3" title="Show 3 stars">★★★</button>
+                            <button type="button" class="rating-filter-btn" data-rating="4" title="Show 4 stars">★★★★</button>
+                            <button type="button" class="rating-filter-btn" data-rating="5" title="Show 5 stars">★★★★★</button>
+                        </div>
                     </div>
-                    <select id="library-model-filter" aria-label="Filter by generation model">
-                        <option value="">All models</option>
-                        <option value="flux">Flux</option>
-                        <option value="pony">Pony</option>
-                        <option value="sdxl">SDXL</option>
-                    </select>
-                    <select id="library-orientation-filter" aria-label="Filter by image orientation">
-                        <option value="">All orientations</option>
-                        <option value="landscape">Landscape</option>
-                        <option value="portrait">Portrait</option>
-                        <option value="square">Square</option>
-                    </select>
-                    <select id="library-node-filter" aria-label="Filter by ComfyUI node">
-                        <option value="">All generation nodes</option>
-                    </select>
-                    <div class="library-view-actions" aria-label="Library view controls">
-                        <select id="library-sort" aria-label="Sort assets">
-                            <option value="date:desc">Newest file</option>
-                            <option value="date:asc">Oldest file</option>
-                            <option value="added:desc">Recently indexed</option>
-                            <option value="name:asc">Name A–Z</option>
-                            <option value="name:desc">Name Z–A</option>
-                            <option value="size:desc">Largest first</option>
-                            <option value="rating:desc">Highest rated</option>
-                        </select>
-                        <button id="btn-toggle-select" class="btn" type="button" title="Toggle selection mode">
-                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="m8 12 3 3 5-6"></path></svg>
-                            <span>Select</span>
-                        </button>
-                        <button id="btn-toggle-preview" class="btn btn-preview-toggle active" type="button" title="Toggle preview panel" aria-pressed="true">
-                            <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="3" width="7" height="18" rx="1"></rect><rect x="3" y="3" width="7" height="18" rx="1"></rect></svg>
-                            <span>Preview</span>
-                        </button>
+                    <div class="library-filter-secondary">
+                        <div class="library-filter-selects" role="group" aria-label="Metadata filters">
+                            <select id="library-model-filter" aria-label="Filter by generation model">
+                                <option value="">All models</option>
+                                <option value="flux">Flux</option>
+                                <option value="pony">Pony</option>
+                                <option value="sdxl">SDXL</option>
+                            </select>
+                            <select id="library-orientation-filter" aria-label="Filter by image orientation">
+                                <option value="">All orientations</option>
+                                <option value="landscape">Landscape</option>
+                                <option value="portrait">Portrait</option>
+                                <option value="square">Square</option>
+                            </select>
+                            <select id="library-node-filter" aria-label="Filter by ComfyUI node">
+                                <option value="">All generation nodes</option>
+                            </select>
+                        </div>
+                        <div class="library-view-actions" aria-label="Library view controls">
+                            <select id="library-sort" aria-label="Sort assets">
+                                <option value="date:desc">Newest file</option>
+                                <option value="date:asc">Oldest file</option>
+                                <option value="added:desc">Recently indexed</option>
+                                <option value="name:asc">Name A–Z</option>
+                                <option value="name:desc">Name Z–A</option>
+                                <option value="size:desc">Largest first</option>
+                                <option value="rating:desc">Highest rated</option>
+                            </select>
+                            <button id="btn-toggle-select" class="btn" type="button" title="Toggle selection mode">
+                                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="m8 12 3 3 5-6"></path></svg>
+                                <span>Select</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

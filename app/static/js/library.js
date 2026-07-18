@@ -361,6 +361,9 @@ function updateLayoutColumns() {
     const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
     dom.btnTogglePreview.classList.toggle('active', state.showPreview);
     dom.btnTogglePreview.setAttribute('aria-pressed', String(state.showPreview));
+    const previewActionLabel = state.showPreview ? 'Hide image preview' : 'Show image preview';
+    dom.btnTogglePreview.title = previewActionLabel;
+    dom.btnTogglePreview.setAttribute('aria-label', previewActionLabel);
     if (state.showPreview && activeAsset) {
         dom.previewPanel.style.width = state.previewWidth + 'px';
         dom.previewPanel.style.borderLeftWidth = '1px';

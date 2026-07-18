@@ -74,6 +74,10 @@
                         <option value="size:desc">Largest first</option>
                         <option value="rating:desc">Highest rated</option>
                     </select>
+                    <button id="btn-toggle-select" class="btn" type="button" title="Toggle selection mode">Select</button>
+                    <button id="btn-toggle-preview" class="btn btn-icon active" type="button" title="Toggle preview panel">
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </button>
                 </div>
             </div>
 
@@ -110,6 +114,19 @@
             <div id="asset-grid" class="asset-grid" aria-live="polite"></div>
             <button id="load-more" class="btn library-load-more" type="button" hidden>Load more</button>
         </main>
+
+        <div id="library-preview-panel" class="library-preview-panel" hidden>
+            <button id="close-preview-panel" class="close-preview-btn" type="button" title="Close preview">&times;</button>
+            <div id="preview-backdrop" class="preview-backdrop"></div>
+            <div class="preview-content">
+                <img id="preview-panel-img" src="" alt="Preview">
+            </div>
+            <div class="preview-actions">
+                <button id="preview-copy-workflow" class="btn btn-sm btn-secondary" type="button" hidden>Copy Workflow</button>
+                <button id="preview-copy-pos-prompt" class="btn btn-sm btn-secondary" type="button" hidden>Copy Positive</button>
+                <button id="preview-copy-neg-prompt" class="btn btn-sm btn-secondary" type="button" hidden>Copy Negative</button>
+            </div>
+        </div>
     </div>
 
     <dialog id="asset-editor" class="asset-editor">

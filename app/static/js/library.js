@@ -35,6 +35,16 @@ const dom = {
     toolbarCopyWorkflow: document.getElementById('toolbar-copy-workflow'),
     toolbarCopyPosPrompt: document.getElementById('toolbar-copy-pos-prompt'),
     toolbarCopyNegPrompt: document.getElementById('toolbar-copy-neg-prompt'),
+    shell: document.querySelector('.library-shell'),
+    previewPanel: document.getElementById('library-preview-panel'),
+    previewPanelImg: document.getElementById('preview-panel-img'),
+    previewBackdrop: document.getElementById('preview-backdrop'),
+    closePreviewPanel: document.getElementById('close-preview-panel'),
+    btnToggleSelect: document.getElementById('btn-toggle-select'),
+    btnTogglePreview: document.getElementById('btn-toggle-preview'),
+    previewCopyWorkflow: document.getElementById('preview-copy-workflow'),
+    previewCopyPosPrompt: document.getElementById('preview-copy-pos-prompt'),
+    previewCopyNegPrompt: document.getElementById('preview-copy-neg-prompt'),
     toast: document.getElementById('library-toast'),
 };
 
@@ -53,6 +63,9 @@ const state = {
     lastSelectedIndex: null,
     loading: false,
     ratingFilter: null,
+    selectMode: false,
+    showPreview: true,
+    activeAssetId: null,
 };
 
 const collectionIcons = {
@@ -183,8 +196,9 @@ function renderAssets() {
             const rating = '★'.repeat(asset.rating || 0);
             const tags = (asset.tags || []).slice(0, 3).map(tag => `<span class="asset-tag">${escapeHtml(tag)}</span>`).join('');
             const dimensions = asset.width && asset.height ? `${asset.width}×${asset.height}` : (asset.format || 'asset');
+            const isActive = asset.id === state.activeAssetId;
             return `
-                <article class="asset-card ${selected ? 'selected' : ''} ${asset.available ? '' : 'unavailable'}"
+                <article class="asset-card ${selected ? 'selected' : ''} ${isActive ? 'active' : ''} ${asset.available ? '' : 'unavailable'}"
                          data-asset-id="${asset.id}" tabindex="0" aria-label="${escapeHtml(asset.file_name)}">
                     <div class="asset-thumb-wrap">
                         <img class="asset-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy">
@@ -217,7 +231,7 @@ let selectionToolbarTimer = null;
 
 function updateSelectionToolbar() {
     const count = state.selected.size;
-    dom.toolbar.hidden = count === 0;
+    dom.toolbar.hidden = !state.selectMode || count === 0;
     dom.selectionCount.textContent = `${count} selected`;
     dom.selectVisible.checked = state.assets.length > 0 && state.assets.every(asset => state.selected.has(asset.id));
     dom.selectVisible.indeterminate = count > 0 && !dom.selectVisible.checked;
@@ -231,13 +245,12 @@ function updateSelectionToolbar() {
         selectionToolbarTimer = null;
     }
 
-    if (count === 1) {
+    if (state.selectMode && count === 1) {
         const assetId = selectedIds()[0];
         selectionToolbarTimer = setTimeout(async () => {
             try {
                 const detail = await fetchJson(`/api/images/${assetId}`);
                 if (state.selected.size === 1 && selectedIds()[0] === assetId) {
-                    currentSelectedDetail = detail;
                     const hasWorkflow = !!(detail.workflow_ui_json || detail.workflow);
                     const hasPos = !!detail.prompt_parameters?.positive_prompt;
                     const hasNeg = !!detail.prompt_parameters?.negative_prompt;
@@ -247,18 +260,69 @@ function updateSelectionToolbar() {
                     dom.toolbarCopyNegPrompt.hidden = !hasNeg;
                 }
             } catch (error) {
-                console.error('Failed to load asset details for copy options:', error);
-                currentSelectedDetail = null;
+                console.error('Failed to load asset details for bulk copy options:', error);
                 dom.toolbarCopyWorkflow.hidden = true;
                 dom.toolbarCopyPosPrompt.hidden = true;
                 dom.toolbarCopyNegPrompt.hidden = true;
             }
         }, 100);
     } else {
-        currentSelectedDetail = null;
         dom.toolbarCopyWorkflow.hidden = true;
         dom.toolbarCopyPosPrompt.hidden = true;
         dom.toolbarCopyNegPrompt.hidden = true;
+    }
+}
+
+let previewPanelTimer = null;
+
+function updatePreviewPanel() {
+    if (previewPanelTimer) {
+        clearTimeout(previewPanelTimer);
+        previewPanelTimer = null;
+    }
+
+    const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
+    if (state.showPreview && activeAsset) {
+        const originalUrl = `/api/original/${activeAsset.id}`;
+        
+        if (dom.previewPanelImg.getAttribute('data-loaded-id') !== String(activeAsset.id)) {
+            dom.previewPanelImg.setAttribute('data-loaded-id', String(activeAsset.id));
+            dom.previewPanelImg.src = originalUrl;
+            dom.previewBackdrop.style.backgroundImage = `url("${originalUrl}")`;
+        }
+        
+        dom.previewPanel.hidden = false;
+        dom.shell.classList.add('show-preview');
+
+        previewPanelTimer = setTimeout(async () => {
+            try {
+                const detail = await fetchJson(`/api/images/${activeAsset.id}`);
+                if (state.activeAssetId === activeAsset.id && state.showPreview) {
+                    currentSelectedDetail = detail;
+                    const hasWorkflow = !!(detail.workflow_ui_json || detail.workflow);
+                    const hasPos = !!detail.prompt_parameters?.positive_prompt;
+                    const hasNeg = !!detail.prompt_parameters?.negative_prompt;
+
+                    dom.previewCopyWorkflow.hidden = !hasWorkflow;
+                    dom.previewCopyPosPrompt.hidden = !hasPos;
+                    dom.previewCopyNegPrompt.hidden = !hasNeg;
+                }
+            } catch (error) {
+                console.error('Failed to load asset details for preview options:', error);
+                dom.previewCopyWorkflow.hidden = true;
+                dom.previewCopyPosPrompt.hidden = true;
+                dom.previewCopyNegPrompt.hidden = true;
+            }
+        }, 100);
+    } else {
+        dom.previewPanel.hidden = true;
+        dom.shell.classList.remove('show-preview');
+        dom.previewPanelImg.src = '';
+        dom.previewPanelImg.removeAttribute('data-loaded-id');
+        dom.previewBackdrop.style.backgroundImage = '';
+        dom.previewCopyWorkflow.hidden = true;
+        dom.previewCopyPosPrompt.hidden = true;
+        dom.previewCopyNegPrompt.hidden = true;
     }
 }
 
@@ -373,7 +437,11 @@ async function loadAssets({ append = false } = {}) {
         if (!append) state.assets = [];
     } finally {
         state.loading = false;
+        if (state.assets.length > 0 && state.activeAssetId === null) {
+            state.activeAssetId = state.assets[0].id;
+        }
         renderAssets();
+        updatePreviewPanel();
     }
 }
 
@@ -385,9 +453,11 @@ async function selectCollection(collection, name, albumId = null) {
     state.assets = [];
     state.selected.clear();
     state.lastSelectedIndex = null;
+    state.activeAssetId = null;
     renderCollections();
     if (collection === 'albums') {
         renderAssets();
+        updatePreviewPanel();
     } else {
         await loadAssets();
     }
@@ -534,7 +604,17 @@ dom.grid.addEventListener('click', async event => {
         }
         return;
     }
-    toggleSelection(assetId, index, event.shiftKey);
+
+    if (state.selectMode) {
+        toggleSelection(assetId, index, event.shiftKey);
+        state.activeAssetId = assetId;
+        renderAssets();
+        updatePreviewPanel();
+    } else {
+        state.activeAssetId = assetId;
+        renderAssets();
+        updatePreviewPanel();
+    }
 });
 
 dom.grid.addEventListener('dblclick', event => {
@@ -824,6 +904,12 @@ document.addEventListener('keydown', event => {
         } else if (dom.albumDialog.open) {
             dom.albumDialog.close();
             event.preventDefault();
+        } else if (state.selectMode) {
+            state.selectMode = false;
+            dom.btnToggleSelect.classList.remove('active');
+            dom.shell.classList.remove('select-mode-on');
+            state.selected.clear();
+            renderAssets();
         } else {
             state.selected.clear();
             renderAssets();
@@ -862,6 +948,62 @@ async function initialize() {
         });
         dom.albumDialog.addEventListener('close', () => {
             setTimeout(() => document.activeElement?.blur(), 0);
+        });
+        dom.closePreviewPanel.addEventListener('click', () => {
+            state.showPreview = false;
+            dom.btnTogglePreview.classList.remove('active');
+            updatePreviewPanel();
+        });
+
+        dom.btnToggleSelect.addEventListener('click', () => {
+            state.selectMode = !state.selectMode;
+            dom.btnToggleSelect.classList.toggle('active', state.selectMode);
+            dom.shell.classList.toggle('select-mode-on', state.selectMode);
+            if (!state.selectMode) {
+                state.selected.clear();
+            } else {
+                if (state.activeAssetId) {
+                    state.selected.add(state.activeAssetId);
+                }
+            }
+            renderAssets();
+        });
+
+        dom.btnTogglePreview.addEventListener('click', () => {
+            state.showPreview = !state.showPreview;
+            dom.btnTogglePreview.classList.toggle('active', state.showPreview);
+            updatePreviewPanel();
+        });
+
+        dom.previewCopyWorkflow.addEventListener('click', async () => {
+            const wf = currentSelectedDetail?.workflow_ui_json || currentSelectedDetail?.workflow;
+            if (!wf) return;
+            try {
+                await navigator.clipboard.writeText(JSON.stringify(wf, null, 2));
+                showToast('Workflow copied to clipboard');
+            } catch (error) {
+                showToast(error.message, true);
+            }
+        });
+
+        dom.previewCopyPosPrompt.addEventListener('click', async () => {
+            if (!currentSelectedDetail || !currentSelectedDetail.prompt_parameters?.positive_prompt) return;
+            try {
+                await navigator.clipboard.writeText(currentSelectedDetail.prompt_parameters.positive_prompt);
+                showToast('Positive prompt copied to clipboard');
+            } catch (error) {
+                showToast(error.message, true);
+            }
+        });
+
+        dom.previewCopyNegPrompt.addEventListener('click', async () => {
+            if (!currentSelectedDetail || !currentSelectedDetail.prompt_parameters?.negative_prompt) return;
+            try {
+                await navigator.clipboard.writeText(currentSelectedDetail.prompt_parameters.negative_prompt);
+                showToast('Negative prompt copied to clipboard');
+            } catch (error) {
+                showToast(error.message, true);
+            }
         });
 
         await loadMetadata();

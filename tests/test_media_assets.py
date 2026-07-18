@@ -145,10 +145,20 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         gallery_script = (project_root / "app/static/js/gallery.js").read_text(
             encoding="utf-8"
         )
+        context_menu_script = (
+            project_root / "app/static/js/components/image-context-menu.js"
+        ).read_text(encoding="utf-8")
         self.assertIn("media_type=${selectedMediaTypes()}", api_script)
         self.assertIn("loadCollectionImages(", filter_script)
         self.assertIn("gallery-media-type-badge", gallery_script)
         self.assertIn("img.media_type === 'video' ? []", gallery_script)
+        self.assertIn("mediaType: img.media_type || 'image'", gallery_script)
+        self.assertIn("onDeleteFile:", gallery_script)
+        self.assertIn("onRemoveFromIndex:", gallery_script)
+        self.assertIn("Download video", context_menu_script)
+        self.assertIn("Copy filename", context_menu_script)
+        self.assertIn("Delete file from computer", context_menu_script)
+        self.assertIn("Remove from index", context_menu_script)
 
     def test_images_and_videos_share_sources_albums_and_user_metadata(self) -> None:
         self.make_image()
@@ -223,6 +233,32 @@ class UnifiedMediaAssetTest(unittest.TestCase):
             self.assertEqual(original.data, b"not-decoded-in-indexing")
         finally:
             original.close()
+
+    @patch("app.file_actions.send2trash")
+    def test_video_can_be_removed_from_index_or_moved_to_trash(
+        self, send_to_trash
+    ) -> None:
+        kept_file = self.make_video("keep-on-disk.mp4")
+        trashed_file = self.make_video("trash-from-computer.mp4")
+        result = self.index()
+        records = db.get_folder_file_records(result.folder_id)
+        kept_id = int(records[kept_file.name]["id"])
+        trashed_id = int(records[trashed_file.name]["id"])
+        client = app.test_client()
+
+        removed = client.delete(f"/api/images/{kept_id}")
+        self.assertEqual(removed.status_code, 200)
+        self.assertTrue(kept_file.is_file())
+        self.assertEqual(client.get(f"/api/assets/{kept_id}").status_code, 404)
+
+        trashed = client.post(
+            "/api/library/assets/trash",
+            json={"asset_ids": [trashed_id]},
+        )
+        self.assertEqual(trashed.status_code, 200)
+        self.assertEqual(trashed.get_json()["removed_ids"], [trashed_id])
+        send_to_trash.assert_called_once_with(str(trashed_file.resolve()))
+        self.assertEqual(client.get(f"/api/assets/{trashed_id}").status_code, 404)
 
     def test_missing_video_tools_do_not_break_image_thumbnails(self) -> None:
         self.make_video()

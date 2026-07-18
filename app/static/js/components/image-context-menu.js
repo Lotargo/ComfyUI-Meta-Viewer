@@ -1,6 +1,7 @@
 const MENU_MARGIN = 8;
 
 const icons = {
+    viewer: '<rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m10 9 5 3-5 3z"></path>',
     open: '<path d="M14 3h7v7"></path><path d="M10 14 21 3"></path><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"></path>',
     folder: '<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path><path d="M8 13h8M13 10l3 3-3 3"></path>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path>',
@@ -450,6 +451,10 @@ export function showImageContextMenu(event, {
     canRate = true,
     rating = null,
     detail = null,
+    isUploadedAsset = false,
+    onOpenInViewer = null,
+    onDeleteFile = null,
+    onRemoveFromIndex = null,
     extraSections = [],
     onRenamed = null,
     onRatingChanged = null,
@@ -471,6 +476,12 @@ export function showImageContextMenu(event, {
     }));
     const coreSections = [
         [
+            {
+                label: 'Open in viewer',
+                icon: 'viewer',
+                visible: Boolean(onOpenInViewer),
+                run: onOpenInViewer,
+            },
             {
                 label: 'Open original',
                 icon: 'open',
@@ -508,13 +519,13 @@ export function showImageContextMenu(event, {
                 label: currentRating ? `Rating: ${'★'.repeat(currentRating)}` : 'Set rating',
                 icon: 'star',
                 enabled: Boolean(imageId && canRate),
-                disabledReason: 'Rating is unavailable for this image',
+                disabledReason: `Rating is unavailable for this ${assetLabel}`,
                 children: [
                     {
                         label: 'Clear rating',
                         icon: 'star',
                         enabled: currentRating > 0,
-                        disabledReason: 'This image is not rated',
+                        disabledReason: `This ${assetLabel} is not rated`,
                         run: () => setImageRating(imageId, 0, notify, onRatingChanged),
                     },
                     ...ratingChoices,
@@ -532,6 +543,13 @@ export function showImageContextMenu(event, {
                     await copyImage(sourceUrl);
                     notify('Image copied to clipboard');
                 },
+            },
+            {
+                label: 'Copy filename',
+                icon: 'path',
+                enabled: Boolean(fileName),
+                disabledReason: 'The filename is unavailable',
+                run: () => copyText(fileName, 'Filename copied to clipboard', notify),
             },
             {
                 label: 'Copy file path',
@@ -609,6 +627,28 @@ export function showImageContextMenu(event, {
     }
 
     extraSections.forEach(section => appendSection(menu, section, runAction, submenuControls));
+
+    appendSection(menu, [
+        {
+            label: 'Delete file from computer',
+            icon: 'remove',
+            tone: 'danger',
+            visible: Boolean(onDeleteFile),
+            enabled: Boolean(imageId && hasLocalFile),
+            disabledReason: `This ${assetLabel} has no available physical file to move to the Recycle Bin / Trash`,
+            run: onDeleteFile,
+        },
+        {
+            label: isUploadedAsset
+                ? `Delete uploaded ${assetLabel}`
+                : 'Remove from index',
+            icon: 'remove',
+            tone: isUploadedAsset ? 'danger' : undefined,
+            visible: Boolean(onRemoveFromIndex),
+            enabled: Boolean(imageId),
+            run: onRemoveFromIndex,
+        },
+    ], runAction, submenuControls);
 
     document.body.appendChild(menu);
     activeMenu = { controller, menu, target };

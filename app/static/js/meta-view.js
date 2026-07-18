@@ -163,10 +163,24 @@ export function renderMeta(img) {
             imageId: detail.id,
             fileName,
             sourceUrl: originalUrl(detail),
+            mediaType: detail.media_type || 'image',
             canAccessOriginal: true,
             hasLocalFile: Boolean(detail.id && detail.has_local_file),
+            isUploadedAsset: detail.has_local_file === false,
             rating: detail.rating,
             detail,
+            onOpenInViewer: async () => {
+                const isMediaTab = dom.tabImages?.classList.contains('active');
+                const sourceAssets = isMediaTab ? sidebarImages : images;
+                const assetIndex = sourceAssets.findIndex(item => item.id === detail.id);
+                if (assetIndex < 0) throw new Error('Asset is not available in the current view');
+                const lightbox = await import('./lightbox.js');
+                await lightbox.openLightbox(assetIndex, sourceAssets);
+            },
+            onDeleteFile: () => import('./api.js')
+                .then(module => module.deleteAssetFileById(detail.id)),
+            onRemoveFromIndex: () => import('./api.js')
+                .then(module => module.removeAssetFromIndexById(detail.id)),
             onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
             onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
             extraSections: isVideo ? [] : [[{

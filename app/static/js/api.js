@@ -499,31 +499,43 @@ async function renderAfterImageRemoval() {
     await renderCurrentContent();
 }
 
-export async function deleteImageById(imageId) {
-    const img = images.find(item => item.id === imageId) || sidebarImages.find(item => item.id === imageId);
-    if (!img) return false;
+export async function removeAssetFromIndexById(imageId) {
+    const asset = images.find(item => item.id === imageId)
+        || sidebarImages.find(item => item.id === imageId);
+    if (!asset) return false;
 
-    const fileName = img.file_name || img.file || 'this image';
-    const ok = await customConfirm('Delete Image', `Remove "${fileName}" from the viewer? Files scanned from disk will not be deleted from the folder.`);
+    const assetLabel = asset.media_type === 'video' ? 'video' : 'image';
+    const fileName = asset.file_name || asset.file || `this ${assetLabel}`;
+    const isUploadedAsset = asset.has_local_file === false;
+    const title = isUploadedAsset
+        ? `Delete Uploaded ${assetLabel === 'video' ? 'Video' : 'Image'}`
+        : `Remove ${assetLabel === 'video' ? 'Video' : 'Image'} from Index`;
+    const message = isUploadedAsset
+        ? `Delete "${fileName}"? This uploaded original is stored inside the app and will be permanently removed with its metadata and cached previews.`
+        : `Remove "${fileName}" from the index? The physical file will remain on disk and may be indexed again during source reconciliation.`;
+    const ok = await customConfirm(title, message);
     if (!ok) return false;
 
     try {
         await fetchJson(`/api/images/${imageId}`, { options: { method: 'DELETE' } });
         removeImageFromRuntime(imageId);
         await renderAfterImageRemoval();
-        showToast('Image removed');
+        showToast(isUploadedAsset
+            ? `Uploaded ${assetLabel} deleted`
+            : `${assetLabel === 'video' ? 'Video' : 'Image'} removed from index`);
         return true;
     } catch(e) {
-        showError('Delete failed: ' + e.message);
+        showToast('Remove failed: ' + e.message);
         return false;
     }
 }
 
-export async function deleteImageFileById(imageId) {
-    const img = images.find(item => item.id === imageId)
+export async function deleteAssetFileById(imageId) {
+    const asset = images.find(item => item.id === imageId)
         || sidebarImages.find(item => item.id === imageId);
-    if (!img?.has_local_file) {
-        showToast('This image has no available physical file');
+    const assetLabel = asset?.media_type === 'video' ? 'video' : 'image';
+    if (!asset?.has_local_file) {
+        showToast(`This ${assetLabel} has no available physical file`);
         return false;
     }
 
@@ -547,6 +559,10 @@ export async function deleteImageFileById(imageId) {
         return false;
     }
 }
+
+// Compatibility exports for code and extensions using the former image-only names.
+export const deleteImageById = removeAssetFromIndexById;
+export const deleteImageFileById = deleteAssetFileById;
 
 export async function applyImageRename(renamedAsset) {
     const imageId = Number(renamedAsset?.id);
@@ -603,8 +619,8 @@ export async function applyImageRating(ratedAsset) {
 }
 
 export function deleteImageAt(index) {
-    const img = images[index];
-    return img ? deleteImageById(img.id) : Promise.resolve(false);
+    const asset = images[index];
+    return asset ? removeAssetFromIndexById(asset.id) : Promise.resolve(false);
 }
 
 export async function loadCollectionImages(collection, { force = false, render = true, preserveCount = false } = {}) {

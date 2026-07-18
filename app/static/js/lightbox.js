@@ -622,20 +622,16 @@ export function downloadImage() {
     document.body.removeChild(a);
 }
 
-export async function deleteCurrentLightboxFile() {
+async function removeCurrentLightboxAsset(removeAsset) {
     if (fileDeleteInProgress) return false;
     const currentIndex = lightboxIndex;
     const img = currentImagesArray[currentIndex];
-    if (!img?.id || !img.has_local_file) {
-        showToast('This image has no available physical file');
-        return false;
-    }
+    if (!img?.id) return false;
 
     fileDeleteInProgress = true;
     if (dom.lbDelete) dom.lbDelete.disabled = true;
     try {
-        const { deleteImageFileById } = await import('./api.js');
-        const deleted = await deleteImageFileById(img.id);
+        const deleted = await removeAsset(img.id);
         if (!deleted) return false;
         if (currentImagesArray.length === 0) {
             closeLightbox();
@@ -652,6 +648,22 @@ export async function deleteCurrentLightboxFile() {
             dom.lbDelete.disabled = !currentImagesArray[lightboxIndex]?.has_local_file;
         }
     }
+}
+
+export async function deleteCurrentLightboxFile() {
+    const img = currentImagesArray[lightboxIndex];
+    if (!img?.id || !img.has_local_file) {
+        const assetLabel = img?.media_type === 'video' ? 'video' : 'image';
+        showToast(`This ${assetLabel} has no available physical file`);
+        return false;
+    }
+    const { deleteAssetFileById } = await import('./api.js');
+    return removeCurrentLightboxAsset(deleteAssetFileById);
+}
+
+export async function removeCurrentLightboxAssetFromIndex() {
+    const { removeAssetFromIndexById } = await import('./api.js');
+    return removeCurrentLightboxAsset(removeAssetFromIndexById);
 }
 
 export function viewOriginal() {
@@ -756,22 +768,18 @@ export function initLightboxEvents() {
                 run: openCutoutPanel,
             }]);
         }
-        actionSections.push([{
-            label: 'Delete file from computer',
-            icon: 'remove',
-            tone: 'danger',
-            enabled: Boolean(img.has_local_file),
-            disabledReason: 'This asset has no available physical file to move to the Recycle Bin / Trash',
-            run: deleteCurrentLightboxFile,
-        }]);
         showImageContextMenu(event, {
             imageId: img.id,
             fileName: img.file_name || img.file || '',
             sourceUrl: originalUrl(img),
+            mediaType: img.media_type || 'image',
             canAccessOriginal: true,
             hasLocalFile: Boolean(img.id && img.has_local_file),
+            isUploadedAsset: img.has_local_file === false,
             rating: img.rating,
             detail: img,
+            onDeleteFile: deleteCurrentLightboxFile,
+            onRemoveFromIndex: removeCurrentLightboxAssetFromIndex,
             onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
             onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
             extraSections: actionSections,

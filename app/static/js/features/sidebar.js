@@ -51,7 +51,7 @@ function bindSidebarItem(item) {
         event.stopPropagation();
         const index = Number.parseInt(item.dataset.index, 10);
         const imageId = sidebarImages[index]?.id;
-        if (imageId) import('../api.js').then(module => module.deleteImageById(imageId));
+        if (imageId) import('../api.js').then(module => module.removeAssetFromIndexById(imageId));
     });
     item.addEventListener('contextmenu', event => {
         const index = Number.parseInt(item.dataset.index, 10);
@@ -61,9 +61,17 @@ function bindSidebarItem(item) {
             imageId: img.id,
             fileName: img.file_name || img.file || '',
             sourceUrl: originalUrl(img),
+            mediaType: img.media_type || 'image',
             canAccessOriginal: true,
             hasLocalFile: Boolean(img.id && img.has_local_file),
+            isUploadedAsset: img.has_local_file === false,
             rating: img.rating,
+            onOpenInViewer: () => import('../lightbox.js')
+                .then(module => module.openLightbox(index, sidebarImages)),
+            onDeleteFile: () => import('../api.js')
+                .then(module => module.deleteAssetFileById(img.id)),
+            onRemoveFromIndex: () => import('../api.js')
+                .then(module => module.removeAssetFromIndexById(img.id)),
             onRenamed: renamed => import('../api.js').then(module => module.applyImageRename(renamed)),
             onRatingChanged: asset => import('../api.js').then(module => module.applyImageRating(asset)),
             extraSections: img.media_type === 'video' ? [] : [[{

@@ -219,34 +219,35 @@ The lightbox is the main inspection surface for a selected image.
 - Metadata panel toggle.
 - Summary, Workflow, and Raw metadata tabs.
 - Touch-friendly navigation where supported by the browser.
-- The same image context menu used by gallery cards and Library previews.
+- The same media context menu used by gallery cards and Library previews.
 
-### Image Context Menu
+### Media Context Menu
 
-Right-clicking an indexed image in Viewer or Library exposes a compact shared menu:
+Right-clicking an indexed image or video in Viewer or Library exposes a compact shared menu:
 
+- Open a gallery or sidebar asset in the fullscreen Viewer.
 - Open the original in a new tab.
 - Download the untouched original.
-- Copy the image to the system clipboard as PNG.
+- Copy the filename or resolved local file path.
+- Copy images to the system clipboard as PNG; this image-only action is hidden for videos.
 - Show a scanned source in the operating system's file manager.
 - Rename an available file through a modal while keeping its extension unchanged.
-- Copy the resolved local file path.
 - Copy positive/negative prompts and workflow JSON when present.
 - Set or clear a 1–5 star rating without leaving the current view.
-- Create a transparent PNG cutout directly from Viewer.
-- Delete the physical file from Library or the fullscreen Viewer by moving it to the
+- Create a transparent PNG cutout directly from Viewer for images only.
+- Remove an image or video from the index while keeping a scanned physical source.
+- Delete a physical image or video from any Viewer context menu by moving it to the
   operating system's Recycle Bin or Trash.
 
 Viewer can filter folders, albums, and the global Images feed by an exact rating or show
 only unrated images. The selected rating filter is retained with the other local viewer
 preferences and applies to subsequent pages as they load.
 
-Library adds contextual organization actions: toggle favorite, add to an album through a
-submenu, edit asset details, or remove the item from the index without deleting its
-physical source. `Delete file from computer` is a separate action that moves a physical
-source file to the system Recycle Bin or Trash and removes its index entry without an
-additional confirmation dialog. For originals uploaded into the app, the destructive
-action is labeled
+Library additionally provides contextual organization actions: toggle favorite, add to an
+album through a submenu, and edit asset details. `Delete file from computer` is separate
+from `Remove from index`: it moves a physical source file to the system Recycle Bin or
+Trash and removes its index entry without an additional confirmation dialog. For originals
+uploaded into the app, the destructive index action is labeled
 `Delete uploaded asset` and explicitly warns that the stored original will be removed.
 
 Physical-path actions are disabled for uploaded originals stored inside the app and for

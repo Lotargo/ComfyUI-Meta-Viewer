@@ -52,6 +52,7 @@ function galleryCardHtml(img, index) {
     const imgStyle = ' style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;"';
     const fileName = img.file_name || img.file || '';
     const isVideo = img.media_type === 'video';
+    const removeLabel = img.has_local_file === false ? 'Delete uploaded asset' : 'Remove from index';
     const mediaBadge = isVideo
         ? `<span class="media-type-badge gallery-media-type-badge" aria-label="Video">
             <svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"></path></svg>Video
@@ -70,7 +71,7 @@ function galleryCardHtml(img, index) {
                 <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}" onerror="if(this.dataset.mediaType==='video'){this.hidden=true;}" data-media-type="${isVideo ? 'video' : 'image'}">
                 ${mediaBadge}
             </div>
-            <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete asset" aria-label="Delete ${escapeHtml(fileName)}">
+            <button class="image-delete-btn gallery-delete" data-index="${index}" title="${removeLabel}" aria-label="${removeLabel}: ${escapeHtml(fileName)}">
                 <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
             </button>
             ${hasError}
@@ -101,7 +102,7 @@ function bindGalleryCard(card) {
         event.stopPropagation();
         const index = Number.parseInt(card.dataset.index, 10);
         const imageId = images[index]?.id;
-        if (imageId) import('./api.js').then(module => module.deleteImageById(imageId));
+        if (imageId) import('./api.js').then(module => module.removeAssetFromIndexById(imageId));
     });
 
     card.addEventListener('contextmenu', event => {
@@ -112,9 +113,17 @@ function bindGalleryCard(card) {
             imageId: img.id,
             fileName: img.file_name || img.file || '',
             sourceUrl: originalUrl(img),
+            mediaType: img.media_type || 'image',
             canAccessOriginal: true,
             hasLocalFile: Boolean(img.id && img.has_local_file),
+            isUploadedAsset: img.has_local_file === false,
             rating: img.rating,
+            onOpenInViewer: () => import('./lightbox.js')
+                .then(module => module.openLightbox(index, images)),
+            onDeleteFile: () => import('./api.js')
+                .then(module => module.deleteAssetFileById(img.id)),
+            onRemoveFromIndex: () => import('./api.js')
+                .then(module => module.removeAssetFromIndexById(img.id)),
             onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
             onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
             extraSections: img.media_type === 'video' ? [] : [[{

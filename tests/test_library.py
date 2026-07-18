@@ -515,8 +515,8 @@ class LibraryApiTest(LibraryTestCase):
         )
         self.assertIn("lightboxOnly: true", keyboard_script)
         physical_delete = viewer_api.split(
-            "export async function deleteImageFileById", 1
-        )[1].split("export async function applyImageRename", 1)[0]
+            "export async function deleteAssetFileById", 1
+        )[1].split("// Compatibility exports", 1)[0]
         self.assertNotIn("customConfirm", physical_delete)
         library_delete = script.split("async function deleteAssetFiles", 1)[1].split(
             "dom.createAlbum.addEventListener", 1

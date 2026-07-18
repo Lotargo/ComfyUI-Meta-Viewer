@@ -105,7 +105,8 @@ loadFromFiles(files)        // POST /api/upload
 loadMore()                  // GET  /api/images?page=N
 loadSidebarImages()         // GET  /api/images?media_type=image,video
 loadFolderImages(id)        // GET  /api/images?folder_id=N
-deleteImageAt(id)           // DELETE /api/images/{id}
+removeAssetFromIndexById(id)// DELETE /api/images/{id}
+deleteAssetFileById(id)     // POST /api/library/assets/trash
 getFolders()                // GET  /api/folders
 deleteFolderFromServer(id)  // DELETE /api/folders/{id}
 getCutout(id)               // GET  /api/cutout/{id}

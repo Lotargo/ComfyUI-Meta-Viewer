@@ -580,7 +580,7 @@ def api_image_detail(image_id: int):
 def api_delete_image(image_id: int):
     ok = db.delete_image(image_id)
     if not ok:
-        return jsonify({"error": "Image not found"}), 404
+        return jsonify({"error": "Asset not found"}), 404
 
     clear_image_caches(image_id)
     return jsonify(OkResponse().model_dump())

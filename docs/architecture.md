@@ -329,7 +329,8 @@ api.js
   ├── loadFromPaths(paths)       -- POST /api/extract
   ├── loadFromFiles(files)       -- POST /api/upload
   ├── loadMore()                 -- GET  /api/images?page=N
-  ├── deleteImageAt(id)          -- DELETE /api/images/{id}
+  ├── removeAssetFromIndexById(id) -- DELETE /api/images/{id}
+  ├── deleteAssetFileById(id)    -- POST /api/library/assets/trash
   ├── loadFolderImages(id)       -- GET  /api/images?folder_id=N
   ├── getFolders()               -- GET  /api/folders
   ├── deleteFolderFromServer(id) -- DELETE /api/folders/{id}

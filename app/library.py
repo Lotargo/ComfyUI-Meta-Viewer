@@ -9,6 +9,7 @@ from . import database as db
 SYSTEM_COLLECTIONS = (
     {"id": "all", "name": "All assets"},
     {"id": "favorites", "name": "Favorites"},
+    {"id": "albums", "name": "Albums"},
     {"id": "without_metadata", "name": "Without metadata"},
     {"id": "recently_added", "name": "Recently added"},
     {"id": "unavailable", "name": "Unavailable"},
@@ -229,6 +230,7 @@ def update_asset(
     rating: int | None = None,
     note: str | None = None,
     tags: list[str] | None = None,
+    file_name: str | None = None,
 ) -> dict[str, Any]:
     conn = db.get_conn()
     try:
@@ -248,6 +250,80 @@ def update_asset(
         if note is not None:
             assignments.append("note = ?")
             values.append(note.strip())
+
+        if file_name is not None:
+            row = conn.execute(
+                """SELECT i.rel_path, i.file_name, f.path AS folder_path, i.folder_id, i.file_size, i.file_mtime
+                   FROM images i
+                   JOIN folders f ON i.folder_id = f.id
+                   WHERE i.id = ?""",
+                (asset_id,)
+            ).fetchone()
+            if row is None:
+                raise LibraryNotFoundError("Asset not found")
+
+            from pathlib import Path
+            import os
+
+            old_file_name = row["file_name"]
+            new_file_name = file_name.strip()
+
+            if new_file_name and new_file_name != old_file_name:
+                if "/" in new_file_name or "\\" in new_file_name:
+                    raise LibraryError("Filename cannot contain path separators")
+
+                old_ext = os.path.splitext(old_file_name)[1].lower()
+                new_base, new_ext = os.path.splitext(new_file_name)
+                if new_ext.lower() != old_ext:
+                    new_name = new_file_name + old_ext
+                else:
+                    new_name = new_file_name
+
+                if new_name != old_file_name:
+                    folder_path = Path(row["folder_path"])
+                    rel_parent = Path(row["rel_path"]).parent
+                    if rel_parent == Path('.'):
+                        new_rel_path = new_name
+                    else:
+                        new_rel_path = (rel_parent / new_name).as_posix()
+
+                    old_path = folder_path / row["rel_path"]
+                    new_path = folder_path / new_rel_path
+
+                    if not old_path.exists():
+                        raise LibraryError(f"Physical file not found on disk: {old_path}")
+                    if new_path.exists():
+                        raise LibraryConflictError(f"A file named {new_name} already exists in the folder")
+
+                    dup = conn.execute(
+                        "SELECT 1 FROM images WHERE folder_id = ? AND rel_path = ? AND id != ?",
+                        (row["folder_id"], new_rel_path, asset_id)
+                    ).fetchone()
+                    if dup:
+                        raise LibraryConflictError("An asset with that name is already indexed")
+
+                    try:
+                        old_path.rename(new_path)
+                    except OSError as exc:
+                        raise LibraryError(f"Failed to rename file on disk: {exc}")
+
+                    try:
+                        stat = new_path.stat()
+                        new_size = stat.st_size
+                        new_mtime = stat.st_mtime
+                    except OSError:
+                        new_size = row["file_size"]
+                        new_mtime = row["file_mtime"]
+
+                    assignments.append("rel_path = ?")
+                    values.append(new_rel_path)
+                    assignments.append("file_name = ?")
+                    values.append(new_name)
+                    assignments.append("file_size = ?")
+                    values.append(new_size)
+                    assignments.append("file_mtime = ?")
+                    values.append(new_mtime)
+
         if assignments:
             values.append(asset_id)
             conn.execute(
@@ -352,16 +428,23 @@ def get_assets(
     source_id: int | None = None,
     tag: str | None = None,
     asset_id: int | None = None,
+    rating: int | None = None,
 ) -> dict[str, Any]:
     if collection not in _SYSTEM_IDS and collection != "album":
         raise LibraryError("Unknown collection")
     if collection == "album" and album_id is None:
         raise LibraryError("album_id is required for an album collection")
+    if collection == "albums":
+        return {"assets": [], "total": 0}
 
     page = max(1, page)
     per_page = min(200, max(1, per_page))
     conditions: list[str] = []
     params: list[Any] = []
+
+    if rating is not None:
+        conditions.append("i.rating = ?")
+        params.append(rating)
 
     if asset_id is not None:
         conditions.append("i.id = ?")

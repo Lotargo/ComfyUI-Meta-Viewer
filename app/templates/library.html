@@ -56,6 +56,13 @@
                         <span class="sr-only">Search library</span>
                         <input id="library-search" type="search" placeholder="Search names, notes, tags…" autocomplete="off">
                     </label>
+                    <div id="rating-filter-buttons" class="rating-filter-buttons">
+                        <button type="button" class="rating-filter-btn" data-rating="1" title="Show 1 star">★</button>
+                        <button type="button" class="rating-filter-btn" data-rating="2" title="Show 2 stars">★★</button>
+                        <button type="button" class="rating-filter-btn" data-rating="3" title="Show 3 stars">★★★</button>
+                        <button type="button" class="rating-filter-btn" data-rating="4" title="Show 4 stars">★★★★</button>
+                        <button type="button" class="rating-filter-btn" data-rating="5" title="Show 5 stars">★★★★★</button>
+                    </div>
                     <select id="library-sort" aria-label="Sort assets">
                         <option value="date:desc">Newest file</option>
                         <option value="date:asc">Oldest file</option>
@@ -107,8 +114,11 @@
                     <p class="library-eyebrow">Asset details</p>
                     <h2 id="editor-title">Edit asset</h2>
                 </div>
-                <button class="editor-close" value="cancel" aria-label="Close">×</button>
+                <button class="editor-close" value="cancel" aria-label="Close" formnovalidate>×</button>
             </div>
+            <label>Filename
+                <input id="editor-filename" type="text" required maxlength="255" autocomplete="off">
+            </label>
             <label>Rating
                 <select id="editor-rating">
                     <option value="0">Not rated</option>
@@ -126,8 +136,27 @@
                 <textarea id="editor-note" rows="5" maxlength="5000"></textarea>
             </label>
             <div class="editor-actions">
-                <button class="btn btn-ghost" value="cancel">Cancel</button>
+                <button class="btn btn-ghost" value="cancel" formnovalidate>Cancel</button>
                 <button id="save-asset" class="btn btn-primary" value="default">Save</button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog id="album-dialog" class="asset-editor">
+        <form method="dialog" id="album-dialog-form">
+            <div class="editor-heading">
+                <div>
+                    <p class="library-eyebrow">Album</p>
+                    <h2 id="album-dialog-title">Create album</h2>
+                </div>
+                <button class="editor-close" value="cancel" aria-label="Close" formnovalidate>×</button>
+            </div>
+            <label>Album name
+                <input id="album-dialog-name" type="text" required maxlength="120" placeholder="Enter name…">
+            </label>
+            <div class="editor-actions">
+                <button class="btn btn-ghost" value="cancel" formnovalidate>Cancel</button>
+                <button id="save-album-btn" class="btn btn-primary" value="default">Save</button>
             </div>
         </form>
     </dialog>

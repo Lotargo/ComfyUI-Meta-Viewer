@@ -142,6 +142,10 @@ def api_library_summary():
 
 @app.route("/api/library/assets", methods=["GET"])
 def api_library_assets():
+    # Parse rating parameter if present
+    rating_val = request.args.get("rating")
+    rating = int(rating_val) if rating_val and rating_val.isdigit() else None
+
     result = media_library.get_assets(
         collection=request.args.get("collection", "all"),
         album_id=request.args.get("album_id", type=int),
@@ -152,6 +156,7 @@ def api_library_assets():
         query=request.args.get("q", ""),
         source_id=request.args.get("source_id", type=int),
         tag=request.args.get("tag"),
+        rating=rating,
     )
     return jsonify(result)
 
@@ -170,6 +175,7 @@ def api_update_library_asset(asset_id: int):
         rating=payload.rating,
         note=payload.note,
         tags=payload.tags,
+        file_name=payload.file_name,
     )
     return jsonify({"asset": asset})
 

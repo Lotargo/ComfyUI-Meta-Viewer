@@ -92,6 +92,7 @@ class LibraryAssetUpdateRequest(BaseModel):
     rating: int | None = Field(default=None, ge=0, le=5)
     note: str | None = Field(default=None, max_length=5000)
     tags: list[str] | None = Field(default=None, max_length=50)
+    file_name: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 class LibraryBulkRequest(BaseModel):

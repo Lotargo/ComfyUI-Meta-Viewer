@@ -1046,12 +1046,55 @@ async function addAssetsToAlbumFromGrid(albumId, assetIds) {
         });
         await loadMetadata();
         const album = state.albums.find(item => item.id === albumId);
+        if (data.affected) {
+            const changedIds = new Set(assetIds);
+            state.assets.forEach(asset => {
+                if (changedIds.has(asset.id) && !(asset.album_ids || []).includes(albumId)) {
+                    if (!asset.album_ids) asset.album_ids = [];
+                    asset.album_ids.push(albumId);
+                }
+            });
+        }
         showToast(data.affected
             ? `${data.affected} asset${data.affected === 1 ? '' : 's'} added to ${album?.name || 'album'}`
             : `Selected assets are already in ${album?.name || 'this album'}`);
     } catch (error) {
         showToast(error.message, true);
     }
+}
+
+function openAssetEditor(asset) {
+    if (!asset) return;
+    dom.editor.dataset.assetId = String(asset.id);
+    dom.editorTitle.textContent = asset.file_name;
+    dom.editorFilename.value = asset.file_name;
+    dom.editorRating.value = String(asset.rating || 0);
+    dom.editorTags.value = (asset.tags || []).join(', ');
+    dom.editorNote.value = asset.note || '';
+    dom.editor.style.left = '';
+    dom.editor.style.top = '';
+    dom.editor.showModal();
+}
+
+async function removeSingleAssetFromIndex(asset) {
+    const message = asset.has_original_data
+        ? `Delete “${asset.file_name}”? This uploaded original is stored inside the app. The image, album links, metadata, and cached previews will be permanently removed. This cannot be undone.`
+        : `Remove “${asset.file_name}” from the index? Album links, favorites, tags, notes, and cached previews will be removed. The physical file will remain on disk and may be indexed again during source reconciliation.`;
+    if (!window.confirm(message)) return;
+    cancelPendingAssetLoad();
+    await fetchJson('/api/library/assets/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asset_ids: [asset.id], action: 'remove_from_index' }),
+    });
+    state.selected.delete(asset.id);
+    await Promise.all([
+        loadMetadata(),
+        refreshAssets({ reconcile: true, preserveScroll: true }),
+    ]);
+    showToast(asset.has_original_data
+        ? 'Uploaded asset deleted'
+        : 'Removed from index; physical file was not deleted');
 }
 
 dom.createAlbum.addEventListener('click', () => {
@@ -1148,12 +1191,48 @@ dom.grid.addEventListener('click', async event => {
 });
 
 function openLibraryImageContextMenu(event, asset, anchor) {
+    const availableAlbums = state.albums.filter(album => !(asset.album_ids || []).includes(album.id));
+    const albumDisabledReason = state.albums.length
+        ? 'This asset is already in every album'
+        : 'Create an album before adding assets';
     showImageContextMenu(event, {
         imageId: asset.id,
         fileName: asset.file_name,
         sourceUrl: asset.original_url || `/api/original/${asset.id}`,
         canAccessOriginal: asset.available,
         hasLocalFile: asset.has_local_file,
+        detail: currentSelectedDetail?.id === asset.id ? currentSelectedDetail : null,
+        extraSections: [
+            [
+                {
+                    label: asset.favorite ? 'Remove from favorites' : 'Add to favorites',
+                    icon: 'favorite',
+                    run: () => toggleFavorite(asset.id),
+                },
+                {
+                    label: 'Add to album',
+                    icon: 'album',
+                    enabled: availableAlbums.length > 0,
+                    disabledReason: albumDisabledReason,
+                    children: availableAlbums.map(album => ({
+                        label: album.name,
+                        icon: 'album',
+                        run: () => addAssetsToAlbumFromGrid(album.id, [asset.id]),
+                    })),
+                },
+                {
+                    label: 'Edit details',
+                    icon: 'edit',
+                    run: () => openAssetEditor(asset),
+                },
+            ],
+            [{
+                label: asset.has_original_data ? 'Delete uploaded asset' : 'Remove from index',
+                icon: 'remove',
+                tone: 'danger',
+                run: () => removeSingleAssetFromIndex(asset),
+            }],
+        ],
         anchor,
         notify: showToast,
     });
@@ -1405,16 +1484,7 @@ dom.clearSelection.addEventListener('click', () => {
 
 dom.editAsset.addEventListener('click', () => {
     const asset = state.assets.find(item => state.selected.has(item.id));
-    if (!asset) return;
-    dom.editor.dataset.assetId = String(asset.id);
-    dom.editorTitle.textContent = asset.file_name;
-    dom.editorFilename.value = asset.file_name;
-    dom.editorRating.value = String(asset.rating || 0);
-    dom.editorTags.value = (asset.tags || []).join(', ');
-    dom.editorNote.value = asset.note || '';
-    dom.editor.style.left = '';
-    dom.editor.style.top = '';
-    dom.editor.showModal();
+    openAssetEditor(asset);
 });
 
 dom.editorForm.addEventListener('submit', async event => {

@@ -101,6 +101,16 @@ function bindGalleryCard(card) {
             sourceUrl: originalUrl(img),
             canAccessOriginal: true,
             hasLocalFile: Boolean(img.id && img.has_local_file),
+            extraSections: [[{
+                label: 'Select object',
+                icon: 'cutout',
+                run: async () => {
+                    const lightbox = await import('./lightbox.js');
+                    await lightbox.openLightbox(index, images);
+                    const cutout = await import('./features/cutout.js');
+                    cutout.openCutoutPanel();
+                },
+            }]],
             notify: showToast,
         });
     });

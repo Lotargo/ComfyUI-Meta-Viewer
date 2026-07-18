@@ -63,6 +63,16 @@ function bindSidebarItem(item) {
             sourceUrl: originalUrl(img),
             canAccessOriginal: true,
             hasLocalFile: Boolean(img.id && img.has_local_file),
+            extraSections: [[{
+                label: 'Select object',
+                icon: 'cutout',
+                run: async () => {
+                    const lightbox = await import('../lightbox.js');
+                    await lightbox.openLightbox(index, sidebarImages);
+                    const cutout = await import('./cutout.js');
+                    cutout.openCutoutPanel();
+                },
+            }]],
             notify: showToast,
         });
     });

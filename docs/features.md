@@ -205,9 +205,17 @@ The lightbox is the main inspection surface for a selected image.
 Right-clicking an indexed image in Viewer or Library exposes a compact shared menu:
 
 - Open the original in a new tab.
+- Download the untouched original.
 - Copy the image to the system clipboard as PNG.
 - Show a scanned source in the operating system's file manager.
 - Copy the resolved local file path.
+- Copy positive/negative prompts and workflow JSON when present.
+- Start Select Object directly from Viewer.
+
+Library adds contextual organization actions: toggle favorite, add to an album through a
+submenu, edit asset details, or remove the item from the index without deleting its
+physical source. For originals uploaded into the app, the destructive action is labeled
+`Delete uploaded asset` and explicitly warns that the stored original will be removed.
 
 Physical-path actions are disabled for uploaded originals stored inside the app and for
 unavailable sources.

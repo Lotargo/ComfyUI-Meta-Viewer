@@ -152,6 +152,21 @@ export function renderMeta(img) {
             sourceUrl: originalUrl(detail),
             canAccessOriginal: true,
             hasLocalFile: Boolean(detail.id && detail.has_local_file),
+            detail,
+            extraSections: [[{
+                label: 'Select object',
+                icon: 'cutout',
+                run: async () => {
+                    const isImagesTab = dom.tabImages?.classList.contains('active');
+                    const sourceImages = isImagesTab ? sidebarImages : images;
+                    const imageIndex = sourceImages.findIndex(item => item.id === detail.id);
+                    if (imageIndex < 0) throw new Error('Image is not available in the current view');
+                    const lightbox = await import('./lightbox.js');
+                    await lightbox.openLightbox(imageIndex, sourceImages);
+                    const cutout = await import('./features/cutout.js');
+                    cutout.openCutoutPanel();
+                },
+            }]],
             notify: showToast,
         });
     });

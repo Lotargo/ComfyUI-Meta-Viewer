@@ -22,7 +22,7 @@ import {
     saveState,
 } from './state.js';
 import { escapeHtml, thumbUrl, previewUrl, originalUrl, copyText } from './utils.js';
-import { initCutoutEvents, resetCutoutPanel } from './features/cutout.js';
+import { initCutoutEvents, openCutoutPanel, resetCutoutPanel } from './features/cutout.js';
 import { showImageContextMenu } from './components/image-context-menu.js';
 
 let zoomLevel = 1;
@@ -533,7 +533,7 @@ export function viewOriginal() {
 }
 
 export function initLightboxEvents() {
-    initCutoutEvents();
+    initCutoutEvents({ getActiveImage: getDetailForLightbox });
     imageArea = document.querySelector('.lightbox-image-area');
 
     // Close button
@@ -636,6 +636,12 @@ export function initLightboxEvents() {
             sourceUrl: originalUrl(img),
             canAccessOriginal: true,
             hasLocalFile: Boolean(img.id && img.has_local_file),
+            detail: img,
+            extraSections: [[{
+                label: 'Select object',
+                icon: 'cutout',
+                run: openCutoutPanel,
+            }]],
             notify: showToast,
         });
     });

@@ -5,9 +5,20 @@ const icons = {
     folder: '<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path><path d="M8 13h8M13 10l3 3-3 3"></path>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path>',
     path: '<rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path>',
+    download: '<path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path>',
+    positive: '<path d="M5 4h14v13H8l-3 3Z"></path><path d="M12 8v5M9.5 10.5h5"></path>',
+    negative: '<path d="M5 4h14v13H8l-3 3Z"></path><path d="M9.5 10.5h5"></path>',
+    workflow: '<circle cx="6" cy="6" r="2"></circle><circle cx="18" cy="6" r="2"></circle><circle cx="12" cy="18" r="2"></circle><path d="m7.7 7.1 3.2 8.1M16.3 7.1l-3.2 8.1M8 6h8"></path>',
+    favorite: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path>',
+    album: '<rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M3 9h18M8 13h8M8 17h5"></path>',
+    edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path>',
+    cutout: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"></path><path d="M9 9h6v6H9Z"></path>',
+    remove: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"></path>',
+    loading: '<path d="M20 12a8 8 0 1 1-2.3-5.7"></path>',
 };
 
 let activeMenu = null;
+const pendingImageDetails = new Map();
 
 async function fetchJson(url, options) {
     const response = await fetch(url, options);
@@ -16,6 +27,36 @@ async function fetchJson(url, options) {
         throw new Error(data.error || `${response.status} ${response.statusText}`);
     }
     return data;
+}
+
+function loadImageDetail(imageId) {
+    if (!pendingImageDetails.has(imageId)) {
+        const request = fetchJson(`/api/images/${imageId}`);
+        pendingImageDetails.set(imageId, request);
+        request.then(
+            () => pendingImageDetails.delete(imageId),
+            () => pendingImageDetails.delete(imageId),
+        );
+    }
+    return pendingImageDetails.get(imageId);
+}
+
+async function copyText(text, successMessage, notify) {
+    if (!navigator.clipboard?.writeText) {
+        throw new Error('Copying text is not supported by this browser');
+    }
+    await navigator.clipboard.writeText(text);
+    notify(successMessage);
+}
+
+function downloadImage(sourceUrl, fileName, notify) {
+    const link = document.createElement('a');
+    link.href = sourceUrl;
+    link.download = fileName || 'image';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    notify('Image download started');
 }
 
 async function decodeBlob(blob) {
@@ -86,24 +127,166 @@ async function copyImage(sourceUrl) {
     await navigator.clipboard.write([item]);
 }
 
-function actionButton(action, runAction) {
+function actionButton(action, onActivate) {
     const button = document.createElement('button');
     button.className = 'image-context-menu__item';
+    if (action.tone === 'danger') button.classList.add('image-context-menu__item--danger');
     button.type = 'button';
     button.setAttribute('role', 'menuitem');
-    button.disabled = !action.enabled;
-    if (!action.enabled && action.disabledReason) button.title = action.disabledReason;
+    button.disabled = action.enabled === false;
+    if (button.disabled && action.disabledReason) button.title = action.disabledReason;
 
     const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     icon.setAttribute('viewBox', '0 0 24 24');
     icon.setAttribute('aria-hidden', 'true');
-    icon.innerHTML = icons[action.icon];
+    icon.innerHTML = icons[action.icon] || icons.image;
+    if (action.icon === 'loading') icon.classList.add('image-context-menu__loading-icon');
 
     const label = document.createElement('span');
     label.textContent = action.label;
     button.append(icon, label);
-    button.addEventListener('click', () => runAction(action));
+    button.addEventListener('click', () => onActivate(action));
     return button;
+}
+
+function enabledItems(menu) {
+    return [...menu.children]
+        .map(child => child.matches('.image-context-menu__submenu-wrap')
+            ? child.querySelector(':scope > .image-context-menu__item')
+            : child)
+        .filter(child => child?.matches?.('.image-context-menu__item:not(:disabled)'));
+}
+
+function positionSubmenu(submenu) {
+    submenu.classList.remove('image-context-menu--opens-left');
+    submenu.style.top = '-6px';
+    let rect = submenu.getBoundingClientRect();
+    if (rect.right > window.innerWidth - MENU_MARGIN) {
+        submenu.classList.add('image-context-menu--opens-left');
+        rect = submenu.getBoundingClientRect();
+    }
+    if (rect.bottom > window.innerHeight - MENU_MARGIN) {
+        submenu.style.top = `${-6 - (rect.bottom - window.innerHeight + MENU_MARGIN)}px`;
+        rect = submenu.getBoundingClientRect();
+    }
+    if (rect.top < MENU_MARGIN) {
+        submenu.style.top = `${Number.parseFloat(submenu.style.top) + MENU_MARGIN - rect.top}px`;
+    }
+}
+
+function actionEntry(action, runAction, submenuControls) {
+    if (!action.children?.length) return actionButton(action, runAction);
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'image-context-menu__submenu-wrap';
+    const submenu = document.createElement('div');
+    submenu.className = 'image-context-menu image-context-menu--submenu';
+    submenu.setAttribute('role', 'menu');
+    submenu.setAttribute('aria-label', action.label);
+    submenu.hidden = true;
+
+    const parentButton = actionButton(action, () => {
+        openSubmenu({ focusFirst: true });
+    });
+    parentButton.classList.add('image-context-menu__item--submenu');
+    parentButton.setAttribute('aria-haspopup', 'menu');
+    parentButton.setAttribute('aria-expanded', 'false');
+    const chevron = document.createElement('span');
+    chevron.className = 'image-context-menu__chevron';
+    chevron.textContent = '›';
+    chevron.setAttribute('aria-hidden', 'true');
+    parentButton.appendChild(chevron);
+
+    action.children.forEach(child => submenu.appendChild(actionButton(child, runAction)));
+
+    const closeSubmenu = ({ restoreFocus = false } = {}) => {
+        submenu.hidden = true;
+        parentButton.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) parentButton.focus({ preventScroll: true });
+    };
+    const openSubmenu = ({ focusFirst = false } = {}) => {
+        submenuControls.forEach(control => {
+            if (control.close !== closeSubmenu) control.close();
+        });
+        submenu.hidden = false;
+        parentButton.setAttribute('aria-expanded', 'true');
+        positionSubmenu(submenu);
+        if (focusFirst) enabledItems(submenu)[0]?.focus({ preventScroll: true });
+    };
+    submenuControls.push({ button: parentButton, submenu, open: openSubmenu, close: closeSubmenu });
+
+    wrapper.addEventListener('pointerenter', () => {
+        if (!parentButton.disabled) openSubmenu();
+    });
+    wrapper.addEventListener('pointerleave', () => {
+        if (!submenu.contains(document.activeElement)) closeSubmenu();
+    });
+    parentButton.addEventListener('keydown', event => {
+        if (event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        event.stopPropagation();
+        openSubmenu({ focusFirst: true });
+    });
+    submenu.addEventListener('keydown', event => {
+        if (event.key !== 'ArrowLeft') return;
+        event.preventDefault();
+        event.stopPropagation();
+        closeSubmenu({ restoreFocus: true });
+    });
+
+    wrapper.append(parentButton, submenu);
+    return wrapper;
+}
+
+function appendSection(container, actions, runAction, submenuControls) {
+    const visibleActions = actions.filter(action => action && action.visible !== false);
+    if (!visibleActions.length) return;
+    if (container.childElementCount) {
+        const separator = document.createElement('div');
+        separator.className = 'image-context-menu__separator';
+        separator.setAttribute('role', 'separator');
+        container.appendChild(separator);
+    }
+    visibleActions.forEach(action => {
+        container.appendChild(actionEntry(action, runAction, submenuControls));
+    });
+}
+
+function imageMetadataActions(detail, notify) {
+    const promptParameters = detail?.prompt_parameters || {};
+    const workflow = detail?.workflow_ui_json || detail?.workflow;
+    return [
+        {
+            label: 'Copy positive prompt',
+            icon: 'positive',
+            visible: Boolean(promptParameters.positive_prompt),
+            run: () => copyText(
+                String(promptParameters.positive_prompt),
+                'Positive prompt copied to clipboard',
+                notify,
+            ),
+        },
+        {
+            label: 'Copy negative prompt',
+            icon: 'negative',
+            visible: Boolean(promptParameters.negative_prompt),
+            run: () => copyText(
+                String(promptParameters.negative_prompt),
+                'Negative prompt copied to clipboard',
+                notify,
+            ),
+        },
+        {
+            label: 'Copy workflow',
+            icon: 'workflow',
+            visible: Boolean(workflow),
+            run: () => copyText(
+                JSON.stringify(workflow, null, 2),
+                'Workflow copied to clipboard',
+                notify,
+            ),
+        },
+    ];
 }
 
 function menuCoordinates(event, target) {
@@ -147,6 +330,8 @@ export function showImageContextMenu(event, {
     sourceUrl,
     canAccessOriginal = true,
     hasLocalFile = false,
+    detail = null,
+    extraSections = [],
     anchor = event.currentTarget || event.target,
     notify = () => {},
 }) {
@@ -155,49 +340,55 @@ export function showImageContextMenu(event, {
     closeImageContextMenu();
 
     const localFileDisabledReason = 'This image has no available local file';
-    const actions = [
-        {
-            label: 'Open original',
-            icon: 'open',
-            enabled: Boolean(sourceUrl && canAccessOriginal),
-            disabledReason: 'The original image is unavailable',
-            run: () => window.open(sourceUrl, '_blank', 'noopener,noreferrer'),
-        },
-        {
-            label: 'Show in folder',
-            icon: 'folder',
-            enabled: Boolean(imageId && hasLocalFile),
-            disabledReason: localFileDisabledReason,
-            run: async () => {
-                await fetchJson(`/api/images/${imageId}/reveal`, { method: 'POST' });
-                notify('Opened in file manager');
+    const coreSections = [
+        [
+            {
+                label: 'Open original',
+                icon: 'open',
+                enabled: Boolean(sourceUrl && canAccessOriginal),
+                disabledReason: 'The original image is unavailable',
+                run: () => window.open(sourceUrl, '_blank', 'noopener,noreferrer'),
             },
-        },
-        { separator: true },
-        {
-            label: 'Copy image',
-            icon: 'image',
-            enabled: Boolean(sourceUrl && canAccessOriginal),
-            disabledReason: 'The original image is unavailable',
-            run: async () => {
-                await copyImage(sourceUrl);
-                notify('Image copied to clipboard');
+            {
+                label: 'Show in folder',
+                icon: 'folder',
+                enabled: Boolean(imageId && hasLocalFile),
+                disabledReason: localFileDisabledReason,
+                run: async () => {
+                    await fetchJson(`/api/images/${imageId}/reveal`, { method: 'POST' });
+                    notify('Opened in file manager');
+                },
             },
-        },
-        {
-            label: 'Copy file path',
-            icon: 'path',
-            enabled: Boolean(imageId && hasLocalFile),
-            disabledReason: localFileDisabledReason,
-            run: async () => {
-                if (!navigator.clipboard?.writeText) {
-                    throw new Error('Copying text is not supported by this browser');
-                }
-                const data = await fetchJson(`/api/images/${imageId}/file-location`);
-                await navigator.clipboard.writeText(data.path);
-                notify('File path copied to clipboard');
+            {
+                label: 'Download image',
+                icon: 'download',
+                enabled: Boolean(sourceUrl && canAccessOriginal),
+                disabledReason: 'The original image is unavailable',
+                run: () => downloadImage(sourceUrl, fileName, notify),
             },
-        },
+        ],
+        [
+            {
+                label: 'Copy image',
+                icon: 'image',
+                enabled: Boolean(sourceUrl && canAccessOriginal),
+                disabledReason: 'The original image is unavailable',
+                run: async () => {
+                    await copyImage(sourceUrl);
+                    notify('Image copied to clipboard');
+                },
+            },
+            {
+                label: 'Copy file path',
+                icon: 'path',
+                enabled: Boolean(imageId && hasLocalFile),
+                disabledReason: localFileDisabledReason,
+                run: async () => {
+                    const data = await fetchJson(`/api/images/${imageId}/file-location`);
+                    await copyText(data.path, 'File path copied to clipboard', notify);
+                },
+            },
+        ],
     ];
 
     const menu = document.createElement('div');
@@ -212,9 +403,10 @@ export function showImageContextMenu(event, {
     menu.appendChild(title);
 
     const controller = new AbortController();
+    const submenuControls = [];
     const target = anchor;
     const runAction = action => {
-        if (!action.enabled) return;
+        if (action.enabled === false) return;
         closeImageContextMenu();
         try {
             const result = action.run();
@@ -226,27 +418,65 @@ export function showImageContextMenu(event, {
         }
     };
 
-    actions.forEach(action => {
-        if (action.separator) {
-            const separator = document.createElement('div');
-            separator.className = 'image-context-menu__separator';
-            separator.setAttribute('role', 'separator');
-            menu.appendChild(separator);
-        } else {
-            menu.appendChild(actionButton(action, runAction));
-        }
-    });
+    coreSections.forEach(section => appendSection(menu, section, runAction, submenuControls));
+
+    const metadataAnchor = document.createComment('metadata-actions');
+    menu.appendChild(metadataAnchor);
+    let metadataNodes = [];
+    const renderMetadata = metadataDetail => {
+        metadataNodes.forEach(node => node.remove());
+        metadataNodes = [];
+        const actions = imageMetadataActions(metadataDetail, notify)
+            .filter(action => action.visible !== false);
+        if (!actions.length) return;
+        const separator = document.createElement('div');
+        separator.className = 'image-context-menu__separator';
+        separator.setAttribute('role', 'separator');
+        metadataNodes.push(separator, ...actions.map(action => (
+            actionEntry(action, runAction, submenuControls)
+        )));
+        metadataNodes.forEach(node => menu.insertBefore(node, metadataAnchor));
+    };
+
+    if (detail) {
+        renderMetadata(detail);
+    } else if (imageId) {
+        const loadingAction = actionEntry({
+            label: 'Loading metadata…',
+            icon: 'loading',
+            enabled: false,
+        }, runAction, submenuControls);
+        const loadingSeparator = document.createElement('div');
+        loadingSeparator.className = 'image-context-menu__separator';
+        loadingSeparator.setAttribute('role', 'separator');
+        metadataNodes = [loadingSeparator, loadingAction];
+        metadataNodes.forEach(node => menu.insertBefore(node, metadataAnchor));
+    }
+
+    extraSections.forEach(section => appendSection(menu, section, runAction, submenuControls));
 
     document.body.appendChild(menu);
     activeMenu = { controller, menu, target };
     positionMenu(menu, menuCoordinates(event, target));
 
-    const enabledItems = () => [...menu.querySelectorAll('.image-context-menu__item:not(:disabled)')];
-    const firstItem = enabledItems()[0];
+    const firstItem = enabledItems(menu)[0];
     firstItem?.focus({ preventScroll: true });
 
+    if (!detail && imageId) {
+        loadImageDetail(imageId).then(loadedDetail => {
+            if (activeMenu?.menu !== menu) return;
+            renderMetadata(loadedDetail);
+            positionMenu(menu, menuCoordinates(event, target));
+        }).catch(() => {
+            if (activeMenu?.menu !== menu) return;
+            renderMetadata(null);
+            positionMenu(menu, menuCoordinates(event, target));
+        });
+    }
+
     menu.addEventListener('keydown', keyEvent => {
-        const items = enabledItems();
+        const currentMenu = keyEvent.target.closest('[role="menu"]') || menu;
+        const items = enabledItems(currentMenu);
         const currentIndex = items.indexOf(document.activeElement);
         let nextIndex = null;
         if (keyEvent.key === 'ArrowDown') nextIndex = (currentIndex + 1) % items.length;
@@ -260,7 +490,9 @@ export function showImageContextMenu(event, {
         } else if (keyEvent.key === 'Escape') {
             keyEvent.preventDefault();
             keyEvent.stopPropagation();
-            closeImageContextMenu({ restoreFocus: true });
+            const submenuControl = submenuControls.find(control => control.submenu === currentMenu);
+            if (submenuControl) submenuControl.close({ restoreFocus: true });
+            else closeImageContextMenu({ restoreFocus: true });
         } else if (keyEvent.key === 'Tab') {
             closeImageContextMenu();
         }

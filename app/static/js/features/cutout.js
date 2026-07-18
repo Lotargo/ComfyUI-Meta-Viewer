@@ -2,9 +2,10 @@ import { images, lightboxIndex, showToast, dom } from '../state.js';
 
 let currentCutout = null;
 let isBusy = false;
+let activeImageResolver = () => images[lightboxIndex] || null;
 
 function getActiveImage() {
-    return images[lightboxIndex] || null;
+    return activeImageResolver();
 }
 
 function cutoutFileName(img) {
@@ -155,8 +156,9 @@ export function downloadCutout() {
     showToast('Cutout download started');
 }
 
-export function initCutoutEvents() {
-    dom.lbCutout?.addEventListener('click', openCutoutPanel);
+export function initCutoutEvents({ getActiveImage: resolveActiveImage } = {}) {
+    if (typeof resolveActiveImage === 'function') activeImageResolver = resolveActiveImage;
+    dom.lbCutout?.addEventListener('click', () => openCutoutPanel());
     dom.cutoutClose?.addEventListener('click', closeCutoutPanel);
     dom.cutoutDownload?.addEventListener('click', downloadCutout);
     dom.cutoutClear?.addEventListener('click', clearCutoutCache);

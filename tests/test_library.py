@@ -346,13 +346,33 @@ class LibraryApiTest(LibraryTestCase):
         context_menu_styles = (
             root / "app" / "static" / "css" / "components" / "image-context-menu.css"
         ).read_text(encoding="utf-8")
+        cutout_script = (
+            root / "app" / "static" / "js" / "features" / "cutout.js"
+        ).read_text(encoding="utf-8")
+        lightbox_script = (
+            root / "app" / "static" / "js" / "lightbox.js"
+        ).read_text(encoding="utf-8")
         self.assertIn("showImageContextMenu", script)
         self.assertIn("addEventListener('contextmenu'", script)
         self.assertIn("Show in folder", context_menu)
+        self.assertIn("Download image", context_menu)
         self.assertIn("Copy image", context_menu)
         self.assertIn("Copy file path", context_menu)
+        self.assertIn("Copy positive prompt", context_menu)
+        self.assertIn("Copy negative prompt", context_menu)
+        self.assertIn("Copy workflow", context_menu)
+        self.assertIn("image-context-menu--submenu", context_menu)
+        self.assertIn("Add to album", script)
+        self.assertIn("Add to favorites", script)
+        self.assertIn("Edit details", script)
+        self.assertIn("Remove from index", script)
+        self.assertIn("Delete uploaded asset", script)
+        self.assertIn("Select object", lightbox_script)
+        self.assertIn("activeImageResolver", cutout_script)
+        self.assertIn("initCutoutEvents({ getActiveImage: getDetailForLightbox })", lightbox_script)
         self.assertIn("setAttribute('role', 'menu')", context_menu)
         self.assertIn(".image-context-menu__item:not(:disabled):focus-visible", context_menu_styles)
+        self.assertIn(".image-context-menu__item--danger", context_menu_styles)
         self.assertIn("static_version('css/components/image-context-menu.css')", template)
         self.assertIn("static_version('css/components/image-context-menu.css')", viewer)
 

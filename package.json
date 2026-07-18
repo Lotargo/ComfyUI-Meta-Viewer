@@ -2,6 +2,7 @@
   "type": "module",
   "scripts": {
     "lint": "eslint app/static/js",
+    "test:metadata": "node --test tests/test_metadata_format.mjs",
     "test:preferences": "node --test tests/test_preferences.mjs"
   },
   "devDependencies": {

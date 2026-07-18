@@ -956,8 +956,15 @@ def _generate_params_from_api(prompt_json: dict) -> dict[str, Any]:
 
         elif ct in ("LoraLoader", "LoraLoaderModelOnly"):
             lora_name = inputs.get("lora_name", "")
-            strength = inputs.get("strength_model", inputs.get("strength", 1.0))
-            result.setdefault("loras", []).append({"name": lora_name, "strength": strength})
+            if lora_name:
+                model_strength = inputs.get("strength_model", inputs.get("strength", 1.0))
+                lora: dict[str, Any] = {"name": lora_name}
+                if "strength_clip" in inputs:
+                    lora["strength_model"] = model_strength
+                    lora["strength_clip"] = inputs["strength_clip"]
+                else:
+                    lora["strength"] = model_strength
+                result.setdefault("loras", []).append(lora)
 
         elif ct == "ModelSamplingFlux":
             for k in ("max_shift", "base_shift", "width", "height"):

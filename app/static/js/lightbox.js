@@ -21,7 +21,15 @@ import {
     setActiveIndex,
     saveState,
 } from './state.js';
-import { escapeHtml, thumbUrl, previewUrl, originalUrl, copyText } from './utils.js';
+import {
+    escapeHtml,
+    getMetadataStringValue,
+    getStringValue,
+    thumbUrl,
+    previewUrl,
+    originalUrl,
+    copyText,
+} from './utils.js';
 import { initCutoutEvents, openCutoutPanel, resetCutoutPanel } from './features/cutout.js';
 import { showImageContextMenu } from './components/image-context-menu.js';
 
@@ -390,7 +398,7 @@ export function updateLightbox() {
                 html += `
                     <div class="lb-meta-row">
                         <span class="lb-key">${escapeHtml(k)}</span>
-                        <span class="lb-val">${escapeHtml(String(v))}</span>
+                        <span class="lb-val">${escapeHtml(getMetadataStringValue(k, v))}</span>
                     </div>
                 `;
             });
@@ -417,7 +425,7 @@ export function updateLightbox() {
                     html += `
                         <div class="lb-meta-row">
                             <span class="lb-key">${escapeHtml(k)}</span>
-                            <span class="lb-val">${escapeHtml(String(v))}</span>
+                            <span class="lb-val">${escapeHtml(getStringValue(v))}</span>
                         </div>
                     `;
                 });
@@ -434,7 +442,7 @@ export function updateLightbox() {
             html += `
                 <div class="lb-meta-row">
                     <span class="lb-key">${escapeHtml(k)}</span>
-                    <span class="lb-val">${escapeHtml(String(v))}</span>
+                    <span class="lb-val">${escapeHtml(getStringValue(v))}</span>
                 </div>
             `;
         });

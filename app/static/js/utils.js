@@ -1,4 +1,8 @@
 import { showToast, cacheBuster, dom } from './state.js';
+import {
+    getMetadataStringValue as metadataStringValue,
+    getStringValue as stringValue,
+} from './metadata-format.js';
 
 export function escapeHtml(s) {
     if (s === null || s === undefined) return '<null>';
@@ -38,14 +42,20 @@ export function highlightText(text, terms = [], isExactMatch = false) {
 
 export function formatValue(v, terms = [], isExactMatch = false) {
     if (v === null || v === undefined) return '<null>';
-    if (typeof v === 'object') return highlightText(JSON.stringify(v, null, 2), terms, isExactMatch);
-    return highlightText(String(v), terms, isExactMatch);
+    return highlightText(stringValue(v), terms, isExactMatch);
 }
 
 export function getStringValue(v) {
-    if (v === null || v === undefined) return '';
-    if (typeof v === 'object') return JSON.stringify(v, null, 2);
-    return String(v);
+    return stringValue(v);
+}
+
+export function formatMetadataValue(key, value, terms = [], isExactMatch = false) {
+    if (value === null || value === undefined) return '<null>';
+    return highlightText(metadataStringValue(key, value), terms, isExactMatch);
+}
+
+export function getMetadataStringValue(key, value) {
+    return metadataStringValue(key, value);
 }
 
 export function formatImageCountLabel(loaded, total) {

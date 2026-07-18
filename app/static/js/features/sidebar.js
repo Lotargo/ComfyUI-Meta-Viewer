@@ -331,14 +331,19 @@ export async function renderFoldersList(folderList = null) {
         const sourceStatus = folder.source_status || (folder.enabled ? 'available' : 'disabled');
         item.className = [
             'folder-item',
+            'source-folder-item',
             folder.id === currentFolderId ? 'active' : '',
             isSource ? 'physical-source' : '',
+            !isSource ? 'virtual-source' : '',
             !folder.enabled ? 'source-disabled' : '',
+            folder.enabled && folder.status === 'processing' ? 'source-processing' : '',
             `source-${sourceStatus}`,
         ].filter(Boolean).join(' ');
 
-        const percentage = folder.image_count > 0
-            ? Math.round((folder.processed_count / folder.image_count) * 100)
+        const imageCount = Number(folder.image_count) || 0;
+        const imageCountLabel = `${imageCount.toLocaleString()} image${imageCount === 1 ? '' : 's'}`;
+        const percentage = imageCount > 0
+            ? Math.round((folder.processed_count / imageCount) * 100)
             : 0;
         const progressHtml = folder.enabled && folder.status === 'processing' ? `
             <div class="folder-progress-wrapper">
@@ -356,7 +361,9 @@ export async function renderFoldersList(folderList = null) {
                 </button>
                 <button class="source-action-btn source-recursive-btn ${folder.recursive ? 'active' : ''}"
                     title="${folder.recursive ? 'Disable subfolder scanning' : 'Include subfolders'}"
-                    aria-label="Toggle recursive scanning for ${escapeHtml(folder.name)}">R</button>
+                    aria-label="Toggle recursive scanning for ${escapeHtml(folder.name)}">
+                    <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v8a4 4 0 0 0 4 4h8"></path><path d="m15 12 3 3-3 3"></path></svg>
+                </button>
                 <button class="source-action-btn source-reconcile-btn" title="Reconcile now"
                     aria-label="Reconcile ${escapeHtml(folder.name)}" ${folder.enabled ? '' : 'disabled'}>
                     <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6v5h-5"></path><path d="M4 18v-5h5"></path><path d="M18.5 9A7 7 0 0 0 6 6.5L4 11"></path><path d="M5.5 15A7 7 0 0 0 18 17.5l2-4.5"></path></svg>
@@ -367,16 +374,18 @@ export async function renderFoldersList(folderList = null) {
         item.innerHTML = `
             ${sourceActions}
             <div class="folder-item-content">
-                <div class="folder-item-icon">📁</div>
+                <div class="folder-item-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path></svg>
+                </div>
                 <div class="folder-item-details">
                     <div class="folder-item-name" title="${escapeHtml(folder.path || folder.name)}">${escapeHtml(folder.name)}</div>
                     <div class="source-badges">
                         ${isSource ? `<span class="source-status source-status-${sourceStatus}"${errorTitle}>${statusLabels[sourceStatus] || sourceStatus}</span>` : ''}
-                        ${folder.recursive && isSource ? '<span class="source-recursive-badge">Subfolders</span>' : ''}
+                        ${folder.recursive && isSource ? '<span class="source-recursive-badge" title="Includes subfolders" aria-label="Includes subfolders"><svg viewBox="0 0 16 16" width="12" height="12" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v5a3 3 0 0 0 3 3h5"></path><path d="m9.5 7.5 2.5 2.5-2.5 2.5"></path></svg></span>' : ''}
                     </div>
                     ${progressHtml}
                 </div>
-                ${folder.scanned_at ? `<div class="folder-item-meta"><span class="folder-item-count">${folder.image_count}</span></div>` : ''}
+                ${folder.scanned_at ? `<div class="folder-item-meta"><span class="folder-item-count"><svg viewBox="0 0 16 16" width="12" height="12" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"></rect><path d="m4.5 10 2.3-2.5 1.8 1.8 1.6-1.6 2.3 2.3"></path></svg>${imageCountLabel}</span></div>` : ''}
             </div>
             <button class="folder-delete-btn" data-id="${folder.id}" title="Forget source" aria-label="Forget ${escapeHtml(folder.name)}">
                 <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>

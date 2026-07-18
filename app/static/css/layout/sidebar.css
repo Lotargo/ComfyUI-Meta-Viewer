@@ -514,6 +514,290 @@
     background: var(--red-dim);
 }
 
+/* Source tiles use the full card as the folder silhouette. Albums keep the
+   neutral card treatment above because their covers carry the visual weight. */
+#folder-list:not(.view-list) {
+    grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+    column-gap: var(--space-sm);
+    row-gap: 12px;
+    padding-top: 12px;
+}
+
+.source-folder-item {
+    --folder-fill: color-mix(in srgb, var(--surface2) 90%, var(--bg-elevated));
+    --folder-tab-fill: color-mix(in srgb, var(--surface3) 78%, var(--surface2));
+    --folder-outline: color-mix(in srgb, var(--border) 92%, transparent);
+    min-height: 138px;
+    isolation: isolate;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 36px 12px 38px;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    gap: 0;
+    text-align: left;
+    transition: transform var(--transition-fast), filter var(--transition-fast);
+}
+
+.source-folder-item::before,
+.source-folder-item::after {
+    position: absolute;
+    content: '';
+    pointer-events: none;
+    transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.source-folder-item::before {
+    z-index: -1;
+    top: 0;
+    left: 0;
+    width: 58%;
+    height: 28px;
+    box-sizing: border-box;
+    border: 1px solid var(--folder-outline);
+    border-bottom: 0;
+    border-radius: 9px 9px 0 0;
+    background: var(--folder-tab-fill);
+}
+
+.source-folder-item::after {
+    z-index: -2;
+    inset: 18px 0 0;
+    border: 1px solid var(--folder-outline);
+    border-radius: 3px 10px 10px 10px;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--folder-fill) 94%, white), var(--folder-fill));
+    box-shadow: 0 5px 12px rgba(0, 0, 0, 0.16), inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
+}
+
+.source-folder-item:hover {
+    --folder-fill: color-mix(in srgb, var(--surface2) 86%, var(--accent-dim));
+    --folder-tab-fill: color-mix(in srgb, var(--surface3) 84%, var(--accent-dim));
+    --folder-outline: color-mix(in srgb, var(--accent) 60%, var(--border));
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    filter: brightness(1.04);
+    transform: translateY(-1px);
+}
+
+.source-folder-item.active {
+    --folder-fill: color-mix(in srgb, var(--surface2) 76%, var(--accent-dim));
+    --folder-tab-fill: color-mix(in srgb, var(--surface3) 68%, var(--accent-dim));
+    --folder-outline: var(--accent);
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.source-folder-item.active::after {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 0 0 2px var(--accent-glow), inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+}
+
+.source-folder-item.virtual-source {
+    --folder-tab-fill: color-mix(in srgb, var(--surface3) 76%, var(--accent2-dim));
+}
+
+.source-folder-item.virtual-source::before {
+    border-color: color-mix(in srgb, var(--accent2) 34%, var(--folder-outline));
+}
+
+.source-folder-item.source-disabled {
+    --folder-fill: color-mix(in srgb, var(--surface) 90%, var(--bg));
+    --folder-tab-fill: color-mix(in srgb, var(--surface2) 84%, var(--bg));
+    filter: saturate(0.6);
+}
+
+.source-folder-item.source-unavailable,
+.source-folder-item.source-error {
+    --folder-outline: color-mix(in srgb, var(--red) 52%, var(--border));
+}
+
+.source-folder-item.source-partially_available,
+.source-folder-item.source-reconnecting {
+    --folder-outline: color-mix(in srgb, var(--orange) 42%, var(--border));
+}
+
+.source-folder-item .folder-item-content {
+    align-items: stretch;
+    height: 100%;
+}
+
+.source-folder-item .folder-item-details {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.source-folder-item .folder-item-icon {
+    display: none;
+}
+
+.source-folder-item .folder-item-name {
+    font-family: var(--font-title);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: left;
+}
+
+.source-folder-item .source-actions {
+    z-index: 3;
+    top: auto;
+    bottom: 8px;
+    left: 9px;
+    gap: 2px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(3px);
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.source-folder-item .source-action-btn {
+    width: 22px;
+    height: 22px;
+    border-color: color-mix(in srgb, var(--border) 76%, transparent);
+    background: color-mix(in srgb, var(--bg-elevated) 78%, transparent);
+    backdrop-filter: blur(5px);
+}
+
+.source-folder-item .source-badges {
+    min-height: 18px;
+    margin-top: 7px;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+}
+
+.source-status {
+    --source-status-color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 9px;
+    font-weight: 650;
+}
+
+.source-status::before {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--source-status-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--source-status-color) 13%, transparent);
+    content: '';
+    flex-shrink: 0;
+}
+
+.source-status-available {
+    --source-status-color: var(--green);
+}
+
+.source-status-partially_available,
+.source-status-reconnecting {
+    --source-status-color: var(--orange);
+}
+
+.source-status-unavailable,
+.source-status-error {
+    --source-status-color: var(--red);
+}
+
+.source-status-disabled {
+    --source-status-color: var(--text-muted);
+}
+
+.source-recursive-badge {
+    width: 20px;
+    height: 18px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--accent2) 28%, transparent);
+    border-radius: var(--radius-full);
+    background: var(--accent2-dim);
+    color: var(--accent2);
+    flex-shrink: 0;
+}
+
+.source-folder-item .folder-progress-wrapper {
+    width: 100%;
+    margin-top: 9px;
+}
+
+.source-folder-item .folder-progress-label {
+    color: var(--text-muted);
+}
+
+.source-folder-item .folder-progress-track {
+    background: color-mix(in srgb, var(--surface3) 75%, transparent);
+}
+
+.source-folder-item .folder-item-meta {
+    position: absolute;
+    z-index: 2;
+    right: 11px;
+    bottom: 12px;
+    left: 11px;
+    width: auto;
+    margin: 0;
+    align-items: flex-start;
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.source-folder-item .folder-item-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 9px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.source-folder-item .folder-delete-btn {
+    z-index: 3;
+    top: auto;
+    right: 8px;
+    bottom: 8px;
+    width: 22px;
+    height: 22px;
+    padding: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+    background: color-mix(in srgb, var(--bg-elevated) 78%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(3px);
+    transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast), transform var(--transition-fast);
+    backdrop-filter: blur(5px);
+}
+
+.source-folder-item:hover .source-actions,
+.source-folder-item:focus-within .source-actions,
+.source-folder-item:hover .folder-delete-btn,
+.source-folder-item:focus-within .folder-delete-btn {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.source-folder-item:hover .folder-item-meta,
+.source-folder-item:focus-within .folder-item-meta {
+    opacity: 0;
+    transform: translateY(-2px);
+}
+
 /* Image List and Item */
 .image-list {
     flex: 1;
@@ -715,6 +999,123 @@
     top: auto;
     left: auto;
     flex-shrink: 0;
+}
+
+#folder-list.view-list .source-folder-item {
+    min-height: 0;
+    isolation: auto;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface) 92%, white);
+    filter: none;
+    transform: none;
+}
+
+#folder-list.view-list .source-folder-item::before,
+#folder-list.view-list .source-folder-item::after {
+    display: none;
+}
+
+#folder-list.view-list .source-folder-item:hover {
+    border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
+    background: var(--surface2);
+}
+
+#folder-list.view-list .source-folder-item.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+#folder-list.view-list .source-folder-item.source-unavailable,
+#folder-list.view-list .source-folder-item.source-error {
+    border-color: color-mix(in srgb, var(--red) 46%, var(--border));
+}
+
+#folder-list.view-list .source-folder-item .folder-item-icon {
+    display: inline-flex;
+}
+
+#folder-list.view-list .source-folder-item .source-actions {
+    position: relative;
+    top: auto;
+    bottom: auto;
+    left: auto;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+}
+
+#folder-list.view-list .source-folder-item .source-action-btn {
+    background: transparent;
+    backdrop-filter: none;
+}
+
+#folder-list.view-list .source-folder-item .source-badges {
+    min-height: 0;
+}
+
+#folder-list.view-list .source-folder-item .folder-item-meta {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    opacity: 1;
+    transform: none;
+}
+
+#folder-list.view-list .source-folder-item .folder-item-count {
+    padding: 2px 6px;
+    background: color-mix(in srgb, var(--accent-dim) 76%, transparent);
+    color: var(--text);
+    font-size: 10px;
+}
+
+#folder-list.view-list .source-folder-item .folder-delete-btn {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    background: transparent;
+    border-color: transparent;
+    opacity: 0;
+    pointer-events: auto;
+    transform: none;
+    backdrop-filter: none;
+}
+
+#folder-list.view-list .source-folder-item:hover .folder-delete-btn,
+#folder-list.view-list .source-folder-item:focus-within .folder-delete-btn {
+    opacity: 1;
+}
+
+#folder-list.view-list .source-folder-item:hover .folder-item-meta,
+#folder-list.view-list .source-folder-item:focus-within .folder-item-meta {
+    opacity: 1;
+    transform: none;
+}
+
+@media (hover: none) {
+    #folder-list:not(.view-list) .source-folder-item {
+        min-height: 158px;
+        padding-bottom: 58px;
+    }
+
+    #folder-list:not(.view-list) .source-folder-item .source-actions,
+    #folder-list:not(.view-list) .source-folder-item .folder-delete-btn {
+        opacity: 1;
+        pointer-events: auto;
+        transform: none;
+    }
+
+    #folder-list:not(.view-list) .source-folder-item .folder-item-meta,
+    #folder-list:not(.view-list) .source-folder-item:hover .folder-item-meta,
+    #folder-list:not(.view-list) .source-folder-item:focus-within .folder-item-meta {
+        bottom: 39px;
+        opacity: 1;
+        transform: none;
+    }
 }
 
 /* Viewer albums: read-only collection picker */

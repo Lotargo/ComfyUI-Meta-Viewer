@@ -14,6 +14,7 @@ import {
 import { loadFromFiles, loadFromPaths, scanFolder, invalidateApiCache } from './api.js';
 import { renderSidebar } from './features/sidebar.js';
 import { customConfirm, customPrompt } from './utils.js';
+import { isSupportedMediaFile } from './media-files.js';
 
 function syncViewerContext() {
     if (!dom.viewerCollectionName) return;
@@ -116,19 +117,14 @@ async function scanDragAndDropItems(items) {
         }
     }
 
-    const SUPPORTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff'];
-
     while (queue.length > 0) {
         const entry = queue.shift();
         if (entry.isFile) {
             const file = await new Promise((resolve) => {
                 entry.file(resolve, () => resolve(null));
             });
-            if (file) {
-                const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-                if (SUPPORTED_EXTENSIONS.includes(ext)) {
-                    files.push(file);
-                }
+            if (file && isSupportedMediaFile(file)) {
+                files.push(file);
             }
         } else if (entry.isDirectory) {
             const reader = entry.createReader();
@@ -169,7 +165,7 @@ export function initEvents() {
                     loadFromFiles(files);
                 } else {
                     const { showError } = await import('./utils.js');
-                    showError('No supported images found in dropped files/folders');
+                    showError('No supported media files found in dropped files/folders');
                 }
             } catch (err) {
                 console.error('Error scanning dropped items:', err);

@@ -38,6 +38,7 @@ import {
     setSidebarActiveImageId,
 } from './state.js';
 import { imageRenderSignature, showLoading, showError, customConfirm } from './utils.js';
+import { isSupportedMediaFile } from './media-files.js';
 
 const PAGE_SIZE = 50;
 const responseCache = new Map();
@@ -228,14 +229,10 @@ export async function loadFromPaths(paths) {
 }
 
 export async function loadFromFiles(files) {
-    const SUPPORTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff'];
-    const validFiles = Array.from(files).filter(file => {
-        const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-        return SUPPORTED_EXTENSIONS.includes(ext);
-    });
+    const validFiles = Array.from(files).filter(isSupportedMediaFile);
 
     if (validFiles.length === 0) {
-        showError('No supported images found');
+        showError('No supported media files found');
         return;
     }
 
@@ -246,24 +243,35 @@ export async function loadFromFiles(files) {
         const data = await fetchJson('/api/upload', {
             options: { method: 'POST', body: formData },
         });
-        if (!data.images?.length) {
-            showError('No images found');
+        const addedAssets = (data.assets || data.images || []).filter(asset => !asset.error);
+        if (!addedAssets.length) {
+            showError('No media files were added');
             return;
         }
 
         invalidateApiCache();
         const folders = await getFolders({ force: true });
         setFolders(folders);
-        const uploadFolder = folders.find(folder => folder.id === data.folder_id);
-        await Promise.all([
-            loadFolderImages(data.folder_id, uploadFolder?.name || 'Uploads', { force: true, render: false }),
-            loadSidebarImages({ force: true, render: false }),
-        ]);
+        const imageAsset = addedAssets.find(asset => asset.media_type === 'image');
+        const uploadFolder = folders.find(folder => folder.id === imageAsset?.folder_id);
+        const refreshTasks = [loadSidebarImages({ force: true, render: false })];
+        if (imageAsset) {
+            refreshTasks.push(loadFolderImages(
+                imageAsset.folder_id,
+                uploadFolder?.name || 'Uploads',
+                { force: true, render: false },
+            ));
+        }
+        await Promise.all(refreshTasks);
 
         const { renderFoldersList, renderSidebar } = await import('./features/sidebar.js');
         await renderFoldersList(folders);
         renderSidebar();
         await renderCurrentContent();
+        const videoCount = addedAssets.filter(asset => asset.media_type === 'video').length;
+        if (videoCount) {
+            showToast(`${videoCount} video file(s) added — open Library to view them`);
+        }
     } catch(e) {
         showError('Error: ' + e.message);
     }

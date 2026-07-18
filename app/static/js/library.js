@@ -1,4 +1,5 @@
 import { showImageContextMenu } from './components/image-context-menu.js';
+import { isSupportedMediaFile } from './media-files.js';
 
 const dom = {
     systemCollections: document.getElementById('system-collections'),
@@ -1682,14 +1683,10 @@ dom.addFilesButton.addEventListener('click', () => dom.addFilesInput.click());
 dom.addFilesInput.addEventListener('change', async () => {
     if (!dom.addFilesInput.files.length) return;
     const files = dom.addFilesInput.files;
-    const SUPPORTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff'];
-    const validFiles = Array.from(files).filter(file => {
-        const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-        return SUPPORTED_EXTENSIONS.includes(ext);
-    });
+    const validFiles = Array.from(files).filter(isSupportedMediaFile);
 
     if (validFiles.length === 0) {
-        showToast('No supported images found', true);
+        showToast('No supported media files found', true);
         return;
     }
 
@@ -1702,12 +1699,13 @@ dom.addFilesInput.addEventListener('change', async () => {
             method: 'POST',
             body: formData
         });
-        if (data.images?.length) {
-            showToast(`${data.images.length} file(s) added successfully`);
+        const addedAssets = (data.assets || data.images || []).filter(asset => !asset.error);
+        if (addedAssets.length) {
+            showToast(`${addedAssets.length} file(s) added successfully`);
             await loadMetadata({ includeFilters: true });
             await loadAssets();
         } else {
-            showToast('No images were added', true);
+            showToast('No media files were added', true);
         }
     } catch (error) {
         showToast(error.message, true);

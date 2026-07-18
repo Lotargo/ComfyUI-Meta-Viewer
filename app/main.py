@@ -31,15 +31,18 @@ from .extractor import (
     make_thumbnail_bytes_from_bytes,
     make_thumbnail_b64,
     scan_paths,
-    SUPPORTED,
 )
 from .folder_picker import FolderPickerUnavailable, choose_folder
 from .indexing import index_source_directory
 from .media import (
     MediaToolUnavailableError,
+    SUPPORTED_MEDIA_EXTENSIONS,
     VideoProcessingError,
     make_video_thumbnail,
+    media_type_for_path,
     media_tool_status,
+    probe_video,
+    temporary_media_file,
 )
 from .paths import (
     PathValidationError,
@@ -743,13 +746,21 @@ def api_thumbnail(image_id: int):
         return jsonify({"error": "not found"}), 404
     if source.get("media_type") == "video":
         video_path = source.get("path")
-        if not video_path or not Path(video_path).is_file():
-            return jsonify({"error": "video source not found"}), 404
         try:
-            thumb_data = make_video_thumbnail(
-                video_path,
-                duration=source.get("duration"),
-            )
+            if video_path and Path(video_path).is_file():
+                thumb_data = make_video_thumbnail(
+                    video_path,
+                    duration=source.get("duration"),
+                )
+            else:
+                original = db.get_asset_original_data(image_id)
+                if original is None:
+                    return jsonify({"error": "video source not found"}), 404
+                with temporary_media_file(original, source["file_name"]) as temp_path:
+                    thumb_data = make_video_thumbnail(
+                        temp_path,
+                        duration=source.get("duration"),
+                    )
         except MediaToolUnavailableError as exc:
             db.update_asset_preview_status(image_id, "unavailable", str(exc))
             return jsonify({
@@ -895,26 +906,111 @@ def api_upload():
             continue
         safe_name = portable_filename(f.filename)
         suffix = Path(safe_name).suffix.lower()
-        if suffix not in SUPPORTED:
+        if suffix not in SUPPORTED_MEDIA_EXTENSIONS:
             continue
         try:
             original_data = f.read()
-            img_id, fid = db.insert_upload_image(
-                file_name=safe_name,
-                original_data=original_data,
-                has_metadata=has_generation_metadata(original_data, safe_name),
-            )
+            media_type = media_type_for_path(safe_name)
+            preview_status = "pending"
+            preview_error = None
+            if media_type == "video":
+                format_name = suffix.lstrip(".") or None
+                width = height = 0
+                mode = None
+                duration = frame_rate = None
+                codec = None
+                thumbnail_data = None
+                with temporary_media_file(original_data, safe_name) as temp_path:
+                    try:
+                        probe = probe_video(temp_path)
+                        format_name = probe.format or format_name
+                        width = probe.width
+                        height = probe.height
+                        mode = probe.pixel_format
+                        duration = probe.duration
+                        frame_rate = probe.frame_rate
+                        codec = probe.codec
+                        technical_metadata = probe.metadata
+                    except MediaToolUnavailableError as exc:
+                        technical_metadata = {
+                            "source": "ffprobe",
+                            "status": "unavailable",
+                            "error": str(exc),
+                        }
+                    except VideoProcessingError as exc:
+                        technical_metadata = {
+                            "source": "ffprobe",
+                            "status": "error",
+                            "error": str(exc),
+                        }
+
+                    try:
+                        thumbnail_data = make_video_thumbnail(
+                            temp_path,
+                            duration=duration,
+                        )
+                    except MediaToolUnavailableError as exc:
+                        preview_status = "unavailable"
+                        preview_error = str(exc)
+                    except VideoProcessingError as exc:
+                        preview_status = "error"
+                        preview_error = str(exc)
+
+                metadata = {
+                    "file": safe_name,
+                    "path": None,
+                    "media_type": "video",
+                    "technical_metadata": technical_metadata,
+                }
+                img_id, fid = db.insert_upload_asset(
+                    safe_name,
+                    original_data,
+                    media_type="video",
+                    format_name=format_name,
+                    width=width,
+                    height=height,
+                    mode=mode,
+                    duration=duration,
+                    frame_rate=frame_rate,
+                    codec=codec,
+                    embedded_metadata=metadata,
+                    preview_status="pending" if thumbnail_data else preview_status,
+                    preview_error=preview_error,
+                )
+                if thumbnail_data:
+                    try:
+                        thumb_dir = storage_path("THUMBNAIL_FOLDER")
+                        thumb_dir.mkdir(parents=True, exist_ok=True)
+                        (thumb_dir / f"{img_id}.jpg").write_bytes(thumbnail_data)
+                        preview_status = "ready"
+                        preview_error = None
+                    except OSError as exc:
+                        preview_status = "error"
+                        preview_error = f"Could not store video preview: {exc}"
+                    db.update_asset_preview_status(
+                        img_id,
+                        preview_status,
+                        preview_error,
+                    )
+            else:
+                img_id, fid = db.insert_upload_image(
+                    file_name=safe_name,
+                    original_data=original_data,
+                    has_metadata=has_generation_metadata(original_data, safe_name),
+                )
             folder_id = fid
             results.append({
                 "id": img_id,
                 "folder_id": fid,
                 "file_name": safe_name,
                 "file_size": len(original_data),
+                "media_type": media_type,
+                "preview_status": preview_status,
             })
         except Exception as e:
             tb = traceback.format_exc()
             results.append({"file": f.filename, "error": f"{e}\n{tb}"})
-    resp = {"images": results, "count": len(results)}
+    resp = {"assets": results, "images": results, "count": len(results)}
     if folder_id is not None:
         resp["folder_id"] = folder_id
     return jsonify(resp)

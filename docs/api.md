@@ -216,7 +216,7 @@ Extracts metadata from explicit local file paths without indexing them into the 
 
 ### `POST /api/upload`
 
-Uploads image files through `multipart/form-data`. Uploaded originals are stored as SQLite BLOBs. A lightweight format-aware probe checks PNG text keys and JPEG/WebP EXIF, XMP, or comment blocks to place each file in `Uploads` or `Uploads (no metadata)`. It does not decode image pixels or create a preview. Full metadata extraction is deferred until `GET /api/images/{image_id}` is called.
+Uploads image or video files through `multipart/form-data`. Uploaded originals are stored as SQLite BLOBs. Images use a lightweight format-aware probe for PNG text keys and JPEG/WebP EXIF, XMP, or comment blocks, then defer full extraction until `GET /api/images/{image_id}` is called. Videos are stored in `Uploads`; ffprobe extracts technical metadata and ffmpeg creates a cached JPEG poster during import. Missing FFmpeg tools leave the original available with an `unavailable` metadata or preview status.
 
 **Request:** `multipart/form-data` with one or more `files` fields.
 
@@ -224,12 +224,24 @@ Uploads image files through `multipart/form-data`. Uploaded originals are stored
 
 ```json
 {
+  "assets": [
+    {
+      "id": 1,
+      "folder_id": 1,
+      "file_name": "uploaded.mp4",
+      "file_size": 123456,
+      "media_type": "video",
+      "preview_status": "ready"
+    }
+  ],
   "images": [
     {
       "id": 1,
       "folder_id": 1,
-      "file_name": "uploaded.png",
-      "file_size": 123456
+      "file_name": "uploaded.mp4",
+      "file_size": 123456,
+      "media_type": "video",
+      "preview_status": "ready"
     }
   ],
   "count": 1,
@@ -402,6 +414,8 @@ Updates any combination of virtual per-asset fields:
   "tags": ["hero", "approved"]
 }
 ```
+
+`images` remains a compatibility alias for `assets` in this response.
 
 A rating of `0` clears the rating.
 

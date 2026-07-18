@@ -136,28 +136,27 @@ User connects a folder
 
 The monitor works in-place: original files are not copied and no marker files are written into sources. Disabled and unavailable sources keep their indexed rows; normal image queries hide disabled sources. Re-enabling or reconnecting queues a full reconciliation.
 
-### 2. Image Uploads
+### 2. Media Uploads
 
 ```
-User drops image files
+User drops image or video files
        │
        ▼
   POST /api/upload (multipart/form-data)
        │
        ▼
-  extractor.py: probe container metadata only
+  Detect media type
        │
-       ├──► PNG prompt/workflow/parameters → Uploads
-       ├──► JPEG/WebP generation markers → Uploads
-       └──► no known generation marker → Uploads (no metadata)
+       ├──► Image marker probe → Uploads / Uploads (no metadata)
+       └──► Video ffprobe + ffmpeg poster → Uploads
        │
        ▼
   database.py: store original_data BLOB + basic file fields
        │
-       └──► Return {images: [...], folder_id}
+       └──► Return {assets: [...], images: compatibility alias}
 ```
 
-Uploaded files are stored as BLOBs in SQLite without eager metadata extraction, while scanned folder images remain referenced by their original local paths. The upload probe recognizes known PNG text keys and generation-specific markers inside JPEG/WebP EXIF, XMP, and comment blocks. Ordinary camera EXIF alone does not classify an image as generated metadata. Duplicate uploaded names receive unique internal `rel_path` values so every original is retained.
+Uploaded files are stored as BLOBs in SQLite, while scanned media remains referenced by its original local path. Image metadata extraction stays lazy: the upload probe only recognizes known PNG text keys and generation-specific markers inside JPEG/WebP EXIF, XMP, and comment blocks. Video uploads are exposed to ffprobe/ffmpeg through a short-lived temporary file, with normalized technical metadata stored in SQLite and the poster written to the thumbnail cache. Missing tools do not reject the upload. Duplicate uploaded names receive unique internal `rel_path` values so every original is retained.
 
 ### 3. Metadata Viewing
 
@@ -183,7 +182,7 @@ The frontend renders the response in three main views: Summary, Workflow, and Ra
 
 ### Unified media assets
 
-Physical source scans create shared asset rows for both images and videos. The SQLite table
+Physical source scans and browser uploads create shared asset rows for both images and videos. The SQLite table
 retains its legacy `images` name for migration compatibility, while `media_type`, `mime_type`,
 and the asset-oriented Library API form the common layer. The old `/api/images` listing remains
 image-only so the metadata viewer is not forced to behave as a video viewer.

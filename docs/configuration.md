@@ -128,7 +128,7 @@ metadata queue. Missing roots are retried without treating their indexed content
 | `.mp4`, `.m4v`, `.mov` | ffprobe | Video stream/container metadata; JPEG preview via ffmpeg |
 | `.webm`, `.mkv`, `.avi` | ffprobe | Video stream/container metadata; JPEG preview via ffmpeg |
 
-Folder scans filter by supported extensions case-insensitively. FFmpeg and ffprobe are optional:
+Folder scans and browser uploads filter by supported extensions case-insensitively. FFmpeg and ffprobe are optional:
 without them video rows remain available for albums, favorites, filtering, and original-file
 access while their technical metadata or preview status is marked `unavailable`.
 

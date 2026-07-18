@@ -33,7 +33,7 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 - **Metadata extraction** from PNG chunks, EXIF, and ComfyUI workflow JSON
 - **Interactive workflow graph** visualization with color-coded nodes
 - **Live source monitoring** for local and desktop-synced cloud folders, with no file copying
-- **Lazy upload indexing** — a quick PNG/JPEG/WebP marker probe categorizes imports; full metadata is parsed when opened
+- **Image and video uploads** — drop supported media into the app; images stay lazy while videos receive technical metadata and a poster frame when FFmpeg tools are available
 - **Object cutout** — automatic background removal with transparent PNG export
 - **SQLite persistence** — all data survives restarts
 - **Media Library** — virtual albums, favorites, ratings, tags, notes, and bulk selection without moving source files
@@ -235,7 +235,7 @@ The app will be available at **http://localhost:7860**
 | `POST` | `/api/scan` | Connect and index a source directory |
 | `PATCH` | `/api/folders/{id}` | Enable/disable a source or change recursion |
 | `POST` | `/api/folders/{id}/reconcile` | Queue a full source reconciliation |
-| `POST` | `/api/upload` | Upload image files |
+| `POST` | `/api/upload` | Upload image or video files |
 | `GET` | `/api/images` | List images (paginated) |
 | `GET` | `/api/images/{id}` | Get image details + metadata |
 | `GET` | `/api/assets/{id}` | Get image or video details with separated metadata layers |

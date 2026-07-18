@@ -4,9 +4,11 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Iterator, Literal
 
 from .extractor import SUPPORTED as IMAGE_EXTENSIONS
 
@@ -71,6 +73,16 @@ def mime_type_for_path(path: str | Path) -> str:
         suffix,
         VIDEO_MIME_TYPES.get(suffix, "application/octet-stream"),
     )
+
+
+@contextmanager
+def temporary_media_file(data: bytes, file_name: str) -> Iterator[Path]:
+    """Expose an uploaded media BLOB as a short-lived file for FFmpeg tools."""
+    suffix = Path(file_name).suffix.lower()
+    with tempfile.TemporaryDirectory(prefix="comfy-meta-upload-") as directory:
+        path = Path(directory) / f"asset{suffix}"
+        path.write_bytes(data)
+        yield path
 
 
 def _subprocess_options() -> dict[str, Any]:

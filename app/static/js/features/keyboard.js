@@ -242,7 +242,7 @@ function initHelpCenter() {
                         </div>
                         <div class="shortcut-group">
                             <h4>Uploaded Files</h4>
-                            <p class="help-text">Files added through Add Files or drag-and-drop are stored inside the app database as originals. A quick marker check separates files with and without generation metadata; full metadata is extracted only when an image is opened.</p>
+                            <p class="help-text">Images and videos added through Add Files or drag-and-drop are stored inside the app database as originals. Images use a quick generation-marker check and are parsed when opened; video technical metadata and a poster frame are prepared during import when FFmpeg tools are available.</p>
                         </div>
                         <div class="shortcut-group">
                             <h4>Cache And Reset</h4>

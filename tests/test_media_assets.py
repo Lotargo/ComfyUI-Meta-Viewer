@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 import tempfile
@@ -247,6 +248,116 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         self.assertEqual(
             self.paths.thumbnails.joinpath(f"{video_id}.jpg").read_bytes(),
             b"jpeg",
+        )
+
+    def test_uploaded_video_is_stored_probed_and_previewed(self) -> None:
+        video_data = b"uploaded-video-original"
+        probe = VideoProbeResult(
+            format="mov",
+            width=1920,
+            height=1080,
+            pixel_format="yuv420p",
+            duration=12.5,
+            frame_rate=30.0,
+            codec="h264",
+            metadata={"source": "ffprobe", "status": "available"},
+        )
+
+        def inspect_probe_path(path: str | Path) -> VideoProbeResult:
+            self.assertEqual(Path(path).read_bytes(), video_data)
+            return probe
+
+        def inspect_preview_path(path: str | Path, **_kwargs) -> bytes:
+            self.assertEqual(Path(path).read_bytes(), video_data)
+            return b"uploaded-jpeg"
+
+        client = app.test_client()
+        with (
+            patch("app.main.probe_video", side_effect=inspect_probe_path),
+            patch("app.main.make_video_thumbnail", side_effect=inspect_preview_path),
+        ):
+            response = client.post(
+                "/api/upload",
+                data={"files": [(io.BytesIO(video_data), "demo.mp4")]},
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["assets"], payload["images"])
+        uploaded = payload["assets"][0]
+        self.assertEqual(uploaded["media_type"], "video")
+        self.assertEqual(uploaded["preview_status"], "ready")
+
+        asset_id = uploaded["id"]
+        asset = library.get_assets(asset_id=asset_id)["assets"][0]
+        self.assertEqual(asset["mime_type"], "video/mp4")
+        self.assertEqual(asset["duration"], 12.5)
+        self.assertEqual(asset["codec"], "h264")
+        self.assertEqual((asset["width"], asset["height"]), (1920, 1080))
+        detail = client.get(f"/api/assets/{asset_id}").get_json()
+        self.assertEqual(
+            detail["embedded_metadata"]["technical_metadata"]["status"],
+            "available",
+        )
+        self.assertEqual(
+            self.paths.thumbnails.joinpath(f"{asset_id}.jpg").read_bytes(),
+            b"uploaded-jpeg",
+        )
+
+        original = client.get(f"/api/original/{asset_id}")
+        self.assertEqual(original.content_type, "video/mp4")
+        self.assertEqual(original.data, video_data)
+        original.close()
+
+        self.paths.thumbnails.joinpath(f"{asset_id}.jpg").unlink()
+        with patch(
+            "app.main.make_video_thumbnail",
+            side_effect=inspect_preview_path,
+        ):
+            regenerated = client.get(f"/api/thumbnail/{asset_id}")
+        self.assertEqual(regenerated.status_code, 200)
+        self.assertEqual(regenerated.data, b"uploaded-jpeg")
+
+    def test_uploaded_video_survives_missing_ffmpeg_tools(self) -> None:
+        video_data = b"video-without-tools"
+        client = app.test_client()
+        with (
+            patch(
+                "app.main.probe_video",
+                side_effect=MediaToolUnavailableError("ffprobe"),
+            ),
+            patch(
+                "app.main.make_video_thumbnail",
+                side_effect=MediaToolUnavailableError("ffmpeg"),
+            ),
+        ):
+            response = client.post(
+                "/api/upload",
+                data={"files": [(io.BytesIO(video_data), "offline.webm")]},
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        uploaded = response.get_json()["assets"][0]
+        self.assertEqual(uploaded["media_type"], "video")
+        self.assertEqual(uploaded["preview_status"], "unavailable")
+        detail = client.get(f"/api/assets/{uploaded['id']}").get_json()
+        self.assertEqual(
+            detail["embedded_metadata"]["technical_metadata"]["status"],
+            "unavailable",
+        )
+
+        with patch(
+            "app.main.make_video_thumbnail",
+            side_effect=MediaToolUnavailableError("ffmpeg"),
+        ):
+            thumbnail = client.get(f"/api/thumbnail/{uploaded['id']}")
+        self.assertEqual(thumbnail.status_code, 503)
+        self.assertEqual(
+            thumbnail.get_json()["code"],
+            "video_preview_tool_unavailable",
         )
 
 

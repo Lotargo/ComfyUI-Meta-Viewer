@@ -36,9 +36,9 @@ export function renderUploadView() {
         <div class="icon">
             <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
         </div>
-        <h2>Drop images here</h2>
+        <h2>Drop images or videos here</h2>
         <p>or use buttons above / paste path</p>
-        <div class="hint">Supports PNG, JPG, WEBP, BMP, TIFF</div>
+        <div class="hint">Images: PNG, JPG, WEBP, BMP, TIFF · Video: MP4, WebM, MOV, M4V, MKV, AVI</div>
     </div>`;
 }
 

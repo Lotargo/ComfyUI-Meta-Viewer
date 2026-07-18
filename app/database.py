@@ -1320,15 +1320,31 @@ def get_diagnostics() -> dict[str, Any]:
         conn.close()
 
 
-def insert_upload_image(
+def insert_upload_asset(
     file_name: str,
     original_data: bytes,
-    has_metadata: bool,
+    *,
+    media_type: str,
+    has_generation_metadata: bool = False,
+    format_name: str | None = None,
+    width: int = 0,
+    height: int = 0,
+    mode: str | None = None,
+    duration: float | None = None,
+    frame_rate: float | None = None,
+    codec: str | None = None,
+    embedded_metadata: dict[str, Any] | None = None,
+    preview_status: str = "pending",
+    preview_error: str | None = None,
 ) -> tuple[int, int]:
+    if media_type not in ("image", "video"):
+        raise ValueError(f"Unsupported media type: {media_type}")
+
     conn = get_conn()
     try:
-        folder_path = "__uploads__" if has_metadata else "__uploads_no_metadata__"
-        folder_name = "Uploads" if has_metadata else "Uploads (no metadata)"
+        has_embedded_metadata = media_type == "video" or has_generation_metadata
+        folder_path = "__uploads__" if has_embedded_metadata else "__uploads_no_metadata__"
+        folder_name = "Uploads" if has_embedded_metadata else "Uploads (no metadata)"
 
         folder_row = conn.execute(
             "SELECT id FROM folders WHERE path = ?", (folder_path,)
@@ -1355,9 +1371,11 @@ def insert_upload_image(
                 cur = conn.execute(
                     """INSERT INTO images (
                         folder_id, rel_path, file_name, file_size, file_mtime,
-                        media_type, mime_type, original_data, content_fingerprint
+                        media_type, mime_type, format, width, height, mode,
+                        duration, frame_rate, codec, metadata_json,
+                        preview_status, preview_error, original_data, content_fingerprint
                     )
-                    VALUES (?, ?, ?, ?, ?, 'image', ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     RETURNING id""",
                     (
                         folder_id,
@@ -1365,7 +1383,20 @@ def insert_upload_image(
                         safe_name,
                         len(original_data),
                         time.time(),
+                        media_type,
                         mime_type,
+                        format_name,
+                        width,
+                        height,
+                        mode,
+                        duration,
+                        frame_rate,
+                        codec,
+                        json.dumps(embedded_metadata, ensure_ascii=False)
+                        if embedded_metadata is not None
+                        else None,
+                        preview_status,
+                        preview_error,
                         original_data,
                         hashlib.sha256(original_data).hexdigest(),
                     ),
@@ -1387,17 +1418,36 @@ def insert_upload_image(
         conn.close()
 
 
-def get_image_original_data(image_id: int) -> bytes | None:
+def insert_upload_image(
+    file_name: str,
+    original_data: bytes,
+    has_metadata: bool,
+) -> tuple[int, int]:
+    """Compatibility wrapper for the former image-only upload path."""
+    return insert_upload_asset(
+        file_name,
+        original_data,
+        media_type="image",
+        has_generation_metadata=has_metadata,
+    )
+
+
+def get_asset_original_data(asset_id: int) -> bytes | None:
     conn = get_conn()
     try:
         row = conn.execute(
-            "SELECT original_data FROM images WHERE id = ?", (image_id,)
+            "SELECT original_data FROM images WHERE id = ?", (asset_id,)
         ).fetchone()
         if row and row["original_data"]:
             return bytes(row["original_data"])
         return None
     finally:
         conn.close()
+
+
+def get_image_original_data(image_id: int) -> bytes | None:
+    """Compatibility wrapper for callers using image terminology."""
+    return get_asset_original_data(image_id)
 
 
 def get_image_format(image_id: int) -> str | None:

@@ -119,7 +119,7 @@ SQLite stores the local media index, folder list, embedded metadata JSON, upload
 | Table | Purpose |
 |-------|---------|
 | `folders` | Indexed local folders and the special `Uploads` collection |
-| `images` | Legacy-named shared asset rows for images and videos, technical fields, embedded metadata, AI annotations, and uploaded image BLOBs |
+| `images` | Legacy-named shared asset rows for images and videos, technical fields, embedded metadata, AI annotations, and uploaded media BLOBs |
 | `albums` / `album_images` | Virtual many-to-many collections and cover selection |
 | `tags` / `image_tags` | Normalized user tags attached to indexed assets |
 
@@ -129,6 +129,7 @@ SQLite stores the local media index, folder list, embedded metadata JSON, upload
 - Foreign keys are enabled.
 - Folder deletion removes related image rows.
 - Uploaded images are categorized by a lightweight PNG/JPEG/WebP generation-marker probe and stored as `original_data` BLOBs without eager metadata extraction.
+- Uploaded videos are stored as `original_data` BLOBs; technical metadata and a JPEG poster are prepared during import when ffprobe/ffmpeg are available.
 - Scanned images remain on disk and are served from their original local paths.
 - Uploaded metadata is extracted and cached when the image is first opened.
 - Content fingerprints let a unique rename retain the same image ID and virtual relations.
@@ -333,16 +334,16 @@ Every field is validated independently and the saved folder ID is checked agains
 
 **Main files:** `app/static/js/events.js`, `POST /api/upload`
 
-The app supports adding images through the browser UI.
+The app supports adding images and videos through the browser UI.
 
 ### Supported Flows
 
-- Drag and drop image files.
+- Drag and drop image or video files.
 - File input upload.
 - Folder drag-and-drop where supported by the browser.
 - Local path extraction through the `/api/extract` flow.
 
-Uploaded originals are stored immediately as SQLite BLOBs and can be served later through `/api/original/{image_id}`. Import checks known PNG text-chunk keys plus generation markers in JPEG/WebP EXIF, XMP, and comment blocks so it can separate `Uploads` from `Uploads (no metadata)`. It does not decode pixels or create a base64 thumbnail. Full metadata is processed only when the image detail is opened.
+Uploaded originals are stored immediately as SQLite BLOBs and can be served later through `/api/original/{asset_id}`. Image import checks known PNG text-chunk keys plus generation markers in JPEG/WebP EXIF, XMP, and comment blocks so it can separate `Uploads` from `Uploads (no metadata)`; image pixels and full metadata remain lazy. Video import accepts MP4, WebM, MOV, M4V, MKV, and AVI, extracts technical metadata with ffprobe, and caches a poster frame with ffmpeg. Without either tool, the original is still added and its corresponding status is marked `unavailable`.
 
 ---
 

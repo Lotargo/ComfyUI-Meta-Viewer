@@ -11,3 +11,5 @@ cache/thumbnails*
 cache/cutouts*
 .videos
 cache/previews
+.playwright-mcp
+.pytest_cache

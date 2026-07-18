@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/static/css/base/typography.css">
     <link rel="stylesheet" href="/static/css/components/buttons.css">
     <link rel="stylesheet" href="/static/css/components/header.css">
+    <link rel="stylesheet" href="/static/css/components/toast.css">
     <link rel="stylesheet" href="/static/css/features/ai-settings.css?v={{ static_version('css/features/ai-settings.css') }}">
 </head>
 <body class="ai-settings-body">
@@ -24,27 +25,23 @@
             </nav>
         </div>
         <div class="global-header-actions">
-            <button id="refresh-all" class="header-primary-action" type="button">Refresh status</button>
+            <button id="refresh-all" class="header-primary-action" type="button">Refresh</button>
         </div>
     </header>
 
     <main class="ai-settings-main">
-        <section class="ai-hero">
-            <div>
+        <div class="page-head">
+            <div class="page-head-copy">
                 <p class="ai-eyebrow">Bring your own provider</p>
-                <h1>AI connections</h1>
-                <p>Connect an OpenAI-compatible endpoint or reuse an authenticated local CLI. API keys never enter the media index.</p>
+                <h1>AI providers</h1>
+                <p class="page-sub">Connect an OpenAI-compatible endpoint or reuse an authenticated local CLI. API keys never enter the media index.</p>
             </div>
-            <div id="secret-store-status" class="security-status" role="status">
+            <div id="secret-store-status" class="status-pill" role="status">
                 <span class="status-dot"></span>
-                <div class="security-status-copy">
-                    <strong id="secret-store-title">Checking credential storage…</strong>
-                    <span id="secret-store-detail"></span>
-                </div>
+                <span id="secret-store-title">Checking credential storage…</span>
+                <span id="secret-store-detail" class="status-pill-detail" hidden></span>
             </div>
-        </section>
-
-        <div id="page-feedback" class="page-feedback" role="status" aria-live="polite" hidden></div>
+        </div>
 
         <section class="settings-section" aria-labelledby="profiles-heading">
             <div class="section-heading">
@@ -56,7 +53,7 @@
                 <button id="add-provider" class="btn btn-primary" type="button">Add provider</button>
             </div>
 
-            <div class="default-profile-panel">
+            <div id="default-profile-panel" class="default-profile-panel" hidden>
                 <label>
                     <span>Default text profile</span>
                     <select id="default-text-profile"><option value="">Not selected</option></select>
@@ -71,18 +68,21 @@
             <div id="profiles-grid" class="profiles-grid"></div>
             <div id="profiles-empty" class="empty-panel" hidden>
                 <strong>No provider profiles yet</strong>
-                <p>Add an endpoint below or import one of the detected command-line tools.</p>
+                <p>Add an OpenAI-compatible endpoint, or import one of the local command-line tools below.</p>
+                <div class="empty-actions">
+                    <button id="empty-add-provider" class="btn btn-primary" type="button">Add endpoint</button>
+                    <button id="empty-goto-cli" class="btn btn-secondary" type="button">Import from local CLI</button>
+                </div>
             </div>
         </section>
 
-        <section class="settings-section" aria-labelledby="cli-heading">
+        <section class="settings-section" id="cli-section" aria-labelledby="cli-heading">
             <div class="section-heading">
                 <div>
                     <p class="section-kicker">Existing authorization</p>
                     <h2 id="cli-heading">Local AI command-line tools</h2>
-                    <p>Detection invokes only documented status commands. Credential files are never opened or copied.</p>
+                    <p>Nothing is scanned until you press Connect. Connected tools are re-checked on later visits; credential files are never opened or copied.</p>
                 </div>
-                <button id="refresh-cli" class="btn btn-secondary" type="button">Scan again</button>
             </div>
             <div id="cli-grid" class="cli-grid" aria-live="polite"></div>
         </section>
@@ -95,6 +95,7 @@
             </div>
         </section>
     </main>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <dialog id="profile-dialog" class="profile-dialog" aria-labelledby="profile-dialog-title">
         <form id="profile-form" method="dialog">
@@ -114,7 +115,7 @@
             <div class="form-grid">
                 <label class="field field-wide">
                     <span>Profile name</span>
-                    <input id="profile-name" name="name" maxlength="80" required placeholder="My provider">
+                    <input id="profile-name" name="name" maxlength="80" required placeholder="My provider" autocomplete="off">
                 </label>
 
                 <div id="openai-fields" class="form-grid form-grid-nested field-wide">
@@ -146,11 +147,39 @@
                     </label>
                 </div>
 
-                <label class="field field-wide">
-                    <span>Exact model ID</span>
-                    <input id="profile-model" list="profile-model-options" maxlength="200" required placeholder="provider/model-or-id" spellcheck="false">
-                    <datalist id="profile-model-options"></datalist>
-                </label>
+                <div id="standard-model-field" class="field field-wide">
+                    <label class="field-label" for="profile-model">Exact model ID</label>
+                    <div id="profile-model-combobox" class="model-combobox">
+                        <input id="profile-model" maxlength="200" required placeholder="provider/model-or-id" spellcheck="false" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="profile-model-options">
+                        <button id="profile-model-toggle" class="model-options-toggle" type="button" aria-label="Show available models" aria-expanded="false" aria-controls="profile-model-options"></button>
+                        <div id="profile-model-options" class="model-options" role="listbox" hidden></div>
+                    </div>
+                </div>
+
+                <div id="opencode-model-fields" class="field-wide" hidden>
+                    <div class="cli-model-grid">
+                        <div class="field">
+                            <label class="field-label" for="profile-model-provider">Provider</label>
+                            <div id="profile-model-provider-combobox" class="model-combobox">
+                                <input id="profile-model-provider" maxlength="100" placeholder="deepseek" spellcheck="false" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="profile-model-provider-options">
+                                <button id="profile-model-provider-toggle" class="model-options-toggle" type="button" aria-label="Show visible providers" aria-expanded="false" aria-controls="profile-model-provider-options"></button>
+                                <div id="profile-model-provider-options" class="model-options" role="listbox" hidden></div>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="field-label" for="profile-model-name">Model</label>
+                            <div id="profile-model-name-combobox" class="model-combobox">
+                                <input id="profile-model-name" maxlength="200" placeholder="deepseek-chat" spellcheck="false" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="profile-model-name-options">
+                                <button id="profile-model-name-toggle" class="model-options-toggle" type="button" aria-label="Show visible models" aria-expanded="false" aria-controls="profile-model-name-options"></button>
+                                <div id="profile-model-name-options" class="model-options" role="listbox" hidden></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="catalog-settings-row">
+                        <small id="model-catalog-hint">Choose which providers and models appear in these lists.</small>
+                        <button id="open-model-catalog" class="btn btn-secondary" type="button">Display settings</button>
+                    </div>
+                </div>
 
                 <label class="field">
                     <span>Timeout, seconds</span>
@@ -173,6 +202,33 @@
             <footer class="dialog-actions">
                 <button id="cancel-profile" class="btn btn-secondary" type="button">Cancel</button>
                 <button id="save-profile" class="btn btn-primary" type="submit">Save profile</button>
+            </footer>
+        </form>
+    </dialog>
+
+    <dialog id="model-catalog-dialog" class="profile-dialog catalog-dialog" aria-labelledby="model-catalog-title">
+        <form id="model-catalog-form" method="dialog">
+            <header class="dialog-header">
+                <div>
+                    <p class="section-kicker">OpenCode</p>
+                    <h2 id="model-catalog-title">Model display settings</h2>
+                </div>
+                <button id="close-model-catalog" class="dialog-close" type="button" aria-label="Close">×</button>
+            </header>
+            <p class="catalog-description">Select the providers shown in the profile form. For each provider, show all its models or keep a smaller allowlist.</p>
+            <div class="catalog-discovery">
+                <div class="catalog-add-provider">
+                    <input id="model-catalog-provider-id" maxlength="100" placeholder="Provider ID, e.g. deepseek" spellcheck="false" autocomplete="off">
+                    <button id="add-model-catalog-provider" class="btn btn-secondary" type="button">Add provider</button>
+                </div>
+                <button id="discover-model-catalog" class="btn btn-secondary" type="button">Discover all providers</button>
+                <span id="model-catalog-status">The complete catalog is requested only when you press Discover all providers.</span>
+            </div>
+            <div id="model-catalog-providers" class="catalog-provider-list"></div>
+            <div id="model-catalog-error" class="form-error" role="alert" hidden></div>
+            <footer class="dialog-actions">
+                <button id="cancel-model-catalog" class="btn btn-secondary" type="button">Cancel</button>
+                <button class="btn btn-primary" type="submit">Save display settings</button>
             </footer>
         </form>
     </dialog>

@@ -4,7 +4,14 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
-from .cli import CLIIntegrationError, discover_cli_integrations, list_cli_models
+from .cli import (
+    CLI_SPECS,
+    CLIIntegrationError,
+    cli_catalog,
+    discover_cli_integrations,
+    list_cli_models,
+    probe_cli,
+)
 from .profiles import AIProfileStore, AIProfileStoreError
 from .secrets import SecretStoreError
 from .transport import AIProviderRequestError, test_profile
@@ -101,9 +108,20 @@ def ai_profile_test(profile_id: str):
 
 @ai_blueprint.route("/api/ai/cli-integrations", methods=["GET"])
 def ai_cli_integrations():
+    if request.args.get("probe", "").lower() in {"0", "false", "no"}:
+        return jsonify({"integrations": cli_catalog()})
     return jsonify({"integrations": discover_cli_integrations()})
+
+
+@ai_blueprint.route("/api/ai/cli-integrations/<cli_type>", methods=["GET"])
+def ai_cli_integration(cli_type: str):
+    if cli_type not in CLI_SPECS:
+        raise CLIIntegrationError(
+            "Unsupported CLI integration.", code="cli_unavailable"
+        )
+    return jsonify({"integration": probe_cli(cli_type)})
 
 
 @ai_blueprint.route("/api/ai/cli-integrations/<cli_type>/models", methods=["GET"])
 def ai_cli_models(cli_type: str):
-    return jsonify(list_cli_models(cli_type))
+    return jsonify(list_cli_models(cli_type, provider=request.args.get("provider")))

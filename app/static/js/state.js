@@ -7,6 +7,11 @@ import {
     parsePreferences,
 } from './preferences.js';
 
+const AI_STORAGE_KEYS = [
+    'cmv_ai_connected_cli_types_v1',
+    'cmv_ai_model_catalog_v1',
+];
+
 export const dom = {
     contentArea: document.getElementById('content-area'),
     imageList: document.getElementById('image-list'),
@@ -350,6 +355,7 @@ export function clearStoredPreferences() {
         localStorage.removeItem(PREFERENCES_STORAGE_KEY);
         localStorage.removeItem(LEGACY_PREFERENCES_STORAGE_KEY);
         localStorage.removeItem('cmv_state');
+        AI_STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
         sessionStorage.removeItem(LEGACY_PREFERENCES_STORAGE_KEY);
         sessionStorage.removeItem('cmv_state');
     } catch (_error) {

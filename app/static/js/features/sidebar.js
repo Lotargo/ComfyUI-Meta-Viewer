@@ -631,7 +631,10 @@ function initFoldersSSE() {
             const trackedFields = [
                 'status',
                 'processed_count',
+                'processed_asset_count',
                 'image_count',
+                'video_count',
+                'asset_count',
                 'enabled',
                 'recursive',
                 'source_status',
@@ -647,7 +650,10 @@ function initFoldersSSE() {
                         if (
                             f.revision !== update.revision
                             || f.processed_count !== update.processed_count
+                            || f.processed_asset_count !== update.processed_asset_count
                             || f.image_count !== update.image_count
+                            || f.video_count !== update.video_count
+                            || f.asset_count !== update.asset_count
                         ) {
                             contentChangedSourceIds.add(f.id);
                         }
@@ -668,9 +674,20 @@ function initFoldersSSE() {
             }
             if (contentChangedSourceIds.size > 0) {
                 refreshCacheBuster();
-                const { invalidateApiCache, loadFolderImages, loadSidebarImages } = await import('../api.js');
+                const {
+                    invalidateApiCache,
+                    loadCollectionImages,
+                    loadFolderImages,
+                    loadSidebarImages,
+                } = await import('../api.js');
                 invalidateApiCache();
                 await loadSidebarImages({ force: true, preserveCount: true });
+                if (currentCollection.type === 'media') {
+                    await loadCollectionImages(
+                        { ...currentCollection },
+                        { force: true, preserveCount: true },
+                    );
+                }
                 const activeFolder = updatedFolders.find(folder => folder.id === currentFolderId && folder.enabled);
                 if (activeFolder && contentChangedSourceIds.has(activeFolder.id)) {
                     await loadFolderImages(activeFolder.id, activeFolder.name, { force: true, preserveCount: true });

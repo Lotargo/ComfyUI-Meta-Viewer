@@ -37,6 +37,7 @@ import {
     saveState,
     sidebarActiveImageId,
     setSidebarActiveImageId,
+    isBrowsableCollection,
 } from './state.js';
 import { imageRenderSignature, showLoading, showError, customConfirm } from './utils.js';
 import { isSupportedMediaFile } from './media-files.js';
@@ -82,7 +83,7 @@ export function invalidateApiCache() {
 }
 
 function collectionFilter(collection = currentCollection) {
-    if (!collection?.id) return '';
+    if (collection?.type === 'media' || !collection?.id) return '';
     return collection.type === 'album'
         ? `album_id=${collection.id}`
         : `folder_id=${collection.id}`;
@@ -131,6 +132,7 @@ export async function loadBootstrap({ preferredCollection = null } = {}) {
     const folderList = folderData.folders || [];
     const albumList = albumData.albums || [];
     const preferredId = Number.isInteger(preferredCollection?.id) ? preferredCollection.id : null;
+    const preferredMedia = preferredCollection?.type === 'media';
     const preferredAlbum = preferredCollection?.type === 'album'
         ? albumList.find(album => album.id === preferredId)
         : null;
@@ -147,9 +149,11 @@ export async function loadBootstrap({ preferredCollection = null } = {}) {
                 : albumList[0]
                     ? { type: 'album', item: albumList[0] }
                     : null;
-    const defaultCollection = defaultItem
-        ? { type: defaultItem.type, id: defaultItem.item.id, name: defaultItem.item.name }
-        : null;
+    const defaultCollection = preferredMedia
+        ? { type: 'media', id: null, name: 'All Media' }
+        : defaultItem
+            ? { type: defaultItem.type, id: defaultItem.item.id, name: defaultItem.item.name }
+            : null;
     const collectionPage = defaultCollection
         ? await fetchJson(collectionImagesUrl(defaultCollection, 1, PAGE_SIZE), { force: true })
         : { images: [], total: 0, page: 0, per_page: PAGE_SIZE };
@@ -284,7 +288,7 @@ export async function loadFromFiles(files) {
 }
 
 export async function loadMore() {
-    if (isLoading || allLoaded || !currentCollection.id) return false;
+    if (isLoading || allLoaded || !isBrowsableCollection(currentCollection)) return false;
     setIsLoading(true);
     let spinner = document.querySelector('#gallery-load-more-spinner');
     if (!spinner && dom.contentArea) {
@@ -599,7 +603,7 @@ export async function applyImageRating(ratedAsset) {
 
     if (ratingFilter !== null && (rating || 0) !== ratingFilter) {
         const loads = [loadSidebarImages({ force: true, render: false, preserveCount: true })];
-        if (currentCollection.id) {
+        if (isBrowsableCollection(currentCollection)) {
             loads.push(loadCollectionImages(
                 { ...currentCollection },
                 { force: true, render: false, preserveCount: true },
@@ -625,7 +629,10 @@ export function deleteImageAt(index) {
 
 export async function loadCollectionImages(collection, { force = false, render = true, preserveCount = false } = {}) {
     setIsLoading(true);
-    if (render && !preserveCount) showLoading(`Loading ${collection.type === 'album' ? 'album' : 'folder'} media...`);
+    const collectionLabel = collection.type === 'album'
+        ? 'album'
+        : (collection.type === 'media' ? 'all' : 'folder');
+    if (render && !preserveCount) showLoading(`Loading ${collectionLabel} media...`);
     try {
         const limit = preserveCount ? Math.max(PAGE_SIZE, currentPage * PAGE_SIZE) : PAGE_SIZE;
         const data = await fetchJson(collectionImagesUrl(collection, 1, limit), { force });
@@ -692,4 +699,8 @@ export function loadFolderImages(folderId, folderName, options = {}) {
 
 export function loadAlbumImages(albumId, albumName, options = {}) {
     return loadCollectionImages({ type: 'album', id: albumId, name: albumName || '' }, options);
+}
+
+export function loadMediaCollection(options = {}) {
+    return loadCollectionImages({ type: 'media', id: null, name: 'All Media' }, options);
 }

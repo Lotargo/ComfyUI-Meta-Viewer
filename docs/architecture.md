@@ -307,7 +307,7 @@ SHA-256 fingerprint.
 
 ```
 state.js
-  ├── images[]           -- current filtered page/list of media assets
+  ├── images[]           -- current filtered folder, album, or All Media page
   ├── activeIndex        -- selected asset index
   ├── sessions[]         -- available local sessions
   ├── currentSession     -- current session state

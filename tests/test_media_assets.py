@@ -135,6 +135,10 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         self.assertIn('id="media-filter-images"', html)
         self.assertIn('id="media-filter-videos"', html)
         self.assertIn('id="lb-video"', html)
+        self.assertLess(
+            html.index('class="viewer-context-actions"'),
+            html.index('id="media-type-filter-btn"'),
+        )
         project_root = Path(__file__).resolve().parents[1]
         api_script = (project_root / "app/static/js/api.js").read_text(
             encoding="utf-8"
@@ -148,7 +152,15 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         context_menu_script = (
             project_root / "app/static/js/components/image-context-menu.js"
         ).read_text(encoding="utf-8")
+        events_script = (project_root / "app/static/js/events.js").read_text(
+            encoding="utf-8"
+        )
+        lightbox_script = (project_root / "app/static/js/lightbox.js").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("media_type=${selectedMediaTypes()}", api_script)
+        self.assertIn("loadMediaCollection", api_script)
+        self.assertIn("loadMediaCollection({ render: false })", events_script)
         self.assertIn("loadCollectionImages(", filter_script)
         self.assertIn("gallery-media-type-badge", gallery_script)
         self.assertIn("img.media_type === 'video' ? []", gallery_script)
@@ -159,6 +171,8 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         self.assertIn("Copy filename", context_menu_script)
         self.assertIn("Delete file from computer", context_menu_script)
         self.assertIn("Remove from index", context_menu_script)
+        self.assertIn("deleteCurrentLightboxAsset", lightbox_script)
+        self.assertIn("dom.lbDelete.disabled = !asset?.id", lightbox_script)
 
     def test_images_and_videos_share_sources_albums_and_user_metadata(self) -> None:
         self.make_image()

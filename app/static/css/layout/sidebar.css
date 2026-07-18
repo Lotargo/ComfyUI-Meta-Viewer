@@ -39,45 +39,6 @@
     flex-shrink: 0;
 }
 
-.media-type-filter-container .icon-btn {
-    width: auto;
-    min-width: 34px;
-    gap: 4px;
-    padding: 6px 8px;
-}
-
-.media-type-filter-label {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-}
-
-.media-type-filter-menu {
-    padding: 6px;
-    gap: 2px;
-}
-
-.media-type-filter-option {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: var(--radius-sm);
-    color: var(--text-dim);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.media-type-filter-option:hover {
-    background: var(--surface2);
-    color: var(--text);
-}
-
-.media-type-filter-option input {
-    accent-color: var(--accent);
-}
-
 .sidebar-header-main {
     min-width: 0;
     display: flex;

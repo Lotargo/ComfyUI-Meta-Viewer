@@ -323,10 +323,11 @@ export async function switchSidebarTab(tab, { render = true, load = true, persis
 
     if (load) {
         const { sidebarImages } = await import('./state.js');
-        if (sidebarImages.length === 0) {
-            const { loadSidebarImages } = await import('./api.js');
-            await loadSidebarImages({ render: false });
-        }
+        const { loadMediaCollection, loadSidebarImages } = await import('./api.js');
+        const loads = [loadMediaCollection({ render: false })];
+        if (sidebarImages.length === 0) loads.push(loadSidebarImages({ render: false }));
+        await Promise.all(loads);
     }
     renderSidebar();
+    await renderCurrentContent();
 }

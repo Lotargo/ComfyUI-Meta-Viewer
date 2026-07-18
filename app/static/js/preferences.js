@@ -4,7 +4,7 @@ export const LEGACY_PREFERENCES_STORAGE_KEY = 'cmv_preferences';
 
 const VIEW_MODES = new Set(['gallery', 'list', 'upload']);
 const SIDEBAR_TABS = new Set(['folders', 'albums', 'images']);
-const COLLECTION_TYPES = new Set(['folder', 'album']);
+const COLLECTION_TYPES = new Set(['folder', 'album', 'media']);
 const FOLDER_VIEW_MODES = new Set(['list', 'tile']);
 const META_TABS = new Set(['summary', 'workflow', 'raw']);
 const SORT_DIRECTIONS = new Set(['asc', 'desc']);
@@ -32,7 +32,7 @@ function selectedCollection(value, legacyFolderId = null) {
     const legacyId = selectedFolderId(legacyFolderId);
     if (!isRecord(value)) return { type: 'folder', id: legacyId };
     const type = enumValue(value.type, COLLECTION_TYPES, 'folder');
-    return { type, id: selectedFolderId(value.id) };
+    return { type, id: type === 'media' ? null : selectedFolderId(value.id) };
 }
 
 function sidebarWidth(value) {

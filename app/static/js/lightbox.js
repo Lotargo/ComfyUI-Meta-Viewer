@@ -23,6 +23,7 @@ import {
     setActiveIndex,
     setSidebarActiveImageId,
     saveState,
+    isBrowsableCollection,
 } from './state.js';
 import {
     escapeHtml,
@@ -60,7 +61,7 @@ const THUMBNAIL_FALLBACK_DELAY = 250;
 const GALLERY_PREFETCH_THRESHOLD = 5;
 
 function canLoadNextGalleryPage() {
-    return usesGalleryPagination && Boolean(currentCollection.id) && !allLoaded;
+    return usesGalleryPagination && isBrowsableCollection(currentCollection) && !allLoaded;
 }
 
 function visibleCollectionTotal() {
@@ -69,6 +70,19 @@ function visibleCollectionTotal() {
 
 function isCurrentVideo() {
     return getDetailForLightbox()?.media_type === 'video';
+}
+
+function syncLightboxDeleteButton(asset) {
+    if (!dom.lbDelete) return;
+    dom.lbDelete.disabled = !asset?.id || fileDeleteInProgress;
+    if (!asset?.id) {
+        dom.lbDelete.title = 'No indexed asset to delete';
+        return;
+    }
+    const assetLabel = asset.media_type === 'video' ? 'video' : 'image';
+    dom.lbDelete.title = asset.has_local_file
+        ? `Delete ${assetLabel} file from computer (Delete) — moves it to the Recycle Bin / Trash`
+        : `Delete uploaded ${assetLabel} from the app (Delete)`;
 }
 
 async function loadNextGalleryPage() {
@@ -399,12 +413,7 @@ export function updateLightbox() {
     loadLightboxMedia(img);
     displayedImageId = nextImageId;
     if (dom.lbViewOriginal) dom.lbViewOriginal.disabled = !img.id;
-    if (dom.lbDelete) {
-        dom.lbDelete.disabled = !img.id || !img.has_local_file;
-        dom.lbDelete.title = img.has_local_file
-            ? 'Delete file from computer (Delete) — moves it to the Recycle Bin / Trash'
-            : 'No available physical file to delete';
-    }
+    syncLightboxDeleteButton(img);
 
     // Update meta panel visibility
     if (dom.lbMeta) {
@@ -644,9 +653,7 @@ async function removeCurrentLightboxAsset(removeAsset) {
         return true;
     } finally {
         fileDeleteInProgress = false;
-        if (dom.lbDelete) {
-            dom.lbDelete.disabled = !currentImagesArray[lightboxIndex]?.has_local_file;
-        }
+        syncLightboxDeleteButton(currentImagesArray[lightboxIndex]);
     }
 }
 
@@ -664,6 +671,14 @@ export async function deleteCurrentLightboxFile() {
 export async function removeCurrentLightboxAssetFromIndex() {
     const { removeAssetFromIndexById } = await import('./api.js');
     return removeCurrentLightboxAsset(removeAssetFromIndexById);
+}
+
+export function deleteCurrentLightboxAsset() {
+    const img = currentImagesArray[lightboxIndex];
+    if (!img?.id) return false;
+    return img.has_local_file
+        ? deleteCurrentLightboxFile()
+        : removeCurrentLightboxAssetFromIndex();
 }
 
 export function viewOriginal() {
@@ -696,7 +711,7 @@ export function initLightboxEvents() {
     dom.lbViewOriginal?.addEventListener('click', viewOriginal);
     dom.lbDownload?.addEventListener('click', downloadImage);
 
-    dom.lbDelete?.addEventListener('click', deleteCurrentLightboxFile);
+    dom.lbDelete?.addEventListener('click', deleteCurrentLightboxAsset);
 
     // Zoom controls
     dom.lbZoomIn?.addEventListener('click', zoomIn);

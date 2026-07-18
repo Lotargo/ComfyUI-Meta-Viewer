@@ -72,7 +72,7 @@ The app uses a small shared state module instead of an external state management
 
 ```javascript
 {
-    images: [],           // Current filtered folder/album media page
+    images: [],           // Current filtered folder/album/All Media page
     sidebarImages: [],    // Global Media tab: filtered images and videos
     activeIndex: -1,      // Selected asset index
     viewMode: 'gallery',  // 'upload' | 'list' | 'gallery'

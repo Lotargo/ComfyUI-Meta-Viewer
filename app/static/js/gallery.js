@@ -11,6 +11,7 @@ import {
     dom,
     showToast,
     setGalleryScrollObserver,
+    isBrowsableCollection,
 } from './state.js';
 import { escapeHtml, imageRenderSignature, originalUrl, thumbUrl } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
@@ -199,7 +200,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0, reconcile = 
     if (galleryScrollObserver) galleryScrollObserver.disconnect();
 
     if (images.length === 0) {
-        if (!allLoaded && currentCollection.id) {
+        if (!allLoaded && isBrowsableCollection(currentCollection)) {
             renderGallerySkeleton();
             return;
         }
@@ -244,7 +245,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0, reconcile = 
         import('./features/sorting.js').then(module => module.bindCentralSortEvents());
     }
 
-    if (!allLoaded && currentCollection.id) {
+    if (!allLoaded && isBrowsableCollection(currentCollection)) {
         let sentinel = document.querySelector('#gallery-sentinel');
         if (!sentinel) {
             sentinel = document.createElement('div');

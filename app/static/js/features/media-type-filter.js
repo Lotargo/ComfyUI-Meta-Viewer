@@ -1,6 +1,7 @@
 import {
     dom,
     currentCollection,
+    isBrowsableCollection,
     mediaTypeFilter,
     saveState,
     setMediaTypeFilter,
@@ -13,7 +14,7 @@ import {
 } from '../api.js';
 
 function filterLabel() {
-    if (mediaTypeFilter.images && mediaTypeFilter.videos) return 'All';
+    if (mediaTypeFilter.images && mediaTypeFilter.videos) return 'All media';
     return mediaTypeFilter.images ? 'Images' : 'Videos';
 }
 
@@ -50,7 +51,7 @@ async function applyMediaTypeFilter(nextFilter) {
     dom.mediaTypeFilterBtn.disabled = true;
     try {
         const loads = [loadSidebarImages({ force: true, render: false })];
-        if (currentCollection.id) {
+        if (isBrowsableCollection(currentCollection)) {
             loads.push(loadCollectionImages(
                 { ...currentCollection },
                 { force: true, render: false },
@@ -82,6 +83,9 @@ export function initMediaTypeFilter() {
         document.querySelectorAll(
             '#sort-dropdown-menu, #sidebar-sort-dropdown-menu, #folders-sort-dropdown-menu, #viewer-albums-sort-dropdown-menu, #viewer-rating-filter-menu',
         ).forEach(menu => { menu.style.display = 'none'; });
+        document.querySelector('#sort-btn')?.setAttribute('aria-expanded', 'false');
+        if (dom.searchSettingsDropdown) dom.searchSettingsDropdown.style.display = 'none';
+        dom.searchSettingsBtn?.setAttribute('aria-expanded', 'false');
         dom.mediaTypeFilterMenu.style.display = willOpen ? 'flex' : 'none';
         dom.mediaTypeFilterBtn.setAttribute('aria-expanded', String(willOpen));
     });

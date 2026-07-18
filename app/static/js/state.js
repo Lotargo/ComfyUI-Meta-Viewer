@@ -190,17 +190,33 @@ export function setViewModeValue(v) { viewMode = v === 'list' ? 'list' : (v === 
 export function setGalleryActive(v) { galleryActive = Boolean(v); }
 export function setLightboxIndex(v) { lightboxIndex = v; }
 export function setCurrentCollection(value) {
-    const type = value?.type === 'album' ? 'album' : (value?.type === 'temporary' ? 'temporary' : 'folder');
-    const id = Number.isInteger(value?.id) && value.id > 0 ? value.id : null;
+    const type = value?.type === 'album'
+        ? 'album'
+        : (value?.type === 'temporary'
+            ? 'temporary'
+            : (value?.type === 'media' ? 'media' : 'folder'));
+    const id = ['folder', 'album'].includes(type)
+        && Number.isInteger(value?.id)
+        && value.id > 0
+        ? value.id
+        : null;
     currentCollection.type = type;
     currentCollection.id = id;
     currentCollection.name = typeof value?.name === 'string' ? value.name : '';
     currentFolderId = type === 'folder' ? id : null;
     if (dom.collectionKindEl) {
         dom.collectionKindEl.textContent = id || currentCollection.name
-            ? (type === 'album' ? 'Album' : (type === 'temporary' ? 'Temporary' : 'Folder'))
+            ? (type === 'album'
+                ? 'Album'
+                : (type === 'temporary'
+                    ? 'Temporary'
+                    : (type === 'media' ? 'Media' : 'Folder')))
             : '';
     }
+}
+
+export function isBrowsableCollection(value = currentCollection) {
+    return value?.type === 'media' || Boolean(value?.id);
 }
 export function setCurrentFolderId(v) {
     const id = Number.isInteger(v) && v > 0 ? v : null;

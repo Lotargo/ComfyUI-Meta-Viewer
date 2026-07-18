@@ -137,6 +137,18 @@ test('media type filters always keep a visible type', () => {
     assert.deepEqual(preferences.filters.mediaTypes, { images: true, videos: true });
 });
 
+test('the global media collection is a persistent navigation target', () => {
+    const preferences = normalizePreferences({
+        version: PREFERENCES_VERSION,
+        navigation: {
+            selectedCollection: { type: 'media', id: 99 },
+            sidebarTab: 'images',
+        },
+    });
+    assert.deepEqual(preferences.navigation.selectedCollection, { type: 'media', id: null });
+    assert.equal(preferences.navigation.selectedFolderId, null);
+});
+
 test('state persistence restores stable preferences but not runtime collections', async () => {
     globalThis.document = { getElementById: () => null };
     globalThis.localStorage = new MemoryStorage();

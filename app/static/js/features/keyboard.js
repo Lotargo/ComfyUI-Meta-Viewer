@@ -23,8 +23,8 @@ const shortcuts = {
     '0': { description: 'Reset zoom', action: resetZoom },
     'm': { description: 'Toggle metadata panel', action: toggleMetaPanel },
     'delete': {
-        description: 'Move current file to Recycle Bin / Trash',
-        action: deleteCurrentLightboxFile,
+        description: 'Delete current asset',
+        action: deleteCurrentLightboxAsset,
         preventDefault: true,
         lightboxOnly: true,
     },
@@ -71,8 +71,8 @@ function handleKeydown(e) {
     }
 }
 
-function deleteCurrentLightboxFile() {
-    import('../lightbox.js').then(m => m.deleteCurrentLightboxFile());
+function deleteCurrentLightboxAsset() {
+    import('../lightbox.js').then(m => m.deleteCurrentLightboxAsset());
 }
 
 function prevImage() {
@@ -209,7 +209,7 @@ function initHelpCenter() {
                             <div class="shortcut-row"><span><kbd>+</kbd> <kbd>-</kbd></span><span>Zoom in / out</span></div>
                             <div class="shortcut-row"><span><kbd>0</kbd></span><span>Reset zoom</span></div>
                             <div class="shortcut-row"><span><kbd>M</kbd></span><span>Toggle metadata panel</span></div>
-                            <div class="shortcut-row"><span><kbd>Delete</kbd></span><span>Delete file from computer (Recycle Bin / Trash)</span></div>
+                            <div class="shortcut-row"><span><kbd>Delete</kbd></span><span>Delete current asset (external files go to Recycle Bin / Trash)</span></div>
                             <div class="shortcut-row"><span><kbd>?</kbd></span><span>Open this Help Center</span></div>
                         </div>
                     </div>

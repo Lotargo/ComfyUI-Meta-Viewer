@@ -16,6 +16,7 @@ import {
     setAlbumsSortKey,
     setAlbumsSortDir,
     currentCollection,
+    isBrowsableCollection,
     dom,
     saveState,
 } from '../state.js';
@@ -117,7 +118,7 @@ export function bindCentralSortEvents() {
                     sortMenu.style.display = 'none';
                     sortBtn.setAttribute('aria-expanded', 'false');
                     invalidateApiCache();
-                    if (currentCollection.id) {
+                    if (isBrowsableCollection(currentCollection)) {
                         await loadCollectionImages({ ...currentCollection }, { force: true });
                     }
                 }, 
@@ -127,7 +128,7 @@ export function bindCentralSortEvents() {
                     sortMenu.style.display = 'none';
                     sortBtn.setAttribute('aria-expanded', 'false');
                     invalidateApiCache();
-                    if (currentCollection.id) {
+                    if (isBrowsableCollection(currentCollection)) {
                         await loadCollectionImages({ ...currentCollection }, { force: true });
                     }
                 }

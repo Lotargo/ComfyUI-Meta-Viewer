@@ -177,8 +177,10 @@ does not stop the worker or affect image indexing.
 
 The Viewer sidebar uses one `Media` tab for the global asset stream. Images and videos are
 enabled by default; a checkbox filter can show only images or only videos, and the selection
-is persisted with the other UI preferences. The same filter is applied to the open central
-folder or album. At least one type must remain enabled. Video items carry a visible badge and
+is persisted with the other UI preferences. Selecting `Media` opens the global `All Media`
+collection in the central gallery; selecting a folder or album keeps the central gallery scoped
+to that collection. The persistent central toolbar filter applies to both the central collection
+and the sidebar stream. At least one type must remain enabled. Video items carry a visible badge and
 open in the same lightbox with native playback and technical metadata, while image-only
 workflow and cutout behavior remains unchanged.
 
@@ -249,6 +251,9 @@ from `Remove from index`: it moves a physical source file to the system Recycle 
 Trash and removes its index entry without an additional confirmation dialog. For originals
 uploaded into the app, the destructive index action is labeled
 `Delete uploaded asset` and explicitly warns that the stored original will be removed.
+The lightbox trash button and <kbd>Delete</kbd> shortcut choose the matching operation: scanned
+files go to the operating system trash, while an uploaded in-app original is removed from the
+index after confirmation instead of leaving the button disabled.
 
 Physical-path actions are disabled for uploaded originals stored inside the app and for
 unavailable sources.
@@ -305,7 +310,7 @@ Keyboard shortcuts are designed for fast browsing and metadata inspection.
 | `←` / `→` | Navigate visible media |
 | `Enter` | Open lightbox |
 | `Escape` | Close lightbox or active panel |
-| `Delete` | Move the current fullscreen file or selected Library files to the system Recycle Bin / Trash |
+| `Delete` | Delete the current fullscreen asset; external files move to Trash, uploaded originals are removed after confirmation |
 | `Ctrl+F` | Focus/open search |
 | `G` | Toggle gallery/list view |
 | `?` | Open Help Center |

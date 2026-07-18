@@ -11,6 +11,7 @@ import {
     galleryActive,
     dom,
     currentCollection,
+    isBrowsableCollection,
     metadataTab,
     saveState,
     setMetadataTab,
@@ -44,7 +45,7 @@ export function renderUploadView() {
 
 export function renderMeta(img) {
     if (!img) {
-        if (!currentCollection.id && images.length === 0) {
+        if (!isBrowsableCollection(currentCollection) && images.length === 0) {
             renderUploadView();
             return;
         }
@@ -54,7 +55,7 @@ export function renderMeta(img) {
                 <div class="empty-state-icon">
                     <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                 </div>
-                <p>No image selected</p>
+                <p>No media selected</p>
             </div>
         `;
         return;

@@ -169,16 +169,6 @@
                     </div>
                 </div>
                 <div class="sidebar-media-controls">
-                    <div class="sort-container media-type-filter-container">
-                        <button class="icon-btn" id="media-type-filter-btn" title="Filter media types" aria-label="Filter media types" aria-haspopup="menu" aria-expanded="false" aria-controls="media-type-filter-menu">
-                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M7 12h10M10 19h4"></path></svg>
-                            <span id="media-type-filter-label" class="media-type-filter-label">All</span>
-                        </button>
-                        <div class="dropdown-menu media-type-filter-menu" id="media-type-filter-menu" role="menu" style="display: none; right: 0; left: auto; width: 190px;">
-                            <label class="media-type-filter-option"><input type="checkbox" id="media-filter-images" checked> <span>Images</span></label>
-                            <label class="media-type-filter-option"><input type="checkbox" id="media-filter-videos" checked> <span>Videos</span></label>
-                        </div>
-                    </div>
                     <div class="sort-container" style="position: relative; flex-shrink: 0;">
                         <button class="icon-btn" id="sidebar-sort-btn" title="Sort media" aria-label="Sort media" style="padding: 6px;">
                             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 9l4-4 4 4M7 5v14M21 15l-4 4-4-4M17 19V5"/></svg>
@@ -217,6 +207,18 @@
                 </div>
             </div>
             <div class="viewer-context-actions">
+                <div class="sort-container viewer-media-filter-container">
+                    <button class="context-sort-button viewer-media-filter-button" id="media-type-filter-btn" type="button" title="Filter media types" aria-label="Filter media types" aria-haspopup="menu" aria-expanded="false" aria-controls="media-type-filter-menu">
+                        <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="8" height="7" rx="1"></rect><path d="m4.5 9 2-2 1.5 1.5 1-1 1 1"></path><rect x="13" y="4" width="8" height="7" rx="1"></rect><path d="m16 6 3 1.5-3 1.5z"></path><path d="M4 16h16M7 20h10"></path></svg>
+                        <span id="media-type-filter-label">All media</span>
+                        <svg viewBox="0 0 16 16" width="11" height="11" stroke="currentColor" stroke-width="2" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg>
+                    </button>
+                    <div class="dropdown-menu media-type-filter-menu" id="media-type-filter-menu" role="menu" style="display: none;">
+                        <div class="media-type-filter-heading">Show in gallery</div>
+                        <label class="media-type-filter-option"><input type="checkbox" id="media-filter-images" checked> <span>Images</span></label>
+                        <label class="media-type-filter-option"><input type="checkbox" id="media-filter-videos" checked> <span>Videos</span></label>
+                    </div>
+                </div>
                 <div class="sort-container viewer-rating-filter-container">
                     <button class="context-sort-button viewer-rating-filter-button" id="viewer-rating-filter-btn" type="button" title="Filter by rating" aria-label="Filter by rating" aria-haspopup="menu" aria-expanded="false" aria-controls="viewer-rating-filter-menu">
                         <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"></path></svg>
@@ -299,7 +301,7 @@
         <button class="lb-btn" id="lb-cutout" title="Select object">
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3"></path><path d="M16 4h3a1 1 0 0 1 1 1v3"></path><path d="M20 16v3a1 1 0 0 1-1 1h-3"></path><path d="M8 20H5a1 1 0 0 1-1-1v-3"></path><path d="M9 9h6v6H9z"></path></svg>
         </button>
-        <button class="lb-btn lb-delete" id="lb-delete" title="Delete file from computer (Delete) — moves it to the Recycle Bin / Trash">
+        <button class="lb-btn lb-delete" id="lb-delete" title="Delete current asset (Delete)">
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
         </button>
         <button class="btn btn-sm" id="lb-copy" title="Copy all metadata (C)">
@@ -393,7 +395,7 @@
                     <div class="shortcut-row"><kbd>+</kbd> <kbd>-</kbd> Zoom In / Out</div>
                     <div class="shortcut-row"><kbd>0</kbd> Reset Zoom to 1:1</div>
                     <div class="shortcut-row"><kbd>C</kbd> Copy Active Metadata</div>
-                    <div class="shortcut-row"><kbd>Delete</kbd> Delete file from computer (Recycle Bin / Trash)</div>
+                    <div class="shortcut-row"><kbd>Delete</kbd> Delete current asset (external files go to Recycle Bin / Trash)</div>
                 </div>
             </div>
         </div>

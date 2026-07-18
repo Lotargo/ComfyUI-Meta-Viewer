@@ -1,5 +1,6 @@
 import {
     currentCollection,
+    isBrowsableCollection,
     dom,
     ratingFilter,
     saveState,
@@ -48,7 +49,7 @@ function syncRatingFilter() {
 async function reloadFilteredImages() {
     invalidateApiCache();
     const loads = [loadSidebarImages({ force: true, render: false })];
-    if (currentCollection.id) {
+    if (isBrowsableCollection(currentCollection)) {
         loads.push(loadCollectionImages(
             { ...currentCollection },
             { force: true, render: false },

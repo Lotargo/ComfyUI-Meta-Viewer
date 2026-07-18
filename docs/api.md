@@ -4,7 +4,7 @@
 
 Base URL: `http://localhost:7860`
 
-The API is intentionally local-first and single-user oriented. Responses are JSON unless an endpoint explicitly returns image bytes.
+The API is intentionally local-first and single-user oriented. Responses are JSON unless an endpoint explicitly returns media bytes.
 
 ---
 
@@ -12,7 +12,7 @@ The API is intentionally local-first and single-user oriented. Responses are JSO
 
 - [Folders](#folders)
 - [Scanning and Uploads](#scanning-and-uploads)
-- [Images](#images)
+- [Viewer media list](#viewer-media-list)
 - [Library and Albums](#library-and-albums)
 - [Thumbnails and Originals](#thumbnails-and-originals)
 - [Cutouts](#cutouts)
@@ -251,12 +251,14 @@ Uploads image or video files through `multipart/form-data`. Uploaded originals a
 
 ---
 
-## Images
+## Viewer media list
 
 ### `GET /api/images`
 
-Returns a paginated folder, album, or global image list. Images from disabled sources are
-omitted. `folder_id` and `album_id` are mutually exclusive.
+Returns a paginated folder, album, or global media list. The route remains named `/api/images`
+for compatibility and defaults to images only. Pass `media_type=image,video` for a unified
+list or `media_type=video` for videos only. Assets from disabled sources are omitted;
+`folder_id` and `album_id` are mutually exclusive.
 
 **Query Parameters:**
 
@@ -265,10 +267,11 @@ omitted. `folder_id` and `album_id` are mutually exclusive.
 | `folder_id` | int | -- | no | Folder ID to load |
 | `album_id` | int | -- | no | Virtual album ID to load |
 | `page` | int | `1` | no | Page number |
-| `per_page` | int | `50` | no | Images per page |
+| `per_page` | int | `50` | no | Assets per page |
 | `sort_by` | string | `date` | no | `name`, `date`, `size`, or `type` |
 | `sort_dir` | string | `desc` | no | `asc` or `desc` |
 | `rating` | int | -- | no | Exact rating from `0` (unrated) through `5` |
+| `media_type` | string | `image` | no | Comma-separated `image`, `video`, or both |
 
 **Response:**
 
@@ -278,6 +281,7 @@ omitted. `folder_id` and `album_id` are mutually exclusive.
     {
       "id": 1,
       "file_name": "image.png",
+      "media_type": "image",
       "format": "PNG",
       "size": [1024, 768],
       "mode": null,

@@ -129,6 +129,13 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         Image.new("RGB", (8, 6), color="green").save(path)
         return path
 
+    def test_viewer_ui_exposes_unified_media_filter_and_video_player(self) -> None:
+        html = app.test_client().get("/").get_data(as_text=True)
+        self.assertIn('data-tab="images">Media</button>', html)
+        self.assertIn('id="media-filter-images"', html)
+        self.assertIn('id="media-filter-videos"', html)
+        self.assertIn('id="lb-video"', html)
+
     def test_images_and_videos_share_sources_albums_and_user_metadata(self) -> None:
         self.make_image()
         self.make_video()
@@ -166,6 +173,28 @@ class UnifiedMediaAssetTest(unittest.TestCase):
 
         client = app.test_client()
         self.assertEqual(client.get("/api/images").get_json()["total"], 1)
+        all_media = client.get("/api/images?media_type=image,video").get_json()
+        self.assertEqual(all_media["total"], 2)
+        self.assertEqual(
+            {item["media_type"] for item in all_media["images"]},
+            {"image", "video"},
+        )
+        videos_only = client.get("/api/images?media_type=video").get_json()
+        self.assertEqual(videos_only["total"], 1)
+        self.assertEqual(videos_only["images"][0]["id"], video_id)
+        folder_media = client.get(
+            f"/api/images?folder_id={result.folder_id}&media_type=image,video"
+        ).get_json()
+        self.assertEqual(folder_media["total"], 2)
+        album_media = client.get(
+            f"/api/images?album_id={album['id']}&media_type=image,video"
+        ).get_json()
+        self.assertEqual(album_media["total"], 1)
+        self.assertEqual(album_media["images"][0]["media_type"], "video")
+        self.assertEqual(
+            client.get("/api/images?media_type=audio").status_code,
+            400,
+        )
         detail = client.get(f"/api/assets/{video_id}").get_json()
         self.assertEqual(detail["media_type"], "video")
         self.assertTrue(detail["user_metadata"]["favorite"])
@@ -245,6 +274,13 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         self.assertEqual(asset["frame_rate"], 24.0)
         self.assertEqual(asset["codec"], "vp9")
         self.assertEqual((asset["width"], asset["height"]), (1280, 720))
+        media_page = app.test_client().get(
+            "/api/images?media_type=video"
+        ).get_json()["images"][0]
+        self.assertEqual(media_page["duration"], 42.25)
+        self.assertEqual(media_page["frame_rate"], 24.0)
+        self.assertEqual(media_page["codec"], "vp9")
+        self.assertEqual(media_page["preview_status"], "ready")
         self.assertEqual(
             self.paths.thumbnails.joinpath(f"{video_id}.jpg").read_bytes(),
             b"jpeg",

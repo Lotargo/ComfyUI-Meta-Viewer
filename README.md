@@ -38,6 +38,7 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 - **SQLite persistence** — all data survives restarts
 - **Media Library** — virtual albums, favorites, ratings, tags, notes, and bulk selection without moving source files
 - **Unified image and video assets** — shared sources, albums, favorites, previews, and technical metadata
+- **Unified Media sidebar** — browse images and videos together or filter either type independently
 - **Keyboard-first** workflow with 14 shortcuts
 
 ---
@@ -187,7 +188,7 @@ The app will be available at **http://localhost:7860**
 ### Usage
 
 1. **Connect a folder** — use Open Folder, then toggle monitoring or recursive subfolder scanning from the source card
-2. **Browse images** — use the sidebar to navigate, click to view details
+2. **Browse media** — use the Media sidebar to show images, videos, or both; click an item to preview it
 3. **View metadata** — Summary tab shows prompt + settings
 4. **Explore workflow** — Workflow tab shows the ComfyUI node graph
 5. **Search** — Ctrl+F to fuzzy search across all metadata

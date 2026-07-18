@@ -9,9 +9,9 @@ export async function ensureImageDetail(img) {
         return img;
     }
 
-    const request = fetch(`/api/images/${img.id}`)
+    const request = fetch(`/api/assets/${img.id}`)
         .then(async response => {
-            if (!response.ok) throw new Error(`Failed to load image detail: ${response.status}`);
+            if (!response.ok) throw new Error(`Failed to load asset detail: ${response.status}`);
             detailCache[img.id] = await response.json();
         })
         .finally(() => pendingDetails.delete(img.id));

@@ -933,37 +933,46 @@ def get_images_page(
     sort_dir: str = "desc",
     album_id: int | None = None,
     rating: int | None = None,
+    media_types: tuple[str, ...] = ("image",),
 ) -> ImagesResponse:
     if rating is not None and rating not in range(6):
         raise ValueError("rating must be between 0 and 5")
+    normalized_media_types = tuple(dict.fromkeys(media_types))
+    if not normalized_media_types or any(
+        media_type not in ("image", "video")
+        for media_type in normalized_media_types
+    ):
+        raise ValueError("media_types must contain image and/or video")
 
     conn = get_conn()
     try:
         rating_clause = "" if rating is None else " AND COALESCE(i.rating, 0) = ?"
         rating_params: tuple[int, ...] = () if rating is None else (rating,)
+        media_placeholders = ", ".join("?" for _ in normalized_media_types)
+        media_clause = f" AND i.media_type IN ({media_placeholders})"
         if album_id is not None:
             total_row = conn.execute(
                 f"""SELECT COUNT(*) AS c FROM images i
                 JOIN folders f ON f.id = i.folder_id
                 JOIN album_images ai ON ai.image_id = i.id
                 WHERE ai.album_id = ? AND f.enabled = 1
-                  AND i.media_type = 'image'{rating_clause}""",
-                (album_id, *rating_params),
+                  {media_clause}{rating_clause}""",
+                (album_id, *normalized_media_types, *rating_params),
             ).fetchone()
         elif folder_id is not None:
             total_row = conn.execute(
                 f"""SELECT COUNT(*) AS c FROM images i
                 JOIN folders f ON f.id = i.folder_id
                 WHERE i.folder_id = ? AND f.enabled = 1
-                  AND i.media_type = 'image'{rating_clause}""",
-                (folder_id, *rating_params),
+                  {media_clause}{rating_clause}""",
+                (folder_id, *normalized_media_types, *rating_params),
             ).fetchone()
         else:
             total_row = conn.execute(
                 f"""SELECT COUNT(*) AS c FROM images i
                 JOIN folders f ON f.id = i.folder_id
-                WHERE f.enabled = 1 AND i.media_type = 'image'{rating_clause}""",
-                rating_params,
+                WHERE f.enabled = 1{media_clause}{rating_clause}""",
+                (*normalized_media_types, *rating_params),
             ).fetchone()
 
         total = total_row["c"] if total_row else 0
@@ -989,38 +998,53 @@ def get_images_page(
             rows = conn.execute(
                 f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
                     i.format, i.width, i.height, i.mode,
-                    i.error, i.metadata_json, i.rating,
+                    i.duration, i.frame_rate, i.codec, i.preview_status,
+                    i.preview_error, i.error, i.metadata_json, i.rating,
                     i.original_data IS NULL AS has_local_file
                 FROM images i
                 JOIN folders f ON f.id = i.folder_id
                 JOIN album_images ai ON ai.image_id = i.id
                 WHERE ai.album_id = ? AND f.enabled = 1
-                  AND i.media_type = 'image'{rating_clause}
+                  {media_clause}{rating_clause}
                 {order_clause} LIMIT ? OFFSET ?""",
-                (album_id, *rating_params, per_page, offset),
+                (
+                    album_id,
+                    *normalized_media_types,
+                    *rating_params,
+                    per_page,
+                    offset,
+                ),
             ).fetchall()
         elif folder_id is not None:
             rows = conn.execute(
                 f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
                     i.format, i.width, i.height, i.mode,
-                    i.error, i.metadata_json, i.rating,
+                    i.duration, i.frame_rate, i.codec, i.preview_status,
+                    i.preview_error, i.error, i.metadata_json, i.rating,
                     i.original_data IS NULL AS has_local_file
                 FROM images i JOIN folders f ON f.id = i.folder_id
                 WHERE i.folder_id = ? AND f.enabled = 1
-                  AND i.media_type = 'image'{rating_clause}
+                  {media_clause}{rating_clause}
                 {order_clause} LIMIT ? OFFSET ?""",
-                (folder_id, *rating_params, per_page, offset),
+                (
+                    folder_id,
+                    *normalized_media_types,
+                    *rating_params,
+                    per_page,
+                    offset,
+                ),
             ).fetchall()
         else:
             rows = conn.execute(
                 f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
                     i.format, i.width, i.height, i.mode,
-                    i.error, i.metadata_json, i.rating,
+                    i.duration, i.frame_rate, i.codec, i.preview_status,
+                    i.preview_error, i.error, i.metadata_json, i.rating,
                     i.original_data IS NULL AS has_local_file
                 FROM images i JOIN folders f ON f.id = i.folder_id
-                WHERE f.enabled = 1 AND i.media_type = 'image'{rating_clause}
+                WHERE f.enabled = 1{media_clause}{rating_clause}
                 {order_clause} LIMIT ? OFFSET ?""",
-                (*rating_params, per_page, offset),
+                (*normalized_media_types, *rating_params, per_page, offset),
             ).fetchall()
         images = []
         for r in rows:
@@ -1042,6 +1066,11 @@ def get_images_page(
                 format=d.get("format"),
                 size=[w, h] if w and h else None,
                 mode=d.get("mode"),
+                duration=d.get("duration"),
+                frame_rate=d.get("frame_rate"),
+                codec=d.get("codec"),
+                preview_status=d.get("preview_status"),
+                preview_error=d.get("preview_error"),
                 error=d.get("error"),
                 has_local_file=bool(d.get("has_local_file")),
                 rating=d.get("rating"),

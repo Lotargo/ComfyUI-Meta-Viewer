@@ -103,7 +103,7 @@
         <div class="sidebar-tabs">
             <button class="sidebar-tab active" id="tab-folders" data-tab="folders">Folders</button>
             <button class="sidebar-tab" id="tab-albums" data-tab="albums">Albums</button>
-            <button class="sidebar-tab" id="tab-images" data-tab="images">Images</button>
+            <button class="sidebar-tab" id="tab-images" data-tab="images">Media</button>
         </div>
         
         <div class="sidebar-panel active" id="panel-folders">
@@ -168,11 +168,23 @@
                         <span class="sidebar-info sidebar-info-badge" id="image-count"></span>
                     </div>
                 </div>
-                <div class="sort-container" style="position: relative; flex-shrink: 0;">
-                    <button class="icon-btn" id="sidebar-sort-btn" title="Sort" style="padding: 6px;">
-                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 9l4-4 4 4M7 5v14M21 15l-4 4-4-4M17 19V5"/></svg>
-                    </button>
-                    <div class="dropdown-menu" id="sidebar-sort-dropdown-menu" style="display: none; right: 0; left: auto; width: 180px;">
+                <div class="sidebar-media-controls">
+                    <div class="sort-container media-type-filter-container">
+                        <button class="icon-btn" id="media-type-filter-btn" title="Filter media types" aria-label="Filter media types" aria-haspopup="menu" aria-expanded="false" aria-controls="media-type-filter-menu">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M7 12h10M10 19h4"></path></svg>
+                            <span id="media-type-filter-label" class="media-type-filter-label">All</span>
+                        </button>
+                        <div class="dropdown-menu media-type-filter-menu" id="media-type-filter-menu" role="menu" style="display: none; right: 0; left: auto; width: 190px;">
+                            <label class="media-type-filter-option"><input type="checkbox" id="media-filter-images" checked> <span>Images</span></label>
+                            <label class="media-type-filter-option"><input type="checkbox" id="media-filter-videos" checked> <span>Videos</span></label>
+                        </div>
+                    </div>
+                    <div class="sort-container" style="position: relative; flex-shrink: 0;">
+                        <button class="icon-btn" id="sidebar-sort-btn" title="Sort media" aria-label="Sort media" style="padding: 6px;">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 9l4-4 4 4M7 5v14M21 15l-4 4-4-4M17 19V5"/></svg>
+                        </button>
+                        <div class="dropdown-menu" id="sidebar-sort-dropdown-menu" style="display: none; right: 0; left: auto; width: 180px;">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -281,7 +293,7 @@
         <button class="lb-btn" id="lb-view-original" title="View original in a new tab">
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"></path><path d="M10 14L21 3"></path><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"></path></svg>
         </button>
-        <button class="lb-btn" id="lb-download" title="Download image">
+        <button class="lb-btn" id="lb-download" title="Download media">
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
         </button>
         <button class="lb-btn" id="lb-cutout" title="Select object">
@@ -299,11 +311,12 @@
     </div>
     <div class="lightbox-body">
         <div class="lightbox-image-area">
-            <button class="lb-nav prev" id="lb-prev" title="Previous image">
+            <button class="lb-nav prev" id="lb-prev" title="Previous media">
                 <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
             </button>
             <img id="lb-img" src="" alt="" draggable="false" decoding="async" title="Drag to pan when zoomed">
-            <button class="lb-nav next" id="lb-next" title="Next image">
+            <video id="lb-video" controls preload="metadata" hidden></video>
+            <button class="lb-nav next" id="lb-next" title="Next media">
                 <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
             </button>
         </div>

@@ -33,6 +33,7 @@ import {
     sidebarSortKey,
     sidebarSortDir,
     ratingFilter,
+    mediaTypeFilter,
     saveState,
     sidebarActiveImageId,
     setSidebarActiveImageId,
@@ -95,7 +96,11 @@ function collectionImagesUrl(collection, page, perPage) {
 
 function sidebarImagesUrl(page, perPage) {
     const rating = ratingFilter === null ? '' : `&rating=${ratingFilter}`;
-    return `/api/images?page=${page}&per_page=${perPage}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}${rating}`;
+    const mediaTypes = [
+        mediaTypeFilter.images ? 'image' : null,
+        mediaTypeFilter.videos ? 'video' : null,
+    ].filter(Boolean).join(',');
+    return `/api/images?page=${page}&per_page=${perPage}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}&media_type=${mediaTypes}${rating}`;
 }
 
 async function renderCurrentContent({ reconcileGallery = false } = {}) {

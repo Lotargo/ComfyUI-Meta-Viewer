@@ -538,12 +538,22 @@ def api_images():
     sort_by = request.args.get("sort_by", "date")
     sort_dir = request.args.get("sort_dir", "desc")
     rating_value = request.args.get("rating")
+    media_type_value = request.args.get("media_type", "image")
     try:
         rating = None if rating_value is None else int(rating_value)
     except ValueError:
         return jsonify({"error": "rating must be between 0 and 5"}), 400
     if rating is not None and rating not in range(6):
         return jsonify({"error": "rating must be between 0 and 5"}), 400
+    media_types = tuple(
+        item.strip().lower()
+        for item in media_type_value.split(",")
+        if item.strip()
+    )
+    if not media_types or any(item not in ("image", "video") for item in media_types):
+        return jsonify({
+            "error": "media_type must contain image and/or video",
+        }), 400
     result = db.get_images_page(
         folder_id,
         page,
@@ -552,6 +562,7 @@ def api_images():
         sort_dir,
         album_id=album_id,
         rating=rating,
+        media_types=media_types,
     )
     return jsonify(result.model_dump())
 

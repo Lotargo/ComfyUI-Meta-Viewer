@@ -1,6 +1,6 @@
 /**
  * Search bar component. Search is applied independently to the central folder
- * gallery and the global Images sidebar.
+ * gallery and the global Media sidebar.
  */
 
 import { images, sidebarImages, searchSettings, saveState, dom } from '../state.js';
@@ -26,6 +26,10 @@ export function initSearch() {
             if (!isVisible && dom.ratingFilterMenu) {
                 dom.ratingFilterMenu.style.display = 'none';
                 dom.ratingFilterBtn?.setAttribute('aria-expanded', 'false');
+            }
+            if (!isVisible && dom.mediaTypeFilterMenu) {
+                dom.mediaTypeFilterMenu.style.display = 'none';
+                dom.mediaTypeFilterBtn?.setAttribute('aria-expanded', 'false');
             }
             setSettingsVisible(!isVisible);
             if (!isVisible) syncSettingsToUI();

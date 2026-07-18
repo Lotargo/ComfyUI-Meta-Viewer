@@ -44,6 +44,17 @@ function ratingFilter(value) {
     return Number.isInteger(value) && value >= 0 && value <= 5 ? value : null;
 }
 
+function mediaTypeFilter(value) {
+    const source = isRecord(value) ? value : {};
+    const normalized = {
+        images: booleanValue(source.images, true),
+        videos: booleanValue(source.videos, true),
+    };
+    return normalized.images || normalized.videos
+        ? normalized
+        : { images: true, videos: true };
+}
+
 export function createDefaultPreferences() {
     return {
         version: PREFERENCES_VERSION,
@@ -69,6 +80,7 @@ export function createDefaultPreferences() {
         },
         filters: {
             rating: null,
+            mediaTypes: { images: true, videos: true },
         },
         searchSettings: {
             exactMatch: false,
@@ -139,6 +151,7 @@ export function normalizePreferences(value) {
         },
         filters: {
             rating: ratingFilter(filters.rating),
+            mediaTypes: mediaTypeFilter(filters.mediaTypes),
         },
         searchSettings: {
             exactMatch: booleanValue(search.exactMatch, defaults.searchSettings.exactMatch),

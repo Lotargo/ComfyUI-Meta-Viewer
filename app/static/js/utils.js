@@ -58,12 +58,12 @@ export function getMetadataStringValue(key, value) {
     return metadataStringValue(key, value);
 }
 
-export function formatImageCountLabel(loaded, total) {
+export function formatMediaCountLabel(loaded, total) {
     const safeLoaded = Math.max(0, loaded || 0);
     const safeTotal = Math.max(0, total || 0);
     if (!safeLoaded && !safeTotal) return '';
     if (!safeTotal || safeLoaded === safeTotal) {
-        return `${safeLoaded} image${safeLoaded === 1 ? '' : 's'}`;
+        return `${safeLoaded} item${safeLoaded === 1 ? '' : 's'}`;
     }
     return `${safeLoaded} / ${safeTotal} loaded`;
 }
@@ -75,12 +75,14 @@ export function thumbUrl(img) {
 export function imageRenderSignature(img) {
     return JSON.stringify([
         img.id ?? null,
+        img.media_type || 'image',
         img.file_name || img.file || '',
         img.format || '',
         Array.isArray(img.size) ? img.size : null,
         img.mode || '',
         img.error || '',
         img.rating || 0,
+        img.preview_status || '',
     ]);
 }
 

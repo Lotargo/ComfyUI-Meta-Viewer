@@ -97,13 +97,17 @@ export function renderMeta(img) {
 
     const detail = (img.id && detailCache[img.id]) || img;
     const fileName = detail.file_name || detail.file || '';
+    const isVideo = detail.media_type === 'video';
+    const headerPreview = isVideo
+        ? `<video src="${originalUrl(detail)}" poster="${thumbUrl(detail)}" class="meta-thumb meta-video-preview" controls preload="metadata"></video>`
+        : `<img src="${thumbUrl(detail)}" alt="" class="meta-thumb">`;
 
     let html = '<div class="meta-view">';
 
     // Header
     html += `
         <div class="meta-view-header">
-            <img src="${thumbUrl(detail)}" alt="" class="meta-thumb">
+            ${headerPreview}
             <div class="meta-info">
                 <h2>${escapeHtml(fileName)}</h2>
                 <div class="meta-details">
@@ -165,7 +169,7 @@ export function renderMeta(img) {
             detail,
             onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
             onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
-            extraSections: [[{
+            extraSections: isVideo ? [] : [[{
                 label: 'Create transparent PNG',
                 icon: 'cutout',
                 run: async () => {
@@ -187,6 +191,25 @@ export function renderMeta(img) {
 function renderSummaryTab(detail) {
     let html = '';
     const pp = detail.prompt_parameters;
+
+    if (detail.media_type === 'video') {
+        const technicalRows = [
+            { key: 'Container', value: detail.format },
+            { key: 'Dimensions', value: detail.size ? `${detail.size[0]} × ${detail.size[1]}` : null },
+            { key: 'Duration', value: Number.isFinite(detail.duration) ? `${detail.duration.toFixed(2)} s` : null },
+            { key: 'Frame rate', value: Number.isFinite(detail.frame_rate) ? `${detail.frame_rate.toFixed(3)} fps` : null },
+            { key: 'Codec', value: detail.codec },
+            { key: 'Pixel format', value: detail.mode },
+            { key: 'Preview status', value: detail.preview_status },
+            { key: 'Preview error', value: detail.preview_error },
+        ].filter(row => row.value !== null && row.value !== undefined && row.value !== '');
+        html += renderCategory(
+            'Video Details',
+            '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m10 9 5 3-5 3z"></path></svg>',
+            'video-details',
+            technicalRows,
+        );
+    }
 
     if (pp) {
         html += renderCategory('Generation Settings', '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>', 'settings', [

@@ -173,6 +173,14 @@ container and stream metadata; `ffmpeg` decodes one bounded JPEG preview frame. 
 optional. A missing tool produces `unavailable` metadata/preview state on the video card and
 does not stop the worker or affect image indexing.
 
+### Viewer Media sidebar
+
+The Viewer sidebar uses one `Media` tab for the global asset stream. Images and videos are
+enabled by default; a checkbox filter can show only images or only videos, and the selection
+is persisted with the other UI preferences. At least one type must remain enabled. Video
+items carry a visible badge and open in the same lightbox with native playback and technical
+metadata, while image-only workflow and cutout behavior remains unchanged.
+
 ---
 
 ## Gallery View
@@ -291,7 +299,7 @@ Keyboard shortcuts are designed for fast browsing and metadata inspection.
 
 | Key | Action |
 |-----|--------|
-| `←` / `→` | Navigate images |
+| `←` / `→` | Navigate visible media |
 | `Enter` | Open lightbox |
 | `Escape` | Close lightbox or active panel |
 | `Delete` | Move the current fullscreen file or selected Library files to the system Recycle Bin / Trash |
@@ -308,13 +316,13 @@ Keyboard shortcuts are designed for fast browsing and metadata inspection.
 
 **Main file:** `app/static/js/features/sidebar.js`
 
-The sidebar contains folder navigation, image lists, and pagination/infinite-scroll controls.
+The sidebar contains folder navigation, a unified media list, and pagination/infinite-scroll controls.
 
 ### Capabilities
 
 - Resizable width.
 - Folder browser.
-- Image list with thumbnails and metadata badges.
+- Image/video list with thumbnails, video badges, and media-type checkboxes.
 - Delete actions.
 - Infinite scroll sentinel.
 
@@ -324,7 +332,7 @@ The sidebar contains folder navigation, image lists, and pagination/infinite-scr
 
 **Main files:** `app/static/js/state.js`, `app/static/js/preferences.js`, `app/static/js/app.js`
 
-Stable interface preferences survive reloads and browser restarts through a versioned `localStorage` document. The app restores the selected folder, main view, sidebar tab/width/collapsed state, folder layout, sorting, search options, metadata tab, and lightbox metadata-panel visibility.
+Stable interface preferences survive reloads and browser restarts through a versioned `localStorage` document. The app restores the selected folder, main view, sidebar tab/width/collapsed state, media-type and rating filters, folder layout, sorting, search options, metadata tab, and lightbox metadata-panel visibility.
 
 Every field is validated independently and the saved folder ID is checked against the server during startup. Runtime collections, pagination, open overlays, zoom/pan, scroll positions, and search text are intentionally never persisted.
 

@@ -7,6 +7,8 @@
 
 import {
     images,
+    sidebarImages,
+    sidebarTotalImages,
     lightboxIndex,
     totalImages,
     allLoaded,
@@ -19,6 +21,7 @@ import {
     setLightboxMetaOpen,
     setLightboxIndex,
     setActiveIndex,
+    setSidebarActiveImageId,
     saveState,
 } from './state.js';
 import {
@@ -58,6 +61,14 @@ const GALLERY_PREFETCH_THRESHOLD = 5;
 
 function canLoadNextGalleryPage() {
     return usesGalleryPagination && Boolean(currentCollection.id) && !allLoaded;
+}
+
+function visibleCollectionTotal() {
+    return currentImagesArray === sidebarImages ? sidebarTotalImages : totalImages;
+}
+
+function isCurrentVideo() {
+    return getDetailForLightbox()?.media_type === 'video';
 }
 
 async function loadNextGalleryPage() {
@@ -253,6 +264,44 @@ function loadLightboxImage(img) {
     })();
 }
 
+function stopLightboxVideo({ clearSource = false } = {}) {
+    if (!dom.lbVideo) return;
+    dom.lbVideo.pause();
+    if (clearSource) {
+        dom.lbVideo.removeAttribute('src');
+        dom.lbVideo.load();
+    }
+}
+
+function syncMediaControls(isVideo) {
+    [dom.lbZoomIn, dom.lbZoomOut, dom.lbZoomReset, dom.lbRotateCw, dom.lbRotateCcw]
+        .forEach(button => { if (button) button.disabled = isVideo; });
+    if (dom.lbCutout) {
+        dom.lbCutout.disabled = isVideo;
+        dom.lbCutout.title = isVideo ? 'Object cutout is available for images' : 'Select object';
+    }
+}
+
+function loadLightboxMedia(asset) {
+    const isVideo = asset.media_type === 'video';
+    syncMediaControls(isVideo);
+    if (isVideo) {
+        cancelImageLoad({ clearSource: true });
+        stopPanning();
+        if (dom.lbImg) dom.lbImg.hidden = true;
+        if (dom.lbVideo) {
+            dom.lbVideo.hidden = false;
+            dom.lbVideo.src = originalUrl(asset);
+        }
+        return;
+    }
+
+    stopLightboxVideo({ clearSource: true });
+    if (dom.lbVideo) dom.lbVideo.hidden = true;
+    if (dom.lbImg) dom.lbImg.hidden = false;
+    loadLightboxImage(asset);
+}
+
 export function resetZoom() {
     stopPanning();
     zoomLevel = 1;
@@ -263,19 +312,23 @@ export function resetZoom() {
 }
 
 export function zoomIn() {
+    if (isCurrentVideo()) return;
     setZoom(zoomLevel + ZOOM_STEP);
 }
 
 export function zoomOut() {
+    if (isCurrentVideo()) return;
     setZoom(zoomLevel - ZOOM_STEP);
 }
 
 export function rotateClockwise() {
+    if (isCurrentVideo()) return;
     rotation = (rotation + 90) % 360;
     applyImageTransform();
 }
 
 export function rotateCounterClockwise() {
+    if (isCurrentVideo()) return;
     rotation = (rotation - 90 + 360) % 360;
     applyImageTransform();
 }
@@ -292,7 +345,7 @@ export async function openLightbox(index, imagesArray = null) {
     // Load detail if needed
     if (img && img.id && !detailCache[img.id]) {
         try {
-            const resp = await fetch(`/api/images/${img.id}`);
+            const resp = await fetch(`/api/assets/${img.id}`);
             if (resp.ok) detailCache[img.id] = await resp.json();
         } catch (_e) { /* ignore */ }
     }
@@ -308,6 +361,7 @@ export async function openLightbox(index, imagesArray = null) {
 export function closeLightbox() {
     stopPanning();
     cancelImageLoad({ clearSource: true });
+    stopLightboxVideo({ clearSource: true });
     dom.lightbox.classList.remove('open');
     document.body.style.overflow = '';
     setLightboxIndex(-1);
@@ -330,7 +384,10 @@ export function updateLightbox() {
 
     setActiveIndex(lightboxIndex);
 
-    if (galleryActive) {
+    if (currentImagesArray === sidebarImages) {
+        setSidebarActiveImageId(nextImageId);
+        import('./features/sidebar.js').then(module => module.renderSidebar());
+    } else if (galleryActive) {
         import('./gallery.js').then(m => m.updateActiveGalleryCard(lightboxIndex));
     } else {
         import('./features/sidebar.js').then(m => m.renderSidebar());
@@ -338,8 +395,8 @@ export function updateLightbox() {
 
     const fileName = img.file_name || img.file || '';
     dom.lbTitle.textContent = fileName;
-    dom.lbCounter.textContent = `${lightboxIndex + 1} / ${totalImages || currentImagesArray.length}`;
-    loadLightboxImage(img);
+    dom.lbCounter.textContent = `${lightboxIndex + 1} / ${visibleCollectionTotal() || currentImagesArray.length}`;
+    loadLightboxMedia(img);
     displayedImageId = nextImageId;
     if (dom.lbViewOriginal) dom.lbViewOriginal.disabled = !img.id;
     if (dom.lbDelete) {
@@ -356,6 +413,27 @@ export function updateLightbox() {
 
     // Build metadata HTML
     let html = '';
+
+    if (img.media_type === 'video') {
+        const videoRows = [
+            ['Type', 'Video'],
+            ['Container', img.format],
+            ['Dimensions', img.size ? `${img.size[0]} × ${img.size[1]}` : null],
+            ['Duration', Number.isFinite(img.duration) ? `${img.duration.toFixed(2)} s` : null],
+            ['Frame rate', Number.isFinite(img.frame_rate) ? `${img.frame_rate.toFixed(3)} fps` : null],
+            ['Codec', img.codec],
+            ['Pixel format', img.mode],
+            ['Preview', img.preview_status],
+        ].filter(([, value]) => value !== null && value !== undefined && value !== '');
+        html += '<div class="lb-meta-section"><h4>Video details</h4>';
+        videoRows.forEach(([key, value]) => {
+            html += `<div class="lb-meta-row"><span class="lb-key">${escapeHtml(key)}</span><span class="lb-val">${escapeHtml(value)}</span></div>`;
+        });
+        if (img.preview_error) {
+            html += `<div class="lb-meta-row"><span class="lb-key">Preview error</span><span class="lb-val">${escapeHtml(img.preview_error)}</span></div>`;
+        }
+        html += '</div>';
+    }
 
     // Prompts
     if (img.prompt_parameters) {
@@ -477,8 +555,11 @@ export function syncLightboxAfterCollectionChange({ changedImageIds = new Set() 
         setActiveIndex(nextIndex);
         const img = currentImagesArray[nextIndex];
         dom.lbTitle.textContent = img.file_name || img.file || '';
-        dom.lbCounter.textContent = `${nextIndex + 1} / ${totalImages || currentImagesArray.length}`;
-        if (galleryActive) {
+        dom.lbCounter.textContent = `${nextIndex + 1} / ${visibleCollectionTotal() || currentImagesArray.length}`;
+        if (currentImagesArray === sidebarImages) {
+            setSidebarActiveImageId(img.id);
+            import('./features/sidebar.js').then(module => module.renderSidebar());
+        } else if (galleryActive) {
             import('./gallery.js').then(module => module.updateActiveGalleryCard(nextIndex));
         }
         return;
@@ -614,6 +695,7 @@ export function initLightboxEvents() {
 
     // Mouse wheel zoom on image area
     imageArea?.addEventListener('wheel', e => {
+        if (isCurrentVideo()) return;
         e.preventDefault();
         const direction = e.deltaY < 0 ? 1 : -1;
         setZoom(zoomLevel + direction * ZOOM_STEP, {
@@ -663,9 +745,25 @@ export function initLightboxEvents() {
     });
     dom.lbImg?.addEventListener('dragstart', e => e.preventDefault());
     dom.lbImg?.addEventListener('load', applyImageTransform);
-    dom.lbImg?.addEventListener('contextmenu', event => {
+    const showCurrentAssetContextMenu = event => {
         const img = getDetailForLightbox();
         if (!img?.id) return;
+        const actionSections = [];
+        if (img.media_type !== 'video') {
+            actionSections.push([{
+                label: 'Create transparent PNG',
+                icon: 'cutout',
+                run: openCutoutPanel,
+            }]);
+        }
+        actionSections.push([{
+            label: 'Delete file from computer',
+            icon: 'remove',
+            tone: 'danger',
+            enabled: Boolean(img.has_local_file),
+            disabledReason: 'This asset has no available physical file to move to the Recycle Bin / Trash',
+            run: deleteCurrentLightboxFile,
+        }]);
         showImageContextMenu(event, {
             imageId: img.id,
             fileName: img.file_name || img.file || '',
@@ -676,24 +774,12 @@ export function initLightboxEvents() {
             detail: img,
             onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
             onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
-            extraSections: [
-                [{
-                    label: 'Create transparent PNG',
-                    icon: 'cutout',
-                    run: openCutoutPanel,
-                }],
-                [{
-                    label: 'Delete file from computer',
-                    icon: 'remove',
-                    tone: 'danger',
-                    enabled: Boolean(img.has_local_file),
-                    disabledReason: 'This image has no available physical file to move to the Recycle Bin / Trash',
-                    run: deleteCurrentLightboxFile,
-                }],
-            ],
+            extraSections: actionSections,
             notify: showToast,
         });
-    });
+    };
+    dom.lbImg?.addEventListener('contextmenu', showCurrentAssetContextMenu);
+    dom.lbVideo?.addEventListener('contextmenu', showCurrentAssetContextMenu);
 
     // Keep the image within the viewport after fullscreen/layout changes.
     window.addEventListener('resize', applyImageTransform);

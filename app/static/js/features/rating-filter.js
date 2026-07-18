@@ -90,7 +90,7 @@ export function initRatingFilter() {
         event.stopPropagation();
         const willOpen = dom.ratingFilterMenu.style.display === 'none';
         document.querySelectorAll(
-            '#sort-dropdown-menu, #sidebar-sort-dropdown-menu, #folders-sort-dropdown-menu, #viewer-albums-sort-dropdown-menu',
+            '#sort-dropdown-menu, #sidebar-sort-dropdown-menu, #folders-sort-dropdown-menu, #viewer-albums-sort-dropdown-menu, #media-type-filter-menu',
         ).forEach(menu => { menu.style.display = 'none'; });
         document.querySelector('#sort-btn')?.setAttribute('aria-expanded', 'false');
         if (dom.searchSettingsDropdown) dom.searchSettingsDropdown.style.display = 'none';

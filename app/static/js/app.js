@@ -29,6 +29,7 @@ import { initCentralCollectionShortcuts } from './central-shortcuts.js';
 import { loadBootstrap } from './api.js';
 import { initSorting } from './features/sorting.js';
 import { initRatingFilter } from './features/rating-filter.js';
+import { initMediaTypeFilter } from './features/media-type-filter.js';
 
 function finishBoot() {
     requestAnimationFrame(() => {
@@ -43,6 +44,7 @@ async function bootstrapApplication() {
     resetRuntimeState();
     loadState();
     initRatingFilter();
+    initMediaTypeFilter();
     const preferredCollection = { type: currentCollection.type, id: currentCollection.id };
 
     applySidebarLayout();

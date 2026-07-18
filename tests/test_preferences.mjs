@@ -62,7 +62,10 @@ test('current preferences are validated field by field', () => {
             folders: { key: 'image_count', direction: 'invalid' },
             albums: { key: 'asset_count', direction: 'desc' },
         },
-        filters: { rating: 4 },
+        filters: {
+            rating: 4,
+            mediaTypes: { images: false, videos: true },
+        },
         searchSettings: {
             exactMatch: true,
             fields: { model: false },
@@ -84,6 +87,7 @@ test('current preferences are validated field by field', () => {
     assert.deepEqual(preferences.sorting.folders, { key: 'image_count', direction: 'desc' });
     assert.deepEqual(preferences.sorting.albums, { key: 'asset_count', direction: 'desc' });
     assert.equal(preferences.filters.rating, 4);
+    assert.deepEqual(preferences.filters.mediaTypes, { images: false, videos: true });
     assert.equal(preferences.searchSettings.exactMatch, true);
     assert.equal(preferences.searchSettings.fields.model, false);
     assert.equal(preferences.searchSettings.fields.positive_prompt, true);
@@ -125,6 +129,14 @@ test('invalid rating filters fall back to all ratings', () => {
     assert.equal(preferences.filters.rating, null);
 });
 
+test('media type filters always keep a visible type', () => {
+    const preferences = normalizePreferences({
+        version: PREFERENCES_VERSION,
+        filters: { mediaTypes: { images: false, videos: false } },
+    });
+    assert.deepEqual(preferences.filters.mediaTypes, { images: true, videos: true });
+});
+
 test('state persistence restores stable preferences but not runtime collections', async () => {
     globalThis.document = { getElementById: () => null };
     globalThis.localStorage = new MemoryStorage();
@@ -142,6 +154,7 @@ test('state persistence restores stable preferences but not runtime collections'
     state.setSortKey('name');
     state.setSortDir('asc');
     state.setRatingFilter(3);
+    state.setMediaTypeFilter({ images: false, videos: true });
     state.setLightboxMetaOpen(false);
     state.setMetadataTab('workflow');
     state.setImages([{ id: 1 }]);
@@ -165,6 +178,7 @@ test('state persistence restores stable preferences but not runtime collections'
     assert.equal(state.sortKey, 'name');
     assert.equal(state.sortDir, 'asc');
     assert.equal(state.ratingFilter, 3);
+    assert.deepEqual(state.mediaTypeFilter, { images: false, videos: true });
     assert.equal(state.lightboxMetaOpen, false);
     assert.equal(state.metadataTab, 'workflow');
     assert.deepEqual(state.images, []);

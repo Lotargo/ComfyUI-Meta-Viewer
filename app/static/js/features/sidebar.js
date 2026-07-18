@@ -1,5 +1,5 @@
 /**
- * Sidebar component. The Images tab owns the global image collection;
+ * Sidebar component. The Media tab owns the global image/video collection;
  * the Folders and Albums tabs select the central Viewer collection.
  */
 
@@ -41,7 +41,7 @@ import {
     sidebarWidth,
     refreshCacheBuster,
 } from '../state.js';
-import { escapeHtml, customConfirm, formatImageCountLabel, imageRenderSignature, originalUrl } from '../utils.js';
+import { escapeHtml, customConfirm, formatMediaCountLabel, imageRenderSignature, originalUrl } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
 import { showImageContextMenu } from '../components/image-context-menu.js';
 
@@ -66,7 +66,7 @@ function bindSidebarItem(item) {
             rating: img.rating,
             onRenamed: renamed => import('../api.js').then(module => module.applyImageRename(renamed)),
             onRatingChanged: asset => import('../api.js').then(module => module.applyImageRating(asset)),
-            extraSections: [[{
+            extraSections: img.media_type === 'video' ? [] : [[{
                 label: 'Create transparent PNG',
                 icon: 'cutout',
                 run: async () => {
@@ -118,7 +118,7 @@ function reconcileSidebarItems() {
 }
 
 export function renderSidebar({ reconcile = false } = {}) {
-    dom.imageCount.textContent = formatImageCountLabel(sidebarImages.length, sidebarTotalImages);
+    dom.imageCount.textContent = formatMediaCountLabel(sidebarImages.length, sidebarTotalImages);
 
     if (reconcile) {
         dom.imageList.querySelector('#scroll-sentinel')?.remove();

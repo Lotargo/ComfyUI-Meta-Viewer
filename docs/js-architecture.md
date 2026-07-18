@@ -73,6 +73,7 @@ The app uses a small shared state module instead of an external state management
 ```javascript
 {
     images: [],           // Current image list/page
+    sidebarImages: [],    // Global Media tab: filtered images and videos
     activeIndex: -1,      // Selected image index
     viewMode: 'gallery',  // 'upload' | 'list' | 'gallery'
     currentFolderId: null,// Stable selected folder ID
@@ -83,7 +84,7 @@ The app uses a small shared state module instead of an external state management
 }
 ```
 
-`preferences.js` defines schema version 2 and normalizes every saved field. `localStorage` contains only stable preferences: selected folder ID, view/sidebar modes, sidebar dimensions, sorting, search options, metadata tab, and lightbox metadata-panel visibility. Collections, indexes, open dialogs/lightbox state, zoom/pan, search text, pagination, caches, and DOM classes are always rebuilt from runtime data. Old search preferences from `sessionStorage` are migrated once.
+`preferences.js` defines schema version 2 and normalizes every saved field. `localStorage` contains only stable preferences: selected folder ID, view/sidebar modes, sidebar dimensions, sorting, media-type/rating filters, search options, metadata tab, and lightbox metadata-panel visibility. Collections, indexes, open dialogs/lightbox state, zoom/pan, search text, pagination, caches, and DOM classes are always rebuilt from runtime data. Old search preferences from `sessionStorage` are migrated once.
 
 During boot, preferences are applied while the boot layer still hides intermediate DOM. The backend folder list then confirms the selected folder ID; a missing ID falls back to an existing folder and is immediately corrected in storage.
 
@@ -102,6 +103,7 @@ scanFolder(path)            // POST /api/scan
 loadFromPaths(paths)        // POST /api/extract
 loadFromFiles(files)        // POST /api/upload
 loadMore()                  // GET  /api/images?page=N
+loadSidebarImages()         // GET  /api/images?media_type=image,video
 loadFolderImages(id)        // GET  /api/images?folder_id=N
 deleteImageAt(id)           // DELETE /api/images/{id}
 getFolders()                // GET  /api/folders
@@ -155,7 +157,8 @@ Common event sources:
 
 ### `features/sidebar.js`
 
-Owns the sidebar layout and folder/image list interactions.
+Owns the sidebar layout and folder/media list interactions. The Media tab combines images and
+videos; `features/media-type-filter.js` persists and applies its checkbox filter.
 
 Responsibilities:
 

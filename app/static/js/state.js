@@ -24,6 +24,7 @@ export const dom = {
     lbTitle: document.getElementById('lb-title'),
     lbCounter: document.getElementById('lb-counter'),
     lbImg: document.getElementById('lb-img'),
+    lbVideo: document.getElementById('lb-video'),
     lbMeta: document.getElementById('lb-meta'),
     btnResetIndex: document.getElementById('btn-reset-index'),
     btnFactoryReset: document.getElementById('btn-factory-reset'),
@@ -53,6 +54,11 @@ export const dom = {
     ratingFilterBtn: document.getElementById('viewer-rating-filter-btn'),
     ratingFilterLabel: document.getElementById('viewer-rating-filter-label'),
     ratingFilterMenu: document.getElementById('viewer-rating-filter-menu'),
+    mediaTypeFilterBtn: document.getElementById('media-type-filter-btn'),
+    mediaTypeFilterLabel: document.getElementById('media-type-filter-label'),
+    mediaTypeFilterMenu: document.getElementById('media-type-filter-menu'),
+    mediaFilterImages: document.getElementById('media-filter-images'),
+    mediaFilterVideos: document.getElementById('media-filter-videos'),
     shortcutsOverlay: document.getElementById('shortcuts-overlay'),
     shortcutsClose: document.getElementById('shortcuts-close'),
     copyDiagnostics: document.getElementById('copy-diagnostics'),
@@ -94,7 +100,7 @@ export let totalImages = 0;
 export let allLoaded = true;
 
 /**
- * Global Images sidebar collection. It never controls the central gallery.
+ * Global Media sidebar collection. It never controls the central gallery.
  * @type {const Array} Must NOT be reassigned to preserve references in consumers.
  */
 export const sidebarImages = [];
@@ -125,6 +131,7 @@ export let sortDir = 'desc';
 export let sidebarSortKey = 'date';
 export let sidebarSortDir = 'desc';
 export let ratingFilter = null;
+export const mediaTypeFilter = { images: true, videos: true };
 export let foldersSortKey = 'scanned_at';
 export let foldersSortDir = 'desc';
 export let foldersViewMode = 'list';
@@ -141,6 +148,12 @@ export function setSortDir(v) { sortDir = v; }
 export function setSidebarSortKey(v) { sidebarSortKey = v; }
 export function setSidebarSortDir(v) { sidebarSortDir = v; }
 export function setRatingFilter(v) { ratingFilter = Number.isInteger(v) && v >= 0 && v <= 5 ? v : null; }
+export function setMediaTypeFilter(v) {
+    const imagesVisible = v?.images !== false;
+    const videosVisible = v?.videos !== false;
+    mediaTypeFilter.images = imagesVisible || !videosVisible;
+    mediaTypeFilter.videos = videosVisible || !imagesVisible;
+}
 export function setFoldersSortKey(v) { foldersSortKey = v; }
 export function setFoldersSortDir(v) { foldersSortDir = v; }
 export function setFoldersViewMode(v) { foldersViewMode = v === 'list' ? 'list' : 'tile'; }
@@ -264,6 +277,7 @@ function applyPreferences(preferences) {
     setAlbumsSortKey(preferences.sorting.albums.key);
     setAlbumsSortDir(preferences.sorting.albums.direction);
     setRatingFilter(preferences.filters.rating);
+    setMediaTypeFilter(preferences.filters.mediaTypes);
     setSearchSettings(preferences.searchSettings);
 }
 
@@ -299,6 +313,7 @@ export function saveState() {
         },
         filters: {
             rating: ratingFilter,
+            mediaTypes: { ...mediaTypeFilter },
         },
         searchSettings,
     });
@@ -363,6 +378,7 @@ export function resetRuntimeState() {
     setAlbumsSortDir(defaults.sorting.albums.direction);
     setAlbumsViewMode(defaults.layout.albumsViewMode);
     setRatingFilter(defaults.filters.rating);
+    setMediaTypeFilter(defaults.filters.mediaTypes);
     setSidebarWidth(defaults.layout.sidebarWidth);
     setSidebarCollapsed(defaults.layout.sidebarCollapsed);
     setLightboxMetaOpen(defaults.layout.lightboxMetaOpen);

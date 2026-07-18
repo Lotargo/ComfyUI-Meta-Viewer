@@ -24,6 +24,13 @@
     background: var(--surface2);
 }
 
+.meta-video-preview {
+    width: min(240px, 32vw);
+    height: auto;
+    aspect-ratio: 16 / 9;
+    background: #000;
+}
+
 .meta-info {
     flex: 1;
     min-width: 0;

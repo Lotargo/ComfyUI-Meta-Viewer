@@ -52,6 +52,8 @@ const dirOptions = [
 
 function closeRatingFilterMenu() {
     if (dom.ratingFilterMenu) dom.ratingFilterMenu.style.display = 'none';
+    if (dom.mediaTypeFilterMenu) dom.mediaTypeFilterMenu.style.display = 'none';
+    dom.mediaTypeFilterBtn?.setAttribute('aria-expanded', 'false');
     dom.ratingFilterBtn?.setAttribute('aria-expanded', 'false');
 }
 

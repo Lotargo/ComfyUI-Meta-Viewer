@@ -1,5 +1,17 @@
 /* === Custom HSL Modal Dialogs === */
 
+.image-rename-modal .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -70,6 +82,42 @@
 .modal-input:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
+}
+
+.modal-filename-field {
+    display: flex;
+    align-items: stretch;
+    margin-bottom: var(--space-lg);
+}
+
+.modal-filename-field .modal-input {
+    min-width: 0;
+    margin-bottom: 0;
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.modal-filename-extension {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    max-width: 40%;
+    padding: var(--space-sm) var(--space-md);
+    overflow: hidden;
+    color: var(--text-dim);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.modal-input-error {
+    margin-top: calc(var(--space-md) * -1);
+    margin-bottom: var(--space-lg);
+    color: var(--red);
+    font-size: 12px;
 }
 
 .modal-actions {

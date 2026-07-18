@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 import sqlite3
+import sys
+from pathlib import Path
 from typing import Any, Iterable
 
 from . import database as db
@@ -58,6 +61,51 @@ class LibraryNotFoundError(LibraryError):
 
 class LibraryConflictError(LibraryError):
     pass
+
+
+_WINDOWS_RESERVED_FILE_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{number}" for number in range(1, 10)),
+    *(f"LPT{number}" for number in range(1, 10)),
+}
+
+
+def _rename_target_name(old_file_name: str, requested_file_name: str) -> str:
+    """Return a validated filename while preserving the source extension."""
+    requested = requested_file_name.strip()
+    if not requested:
+        raise LibraryError("Filename cannot be empty")
+
+    suffix = Path(old_file_name).suffix
+    stem = requested
+    if suffix and requested.casefold().endswith(suffix.casefold()):
+        stem = requested[:-len(suffix)]
+    if not stem or stem in (".", ".."):
+        raise LibraryError("Filename cannot be empty")
+
+    new_name = f"{stem}{suffix}"
+    if "/" in new_name or "\\" in new_name:
+        raise LibraryError("Filename cannot contain path separators")
+    if any(ord(character) < 32 for character in new_name):
+        raise LibraryError("Filename cannot contain control characters")
+    if len(new_name) > 255:
+        raise LibraryError("Filename must be 255 characters or fewer")
+
+    if sys.platform.startswith("win"):
+        if any(character in '<>:"|?*' for character in new_name):
+            raise LibraryError("Filename contains characters not allowed by Windows")
+        if new_name.endswith((" ", ".")):
+            raise LibraryError("Windows filenames cannot end with a space or period")
+        reserved_base = new_name.split(".", 1)[0].rstrip(" .").upper()
+        if reserved_base in _WINDOWS_RESERVED_FILE_NAMES:
+            raise LibraryError(f"{reserved_base} is a reserved Windows filename")
+    elif len(os.fsencode(new_name)) > 255:
+        raise LibraryError("Filename is too long for this file system")
+
+    return new_name
 
 
 def _clean_name(name: str) -> str:
@@ -349,9 +397,12 @@ def update_asset(
             assignments.append("note = ?")
             values.append(note.strip())
 
+        renamed_folder_id: int | None = None
         if file_name is not None:
             row = conn.execute(
-                """SELECT i.rel_path, i.file_name, f.path AS folder_path, i.folder_id, i.file_size, i.file_mtime
+                """SELECT i.rel_path, i.file_name, f.path AS folder_path,
+                          i.folder_id, i.file_size, i.file_mtime,
+                          i.original_data IS NOT NULL AS has_original_data
                    FROM images i
                    JOIN folders f ON i.folder_id = f.id
                    WHERE i.id = ?""",
@@ -360,51 +411,57 @@ def update_asset(
             if row is None:
                 raise LibraryNotFoundError("Asset not found")
 
-            from pathlib import Path
-            import os
-
             old_file_name = row["file_name"]
-            new_file_name = file_name.strip()
+            new_name = _rename_target_name(old_file_name, file_name)
 
-            if new_file_name and new_file_name != old_file_name:
-                if "/" in new_file_name or "\\" in new_file_name:
-                    raise LibraryError("Filename cannot contain path separators")
+            if new_name != old_file_name:
+                rel_parent = Path(row["rel_path"]).parent
+                new_rel_path = (
+                    new_name
+                    if rel_parent == Path(".")
+                    else (rel_parent / new_name).as_posix()
+                )
+                duplicate = conn.execute(
+                    """SELECT 1 FROM images
+                       WHERE folder_id = ? AND rel_path = ? COLLATE NOCASE
+                         AND id != ?""",
+                    (row["folder_id"], new_rel_path, asset_id),
+                ).fetchone()
+                if duplicate:
+                    raise LibraryConflictError(
+                        f"A file named {new_name} already exists in the folder"
+                    )
 
-                old_ext = os.path.splitext(old_file_name)[1].lower()
-                new_base, new_ext = os.path.splitext(new_file_name)
-                if new_ext.lower() != old_ext:
-                    new_name = new_file_name + old_ext
-                else:
-                    new_name = new_file_name
-
-                if new_name != old_file_name:
+                new_size = row["file_size"]
+                new_mtime = row["file_mtime"]
+                if not row["has_original_data"]:
                     folder_path = Path(row["folder_path"])
-                    rel_parent = Path(row["rel_path"]).parent
-                    if rel_parent == Path('.'):
-                        new_rel_path = new_name
-                    else:
-                        new_rel_path = (rel_parent / new_name).as_posix()
-
                     old_path = folder_path / row["rel_path"]
                     new_path = folder_path / new_rel_path
 
-                    if not old_path.exists():
-                        raise LibraryError(f"Physical file not found on disk: {old_path}")
+                    if not old_path.is_file():
+                        raise LibraryError(
+                            f"Physical file not found on disk: {old_path}"
+                        )
                     if new_path.exists():
-                        raise LibraryConflictError(f"A file named {new_name} already exists in the folder")
-
-                    dup = conn.execute(
-                        "SELECT 1 FROM images WHERE folder_id = ? AND rel_path = ? AND id != ?",
-                        (row["folder_id"], new_rel_path, asset_id)
-                    ).fetchone()
-                    if dup:
-                        raise LibraryConflictError("An asset with that name is already indexed")
+                        try:
+                            same_file = (
+                                (sys.platform.startswith("win") or sys.platform == "darwin")
+                                and old_path.samefile(new_path)
+                            )
+                        except OSError:
+                            same_file = False
+                        if not same_file:
+                            raise LibraryConflictError(
+                                f"A file named {new_name} already exists in the folder"
+                            )
 
                     try:
                         old_path.rename(new_path)
                     except OSError as exc:
-                        raise LibraryError(f"Failed to rename file on disk: {exc}")
-
+                        raise LibraryError(
+                            f"Failed to rename file on disk: {exc}"
+                        ) from exc
                     try:
                         stat = new_path.stat()
                         new_size = stat.st_size
@@ -413,19 +470,21 @@ def update_asset(
                         new_size = row["file_size"]
                         new_mtime = row["file_mtime"]
 
-                    assignments.append("rel_path = ?")
-                    values.append(new_rel_path)
-                    assignments.append("file_name = ?")
-                    values.append(new_name)
-                    assignments.append("file_size = ?")
-                    values.append(new_size)
-                    assignments.append("file_mtime = ?")
-                    values.append(new_mtime)
+                assignments.extend(
+                    ("rel_path = ?", "file_name = ?", "file_size = ?", "file_mtime = ?")
+                )
+                values.extend((new_rel_path, new_name, new_size, new_mtime))
+                renamed_folder_id = int(row["folder_id"])
 
         if assignments:
             values.append(asset_id)
             conn.execute(
                 f"UPDATE images SET {', '.join(assignments)} WHERE id = ?", values
+            )
+        if renamed_folder_id is not None:
+            conn.execute(
+                "UPDATE folders SET revision = revision + 1 WHERE id = ?",
+                (renamed_folder_id,),
             )
 
         if tags is not None:

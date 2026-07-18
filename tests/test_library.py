@@ -182,6 +182,64 @@ class LibraryApiTest(LibraryTestCase):
         )
         self.assertEqual(conflict.status_code, 400)
 
+    def test_asset_rename_moves_the_file_and_preserves_virtual_metadata(self) -> None:
+        original = self.make_image("before.png")
+        collision = self.make_image("occupied.png", "blue")
+        result = self.index()
+        records = db.get_folder_file_records(result.folder_id)
+        image_id = int(records["before.png"]["id"])
+        album = library.create_album("Renamed files")
+        library.add_assets_to_album(album["id"], [image_id])
+        library.update_asset(image_id, favorite=True, note="Keep me")
+        client = app.test_client()
+
+        response = client.patch(
+            f"/api/library/assets/{image_id}",
+            json={"file_name": "after"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        asset = response.get_json()["asset"]
+        self.assertEqual(asset["id"], image_id)
+        self.assertEqual(asset["file_name"], "after.png")
+        self.assertFalse(original.exists())
+        self.assertTrue((self.source / "after.png").is_file())
+        self.assertTrue(asset["favorite"])
+        self.assertEqual(asset["note"], "Keep me")
+        self.assertEqual(asset["album_ids"], [album["id"]])
+
+        conflict = client.patch(
+            f"/api/library/assets/{image_id}",
+            json={"file_name": "occupied.png"},
+        )
+        self.assertEqual(conflict.status_code, 409)
+        self.assertTrue((self.source / "after.png").is_file())
+        self.assertTrue(collision.is_file())
+
+        invalid = client.patch(
+            f"/api/library/assets/{image_id}",
+            json={"file_name": "nested/name"},
+        )
+        self.assertEqual(invalid.status_code, 400)
+
+    def test_uploaded_asset_can_be_renamed_without_changing_its_data(self) -> None:
+        original_data = self.make_image("upload-source.png").read_bytes()
+        image_id, _folder_id = db.insert_upload_image(
+            "uploaded.png",
+            original_data,
+            True,
+        )
+        client = app.test_client()
+
+        response = client.patch(
+            f"/api/library/assets/{image_id}",
+            json={"file_name": "stored-copy"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["asset"]["file_name"], "stored-copy.png")
+        self.assertEqual(db.get_image_original_data(image_id), original_data)
+
     def test_page_album_bulk_and_index_removal_have_distinct_semantics(self) -> None:
         physical = self.make_image("kept-on-disk.png")
         result = self.index()
@@ -358,6 +416,7 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("Download image", context_menu)
         self.assertIn("Copy image", context_menu)
         self.assertIn("Copy file path", context_menu)
+        self.assertIn("Rename file…", context_menu)
         self.assertIn("Copy positive prompt", context_menu)
         self.assertIn("Copy negative prompt", context_menu)
         self.assertIn("Copy workflow", context_menu)

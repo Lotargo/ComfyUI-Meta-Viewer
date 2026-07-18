@@ -208,6 +208,7 @@ Right-clicking an indexed image in Viewer or Library exposes a compact shared me
 - Download the untouched original.
 - Copy the image to the system clipboard as PNG.
 - Show a scanned source in the operating system's file manager.
+- Rename an available file through a modal while keeping its extension unchanged.
 - Copy the resolved local file path.
 - Copy positive/negative prompts and workflow JSON when present.
 - Create a transparent PNG cutout directly from Viewer.

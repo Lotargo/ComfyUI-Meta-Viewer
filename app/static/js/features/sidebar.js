@@ -63,6 +63,7 @@ function bindSidebarItem(item) {
             sourceUrl: originalUrl(img),
             canAccessOriginal: true,
             hasLocalFile: Boolean(img.id && img.has_local_file),
+            onRenamed: renamed => import('../api.js').then(module => module.applyImageRename(renamed)),
             extraSections: [[{
                 label: 'Create transparent PNG',
                 icon: 'cutout',

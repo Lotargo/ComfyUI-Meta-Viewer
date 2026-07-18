@@ -473,6 +473,28 @@ export async function deleteImageById(imageId) {
     }
 }
 
+export async function applyImageRename(renamedAsset) {
+    const imageId = Number(renamedAsset?.id);
+    const fileName = renamedAsset?.file_name;
+    if (!Number.isInteger(imageId) || !fileName) return;
+
+    [...images, ...sidebarImages].forEach(image => {
+        if (image.id === imageId) image.file_name = fileName;
+    });
+    if (detailCache[imageId]) detailCache[imageId].file_name = fileName;
+    invalidateApiCache();
+    saveState();
+
+    const { renderSidebar } = await import('./features/sidebar.js');
+    renderSidebar({ reconcile: true });
+    await renderCurrentContent({ reconcileGallery: true });
+
+    if (dom.lightbox.classList.contains('open')) {
+        const { syncLightboxAfterCollectionChange } = await import('./lightbox.js');
+        syncLightboxAfterCollectionChange({ changedImageIds: new Set([imageId]) });
+    }
+}
+
 export function deleteImageAt(index) {
     const img = images[index];
     return img ? deleteImageById(img.id) : Promise.resolve(false);

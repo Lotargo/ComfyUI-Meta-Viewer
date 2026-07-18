@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -225,12 +226,111 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("overflow-y: auto", styles)
         self.assertIn("background-position: right 11px center", styles)
         self.assertIn("padding-right: 34px", styles)
+        self.assertIn('id="infinite-scroll-sentinel"', template)
+        self.assertIn('id="library-model-filter"', template)
+        self.assertIn("new IntersectionObserver", script)
+        self.assertIn("beginPointerAssetDrag", script)
+        self.assertIn("addEventListener('pointerdown'", script)
+        self.assertIn(
+            "state.selectMode && state.selected.has(session.assetId)", script
+        )
+        self.assertIn(
+            "dragSelectedGroup ? selectedIds() : [session.assetId]", script
+        )
+        self.assertIn("event.key.toLowerCase() === 'f'", script)
+        self.assertIn(".sidebar-album-card.drag-over", styles)
+        self.assertIn('class="album-sidebar-list"', template)
         self.assertIn('href="/library"', viewer)
         self.assertIn('class="btn library-entry-btn"', viewer)
         buttons = (
             root / "app" / "static" / "css" / "components" / "buttons.css"
         ).read_text(encoding="utf-8")
         self.assertIn(".library-entry-btn", buttons)
+
+    def test_smart_metadata_filters_are_combined_on_the_backend(self) -> None:
+        for name, color in (
+            ("flux.png", "red"),
+            ("pony.png", "blue"),
+            ("sdxl.png", "green"),
+        ):
+            self.make_image(name, color)
+        result = self.index()
+        records = db.get_folder_file_records(result.folder_id)
+
+        metadata_by_name = {
+            "flux.png": {
+                "prompt_parameters": {"model": "flux1-dev.safetensors"},
+                "workflow": {"workflow_nodes": {"Sampler": [
+                    {"class_type": "FluxGuidance", "inputs": {}}
+                ]}},
+            },
+            "pony.png": {
+                "prompt_parameters": {"model": "pony_v6XL.safetensors"},
+                "workflow": {"workflow_nodes": {"Post Processing": [
+                    {"class_type": "PonyDetailer", "inputs": {}}
+                ]}},
+            },
+            "sdxl.png": {
+                "prompt_parameters": {"model": "juggernautXL.safetensors"},
+                "workflow": {"workflow_nodes": {"Sampler": [
+                    {"class_type": "SDXLRefiner", "inputs": {}}
+                ]}},
+            },
+        }
+        sizes = {
+            "flux.png": (1280, 768),
+            "pony.png": (768, 1280),
+            "sdxl.png": (1024, 1024),
+        }
+        conn = db.get_conn()
+        try:
+            for name, metadata in metadata_by_name.items():
+                width, height = sizes[name]
+                conn.execute(
+                    "UPDATE images SET width = ?, height = ?, metadata_json = ? WHERE id = ?",
+                    (width, height, json.dumps(metadata), records[name]["id"]),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+        self.assertEqual(
+            library.get_assets(model_family="flux")["assets"][0]["file_name"],
+            "flux.png",
+        )
+        self.assertEqual(
+            library.get_assets(model_family="pony")["assets"][0]["file_name"],
+            "pony.png",
+        )
+        sdxl_assets = library.get_assets(model_family="sdxl")
+        self.assertEqual(sdxl_assets["total"], 1)
+        self.assertEqual(sdxl_assets["assets"][0]["file_name"], "sdxl.png")
+        self.assertEqual(
+            library.get_assets(orientation="portrait")["assets"][0]["file_name"],
+            "pony.png",
+        )
+        self.assertEqual(
+            library.get_assets(node_type="SDXLRefiner")["assets"][0]["file_name"],
+            "sdxl.png",
+        )
+
+        filter_options = library.list_metadata_filters()
+        self.assertEqual(
+            set(filter_options["node_types"]),
+            {"FluxGuidance", "PonyDetailer", "SDXLRefiner"},
+        )
+
+        client = app.test_client()
+        combined = client.get(
+            "/api/library/assets?model_family=flux&orientation=landscape&node_type=FluxGuidance"
+        )
+        self.assertEqual(combined.status_code, 200)
+        self.assertEqual(combined.get_json()["total"], 1)
+        self.assertIn("metadata_filters", client.get("/api/library").get_json())
+        self.assertEqual(
+            client.get("/api/library/assets?orientation=diagonal").status_code,
+            400,
+        )
 
 
 class LibraryMigrationTest(unittest.TestCase):

@@ -1,11 +1,15 @@
 const dom = {
     systemCollections: document.getElementById('system-collections'),
     albumList: document.getElementById('album-list'),
+    sidebarAlbumTotal: document.getElementById('sidebar-album-total'),
     createAlbum: document.getElementById('create-album'),
     collectionTitle: document.getElementById('collection-title'),
     collectionSummary: document.getElementById('collection-summary'),
     search: document.getElementById('library-search'),
     sort: document.getElementById('library-sort'),
+    modelFilter: document.getElementById('library-model-filter'),
+    orientationFilter: document.getElementById('library-orientation-filter'),
+    nodeFilter: document.getElementById('library-node-filter'),
     toolbar: document.getElementById('selection-toolbar'),
     selectionCount: document.getElementById('selection-count'),
     selectVisible: document.getElementById('select-visible'),
@@ -18,7 +22,7 @@ const dom = {
     clearSelection: document.getElementById('clear-selection'),
     feedback: document.getElementById('library-feedback'),
     grid: document.getElementById('asset-grid'),
-    loadMore: document.getElementById('load-more'),
+    infiniteScrollSentinel: document.getElementById('infinite-scroll-sentinel'),
     editor: document.getElementById('asset-editor'),
     editorForm: document.getElementById('asset-editor-form'),
     editorTitle: document.getElementById('editor-title'),
@@ -45,6 +49,10 @@ const dom = {
     previewCopyWorkflow: document.getElementById('preview-copy-workflow'),
     previewCopyPosPrompt: document.getElementById('preview-copy-pos-prompt'),
     previewCopyNegPrompt: document.getElementById('preview-copy-neg-prompt'),
+    previewCarousel: document.getElementById('preview-carousel'),
+    previewResizeHandle: document.getElementById('preview-resize-handle'),
+    btnToggleSidebar: document.getElementById('btn-toggle-sidebar'),
+    sidebar: document.querySelector('.library-sidebar'),
     toast: document.getElementById('library-toast'),
 };
 
@@ -66,6 +74,15 @@ const state = {
     selectMode: false,
     showPreview: true,
     activeAssetId: null,
+    metadataFilters: { node_types: [] },
+    infiniteScrollObserver: null,
+    assetRequestController: null,
+    draggingAssetIds: [],
+    pointerDrag: null,
+    suppressNextGridClick: false,
+    previewWidth: Number(localStorage.getItem('library-preview-width')) || 450,
+    sidebarCollapsed: localStorage.getItem('library-sidebar-collapsed') === 'true',
+    sidebarExplicitlyCollapsed: localStorage.getItem('library-sidebar-explicitly-collapsed') === 'true',
 };
 
 const collectionIcons = {
@@ -128,21 +145,45 @@ function renderCollections() {
             </button>`;
     }).join('');
 
+    dom.sidebarAlbumTotal.textContent = state.albums.length ? String(state.albums.length) : '';
     dom.albumList.innerHTML = state.albums.length ? state.albums.map(album => `
-        <div class="collection-button ${state.collection === 'album' && state.albumId === album.id ? 'active' : ''}"
-             role="button" tabindex="0" data-album-id="${album.id}" data-album-name="${escapeHtml(album.name)}">
-            <span class="collection-icon collection-cover" ${album.display_cover_image_id ? `style="background-image:url('/api/thumbnail/${album.display_cover_image_id}')"` : ''}>${album.display_cover_image_id ? '' : '▤'}</span>
-            <span class="collection-name">${escapeHtml(album.name)}</span>
-            <span class="collection-count">${album.asset_count}</span>
-            <span class="album-actions">
+        <article class="sidebar-album-card ${state.collection === 'album' && state.albumId === album.id ? 'active' : ''}"
+                 data-album-id="${album.id}" data-album-drop-target="${album.id}" data-album-name="${escapeHtml(album.name)}">
+            <button class="sidebar-album-main" type="button" data-album-open="${album.id}" title="Open ${escapeHtml(album.name)}">
+                <span class="sidebar-album-cover" ${album.display_cover_image_id ? `style="background-image:url('/api/thumbnail/${album.display_cover_image_id}')"` : ''}>
+                    <span class="sidebar-album-placeholder" aria-hidden="true">${album.display_cover_image_id ? '' : '▤'}</span>
+                    <span class="sidebar-album-drop-icon" aria-hidden="true">＋</span>
+                </span>
+                <span class="sidebar-album-copy">
+                    <span class="sidebar-album-title-row">
+                        <span class="sidebar-album-name">${escapeHtml(album.name)}</span>
+                        <span class="sidebar-album-count">${album.asset_count}</span>
+                    </span>
+                    <span class="sidebar-album-drop-label">Drop images here</span>
+                </span>
+            </button>
+            <span class="sidebar-album-actions">
                 <button type="button" data-album-action="rename" title="Rename album" aria-label="Rename ${escapeHtml(album.name)}">✎</button>
                 <button type="button" data-album-action="delete" title="Delete album" aria-label="Delete ${escapeHtml(album.name)}">×</button>
             </span>
-        </div>`).join('') : '<p class="library-subtitle" style="padding: 8px 10px">No albums yet.</p>';
+        </article>`).join('') : `
+            <button class="album-empty-state" type="button" data-create-album-shortcut>
+                <span class="album-empty-icon">＋</span>
+                <span><strong>Create an album</strong><small>Then drag images here</small></span>
+            </button>`;
 
     dom.bulkAlbum.innerHTML = '<option value="">Add to album…</option>' + state.albums.map(album => (
         `<option value="${album.id}">${escapeHtml(album.name)}</option>`
     )).join('');
+}
+
+function renderMetadataFilters() {
+    const currentNode = dom.nodeFilter.value;
+    const nodeTypes = state.metadataFilters.node_types || [];
+    dom.nodeFilter.innerHTML = '<option value="">All generation nodes</option>' + nodeTypes.map(nodeType => (
+        `<option value="${escapeHtml(nodeType)}">${escapeHtml(nodeType)}</option>`
+    )).join('');
+    if (nodeTypes.includes(currentNode)) dom.nodeFilter.value = currentNode;
 }
 
 function formatBytes(value) {
@@ -178,7 +219,7 @@ function renderAssets() {
                     </article>`;
             }).join('');
         }
-        dom.loadMore.hidden = true;
+        dom.infiniteScrollSentinel.hidden = true;
         dom.collectionTitle.textContent = state.collectionName;
         dom.collectionSummary.textContent = `${state.albums.length} album${state.albums.length === 1 ? '' : 's'}`;
         updateSelectionToolbar();
@@ -199,9 +240,11 @@ function renderAssets() {
             const isActive = asset.id === state.activeAssetId;
             return `
                 <article class="asset-card ${selected ? 'selected' : ''} ${isActive ? 'active' : ''} ${asset.available ? '' : 'unavailable'}"
-                         data-asset-id="${asset.id}" tabindex="0" aria-label="${escapeHtml(asset.file_name)}">
+                         data-asset-id="${asset.id}" tabindex="${isActive ? '0' : '-1'}"
+                         aria-selected="${selected ? 'true' : 'false'}"
+                         aria-label="${escapeHtml(asset.file_name)}">
                     <div class="asset-thumb-wrap">
-                        <img class="asset-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy">
+                        <img class="asset-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy" draggable="false">
                         <input class="asset-select" type="checkbox" ${selected ? 'checked' : ''}
                                aria-label="Select ${escapeHtml(asset.file_name)}">
                         <button class="asset-favorite ${asset.favorite ? 'active' : ''}" type="button"
@@ -221,7 +264,7 @@ function renderAssets() {
                 </article>`;
         }).join('');
     }
-    dom.loadMore.hidden = state.assets.length >= state.total || state.loading;
+    updateInfiniteScroll();
     dom.collectionTitle.textContent = state.collectionName;
     dom.collectionSummary.textContent = `${state.total} asset${state.total === 1 ? '' : 's'} · physical files stay in their sources`;
     updateSelectionToolbar();
@@ -275,6 +318,22 @@ function updateSelectionToolbar() {
 
 let previewPanelTimer = null;
 
+function updateLayoutColumns() {
+    const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
+    if (state.showPreview && activeAsset) {
+        dom.previewPanel.style.width = state.previewWidth + 'px';
+        dom.previewPanel.style.borderLeftWidth = '1px';
+    } else {
+        dom.previewPanel.style.width = '0px';
+        dom.previewPanel.style.borderLeftWidth = '0px';
+    }
+}
+
+function updateSidebarUI() {
+    dom.shell.classList.toggle('sidebar-collapsed', state.sidebarCollapsed);
+    updateLayoutColumns();
+}
+
 function updatePreviewPanel() {
     if (previewPanelTimer) {
         clearTimeout(previewPanelTimer);
@@ -291,8 +350,24 @@ function updatePreviewPanel() {
             dom.previewBackdrop.style.backgroundImage = `url("${originalUrl}")`;
         }
         
-        dom.previewPanel.hidden = false;
+        if (state.selectMode && state.selected.size > 1) {
+            const selectedAssets = state.assets.filter(asset => state.selected.has(asset.id));
+            dom.previewCarousel.innerHTML = selectedAssets.map(asset => {
+                const isActive = asset.id === state.activeAssetId;
+                return `
+                    <div class="carousel-thumb-wrap ${isActive ? 'active' : ''}" data-carousel-id="${asset.id}">
+                        <img class="carousel-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy">
+                    </div>
+                `;
+            }).join('');
+            dom.previewCarousel.hidden = false;
+        } else {
+            dom.previewCarousel.hidden = true;
+            dom.previewCarousel.innerHTML = '';
+        }
+
         dom.shell.classList.add('show-preview');
+        updateLayoutColumns();
 
         previewPanelTimer = setTimeout(async () => {
             try {
@@ -315,56 +390,71 @@ function updatePreviewPanel() {
             }
         }, 100);
     } else {
-        dom.previewPanel.hidden = true;
         dom.shell.classList.remove('show-preview');
+        updateLayoutColumns();
         dom.previewPanelImg.src = '';
         dom.previewPanelImg.removeAttribute('data-loaded-id');
         dom.previewBackdrop.style.backgroundImage = '';
         dom.previewCopyWorkflow.hidden = true;
         dom.previewCopyPosPrompt.hidden = true;
         dom.previewCopyNegPrompt.hidden = true;
+        dom.previewCarousel.hidden = true;
+        dom.previewCarousel.innerHTML = '';
     }
+}
+
+function applyCurrentFilters(params) {
+    if (state.albumId !== null) params.set('album_id', String(state.albumId));
+    if (dom.search.value.trim()) params.set('q', dom.search.value.trim());
+    if (state.ratingFilter !== null) params.set('rating', String(state.ratingFilter));
+    if (dom.modelFilter.value) params.set('model_family', dom.modelFilter.value);
+    if (dom.orientationFilter.value) params.set('orientation', dom.orientationFilter.value);
+    if (dom.nodeFilter.value) params.set('node_type', dom.nodeFilter.value);
+    return params;
 }
 
 function buildAssetsUrl() {
     const [sortBy, sortDir] = dom.sort.value.split(':');
-    const params = new URLSearchParams({
+    const params = applyCurrentFilters(new URLSearchParams({
         collection: state.collection,
         page: String(state.page),
         per_page: String(state.perPage),
         sort_by: sortBy,
         sort_dir: sortDir,
-    });
-    if (state.albumId !== null) params.set('album_id', String(state.albumId));
-    if (dom.search.value.trim()) params.set('q', dom.search.value.trim());
-    if (state.ratingFilter !== null) params.set('rating', String(state.ratingFilter));
+    }));
     return `/api/library/assets?${params}`;
 }
 
 async function refreshAssets() {
-    if (state.loading) return;
+    if (state.assetRequestController) state.assetRequestController.abort();
+    const controller = new AbortController();
+    state.assetRequestController = controller;
     state.loading = true;
     try {
         const [sortBy, sortDir] = dom.sort.value.split(':');
-        const params = new URLSearchParams({
+        const params = applyCurrentFilters(new URLSearchParams({
             collection: state.collection,
             page: '1',
             per_page: String(state.page * state.perPage),
             sort_by: sortBy,
             sort_dir: sortDir,
-        });
-        if (state.albumId !== null) params.set('album_id', String(state.albumId));
-        if (dom.search.value.trim()) params.set('q', dom.search.value.trim());
-        if (state.ratingFilter !== null) params.set('rating', String(state.ratingFilter));
+        }));
 
-        const data = await fetchJson(`/api/library/assets?${params}`);
+        const data = await fetchJson(`/api/library/assets?${params}`, { signal: controller.signal });
         state.assets = data.assets || [];
         state.total = data.total || 0;
+        if (!state.assets.some(asset => asset.id === state.activeAssetId)) {
+            state.activeAssetId = state.assets[0]?.id ?? null;
+        }
     } catch (error) {
-        showToast(error.message, true);
+        if (error.name !== 'AbortError') showToast(error.message, true);
     } finally {
-        state.loading = false;
-        renderAssets();
+        if (state.assetRequestController === controller) {
+            state.assetRequestController = null;
+            state.loading = false;
+            renderAssets();
+            updatePreviewPanel();
+        }
     }
 }
 
@@ -416,33 +506,85 @@ function makeDraggable(dialogEl, handleEl) {
     }
 }
 
-async function loadMetadata() {
-    const data = await fetchJson('/api/library');
+async function loadMetadata({ includeFilters = false } = {}) {
+    const data = await fetchJson(`/api/library?include_filters=${includeFilters ? '1' : '0'}`);
     state.systemCollections = data.system_collections || [];
     state.albums = data.albums || [];
     state.summary = data.summary || {};
+    if (data.metadata_filters) state.metadataFilters = data.metadata_filters;
     renderCollections();
+    renderMetadataFilters();
 }
 
 async function loadAssets({ append = false } = {}) {
-    if (state.loading) return;
+    if (state.loading && append) return false;
+    if (state.assetRequestController) state.assetRequestController.abort();
+    const controller = new AbortController();
+    state.assetRequestController = controller;
     state.loading = true;
     renderAssets();
+    let succeeded = false;
     try {
-        const data = await fetchJson(buildAssetsUrl());
+        const data = await fetchJson(buildAssetsUrl(), { signal: controller.signal });
         state.assets = append ? [...state.assets, ...(data.assets || [])] : (data.assets || []);
         state.total = data.total || 0;
+        succeeded = true;
     } catch (error) {
-        showToast(error.message, true);
-        if (!append) state.assets = [];
-    } finally {
-        state.loading = false;
-        if (state.assets.length > 0 && state.activeAssetId === null) {
-            state.activeAssetId = state.assets[0].id;
+        if (error.name !== 'AbortError') {
+            showToast(error.message, true);
+            if (!append) state.assets = [];
         }
-        renderAssets();
-        updatePreviewPanel();
+    } finally {
+        if (state.assetRequestController === controller) {
+            state.assetRequestController = null;
+            state.loading = false;
+            if (state.assets.length > 0 && state.activeAssetId === null) {
+                state.activeAssetId = state.assets[0].id;
+            }
+            renderAssets();
+            updatePreviewPanel();
+        }
     }
+    return succeeded;
+}
+
+function updateInfiniteScroll() {
+    const hasMore = state.collection !== 'albums' && state.assets.length < state.total;
+    const shouldShow = state.assets.length > 0 && (hasMore || state.loading);
+    dom.infiniteScrollSentinel.hidden = !shouldShow;
+    const label = dom.infiniteScrollSentinel.querySelector('span:last-child');
+    if (label) label.textContent = state.loading ? 'Loading more assets…' : 'More assets load automatically';
+
+    if (!state.infiniteScrollObserver) return;
+    state.infiniteScrollObserver.unobserve(dom.infiniteScrollSentinel);
+    if (hasMore && !state.loading) {
+        window.requestAnimationFrame(() => {
+            if (!dom.infiniteScrollSentinel.hidden) {
+                state.infiniteScrollObserver.observe(dom.infiniteScrollSentinel);
+            }
+        });
+    }
+}
+
+async function loadNextPage() {
+    if (state.loading || state.collection === 'albums' || state.assets.length >= state.total) return;
+    const previousPage = state.page;
+    state.page += 1;
+    const succeeded = await loadAssets({ append: true });
+    if (!succeeded) state.page = previousPage;
+}
+
+function setupInfiniteScroll() {
+    state.infiniteScrollObserver = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+            loadNextPage().catch(error => showToast(error.message, true));
+        }
+    }, {
+        root: null,
+        rootMargin: '600px 0px',
+        threshold: 0,
+    });
+    updateInfiniteScroll();
 }
 
 async function selectCollection(collection, name, albumId = null) {
@@ -467,9 +609,17 @@ function selectedIds() {
     return [...state.selected];
 }
 
+function cancelPendingAssetLoad() {
+    if (!state.assetRequestController) return;
+    state.assetRequestController.abort();
+    state.assetRequestController = null;
+    state.loading = false;
+}
+
 async function runBulk(action, extra = {}) {
     const ids = selectedIds();
     if (!ids.length) return;
+    cancelPendingAssetLoad();
     const result = await fetchJson('/api/library/assets/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -494,6 +644,65 @@ function toggleSelection(assetId, index, extend = false) {
     renderAssets();
 }
 
+function focusActiveCard({ smooth = false } = {}) {
+    window.requestAnimationFrame(() => {
+        const card = dom.grid.querySelector(`[data-asset-id="${state.activeAssetId}"]`);
+        if (!card) return;
+        card.focus({ preventScroll: true });
+        card.scrollIntoView({
+            block: 'nearest',
+            inline: 'nearest',
+            behavior: smooth ? 'smooth' : 'auto',
+        });
+    });
+}
+
+function assetNoLongerMatches(asset) {
+    if (state.collection === 'favorites' && !asset.favorite) return true;
+    if (state.collection === 'not_rated' && (asset.rating || 0) > 0) return true;
+    return state.ratingFilter !== null && (asset.rating || 0) !== state.ratingFilter;
+}
+
+async function patchAsset(assetId, payload, successMessage = '') {
+    const index = state.assets.findIndex(asset => asset.id === assetId);
+    if (index < 0) return;
+    cancelPendingAssetLoad();
+    const data = await fetchJson(`/api/library/assets/${assetId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+
+    if (assetNoLongerMatches(data.asset)) {
+        state.assets.splice(index, 1);
+        state.total = Math.max(0, state.total - 1);
+        state.selected.delete(assetId);
+        state.activeAssetId = state.assets[Math.min(index, state.assets.length - 1)]?.id ?? null;
+    } else {
+        state.assets[index] = data.asset;
+    }
+
+    await loadMetadata();
+    renderAssets();
+    updatePreviewPanel();
+    focusActiveCard();
+    if (successMessage) showToast(successMessage);
+}
+
+async function toggleFavorite(assetId) {
+    const asset = state.assets.find(item => item.id === assetId);
+    if (!asset) return;
+    await patchAsset(
+        assetId,
+        { favorite: !asset.favorite },
+        asset.favorite ? 'Removed from favorites' : 'Added to favorites',
+    );
+}
+
+async function setAssetRating(assetId, rating) {
+    await patchAsset(assetId, { rating }, `Rated ${rating} star${rating === 1 ? '' : 's'}`);
+}
+
 dom.systemCollections.addEventListener('click', event => {
     const button = event.target.closest('[data-collection]');
     if (!button) return;
@@ -502,6 +711,10 @@ dom.systemCollections.addEventListener('click', event => {
 });
 
 dom.albumList.addEventListener('click', async event => {
+    if (event.target.closest('[data-create-album-shortcut]')) {
+        dom.createAlbum.click();
+        return;
+    }
     const button = event.target.closest('[data-album-id]');
     if (!button) return;
     const albumId = Number(button.dataset.albumId);
@@ -534,6 +747,27 @@ dom.albumList.addEventListener('click', async event => {
     }
 });
 
+function clearAlbumDropTargets() {
+    dom.albumList.querySelectorAll('.drag-over').forEach(item => item.classList.remove('drag-over'));
+}
+
+async function addAssetsToAlbumFromGrid(albumId, assetIds) {
+    try {
+        const data = await fetchJson(`/api/albums/${albumId}/assets`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asset_ids: assetIds }),
+        });
+        await loadMetadata();
+        const album = state.albums.find(item => item.id === albumId);
+        showToast(data.affected
+            ? `${data.affected} asset${data.affected === 1 ? '' : 's'} added to ${album?.name || 'album'}`
+            : `Selected assets are already in ${album?.name || 'this album'}`);
+    } catch (error) {
+        showToast(error.message, true);
+    }
+}
+
 dom.createAlbum.addEventListener('click', () => {
     dom.albumDialog.dataset.action = 'create';
     dom.albumDialog.dataset.albumId = '';
@@ -545,6 +779,12 @@ dom.createAlbum.addEventListener('click', () => {
 });
 
 dom.grid.addEventListener('click', async event => {
+    if (state.suppressNextGridClick) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.suppressNextGridClick = false;
+        return;
+    }
     // Check if album card clicked (in albums grid view)
     const albumCard = event.target.closest('[data-grid-album-id]');
     if (albumCard) {
@@ -586,19 +826,7 @@ dom.grid.addEventListener('click', async event => {
     if (event.target.closest('.asset-favorite')) {
         event.stopPropagation();
         try {
-            const data = await fetchJson(`/api/library/assets/${assetId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ favorite: !asset.favorite }),
-            });
-            if (state.collection === 'favorites' && !data.asset.favorite) {
-                state.assets.splice(index, 1);
-                state.total = Math.max(0, state.total - 1);
-            } else {
-                state.assets[index] = data.asset;
-            }
-            await loadMetadata();
-            renderAssets();
+            await toggleFavorite(assetId);
         } catch (error) {
             showToast(error.message, true);
         }
@@ -624,6 +852,153 @@ dom.grid.addEventListener('dblclick', event => {
     if (asset) window.open(asset.original_url, '_blank', 'noopener');
 });
 
+function createAssetDragPreview(asset, count) {
+    const preview = document.createElement('div');
+    preview.className = 'asset-drag-preview';
+
+    const image = document.createElement('img');
+    image.src = asset.thumbnail_url;
+    image.alt = '';
+    image.draggable = false;
+
+    const copy = document.createElement('span');
+    copy.className = 'asset-drag-preview-copy';
+    const title = document.createElement('strong');
+    title.textContent = count === 1 ? asset.file_name : `${count} selected images`;
+    const hint = document.createElement('span');
+    hint.textContent = 'Drop onto an album';
+    copy.append(title, hint);
+    preview.append(image, copy);
+    document.body.append(preview);
+    return preview;
+}
+
+function albumTargetAtPoint(clientX, clientY) {
+    return document.elementFromPoint(clientX, clientY)?.closest?.('[data-album-drop-target]') || null;
+}
+
+function updatePointerDropTarget(session, clientX, clientY) {
+    const target = albumTargetAtPoint(clientX, clientY);
+    if (target === session.dropTarget) return;
+    clearAlbumDropTargets();
+    session.dropTarget = target;
+    target?.classList.add('drag-over');
+}
+
+function beginPointerAssetDrag(session, event) {
+    const asset = state.assets.find(item => item.id === session.assetId);
+    if (!asset) return false;
+
+    const dragSelectedGroup = state.selectMode && state.selected.has(session.assetId);
+    state.draggingAssetIds = dragSelectedGroup ? selectedIds() : [session.assetId];
+    session.dragging = true;
+    session.preview = createAssetDragPreview(asset, state.draggingAssetIds.length);
+    const draggingIds = new Set(state.draggingAssetIds);
+    dom.grid.querySelectorAll('[data-asset-id]').forEach(card => {
+        const cardId = Number(card.dataset.assetId);
+        card.classList.toggle('dragging', draggingIds.has(cardId));
+    });
+    dom.shell.classList.add('asset-drag-active');
+    document.body.classList.add('asset-pointer-dragging');
+    updatePointerDropTarget(session, event.clientX, event.clientY);
+    return true;
+}
+
+function moveAssetDragPreview(session, clientX, clientY) {
+    if (!session.preview) return;
+    session.preview.style.transform = `translate3d(${clientX + 14}px, ${clientY + 14}px, 0)`;
+}
+
+function cleanupPointerAssetDrag(session) {
+    try {
+        session.card.releasePointerCapture?.(session.pointerId);
+    } catch {
+        // Capture may already be released by the browser.
+    }
+    session.preview?.remove();
+    clearAlbumDropTargets();
+    dom.shell.classList.remove('asset-drag-active');
+    document.body.classList.remove('asset-pointer-dragging');
+    state.draggingAssetIds = [];
+    state.pointerDrag = null;
+    renderAssets();
+    updatePreviewPanel();
+}
+
+dom.grid.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || event.pointerType === 'touch') return;
+    if (state.pointerDrag) return;
+    if (event.target.closest('button, input, a')) return;
+    const card = event.target.closest('[data-asset-id]');
+    if (!card || state.collection === 'albums') return;
+    const assetId = Number(card.dataset.assetId);
+    if (!state.assets.some(asset => asset.id === assetId)) return;
+
+    state.pointerDrag = {
+        pointerId: event.pointerId,
+        assetId,
+        card,
+        startX: event.clientX,
+        startY: event.clientY,
+        dragging: false,
+        preview: null,
+        dropTarget: null,
+    };
+    card.setPointerCapture?.(event.pointerId);
+});
+
+document.addEventListener('pointermove', event => {
+    const session = state.pointerDrag;
+    if (!session || session.pointerId !== event.pointerId) return;
+    const distance = Math.hypot(event.clientX - session.startX, event.clientY - session.startY);
+    if (!session.dragging && distance >= 6 && !beginPointerAssetDrag(session, event)) return;
+    if (!session.dragging) return;
+    event.preventDefault();
+    moveAssetDragPreview(session, event.clientX, event.clientY);
+    updatePointerDropTarget(session, event.clientX, event.clientY);
+}, { passive: false });
+
+async function finishPointerAssetDrag(event, cancelled = false) {
+    const session = state.pointerDrag;
+    if (!session || session.pointerId !== event.pointerId) return;
+    const wasDragging = session.dragging;
+    if (!wasDragging) {
+        try {
+            session.card.releasePointerCapture?.(session.pointerId);
+        } catch {
+            // Capture may already be released by the browser.
+        }
+        state.pointerDrag = null;
+        return;
+    }
+    const finalDropTarget = cancelled
+        ? null
+        : albumTargetAtPoint(event.clientX, event.clientY);
+    const albumId = finalDropTarget
+        ? Number(finalDropTarget.dataset.albumDropTarget)
+        : null;
+    const assetIds = [...state.draggingAssetIds];
+
+    if (wasDragging) {
+        state.suppressNextGridClick = true;
+        window.setTimeout(() => { state.suppressNextGridClick = false; }, 100);
+    }
+    cleanupPointerAssetDrag(session);
+    if (wasDragging && albumId && assetIds.length) {
+        await addAssetsToAlbumFromGrid(albumId, assetIds);
+    }
+}
+
+document.addEventListener('pointerup', event => {
+    finishPointerAssetDrag(event).catch(error => showToast(error.message, true));
+});
+
+document.addEventListener('pointercancel', event => {
+    finishPointerAssetDrag(event, true).catch(error => showToast(error.message, true));
+});
+
+dom.grid.addEventListener('dragstart', event => event.preventDefault());
+
 dom.selectVisible.addEventListener('change', () => {
     if (dom.selectVisible.checked) {
         state.assets.forEach(asset => state.selected.add(asset.id));
@@ -631,6 +1006,7 @@ dom.selectVisible.addEventListener('change', () => {
         state.assets.forEach(asset => state.selected.delete(asset.id));
     }
     renderAssets();
+    updatePreviewPanel();
 });
 
 dom.toolbar.addEventListener('click', event => {
@@ -701,6 +1077,7 @@ dom.removeFromIndex.addEventListener('click', async () => {
 dom.clearSelection.addEventListener('click', () => {
     state.selected.clear();
     renderAssets();
+    updatePreviewPanel();
 });
 
 dom.editAsset.addEventListener('click', () => {
@@ -801,7 +1178,7 @@ dom.addFilesInput.addEventListener('change', async () => {
         });
         if (data.images?.length) {
             showToast(`${data.images.length} file(s) added successfully`);
-            await loadMetadata();
+            await loadMetadata({ includeFilters: true });
             await loadAssets();
         } else {
             showToast('No images were added', true);
@@ -813,28 +1190,25 @@ dom.addFilesInput.addEventListener('change', async () => {
     }
 });
 
-dom.loadMore.addEventListener('click', async () => {
-    state.page += 1;
-    await loadAssets({ append: true });
-});
+function resetAssetQuery() {
+    state.page = 1;
+    state.assets = [];
+    state.selected.clear();
+    state.lastSelectedIndex = null;
+    state.activeAssetId = null;
+    loadAssets().catch(error => showToast(error.message, true));
+}
 
 let searchTimer;
 dom.search.addEventListener('input', () => {
     window.clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(() => {
-        state.page = 1;
-        state.assets = [];
-        state.selected.clear();
-        loadAssets();
-    }, 250);
+    searchTimer = window.setTimeout(resetAssetQuery, 250);
 });
 
-dom.sort.addEventListener('change', () => {
-    state.page = 1;
-    state.assets = [];
-    state.selected.clear();
-    loadAssets();
-});
+dom.sort.addEventListener('change', resetAssetQuery);
+dom.modelFilter.addEventListener('change', resetAssetQuery);
+dom.orientationFilter.addEventListener('change', resetAssetQuery);
+dom.nodeFilter.addEventListener('change', resetAssetQuery);
 
 dom.albumDialogForm.addEventListener('submit', async event => {
     if (event.submitter?.id !== 'save-album-btn') return;
@@ -889,14 +1263,43 @@ dom.ratingFilterButtons.addEventListener('click', event => {
         btn.classList.toggle('active', state.ratingFilter === btnRating);
     });
 
-    state.page = 1;
-    state.assets = [];
-    state.selected.clear();
-    loadAssets();
+    resetAssetQuery();
 });
 
-document.addEventListener('keydown', event => {
-    const editing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+function gridColumnCount() {
+    const columns = window.getComputedStyle(dom.grid).gridTemplateColumns;
+    if (!columns || columns === 'none') return 1;
+    return Math.max(1, columns.split(/\s+/).filter(Boolean).length);
+}
+
+async function moveActiveAsset(key) {
+    if (!state.assets.length || state.collection === 'albums') return;
+    let index = state.assets.findIndex(asset => asset.id === state.activeAssetId);
+    if (index < 0) index = 0;
+    const columns = gridColumnCount();
+    const delta = {
+        ArrowLeft: -1,
+        ArrowRight: 1,
+        ArrowUp: -columns,
+        ArrowDown: columns,
+    }[key];
+    let targetIndex = index + delta;
+
+    if (targetIndex >= state.assets.length && state.assets.length < state.total) {
+        await loadNextPage();
+    }
+    targetIndex = Math.max(0, Math.min(targetIndex, state.assets.length - 1));
+    state.activeAssetId = state.assets[targetIndex].id;
+    renderAssets();
+    updatePreviewPanel();
+    focusActiveCard({ smooth: true });
+}
+
+document.addEventListener('keydown', async event => {
+    const activeElement = document.activeElement;
+    const editing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement?.tagName) || activeElement?.isContentEditable;
+    const dialogOpen = dom.editor.open || dom.albumDialog.open;
+    const externalInteractive = !!activeElement?.closest?.('button, a, [role="button"]') && !activeElement.closest('.asset-card');
     if (event.key === 'Escape') {
         if (dom.editor.open) {
             dom.editor.close();
@@ -910,14 +1313,50 @@ document.addEventListener('keydown', event => {
             dom.shell.classList.remove('select-mode-on');
             state.selected.clear();
             renderAssets();
+            updatePreviewPanel();
         } else {
             state.selected.clear();
             renderAssets();
+            updatePreviewPanel();
         }
-    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && !editing) {
+    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && !editing && !dialogOpen) {
         event.preventDefault();
         state.assets.forEach(asset => state.selected.add(asset.id));
         renderAssets();
+        updatePreviewPanel();
+    } else if (!editing && !dialogOpen && !externalInteractive && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.startsWith('Arrow')) {
+        event.preventDefault();
+        await moveActiveAsset(event.key);
+    } else if (!editing && !dialogOpen && !externalInteractive && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key === ' ' || event.code === 'Space')) {
+        event.preventDefault();
+        if (event.repeat || !state.activeAssetId) return;
+        if (!state.selectMode) {
+            state.selectMode = true;
+            dom.btnToggleSelect.classList.add('active');
+            dom.shell.classList.add('select-mode-on');
+        }
+        const index = state.assets.findIndex(asset => asset.id === state.activeAssetId);
+        if (index >= 0) {
+            toggleSelection(state.activeAssetId, index, event.shiftKey);
+            updatePreviewPanel();
+            focusActiveCard();
+        }
+    } else if (!editing && !dialogOpen && !externalInteractive && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        if (event.repeat || !state.activeAssetId) return;
+        try {
+            await toggleFavorite(state.activeAssetId);
+        } catch (error) {
+            showToast(error.message, true);
+        }
+    } else if (!editing && !dialogOpen && !externalInteractive && !event.ctrlKey && !event.metaKey && !event.altKey && /^[1-5]$/.test(event.key)) {
+        event.preventDefault();
+        if (event.repeat || !state.activeAssetId) return;
+        try {
+            await setAssetRating(state.activeAssetId, Number(event.key));
+        } catch (error) {
+            showToast(error.message, true);
+        }
     }
 });
 
@@ -967,11 +1406,21 @@ async function initialize() {
                 }
             }
             renderAssets();
+            updatePreviewPanel();
         });
 
         dom.btnTogglePreview.addEventListener('click', () => {
             state.showPreview = !state.showPreview;
             dom.btnTogglePreview.classList.toggle('active', state.showPreview);
+            updatePreviewPanel();
+        });
+
+        dom.previewCarousel.addEventListener('click', event => {
+            const wrap = event.target.closest('[data-carousel-id]');
+            if (!wrap) return;
+            const assetId = Number(wrap.dataset.carouselId);
+            state.activeAssetId = assetId;
+            renderAssets();
             updatePreviewPanel();
         });
 
@@ -1006,7 +1455,95 @@ async function initialize() {
             }
         });
 
-        await loadMetadata();
+        // Resize handle logic
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        dom.previewResizeHandle.addEventListener('mousedown', e => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = state.previewWidth;
+            dom.previewResizeHandle.classList.add('resizing');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+
+            document.addEventListener('mousemove', handleResize);
+            document.addEventListener('mouseup', stopResize);
+        });
+
+        function handleResize(e) {
+            if (!isResizing) return;
+            const dx = e.clientX - startX;
+            let newWidth = startWidth - dx;
+
+            // 1. If sidebar is open, check if resizing the preview panel leaves less than 450px for the grid.
+            // If so, automatically collapse the sidebar! (But don't touch sidebarExplicitlyCollapsed)
+            if (!state.sidebarCollapsed && newWidth > window.innerWidth - 250 - 450) {
+                state.sidebarCollapsed = true;
+                localStorage.setItem('library-sidebar-collapsed', 'true');
+                updateSidebarUI();
+            }
+
+            // 2. If sidebar is automatically collapsed (not explicitly collapsed by user),
+            // check if shrinking the preview panel allows the sidebar to fit back with at least 450px grid width.
+            // If so, automatically restore/expand the sidebar!
+            if (state.sidebarCollapsed && !state.sidebarExplicitlyCollapsed && newWidth <= window.innerWidth - 250 - 450) {
+                state.sidebarCollapsed = false;
+                localStorage.setItem('library-sidebar-collapsed', 'false');
+                updateSidebarUI();
+            }
+
+            const currentSidebarWidth = state.sidebarCollapsed ? 0 : 250;
+            const maxAllowed = window.innerWidth - currentSidebarWidth - 450;
+            newWidth = Math.max(300, Math.min(maxAllowed, newWidth));
+
+            state.previewWidth = newWidth;
+            localStorage.setItem('library-preview-width', String(newWidth));
+            updateLayoutColumns();
+        }
+
+        function stopResize() {
+            if (!isResizing) return;
+            isResizing = false;
+            dom.previewResizeHandle.classList.remove('resizing');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+
+            document.removeEventListener('mousemove', handleResize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+
+        // Sidebar Toggle click handler
+        dom.btnToggleSidebar.addEventListener('click', () => {
+            state.sidebarCollapsed = !state.sidebarCollapsed;
+            state.sidebarExplicitlyCollapsed = state.sidebarCollapsed;
+            localStorage.setItem('library-sidebar-collapsed', String(state.sidebarCollapsed));
+            localStorage.setItem('library-sidebar-explicitly-collapsed', String(state.sidebarExplicitlyCollapsed));
+
+            // If we are opening the sidebar and preview is visible,
+            // we must make sure the middle pane has at least 450px of space.
+            // If not, we push (reduce) the preview panel width!
+            if (!state.sidebarCollapsed && state.showPreview) {
+                const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
+                if (activeAsset) {
+                    const requiredGallerySpace = 450;
+                    const maxAllowedPreviewWidth = window.innerWidth - 250 - requiredGallerySpace;
+                    if (state.previewWidth > maxAllowedPreviewWidth) {
+                        state.previewWidth = Math.max(300, maxAllowedPreviewWidth);
+                        localStorage.setItem('library-preview-width', String(state.previewWidth));
+                    }
+                }
+            }
+
+            updateSidebarUI();
+        });
+
+        // Initialize sidebar and columns layout
+        updateSidebarUI();
+        setupInfiniteScroll();
+
+        await loadMetadata({ includeFilters: true });
         await loadAssets();
     } catch (error) {
         dom.feedback.textContent = `Library could not be loaded: ${error.message}`;

@@ -16,10 +16,17 @@
 <body class="library-body">
     <header class="library-header">
         <div class="library-brand">
+            <button id="btn-toggle-sidebar" class="btn btn-icon btn-ghost btn-sidebar-toggle" type="button" title="Toggle sidebar" aria-label="Toggle sidebar">
+                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
             <a class="header-logo" href="/"><span>Comfy</span>UI Meta Viewer</a>
             <span class="library-page-label">Library</span>
         </div>
         <nav class="library-nav" aria-label="Primary navigation">
+            <button id="btn-toggle-preview" class="btn btn-ghost btn-preview-toggle active" type="button" title="Toggle preview panel">
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="3" width="7" height="18" rx="1"></rect><rect x="3" y="3" width="7" height="18" rx="1"></rect></svg>
+                <span>Preview</span>
+            </button>
             <label class="btn" for="library-add-files-input" style="cursor:pointer">Add Files</label>
             <input type="file" id="library-add-files-input" class="hidden-input" multiple accept="image/*" style="display:none">
             <a class="btn btn-ghost" href="/">Viewer</a>
@@ -34,11 +41,15 @@
                 <nav id="system-collections" class="collection-list" aria-label="System collections"></nav>
             </section>
             <section class="album-section">
-                <div class="library-section-heading">
-                    <span>Albums</span>
+                <div class="library-section-heading album-section-heading">
+                    <span>Albums <span id="sidebar-album-total" class="album-heading-count"></span></span>
                     <button id="create-album" class="library-add-button" type="button" title="Create album" aria-label="Create album">+</button>
                 </div>
-                <nav id="album-list" class="collection-list" aria-label="Albums"></nav>
+                <p class="album-section-hint">
+                    <span class="album-hint-idle">Drag images onto an album to add them</span>
+                    <span class="album-hint-drag">Release over an album</span>
+                </p>
+                <nav id="album-list" class="album-sidebar-list" aria-label="Albums"></nav>
             </section>
             <div class="library-safety-note">
                 <strong>Virtual organization</strong>
@@ -53,6 +64,9 @@
                     <h1 id="collection-title">All assets</h1>
                     <p id="collection-summary" class="library-subtitle">Loading indexed assets…</p>
                 </div>
+            </div>
+
+            <div class="library-toolbar-sticky">
                 <div class="library-filters">
                     <label class="library-search">
                         <span class="sr-only">Search library</span>
@@ -65,6 +79,21 @@
                         <button type="button" class="rating-filter-btn" data-rating="4" title="Show 4 stars">★★★★</button>
                         <button type="button" class="rating-filter-btn" data-rating="5" title="Show 5 stars">★★★★★</button>
                     </div>
+                    <select id="library-model-filter" aria-label="Filter by generation model">
+                        <option value="">All models</option>
+                        <option value="flux">Flux</option>
+                        <option value="pony">Pony</option>
+                        <option value="sdxl">SDXL</option>
+                    </select>
+                    <select id="library-orientation-filter" aria-label="Filter by image orientation">
+                        <option value="">All orientations</option>
+                        <option value="landscape">Landscape</option>
+                        <option value="portrait">Portrait</option>
+                        <option value="square">Square</option>
+                    </select>
+                    <select id="library-node-filter" aria-label="Filter by ComfyUI node">
+                        <option value="">All generation nodes</option>
+                    </select>
                     <select id="library-sort" aria-label="Sort assets">
                         <option value="date:desc">Newest file</option>
                         <option value="date:asc">Oldest file</option>
@@ -75,51 +104,58 @@
                         <option value="rating:desc">Highest rated</option>
                     </select>
                     <button id="btn-toggle-select" class="btn" type="button" title="Toggle selection mode">Select</button>
-                    <button id="btn-toggle-preview" class="btn btn-icon active" type="button" title="Toggle preview panel">
-                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                    </button>
                 </div>
-            </div>
+                <p class="library-keyboard-hint" aria-label="Grid keyboard shortcuts">
+                    <span>← ↑ ↓ → navigate</span><span>Space select</span><span>F favorite</span><span>1–5 rate</span>
+                </p>
 
-            <div id="selection-toolbar" class="selection-toolbar" hidden>
-                <label class="select-visible"><input id="select-visible" type="checkbox"> Select visible</label>
-                <span id="selection-count">0 selected</span>
-                <div class="selection-actions">
-                    <button class="btn btn-sm" type="button" data-bulk="favorite">Favorite</button>
-                    <button class="btn btn-sm" type="button" data-bulk="unfavorite">Unfavorite</button>
-                    <select id="bulk-album" aria-label="Album for selected assets">
-                        <option value="">Add to album…</option>
-                    </select>
-                    <button id="remove-from-album" class="btn btn-sm" type="button" hidden>Remove from album</button>
-                    <select id="bulk-rating" aria-label="Rating for selected assets">
-                        <option value="">Set rating…</option>
-                        <option value="0">Not rated</option>
-                        <option value="1">★</option>
-                        <option value="2">★★</option>
-                        <option value="3">★★★</option>
-                        <option value="4">★★★★</option>
-                        <option value="5">★★★★★</option>
-                    </select>
-                    <button id="toolbar-copy-workflow" class="btn btn-sm" type="button" hidden>Copy Workflow</button>
-                    <button id="toolbar-copy-pos-prompt" class="btn btn-sm" type="button" hidden>Copy Positive</button>
-                    <button id="toolbar-copy-neg-prompt" class="btn btn-sm" type="button" hidden>Copy Negative</button>
-                    <button id="edit-asset" class="btn btn-sm" type="button">Edit details</button>
-                    <button id="set-album-cover" class="btn btn-sm" type="button" hidden>Set cover</button>
-                    <button id="remove-from-index" class="btn btn-sm btn-danger" type="button">Remove from index</button>
-                    <button id="clear-selection" class="btn btn-sm btn-ghost" type="button">Clear</button>
+                <div id="selection-toolbar" class="selection-toolbar" hidden>
+                    <label class="select-visible"><input id="select-visible" type="checkbox"> Select visible</label>
+                    <span id="selection-count">0 selected</span>
+                    <div class="selection-actions">
+                        <button class="btn btn-sm" type="button" data-bulk="favorite">Favorite</button>
+                        <button class="btn btn-sm" type="button" data-bulk="unfavorite">Unfavorite</button>
+                        <select id="bulk-album" aria-label="Album for selected assets">
+                            <option value="">Add to album…</option>
+                        </select>
+                        <button id="remove-from-album" class="btn btn-sm" type="button" hidden>Remove from album</button>
+                        <select id="bulk-rating" aria-label="Rating for selected assets">
+                            <option value="">Set rating…</option>
+                            <option value="0">Not rated</option>
+                            <option value="1">★</option>
+                            <option value="2">★★</option>
+                            <option value="3">★★★</option>
+                            <option value="4">★★★★</option>
+                            <option value="5">★★★★★</option>
+                        </select>
+                        <button id="toolbar-copy-workflow" class="btn btn-sm" type="button" hidden>Copy Workflow</button>
+                        <button id="toolbar-copy-pos-prompt" class="btn btn-sm" type="button" hidden>Copy Positive</button>
+                        <button id="toolbar-copy-neg-prompt" class="btn btn-sm" type="button" hidden>Copy Negative</button>
+                        <button id="edit-asset" class="btn btn-sm" type="button">Edit details</button>
+                        <button id="set-album-cover" class="btn btn-sm" type="button" hidden>Set cover</button>
+                        <button id="remove-from-index" class="btn btn-sm btn-danger" type="button">Remove from index</button>
+                        <button id="clear-selection" class="btn btn-sm btn-ghost" type="button">Clear</button>
+                    </div>
                 </div>
             </div>
 
             <div id="library-feedback" class="library-feedback" role="status">Loading library…</div>
             <div id="asset-grid" class="asset-grid" aria-live="polite"></div>
-            <button id="load-more" class="btn library-load-more" type="button" hidden>Load more</button>
+            <div id="infinite-scroll-sentinel" class="infinite-scroll-sentinel" role="status" aria-live="polite" hidden>
+                <span class="infinite-scroll-spinner" aria-hidden="true"></span>
+                <span>Loading more assets…</span>
+            </div>
         </main>
 
-        <div id="library-preview-panel" class="library-preview-panel" hidden>
+        <div id="library-preview-panel" class="library-preview-panel">
+            <div id="preview-resize-handle" class="preview-resize-handle"></div>
             <button id="close-preview-panel" class="close-preview-btn" type="button" title="Close preview">&times;</button>
             <div id="preview-backdrop" class="preview-backdrop"></div>
-            <div class="preview-content">
-                <img id="preview-panel-img" src="" alt="Preview">
+            <div class="preview-layout">
+                <div class="preview-content">
+                    <img id="preview-panel-img" src="" alt="Preview">
+                </div>
+                <div id="preview-carousel" class="preview-carousel" hidden></div>
             </div>
             <div class="preview-actions">
                 <button id="preview-copy-workflow" class="btn btn-sm btn-secondary" type="button" hidden>Copy Workflow</button>

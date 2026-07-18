@@ -133,11 +133,14 @@ def library_page():
 
 @app.route("/api/library", methods=["GET"])
 def api_library_summary():
-    return jsonify({
+    result = {
         "system_collections": media_library.SYSTEM_COLLECTIONS,
         "summary": media_library.library_summary(),
         "albums": media_library.list_albums(),
-    })
+    }
+    if request.args.get("include_filters", "1") != "0":
+        result["metadata_filters"] = media_library.list_metadata_filters()
+    return jsonify(result)
 
 
 @app.route("/api/library/assets", methods=["GET"])
@@ -157,6 +160,9 @@ def api_library_assets():
         source_id=request.args.get("source_id", type=int),
         tag=request.args.get("tag"),
         rating=rating,
+        model_family=request.args.get("model_family"),
+        orientation=request.args.get("orientation"),
+        node_type=request.args.get("node_type"),
     )
     return jsonify(result)
 

@@ -20,6 +20,32 @@ SYSTEM_COLLECTIONS = (
 
 _SYSTEM_IDS = {item["id"] for item in SYSTEM_COLLECTIONS}
 _VIDEO_SUFFIXES = ("mp4", "webm", "mov", "m4v", "mkv", "avi")
+_MODEL_FAMILY_PATTERNS = {
+    "flux": ("%flux%",),
+    "pony": ("%pony%",),
+    "sdxl": (
+        "%sdxl%",
+        "%sd_xl%",
+        "%sd-xl%",
+        "%stable diffusion xl%",
+        "%stable-diffusion-xl%",
+        "%xl%",
+    ),
+}
+_ORIENTATION_CONDITIONS = {
+    "landscape": "i.width > i.height",
+    "portrait": "i.height > i.width",
+    "square": "i.width = i.height AND i.width > 0",
+}
+_VALID_METADATA_SQL = (
+    "CASE WHEN json_valid(i.metadata_json) THEN i.metadata_json ELSE '{}' END"
+)
+_MODEL_TEXT_SQL = f"""LOWER(
+    COALESCE(CAST(json_extract({_VALID_METADATA_SQL}, '$.prompt_parameters.model') AS TEXT), '') || ' ' ||
+    COALESCE(CAST(json_extract({_VALID_METADATA_SQL}, '$.prompt_parameters.Model') AS TEXT), '') || ' ' ||
+    COALESCE(CAST(json_extract({_VALID_METADATA_SQL}, '$.prompt_parameters.generation_settings.model') AS TEXT), '') || ' ' ||
+    COALESCE(CAST(json_extract({_VALID_METADATA_SQL}, '$.prompt_parameters.generation_settings.Model') AS TEXT), '')
+)"""
 
 
 class LibraryError(RuntimeError):
@@ -39,6 +65,78 @@ def _clean_name(name: str) -> str:
     if not clean:
         raise LibraryError("Album name cannot be empty")
     return clean
+
+
+def _model_family_condition(model_family: str) -> tuple[str, list[str]]:
+    patterns = _MODEL_FAMILY_PATTERNS.get(model_family)
+    if patterns is None:
+        raise LibraryError("Unknown model family")
+
+    matches: list[str] = []
+    params: list[str] = []
+    for pattern in patterns:
+        matches.append(
+            f"""({_MODEL_TEXT_SQL} LIKE ? OR EXISTS (
+                SELECT 1
+                FROM json_tree({_VALID_METADATA_SQL}, '$.workflow.workflow_nodes') model_value
+                WHERE model_value.key IN ('ckpt_name', 'unet_name', 'model_name')
+                  AND LOWER(CAST(model_value.value AS TEXT)) LIKE ?
+            ))"""
+        )
+        params.extend((pattern, pattern))
+
+    if model_family == "flux":
+        matches.append(
+            f"""EXISTS (
+                SELECT 1
+                FROM json_tree({_VALID_METADATA_SQL}, '$.workflow.workflow_nodes') flux_node
+                WHERE flux_node.key = 'class_type'
+                  AND LOWER(CAST(flux_node.value AS TEXT)) LIKE '%flux%'
+            )"""
+        )
+    condition = f"({' OR '.join(matches)})"
+    if model_family == "sdxl":
+        condition = f"""({condition} AND NOT (
+            {_MODEL_TEXT_SQL} LIKE ? OR EXISTS (
+                SELECT 1
+                FROM json_tree({_VALID_METADATA_SQL}, '$.workflow.workflow_nodes') pony_model
+                WHERE pony_model.key IN ('ckpt_name', 'unet_name', 'model_name')
+                  AND LOWER(CAST(pony_model.value AS TEXT)) LIKE ?
+            )
+        ))"""
+        params.extend(("%pony%", "%pony%"))
+    return condition, params
+
+
+def list_metadata_filters() -> dict[str, list[dict[str, str]] | list[str]]:
+    """Return the smart-filter values currently represented in the index."""
+    conn = db.get_conn()
+    try:
+        rows = conn.execute(
+            f"""SELECT DISTINCT CAST(node.value AS TEXT) AS node_type
+            FROM images i,
+                 json_tree({_VALID_METADATA_SQL}, '$.workflow.workflow_nodes') node
+            WHERE node.key = 'class_type'
+              AND node.type = 'text'
+              AND TRIM(CAST(node.value AS TEXT)) != ''
+            ORDER BY node_type COLLATE NOCASE"""
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return {
+        "model_families": [
+            {"id": "flux", "name": "Flux"},
+            {"id": "pony", "name": "Pony"},
+            {"id": "sdxl", "name": "SDXL"},
+        ],
+        "orientations": [
+            {"id": "landscape", "name": "Landscape"},
+            {"id": "portrait", "name": "Portrait"},
+            {"id": "square", "name": "Square"},
+        ],
+        "node_types": [str(row["node_type"]) for row in rows],
+    }
 
 
 def list_albums() -> list[dict[str, Any]]:
@@ -429,6 +527,9 @@ def get_assets(
     tag: str | None = None,
     asset_id: int | None = None,
     rating: int | None = None,
+    model_family: str | None = None,
+    orientation: str | None = None,
+    node_type: str | None = None,
 ) -> dict[str, Any]:
     if collection not in _SYSTEM_IDS and collection != "album":
         raise LibraryError("Unknown collection")
@@ -445,6 +546,32 @@ def get_assets(
     if rating is not None:
         conditions.append("i.rating = ?")
         params.append(rating)
+
+    if model_family:
+        model_condition, model_params = _model_family_condition(
+            model_family.casefold()
+        )
+        conditions.append(model_condition)
+        params.extend(model_params)
+
+    if orientation:
+        orientation_condition = _ORIENTATION_CONDITIONS.get(
+            orientation.casefold()
+        )
+        if orientation_condition is None:
+            raise LibraryError("Unknown orientation")
+        conditions.append(orientation_condition)
+
+    if node_type and node_type.strip():
+        conditions.append(
+            f"""EXISTS (
+                SELECT 1
+                FROM json_tree({_VALID_METADATA_SQL}, '$.workflow.workflow_nodes') selected_node
+                WHERE selected_node.key = 'class_type'
+                  AND LOWER(CAST(selected_node.value AS TEXT)) = ?
+            )"""
+        )
+        params.append(node_type.strip().casefold())
 
     if asset_id is not None:
         conditions.append("i.id = ?")

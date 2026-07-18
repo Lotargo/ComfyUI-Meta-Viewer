@@ -33,9 +33,9 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
                 <span>Add</span>
             </button>
-            <button id="btn-toggle-preview" class="header-preview-action active" type="button" title="Hide image preview" aria-label="Hide image preview" aria-pressed="true">
+            <button id="btn-toggle-preview" class="header-preview-action active" type="button" title="Hide media preview" aria-label="Hide media preview" aria-pressed="true">
                 <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="3" width="7" height="18" rx="1"></rect><rect x="3" y="3" width="7" height="18" rx="1"></rect></svg>
-                <span class="header-preview-label">Preview image</span>
+                <span class="header-preview-label">Preview media</span>
                 <span class="header-preview-switch" aria-hidden="true"></span>
             </button>
             <button id="btn-library-guide" class="header-icon-button" type="button" title="Open library guide" aria-label="Open library guide" aria-haspopup="dialog" aria-expanded="false">
@@ -57,7 +57,7 @@
                     <button id="create-album" class="library-add-button" type="button" title="Create album" aria-label="Create album">+</button>
                 </div>
                 <p class="album-section-hint">
-                    <span class="album-hint-idle">Drag images onto an album to add them</span>
+                    <span class="album-hint-idle">Drag assets onto an album to add them</span>
                     <span class="album-hint-drag">Release over an album</span>
                 </p>
                 <nav id="album-list" class="album-sidebar-list" aria-label="Albums"></nav>
@@ -173,7 +173,8 @@
             <div id="preview-backdrop" class="preview-backdrop"></div>
             <div class="preview-layout">
                 <div class="preview-content">
-                    <img id="preview-panel-img" src="" alt="Preview">
+                    <img id="preview-panel-img" src="" alt="Image preview">
+                    <video id="preview-panel-video" controls preload="metadata" hidden aria-label="Video preview"></video>
                 </div>
                 <div id="preview-carousel" class="preview-carousel" hidden></div>
             </div>
@@ -217,10 +218,10 @@
                         <div><h3>Keyboard navigation</h3><p>Keep your hands on the keyboard while reviewing.</p></div>
                     </div>
                     <div class="guide-shortcut-grid">
-                        <div class="guide-shortcut"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><span><strong>Navigate</strong><small>Move the active image through the grid</small></span></div>
-                        <div class="guide-shortcut"><kbd>Space</kbd><span><strong>Select</strong><small>Toggle selection for the active image</small></span></div>
-                        <div class="guide-shortcut"><kbd>F</kbd><span><strong>Favorite</strong><small>Add or remove the active image from favorites</small></span></div>
-                        <div class="guide-shortcut"><kbd>1–5</kbd><span><strong>Rate</strong><small>Set the active image rating instantly</small></span></div>
+                        <div class="guide-shortcut"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><span><strong>Navigate</strong><small>Move the active asset through the grid</small></span></div>
+                        <div class="guide-shortcut"><kbd>Space</kbd><span><strong>Select</strong><small>Toggle selection for the active asset</small></span></div>
+                        <div class="guide-shortcut"><kbd>F</kbd><span><strong>Favorite</strong><small>Add or remove the active asset from favorites</small></span></div>
+                        <div class="guide-shortcut"><kbd>1–5</kbd><span><strong>Rate</strong><small>Set the active asset rating instantly</small></span></div>
                         <div class="guide-shortcut"><kbd>Delete</kbd><span><strong>Delete files</strong><small>Move selected physical files from the computer to the Recycle Bin / Trash</small></span></div>
                         <div class="guide-shortcut"><kbd>Esc</kbd><span><strong>Clear or return</strong><small>Clear a selection in place; with nothing selected, return to the start</small></span></div>
                     </div>
@@ -232,8 +233,8 @@
                         <div><h3>Selection</h3><p>Use Select Mode for bulk actions.</p></div>
                     </div>
                     <div class="guide-workflow-grid">
-                        <article><strong>Double-click</strong><p>Double-click an image to enter Select Mode and select it.</p></article>
-                        <article><strong>Range selection</strong><p>Hold Shift while selecting to include the images between two points.</p></article>
+                        <article><strong>Double-click</strong><p>Double-click an asset to enter Select Mode and select it.</p></article>
+                        <article><strong>Range selection</strong><p>Hold Shift while selecting to include the assets between two points.</p></article>
                         <article><strong>Bulk actions</strong><p>Favorite, rate, edit, remove from the index, or delete selected physical files from the computer.</p></article>
                     </div>
                 </section>
@@ -244,8 +245,8 @@
                         <div><h3>Albums and organization</h3><p>Albums are virtual and never move physical files.</p></div>
                     </div>
                     <div class="guide-workflow-grid">
-                        <article><strong>Drag one image</strong><p>Outside Select Mode, drag any image directly onto an album.</p></article>
-                        <article><strong>Drag a selection</strong><p>In Select Mode, drag one selected image to move the whole selection.</p></article>
+                        <article><strong>Drag one asset</strong><p>Outside Select Mode, drag any asset directly onto an album.</p></article>
+                        <article><strong>Drag a selection</strong><p>In Select Mode, drag one selected asset to move the whole selection.</p></article>
                         <article><strong>Smart filters</strong><p>Narrow the grid by model family, orientation, ComfyUI node, or rating.</p></article>
                     </div>
                 </section>

@@ -181,6 +181,24 @@ User clicks an image
 
 The frontend renders the response in three main views: Summary, Workflow, and Raw metadata.
 
+### Unified media assets
+
+Physical source scans create shared asset rows for both images and videos. The SQLite table
+retains its legacy `images` name for migration compatibility, while `media_type`, `mime_type`,
+and the asset-oriented Library API form the common layer. The old `/api/images` listing remains
+image-only so the metadata viewer is not forced to behave as a video viewer.
+
+```text
+Source file
+   ├── image → Pillow metadata + JPEG thumbnail
+   └── video → ffprobe technical metadata + ffmpeg JPEG frame
+                      │
+                      └── missing tools → unavailable state, asset remains indexed
+```
+
+Original embedded metadata is stored independently from relational user metadata and
+`ai_annotations_json`, preventing future AI reconstruction from being represented as source data.
+
 ### 4. Thumbnail, Preview, and Original Image Serving
 
 ```
@@ -244,12 +262,20 @@ CREATE TABLE images (
     file_name TEXT NOT NULL,
     file_size INTEGER DEFAULT 0,
     file_mtime REAL DEFAULT 0,
+    media_type TEXT NOT NULL DEFAULT 'image',
+    mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
     format TEXT,
     width INTEGER DEFAULT 0,
     height INTEGER DEFAULT 0,
     mode TEXT,
+    duration REAL,
+    frame_rate REAL,
+    codec TEXT,
     error TEXT,
     metadata_json TEXT,
+    ai_annotations_json TEXT,
+    preview_status TEXT NOT NULL DEFAULT 'pending',
+    preview_error TEXT,
     thumbnail_b64 TEXT,
     original_data BLOB,
     content_fingerprint TEXT,
@@ -270,7 +296,7 @@ CREATE TABLE tags (...);
 CREATE TABLE image_tags (...);   -- many-to-many asset tags
 ```
 
-Rich generation metadata stays in JSON. Source identity, content fingerprints, availability,
+Embedded metadata stays in JSON separately from AI annotations. Source identity, content fingerprints, availability,
 favorites, ratings, albums, and tags are relational. Album membership references the stable
 image row ID; reconciliation updates that row in-place when a new path has a unique matching
 SHA-256 fingerprint.

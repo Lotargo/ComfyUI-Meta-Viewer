@@ -39,6 +39,8 @@ Returns all indexed folders, including the special `Uploads` folder when uploade
       "scanned_at": "2026-06-17 12:00:00",
       "created_at": "2026-06-17 12:00:00",
       "image_count": 42,
+      "asset_count": 45,
+      "video_count": 3,
       "enabled": true,
       "recursive": true,
       "source_status": "available",
@@ -374,7 +376,19 @@ of `all`, `favorites`, `without_metadata`, `recently_added`, `unavailable`, `ima
 `videos`, `not_rated`, or `album`.
 
 Each asset includes source/availability fields, `has_local_file`, favorite/rating/note/tags,
-all album IDs, and thumbnail/original URLs.
+all album IDs, thumbnail/original URLs, `media_type`, MIME type, video technical fields, and
+`preview_status` / `preview_error`.
+
+### `GET /api/assets/{asset_id}`
+
+Returns details for either an image or video. `/api/images/{image_id}` remains as a compatible
+alias. The response exposes three distinct metadata layers:
+
+- `embedded_metadata`: data extracted from the original file;
+- `user_metadata`: favorites, rating, note, and tags;
+- `ai_annotations`: derived AI results, never presented as embedded generator metadata.
+
+Video details additionally include `duration`, `frame_rate`, `codec`, `mime_type`, and preview state.
 
 ### `PATCH /api/library/assets/{asset_id}`
 
@@ -441,9 +455,11 @@ system's Recycle Bin or Trash.
 
 ## Thumbnails and Originals
 
-### `GET /api/thumbnail/{image_id}`
+### `GET /api/thumbnail/{asset_id}`
 
-Returns a JPEG thumbnail. If the cached file is missing, the thumbnail is generated lazily from the uploaded BLOB or original scanned file.
+Returns a JPEG thumbnail. Images use Pillow; videos use `ffmpeg`. If FFmpeg is unavailable,
+video requests return `503` with `code: video_preview_tool_unavailable` while image requests
+and indexing continue normally.
 
 **Response:** `image/jpeg`
 
@@ -455,11 +471,11 @@ Returns a display-oriented image whose longest side is at most 4096 pixels. The 
 
 ---
 
-### `GET /api/original/{image_id}`
+### `GET /api/original/{asset_id}`
 
-Returns the untouched original image for inline viewing or download. Uploaded SQLite BLOBs are streamed in chunks; scanned files use a conditional file response with range support instead of being copied fully into Python memory.
+Returns the untouched original image or video for inline viewing or download. Uploaded SQLite BLOBs are streamed in chunks; scanned files use a conditional file response with range support instead of being copied fully into Python memory.
 
-**Response:** `image/png`, `image/jpeg`, `image/webp`, `image/bmp`, `image/tiff`, or `application/octet-stream`.
+**Response:** the indexed MIME type, including supported `image/*` and `video/*` values, or `application/octet-stream`.
 
 ---
 

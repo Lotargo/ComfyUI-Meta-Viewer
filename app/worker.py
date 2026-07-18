@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import threading
 import traceback
@@ -10,6 +11,12 @@ from PIL import Image
 
 from . import database as db
 from .extractor import extract_metadata, make_thumbnail_bytes
+from .media import (
+    MediaToolUnavailableError,
+    VideoProcessingError,
+    make_video_thumbnail,
+    probe_video,
+)
 from .paths import build_runtime_paths, normalize_path
 
 # Disable PIL limit globally
@@ -43,11 +50,11 @@ def stop_worker(*, wait: bool = False, timeout: float = 10.0) -> bool:
     return worker is None or not worker.is_alive()
 
 
-def _next_image() -> dict | None:
+def _next_asset() -> dict | None:
     with closing(db.get_conn()) as conn:
         row = conn.execute(
-            """SELECT i.id, i.rel_path, f.path AS folder_path, i.folder_id,
-                f.source_status
+            """SELECT i.id, i.rel_path, i.file_name, i.media_type, i.mime_type,
+                f.path AS folder_path, i.folder_id, f.source_status
             FROM images i
             JOIN folders f ON f.id = i.folder_id
             WHERE f.status = 'processing'
@@ -81,6 +88,11 @@ def _next_image() -> dict | None:
     return None
 
 
+def _next_image() -> dict | None:
+    """Compatibility wrapper for the former image-only worker queue."""
+    return _next_asset()
+
+
 def _record_error(image_id: int, message: str) -> None:
     with closing(db.get_conn()) as conn:
         conn.execute(
@@ -90,11 +102,85 @@ def _record_error(image_id: int, message: str) -> None:
         conn.commit()
 
 
+def _process_video(asset_id: int, abs_path: Path) -> None:
+    format_name = abs_path.suffix.lower().lstrip(".") or None
+    width = 0
+    height = 0
+    pixel_format = None
+    duration = None
+    frame_rate = None
+    codec = None
+    try:
+        probe = probe_video(abs_path)
+        format_name = probe.format or format_name
+        width = probe.width
+        height = probe.height
+        pixel_format = probe.pixel_format
+        duration = probe.duration
+        frame_rate = probe.frame_rate
+        codec = probe.codec
+        technical_metadata = probe.metadata
+    except MediaToolUnavailableError as exc:
+        technical_metadata = {
+            "source": "ffprobe",
+            "status": "unavailable",
+            "error": str(exc),
+        }
+    except VideoProcessingError as exc:
+        technical_metadata = {
+            "source": "ffprobe",
+            "status": "error",
+            "error": str(exc),
+        }
+
+    preview_status = "ready"
+    preview_error = None
+    try:
+        thumb_data = make_video_thumbnail(abs_path, duration=duration)
+        _thumbnail_dir.mkdir(parents=True, exist_ok=True)
+        (_thumbnail_dir / f"{asset_id}.jpg").write_bytes(thumb_data)
+    except MediaToolUnavailableError as exc:
+        preview_status = "unavailable"
+        preview_error = str(exc)
+    except VideoProcessingError as exc:
+        preview_status = "error"
+        preview_error = str(exc)
+
+    metadata = {
+        "file": abs_path.name,
+        "path": str(abs_path),
+        "media_type": "video",
+        "technical_metadata": technical_metadata,
+    }
+    with closing(db.get_conn()) as conn:
+        conn.execute(
+            """UPDATE images SET format = ?, width = ?, height = ?, mode = ?,
+                duration = ?, frame_rate = ?, codec = ?, error = NULL,
+                metadata_json = ?, preview_status = ?, preview_error = ?,
+                created_at = datetime('now')
+            WHERE id = ?""",
+            (
+                format_name,
+                width,
+                height,
+                pixel_format,
+                duration,
+                frame_rate,
+                codec,
+                json.dumps(metadata, ensure_ascii=False),
+                preview_status,
+                preview_error,
+                asset_id,
+            ),
+        )
+        conn.commit()
+
+
 def _worker_loop():
     print("[Worker] Background processing loop started", flush=True)
     while not _stop_event.is_set():
         try:
-            row = _next_image()
+            row = _next_asset()
             if not row:
                 _stop_event.wait(1.0)
                 continue
@@ -103,45 +189,46 @@ def _worker_loop():
             rel_path = row["rel_path"]
             folder_path = row["folder_path"]
 
-            # 2. Process the image
+            # Uploaded assets are already processed by the import path.
             if folder_path in ("__uploads__", "__uploads_no_metadata__"):
-                # Uploaded images are already processed, skip
                 continue
 
             abs_path = Path(folder_path) / rel_path
             if abs_path.is_file():
                 try:
-                    # Extract metadata
-                    meta = extract_metadata(abs_path)
+                    if row["media_type"] == "video":
+                        _process_video(img_id, abs_path)
+                    else:
+                        meta = extract_metadata(abs_path)
+                        thumb_data = make_thumbnail_bytes(abs_path)
+                        preview_status = "ready" if thumb_data else "error"
+                        preview_error = None if thumb_data else "Image preview generation failed"
 
-                    # Generate thumbnail bytes
-                    thumb_data = make_thumbnail_bytes(abs_path)
+                        # Publish processed DB state after the cache file is ready.
+                        if thumb_data:
+                            _thumbnail_dir.mkdir(parents=True, exist_ok=True)
+                            (_thumbnail_dir / f"{img_id}.jpg").write_bytes(thumb_data)
 
-                    # Publish the processed DB state only after its thumbnail is ready.
-                    # SSE clients use metadata_json/processed_count as the signal to
-                    # render the finished card and must not race a missing cache file.
-                    if thumb_data:
-                        _thumbnail_dir.mkdir(parents=True, exist_ok=True)
-                        (_thumbnail_dir / f"{img_id}.jpg").write_bytes(thumb_data)
-
-                    # Save to DB
-                    with closing(db.get_conn()) as conn:
-                        conn.execute(
-                            """UPDATE images SET
-                                format = ?, width = ?, height = ?, mode = ?, error = ?, metadata_json = ?,
-                                created_at = datetime('now')
-                            WHERE id = ?""",
-                            (
-                                meta.format,
-                                meta.size[0] if meta.size else 0,
-                                meta.size[1] if meta.size else 0,
-                                meta.mode,
-                                meta.error,
-                                meta.model_dump_json(),
-                                img_id,
-                            ),
-                        )
-                        conn.commit()
+                        with closing(db.get_conn()) as conn:
+                            conn.execute(
+                                """UPDATE images SET format = ?, width = ?, height = ?,
+                                    mode = ?, error = ?, metadata_json = ?,
+                                    preview_status = ?, preview_error = ?,
+                                    created_at = datetime('now')
+                                WHERE id = ?""",
+                                (
+                                    meta.format,
+                                    meta.size[0] if meta.size else 0,
+                                    meta.size[1] if meta.size else 0,
+                                    meta.mode,
+                                    meta.error,
+                                    meta.model_dump_json(),
+                                    preview_status,
+                                    preview_error,
+                                    img_id,
+                                ),
+                            )
+                            conn.commit()
                 except Exception as e:
                     err_str = str(e) + "\n" + traceback.format_exc()
                     _record_error(img_id, err_str)

@@ -483,7 +483,7 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn('class="library-filter-selects"', template)
         self.assertIn('class="library-view-actions"', template)
         self.assertIn('class="header-preview-action active"', template)
-        self.assertIn("Preview image", template)
+        self.assertIn("Preview media", template)
         self.assertIn('id="preview-actions" class="preview-actions"', template)
         self.assertIn('class="preview-action"', template)
         self.assertIn("@container library-toolbar", styles)
@@ -706,7 +706,21 @@ class LibraryMigrationTest(unittest.TestCase):
                 finally:
                     connection.close()
                 self.assertTrue(
-                    {"content_fingerprint", "is_favorite", "rating", "note", "indexed_at"}
+                    {
+                        "content_fingerprint",
+                        "is_favorite",
+                        "rating",
+                        "note",
+                        "indexed_at",
+                        "media_type",
+                        "mime_type",
+                        "duration",
+                        "frame_rate",
+                        "codec",
+                        "preview_status",
+                        "preview_error",
+                        "ai_annotations_json",
+                    }
                     <= columns
                 )
                 self.assertEqual(library.list_albums(), [])

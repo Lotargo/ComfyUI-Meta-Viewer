@@ -167,11 +167,11 @@ async function copyText(text, successMessage, notify) {
 function downloadImage(sourceUrl, fileName, notify) {
     const link = document.createElement('a');
     link.href = sourceUrl;
-    link.download = fileName || 'image';
+    link.download = fileName || 'asset';
     document.body.appendChild(link);
     link.click();
     link.remove();
-    notify('Image download started');
+    notify('Asset download started');
 }
 
 async function decodeBlob(blob) {
@@ -443,6 +443,7 @@ export function showImageContextMenu(event, {
     imageId,
     fileName,
     sourceUrl,
+    mediaType = 'image',
     canAccessOriginal = true,
     hasLocalFile = false,
     canRename = canAccessOriginal,
@@ -459,7 +460,9 @@ export function showImageContextMenu(event, {
     event.stopPropagation();
     closeImageContextMenu();
 
-    const localFileDisabledReason = 'This image has no available local file';
+    const isVideo = mediaType === 'video';
+    const assetLabel = isVideo ? 'video' : 'image';
+    const localFileDisabledReason = `This ${assetLabel} has no available local file`;
     const currentRating = normalizedRating(rating);
     const ratingChoices = [1, 2, 3, 4, 5].map(value => ({
         label: `${currentRating === value ? '✓ ' : ''}${'★'.repeat(value)} ${value} star${value === 1 ? '' : 's'}`,
@@ -472,7 +475,7 @@ export function showImageContextMenu(event, {
                 label: 'Open original',
                 icon: 'open',
                 enabled: Boolean(sourceUrl && canAccessOriginal),
-                disabledReason: 'The original image is unavailable',
+                disabledReason: `The original ${assetLabel} is unavailable`,
                 run: () => window.open(sourceUrl, '_blank', 'noopener,noreferrer'),
             },
             {
@@ -489,14 +492,14 @@ export function showImageContextMenu(event, {
                 label: 'Rename file…',
                 icon: 'rename',
                 enabled: Boolean(imageId && canRename),
-                disabledReason: 'This image is unavailable',
+                disabledReason: `This ${assetLabel} is unavailable`,
                 run: () => renameImageFile(imageId, fileName, notify, onRenamed),
             },
             {
-                label: 'Download image',
+                label: isVideo ? 'Download video' : 'Download image',
                 icon: 'download',
                 enabled: Boolean(sourceUrl && canAccessOriginal),
-                disabledReason: 'The original image is unavailable',
+                disabledReason: `The original ${assetLabel} is unavailable`,
                 run: () => downloadImage(sourceUrl, fileName, notify),
             },
         ],
@@ -522,6 +525,7 @@ export function showImageContextMenu(event, {
             {
                 label: 'Copy image',
                 icon: 'image',
+                visible: !isVideo,
                 enabled: Boolean(sourceUrl && canAccessOriginal),
                 disabledReason: 'The original image is unavailable',
                 run: async () => {
@@ -545,11 +549,11 @@ export function showImageContextMenu(event, {
     const menu = document.createElement('div');
     menu.className = 'image-context-menu';
     menu.setAttribute('role', 'menu');
-    menu.setAttribute('aria-label', `Actions for ${fileName || 'image'}`);
+    menu.setAttribute('aria-label', `Actions for ${fileName || assetLabel}`);
 
     const title = document.createElement('div');
     title.className = 'image-context-menu__title';
-    title.textContent = fileName || 'Image actions';
+    title.textContent = fileName || `${isVideo ? 'Video' : 'Image'} actions`;
     title.title = fileName || '';
     menu.appendChild(title);
 
@@ -562,10 +566,10 @@ export function showImageContextMenu(event, {
         try {
             const result = action.run();
             if (result && typeof result.catch === 'function') {
-                result.catch(error => notify(error.message || 'Image action failed', true));
+                result.catch(error => notify(error.message || 'Asset action failed', true));
             }
         } catch (error) {
-            notify(error.message || 'Image action failed', true);
+            notify(error.message || 'Asset action failed', true);
         }
     };
 

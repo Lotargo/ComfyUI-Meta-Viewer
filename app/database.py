@@ -10,7 +10,15 @@ from pathlib import Path
 from typing import Any
 
 from .paths import build_runtime_paths, normalize_path, portable_filename
-from .schemas import FolderInfo, ImageDetail, ImageInsertRow, ImageListItem, ImageMetadata, ImagesResponse
+from .schemas import (
+    AssetInsertRow,
+    FolderInfo,
+    ImageDetail,
+    ImageInsertRow,
+    ImageListItem,
+    ImageMetadata,
+    ImagesResponse,
+)
 
 _DB_PATH: str | None = None
 _connection_condition = threading.Condition()
@@ -132,12 +140,20 @@ def init_db() -> None:
                 file_name TEXT NOT NULL,
                 file_size INTEGER DEFAULT 0,
                 file_mtime REAL DEFAULT 0,
+                media_type TEXT NOT NULL DEFAULT 'image',
+                mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
                 format TEXT,
                 width INTEGER DEFAULT 0,
                 height INTEGER DEFAULT 0,
                 mode TEXT,
+                duration REAL,
+                frame_rate REAL,
+                codec TEXT,
                 error TEXT,
                 metadata_json TEXT,
+                ai_annotations_json TEXT,
+                preview_status TEXT NOT NULL DEFAULT 'pending',
+                preview_error TEXT,
                 thumbnail_b64 TEXT,
                 original_data BLOB,
                 content_fingerprint TEXT,
@@ -195,6 +211,14 @@ def init_db() -> None:
             "ALTER TABLE images ADD COLUMN rating INTEGER",
             "ALTER TABLE images ADD COLUMN note TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE images ADD COLUMN indexed_at TEXT",
+            "ALTER TABLE images ADD COLUMN media_type TEXT NOT NULL DEFAULT 'image'",
+            "ALTER TABLE images ADD COLUMN mime_type TEXT NOT NULL DEFAULT 'application/octet-stream'",
+            "ALTER TABLE images ADD COLUMN duration REAL",
+            "ALTER TABLE images ADD COLUMN frame_rate REAL",
+            "ALTER TABLE images ADD COLUMN codec TEXT",
+            "ALTER TABLE images ADD COLUMN ai_annotations_json TEXT",
+            "ALTER TABLE images ADD COLUMN preview_status TEXT NOT NULL DEFAULT 'pending'",
+            "ALTER TABLE images ADD COLUMN preview_error TEXT",
         )
         for migration in migrations:
             try:
@@ -205,9 +229,28 @@ def init_db() -> None:
         conn.execute(
             "UPDATE images SET indexed_at = COALESCE(indexed_at, created_at, datetime('now'))"
         )
+        conn.execute(
+            """UPDATE images SET
+                media_type = COALESCE(NULLIF(media_type, ''), 'image'),
+                mime_type = CASE
+                    WHEN LOWER(file_name) LIKE '%.png' THEN 'image/png'
+                    WHEN LOWER(file_name) LIKE '%.jpg' THEN 'image/jpeg'
+                    WHEN LOWER(file_name) LIKE '%.jpeg' THEN 'image/jpeg'
+                    WHEN LOWER(file_name) LIKE '%.webp' THEN 'image/webp'
+                    WHEN LOWER(file_name) LIKE '%.bmp' THEN 'image/bmp'
+                    WHEN LOWER(file_name) LIKE '%.tiff' THEN 'image/tiff'
+                    ELSE COALESCE(NULLIF(mime_type, ''), 'application/octet-stream')
+                END,
+                preview_status = CASE
+                    WHEN preview_status = 'pending' AND (metadata_json IS NOT NULL OR error IS NOT NULL)
+                    THEN 'ready'
+                    ELSE COALESCE(NULLIF(preview_status, ''), 'pending')
+                END"""
+        )
         conn.executescript("""
             CREATE INDEX IF NOT EXISTS idx_images_favorite ON images(is_favorite);
             CREATE INDEX IF NOT EXISTS idx_images_fingerprint ON images(content_fingerprint);
+            CREATE INDEX IF NOT EXISTS idx_images_media_type ON images(media_type);
         """)
         conn.commit()
     finally:
@@ -297,7 +340,8 @@ def get_folder_file_records(folder_id: int) -> dict[str, dict[str, Any]]:
     conn = get_conn()
     try:
         rows = conn.execute(
-            """SELECT id, rel_path, file_size, file_mtime, content_fingerprint
+            """SELECT id, rel_path, file_size, file_mtime, content_fingerprint,
+                media_type, mime_type
             FROM images WHERE folder_id = ?""",
             (folder_id,),
         ).fetchall()
@@ -320,21 +364,23 @@ def update_image_fingerprints(fingerprints: list[tuple[int, str]]) -> None:
         conn.close()
 
 
-def rename_image_record(
-    image_id: int,
+def rename_asset_record(
+    asset_id: int,
     *,
     rel_path: str,
     file_name: str,
     file_size: int,
     file_mtime: float,
     content_fingerprint: str,
+    media_type: str,
+    mime_type: str,
 ) -> None:
     """Move an indexed identity to a new relative path without losing virtual links."""
     conn = get_conn()
     try:
         conn.execute(
             """UPDATE images SET rel_path = ?, file_name = ?, file_size = ?,
-                file_mtime = ?, content_fingerprint = ?
+                file_mtime = ?, content_fingerprint = ?, media_type = ?, mime_type = ?
             WHERE id = ?""",
             (
                 rel_path,
@@ -342,7 +388,9 @@ def rename_image_record(
                 file_size,
                 file_mtime,
                 content_fingerprint,
-                image_id,
+                media_type,
+                mime_type,
+                asset_id,
             ),
         )
         conn.commit()
@@ -350,40 +398,59 @@ def rename_image_record(
         conn.close()
 
 
-def insert_images(folder_id: int, images: list[ImageInsertRow]) -> None:
-    if not images:
+def rename_image_record(image_id: int, **fields: Any) -> None:
+    """Compatibility wrapper for the former image-only reconciliation API."""
+    rename_asset_record(image_id, **fields)
+
+
+def insert_assets(folder_id: int, assets: list[AssetInsertRow]) -> None:
+    if not assets:
         return
     conn = get_conn()
     try:
         conn.execute("BEGIN")
-        for img in images:
+        for asset in assets:
             conn.execute(
                 """INSERT INTO images (folder_id, rel_path, file_name, file_size, file_mtime,
-                    format, width, height, mode, error, metadata_json, thumbnail_b64,
-                    content_fingerprint)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    media_type, mime_type, format, width, height, mode, duration,
+                    frame_rate, codec, error, metadata_json, thumbnail_b64,
+                    content_fingerprint, preview_status, preview_error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(folder_id, rel_path) DO UPDATE SET
                     file_name=excluded.file_name,
                     file_size=excluded.file_size, file_mtime=excluded.file_mtime,
+                    media_type=excluded.media_type, mime_type=excluded.mime_type,
                     format=excluded.format, width=excluded.width, height=excluded.height,
-                    mode=excluded.mode, error=excluded.error,
+                    mode=excluded.mode, duration=excluded.duration,
+                    frame_rate=excluded.frame_rate, codec=excluded.codec,
+                    error=excluded.error,
                     metadata_json=excluded.metadata_json, thumbnail_b64=excluded.thumbnail_b64,
+                    ai_annotations_json=NULL,
                     content_fingerprint=excluded.content_fingerprint,
+                    preview_status=excluded.preview_status,
+                    preview_error=excluded.preview_error,
                     created_at=datetime('now')""",
                 (
                     folder_id,
-                    img.rel_path,
-                    img.file_name,
-                    img.file_size,
-                    img.file_mtime,
-                    img.format,
-                    img.width,
-                    img.height,
-                    img.mode,
-                    img.error,
-                    img.metadata_json,
-                    img.thumbnail_b64,
-                    img.content_fingerprint,
+                    asset.rel_path,
+                    asset.file_name,
+                    asset.file_size,
+                    asset.file_mtime,
+                    asset.media_type,
+                    asset.mime_type,
+                    asset.format,
+                    asset.width,
+                    asset.height,
+                    asset.mode,
+                    asset.duration,
+                    asset.frame_rate,
+                    asset.codec,
+                    asset.error,
+                    asset.metadata_json,
+                    asset.thumbnail_b64,
+                    asset.content_fingerprint,
+                    asset.preview_status,
+                    asset.preview_error,
                 ),
             )
         conn.commit()
@@ -394,15 +461,23 @@ def insert_images(folder_id: int, images: list[ImageInsertRow]) -> None:
         conn.close()
 
 
+def insert_images(folder_id: int, images: list[ImageInsertRow]) -> None:
+    """Compatibility wrapper for the former image-only index API."""
+    insert_assets(folder_id, list(images))
+
+
 def get_folders() -> list[FolderInfo]:
     conn = get_conn()
     try:
-        # Query all folders, counting all images in them
+        # Keep image_count for the image viewer while exposing unified asset counts.
         rows = conn.execute(
             """SELECT f.id, f.path, f.name, f.scanned_at, f.created_at, f.status,
                f.enabled, f.recursive, f.source_status, f.last_error, f.revision,
-               COUNT(i.id) AS image_count,
-               COUNT(CASE WHEN i.id IS NOT NULL AND (i.metadata_json IS NOT NULL OR i.error IS NOT NULL) THEN 1 END) AS processed_count
+               COUNT(CASE WHEN i.media_type = 'image' THEN 1 END) AS image_count,
+               COUNT(i.id) AS asset_count,
+               COUNT(CASE WHEN i.media_type = 'video' THEN 1 END) AS video_count,
+               COUNT(CASE WHEN i.media_type = 'image' AND (i.metadata_json IS NOT NULL OR i.error IS NOT NULL) THEN 1 END) AS processed_count,
+               COUNT(CASE WHEN i.id IS NOT NULL AND (i.metadata_json IS NOT NULL OR i.error IS NOT NULL) THEN 1 END) AS processed_asset_count
             FROM folders f LEFT JOIN images i ON i.folder_id = f.id
             GROUP BY f.id ORDER BY f.scanned_at DESC"""
         ).fetchall()
@@ -703,7 +778,7 @@ def get_image_ids_by_rel_paths(folder_id: int, rel_paths: list[str]) -> list[int
         conn.close()
 
 
-def get_folder_image_ids(folder_id: int) -> list[int]:
+def get_folder_asset_ids(folder_id: int) -> list[int]:
     conn = get_conn()
     try:
         rows = conn.execute(
@@ -713,6 +788,11 @@ def get_folder_image_ids(folder_id: int) -> list[int]:
         return [int(row["id"]) for row in rows]
     finally:
         conn.close()
+
+
+def get_folder_image_ids(folder_id: int) -> list[int]:
+    """Compatibility wrapper returning all indexed asset IDs for a source."""
+    return get_folder_asset_ids(folder_id)
 
 
 def delete_images_by_ids(image_ids: list[int]) -> None:
@@ -756,6 +836,59 @@ def _update_image_metadata(
             image_id,
         ),
     )
+
+
+def update_video_metadata(
+    asset_id: int,
+    *,
+    format: str | None,
+    width: int,
+    height: int,
+    mode: str | None,
+    duration: float | None,
+    frame_rate: float | None,
+    codec: str | None,
+    metadata: dict[str, Any],
+) -> None:
+    """Persist technical metadata that came from the original video."""
+    conn = get_conn()
+    try:
+        conn.execute(
+            """UPDATE images SET format = ?, width = ?, height = ?, mode = ?,
+                duration = ?, frame_rate = ?, codec = ?, metadata_json = ?,
+                created_at = datetime('now')
+            WHERE id = ? AND media_type = 'video'""",
+            (
+                format,
+                width,
+                height,
+                mode,
+                duration,
+                frame_rate,
+                codec,
+                json.dumps(metadata, ensure_ascii=False),
+                asset_id,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def update_asset_preview_status(
+    asset_id: int,
+    status: str,
+    error: str | None = None,
+) -> None:
+    conn = get_conn()
+    try:
+        conn.execute(
+            "UPDATE images SET preview_status = ?, preview_error = ? WHERE id = ?",
+            (status, error, asset_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def ensure_image_processed(image_id: int, img_path: str) -> None:
@@ -813,21 +946,23 @@ def get_images_page(
                 f"""SELECT COUNT(*) AS c FROM images i
                 JOIN folders f ON f.id = i.folder_id
                 JOIN album_images ai ON ai.image_id = i.id
-                WHERE ai.album_id = ? AND f.enabled = 1{rating_clause}""",
+                WHERE ai.album_id = ? AND f.enabled = 1
+                  AND i.media_type = 'image'{rating_clause}""",
                 (album_id, *rating_params),
             ).fetchone()
         elif folder_id is not None:
             total_row = conn.execute(
                 f"""SELECT COUNT(*) AS c FROM images i
                 JOIN folders f ON f.id = i.folder_id
-                WHERE i.folder_id = ? AND f.enabled = 1{rating_clause}""",
+                WHERE i.folder_id = ? AND f.enabled = 1
+                  AND i.media_type = 'image'{rating_clause}""",
                 (folder_id, *rating_params),
             ).fetchone()
         else:
             total_row = conn.execute(
                 f"""SELECT COUNT(*) AS c FROM images i
                 JOIN folders f ON f.id = i.folder_id
-                WHERE f.enabled = 1{rating_clause}""",
+                WHERE f.enabled = 1 AND i.media_type = 'image'{rating_clause}""",
                 rating_params,
             ).fetchone()
 
@@ -852,33 +987,38 @@ def get_images_page(
 
         if album_id is not None:
             rows = conn.execute(
-                f"""SELECT i.id, i.file_name, i.format, i.width, i.height, i.mode,
+                f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
+                    i.format, i.width, i.height, i.mode,
                     i.error, i.metadata_json, i.rating,
                     i.original_data IS NULL AS has_local_file
                 FROM images i
                 JOIN folders f ON f.id = i.folder_id
                 JOIN album_images ai ON ai.image_id = i.id
-                WHERE ai.album_id = ? AND f.enabled = 1{rating_clause}
+                WHERE ai.album_id = ? AND f.enabled = 1
+                  AND i.media_type = 'image'{rating_clause}
                 {order_clause} LIMIT ? OFFSET ?""",
                 (album_id, *rating_params, per_page, offset),
             ).fetchall()
         elif folder_id is not None:
             rows = conn.execute(
-                f"""SELECT i.id, i.file_name, i.format, i.width, i.height, i.mode,
+                f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
+                    i.format, i.width, i.height, i.mode,
                     i.error, i.metadata_json, i.rating,
                     i.original_data IS NULL AS has_local_file
                 FROM images i JOIN folders f ON f.id = i.folder_id
-                WHERE i.folder_id = ? AND f.enabled = 1{rating_clause}
+                WHERE i.folder_id = ? AND f.enabled = 1
+                  AND i.media_type = 'image'{rating_clause}
                 {order_clause} LIMIT ? OFFSET ?""",
                 (folder_id, *rating_params, per_page, offset),
             ).fetchall()
         else:
             rows = conn.execute(
-                f"""SELECT i.id, i.file_name, i.format, i.width, i.height, i.mode,
+                f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
+                    i.format, i.width, i.height, i.mode,
                     i.error, i.metadata_json, i.rating,
                     i.original_data IS NULL AS has_local_file
                 FROM images i JOIN folders f ON f.id = i.folder_id
-                WHERE f.enabled = 1{rating_clause}
+                WHERE f.enabled = 1 AND i.media_type = 'image'{rating_clause}
                 {order_clause} LIMIT ? OFFSET ?""",
                 (*rating_params, per_page, offset),
             ).fetchall()
@@ -897,6 +1037,8 @@ def get_images_page(
             images.append(ImageListItem(
                 id=d.get("id"),
                 file_name=d.get("file_name", ""),
+                media_type=d.get("media_type") or "image",
+                mime_type=d.get("mime_type") or "application/octet-stream",
                 format=d.get("format"),
                 size=[w, h] if w and h else None,
                 mode=d.get("mode"),
@@ -910,14 +1052,14 @@ def get_images_page(
         conn.close()
 
 
-def get_image_path(image_id: int) -> str | None:
+def get_asset_path(asset_id: int) -> str | None:
     conn = get_conn()
     try:
         row = conn.execute(
             """SELECT f.path, i.rel_path FROM images i
             JOIN folders f ON f.id = i.folder_id
             WHERE i.id = ?""",
-            (image_id,),
+            (asset_id,),
         ).fetchone()
         if row:
             return str(Path(row["path"]) / row["rel_path"])
@@ -926,18 +1068,24 @@ def get_image_path(image_id: int) -> str | None:
         conn.close()
 
 
-def get_image_source_info(image_id: int) -> dict[str, Any] | None:
+def get_image_path(image_id: int) -> str | None:
+    """Compatibility wrapper for callers using the image ID terminology."""
+    return get_asset_path(image_id)
+
+
+def get_asset_source_info(asset_id: int) -> dict[str, Any] | None:
     """Return source metadata without loading an uploaded BLOB into memory."""
     conn = get_conn()
     try:
         row = conn.execute(
             """SELECT i.id, i.rel_path, i.file_name, i.file_size, i.file_mtime,
-                i.format, i.original_data IS NOT NULL AS has_original_data,
+                i.media_type, i.mime_type, i.format, i.duration, i.preview_status,
+                i.preview_error, i.original_data IS NOT NULL AS has_original_data,
                 f.path AS folder_path
             FROM images i
             JOIN folders f ON f.id = i.folder_id
             WHERE i.id = ?""",
-            (image_id,),
+            (asset_id,),
         ).fetchone()
         if not row:
             return None
@@ -953,8 +1101,13 @@ def get_image_source_info(image_id: int) -> dict[str, Any] | None:
         conn.close()
 
 
-def iter_image_original_data(
-    image_id: int,
+def get_image_source_info(image_id: int) -> dict[str, Any] | None:
+    """Compatibility wrapper for the former image-only source lookup."""
+    return get_asset_source_info(image_id)
+
+
+def iter_asset_original_data(
+    asset_id: int,
     chunk_size: int = 1024 * 1024,
 ):
     """Stream an SQLite BLOB without materializing the full value as bytes."""
@@ -963,7 +1116,7 @@ def iter_image_original_data(
         with conn.blobopen(
             "images",
             "original_data",
-            image_id,
+            asset_id,
             readonly=True,
         ) as blob:
             while True:
@@ -975,25 +1128,39 @@ def iter_image_original_data(
         conn.close()
 
 
-def get_image_detail(image_id: int) -> ImageDetail | None:
+def iter_image_original_data(
+    image_id: int,
+    chunk_size: int = 1024 * 1024,
+):
+    """Compatibility wrapper for uploaded image BLOB streaming."""
+    yield from iter_asset_original_data(image_id, chunk_size)
+
+
+def get_asset_detail(asset_id: int) -> ImageDetail | None:
     conn = get_conn()
     try:
         row = conn.execute(
-            """SELECT i.id, i.folder_id, i.rel_path, i.file_name, i.format,
-                i.width, i.height, i.mode, i.error, i.metadata_json,
-                i.rating,
+            """SELECT i.id, i.folder_id, i.rel_path, i.file_name, i.media_type,
+                i.mime_type, i.format, i.width, i.height, i.mode, i.duration,
+                i.frame_rate, i.codec, i.error, i.metadata_json,
+                i.ai_annotations_json, i.preview_status, i.preview_error,
+                i.is_favorite, i.rating, i.note,
                 i.original_data IS NOT NULL AS has_original_data,
                 i.original_data IS NULL AS has_local_file,
                 f.path AS folder_path
             FROM images i
             JOIN folders f ON f.id = i.folder_id
             WHERE i.id = ?""",
-            (image_id,),
+            (asset_id,),
         ).fetchone()
         if not row:
             return None
         d = dict(row)
-        if d.get("metadata_json") is None and d.get("error") is None:
+        if (
+            d.get("media_type") == "image"
+            and d.get("metadata_json") is None
+            and d.get("error") is None
+        ):
             img_id = d["id"]
             try:
                 if d.get("has_original_data"):
@@ -1041,13 +1208,43 @@ def get_image_detail(image_id: int) -> ImageDetail | None:
             except (json.JSONDecodeError, TypeError):
                 pass
 
+        ai_json = d.pop("ai_annotations_json", None)
+        ai_annotations: dict[str, Any] | None = None
+        if ai_json:
+            try:
+                parsed_ai = json.loads(ai_json)
+                if isinstance(parsed_ai, dict):
+                    ai_annotations = parsed_ai
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        tag_rows = conn.execute(
+            """SELECT t.name FROM image_tags it
+            JOIN tags t ON t.id = it.tag_id
+            WHERE it.image_id = ? ORDER BY t.name COLLATE NOCASE""",
+            (d["id"],),
+        ).fetchall()
+        user_metadata = {
+            "favorite": bool(d.get("is_favorite")),
+            "rating": d.get("rating"),
+            "note": d.get("note") or "",
+            "tags": [str(row["name"]) for row in tag_rows],
+        }
+
         w, h = d.get("width"), d.get("height")
         return ImageDetail(
             id=d.get("id"),
             file_name=d.get("file_name", ""),
+            media_type=d.get("media_type") or "image",
+            mime_type=d.get("mime_type") or "application/octet-stream",
             format=merged.get("format") or d.get("format"),
             size=[w, h] if w and h else merged.get("size"),
             mode=merged.get("mode") or d.get("mode"),
+            duration=d.get("duration"),
+            frame_rate=d.get("frame_rate"),
+            codec=d.get("codec"),
+            preview_status=d.get("preview_status"),
+            preview_error=d.get("preview_error"),
             error=d.get("error"),
             prompt_parameters=merged.get("prompt_parameters"),
             workflow=merged.get("workflow"),
@@ -1059,9 +1256,17 @@ def get_image_detail(image_id: int) -> ImageDetail | None:
             folder_id=d.get("folder_id"),
             has_local_file=bool(d.get("has_local_file")),
             rating=d.get("rating"),
+            embedded_metadata=merged or None,
+            user_metadata=user_metadata,
+            ai_annotations=ai_annotations,
         )
     finally:
         conn.close()
+
+
+def get_image_detail(image_id: int) -> ImageDetail | None:
+    """Compatibility wrapper for the existing image detail endpoint."""
+    return get_asset_detail(image_id)
 
 
 def delete_folder(folder_id: int) -> None:
@@ -1094,14 +1299,21 @@ def get_diagnostics() -> dict[str, Any]:
     conn = get_conn()
     try:
         folders_row = conn.execute("SELECT COUNT(*) AS c FROM folders").fetchone()
-        images_row = conn.execute("SELECT COUNT(*) AS c FROM images").fetchone()
+        assets_row = conn.execute(
+            """SELECT COUNT(*) AS assets,
+                SUM(CASE WHEN media_type = 'image' THEN 1 ELSE 0 END) AS images,
+                SUM(CASE WHEN media_type = 'video' THEN 1 ELSE 0 END) AS videos
+            FROM images"""
+        ).fetchone()
         uploads_row = conn.execute(
             "SELECT COUNT(*) AS c FROM images WHERE original_data IS NOT NULL"
         ).fetchone()
         return {
             "db_path": get_db_path(),
             "folders": folders_row["c"] if folders_row else 0,
-            "images": images_row["c"] if images_row else 0,
+            "assets": int(assets_row["assets"] or 0) if assets_row else 0,
+            "images": int(assets_row["images"] or 0) if assets_row else 0,
+            "videos": int(assets_row["videos"] or 0) if assets_row else 0,
             "uploads": uploads_row["c"] if uploads_row else 0,
         }
     finally:
@@ -1131,6 +1343,9 @@ def insert_upload_image(
         folder_id = folder_row["id"]
 
         safe_name = portable_filename(file_name)
+        from .media import mime_type_for_path
+
+        mime_type = mime_type_for_path(safe_name)
         stem = Path(safe_name).stem
         suffix = Path(safe_name).suffix
         counter = 0
@@ -1140,9 +1355,9 @@ def insert_upload_image(
                 cur = conn.execute(
                     """INSERT INTO images (
                         folder_id, rel_path, file_name, file_size, file_mtime,
-                        original_data, content_fingerprint
+                        media_type, mime_type, original_data, content_fingerprint
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, 'image', ?, ?, ?)
                     RETURNING id""",
                     (
                         folder_id,
@@ -1150,6 +1365,7 @@ def insert_upload_image(
                         safe_name,
                         len(original_data),
                         time.time(),
+                        mime_type,
                         original_data,
                         hashlib.sha256(original_data).hexdigest(),
                     ),

@@ -42,13 +42,13 @@ class ImageTrashFailedError(ImageFileActionError):
 
 
 def get_local_image_path(image_id: int) -> Path:
-    """Resolve a physical source path from an indexed image ID only."""
-    source = db.get_image_source_info(image_id)
+    """Resolve a physical source path from an indexed asset ID only."""
+    source = db.get_asset_source_info(image_id)
     if not source:
-        raise ImageRecordNotFoundError("Image not found")
+        raise ImageRecordNotFoundError("Asset not found")
     if source.get("has_original_data"):
         raise ImageHasNoLocalFileError(
-            "This image is stored inside the app and has no local file path"
+            "This asset is stored inside the app and has no local file path"
         )
 
     raw_path = source.get("path")
@@ -56,7 +56,7 @@ def get_local_image_path(image_id: int) -> Path:
         raise ImageLocalFileUnavailableError("Local file path is unavailable")
     path = Path(raw_path)
     if not path.is_file():
-        raise ImageLocalFileUnavailableError("Local image file is unavailable")
+        raise ImageLocalFileUnavailableError("Local asset file is unavailable")
     return path.resolve()
 
 

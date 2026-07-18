@@ -23,20 +23,31 @@ class ImageMetadata(BaseModel):
     raw_parameters: str | None = None
 
 
-class ImageInsertRow(BaseModel):
-    """Input for database.insert_images()."""
+class AssetInsertRow(BaseModel):
+    """Input for the asset index, shared by images and videos."""
     rel_path: str
     file_name: str
     file_size: int = 0
     file_mtime: float = 0
+    media_type: Literal["image", "video"] = "image"
+    mime_type: str = "application/octet-stream"
     format: str | None = None
     width: int = 0
     height: int = 0
     mode: str | None = None
+    duration: float | None = None
+    frame_rate: float | None = None
+    codec: str | None = None
     error: str | None = None
     metadata_json: str | None = None
     thumbnail_b64: str | None = None
     content_fingerprint: str | None = None
+    preview_status: Literal["pending", "ready", "unavailable", "error"] = "pending"
+    preview_error: str | None = None
+
+
+class ImageInsertRow(AssetInsertRow):
+    """Compatibility name for callers that still use the image interface."""
 
 
 class FolderInfo(BaseModel):
@@ -47,8 +58,11 @@ class FolderInfo(BaseModel):
     scanned_at: str | None = None
     created_at: str | None = None
     image_count: int = 0
+    asset_count: int = 0
+    video_count: int = 0
     status: str = "idle"
     processed_count: int = 0
+    processed_asset_count: int = 0
     enabled: bool = True
     recursive: bool = False
     source_status: Literal[
@@ -123,9 +137,16 @@ class ImageListItem(BaseModel):
     """Paginated image entry."""
     id: int | None = None
     file_name: str
+    media_type: Literal["image", "video"] = "image"
+    mime_type: str = "application/octet-stream"
     format: str | None = None
     size: list[int] | None = None
     mode: str | None = None
+    duration: float | None = None
+    frame_rate: float | None = None
+    codec: str | None = None
+    preview_status: Literal["pending", "ready", "unavailable", "error"] | None = None
+    preview_error: str | None = None
     error: str | None = None
     thumbnail: str | None = None
     file: str | None = None
@@ -145,6 +166,9 @@ class ImageDetail(ImageListItem):
     raw_parameters: str | None = None
     raw_params: str | None = None
     folder_id: int | None = None
+    embedded_metadata: dict[str, Any] | None = None
+    user_metadata: dict[str, Any] | None = None
+    ai_annotations: dict[str, Any] | None = None
 
 
 class ScanResponse(BaseModel):

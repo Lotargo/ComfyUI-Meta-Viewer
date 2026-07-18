@@ -49,6 +49,7 @@ const dom = {
     shell: document.querySelector('.library-shell'),
     previewPanel: document.getElementById('library-preview-panel'),
     previewPanelImg: document.getElementById('preview-panel-img'),
+    previewPanelVideo: document.getElementById('preview-panel-video'),
     previewBackdrop: document.getElementById('preview-backdrop'),
     closePreviewPanel: document.getElementById('close-preview-panel'),
     btnToggleSelect: document.getElementById('btn-toggle-select'),
@@ -173,6 +174,8 @@ function collectionCount(id) {
         favorites: state.summary.favorites,
         unavailable: state.summary.unavailable,
         not_rated: state.summary.not_rated,
+        images: state.summary.images,
+        videos: state.summary.videos,
     };
     return counts[id];
 }
@@ -203,7 +206,7 @@ function renderCollections() {
                         <span class="sidebar-album-name">${escapeHtml(album.name)}</span>
                         <span class="sidebar-album-count">${album.asset_count}</span>
                     </span>
-                    <span class="sidebar-album-drop-label">Drop images here</span>
+                    <span class="sidebar-album-drop-label">Drop assets here</span>
                 </span>
             </button>
             <span class="sidebar-album-actions">
@@ -237,10 +240,22 @@ function formatBytes(value) {
     return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 }
 
+function formatDuration(value) {
+    const totalSeconds = Math.max(0, Math.round(Number(value) || 0));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return hours
+        ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+        : `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 function assetRenderSignature(asset) {
     return JSON.stringify([
         asset.id,
         asset.file_name,
+        asset.media_type,
+        asset.mime_type,
         asset.source_name,
         asset.source_path,
         asset.thumbnail_url,
@@ -252,6 +267,11 @@ function assetRenderSignature(asset) {
         asset.width,
         asset.height,
         asset.format,
+        asset.duration,
+        asset.frame_rate,
+        asset.codec,
+        asset.preview_status,
+        asset.preview_error,
         asset.file_size,
     ]);
 }
@@ -260,7 +280,18 @@ function assetCardHtml(asset) {
     const selected = state.selected.has(asset.id);
     const rating = '★'.repeat(asset.rating || 0);
     const tags = (asset.tags || []).slice(0, 3).map(tag => `<span class="asset-tag">${escapeHtml(tag)}</span>`).join('');
-    const dimensions = asset.width && asset.height ? `${asset.width}×${asset.height}` : (asset.format || 'asset');
+    const isVideo = asset.media_type === 'video';
+    const dimensions = asset.width && asset.height ? `${asset.width}×${asset.height}` : (asset.format || asset.media_type || 'asset');
+    const technical = isVideo && asset.duration
+        ? `${formatDuration(asset.duration)} · ${dimensions}`
+        : dimensions;
+    const previewPending = isVideo && asset.preview_status !== 'ready';
+    const previewMessage = asset.preview_status === 'unavailable'
+        ? 'Install ffmpeg for previews'
+        : asset.preview_status === 'error' ? 'Preview unavailable' : 'Preparing preview…';
+    const thumbnail = previewPending
+        ? `<div class="asset-video-placeholder" title="${escapeHtml(asset.preview_error || previewMessage)}"><span aria-hidden="true">▶</span><small>${escapeHtml(previewMessage)}</small></div>`
+        : `<img class="asset-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy" draggable="false">`;
     const isActive = asset.id === state.activeAssetId;
     return `
         <article class="asset-card ${selected ? 'selected' : ''} ${isActive ? 'active' : ''} ${asset.available ? '' : 'unavailable'}"
@@ -268,7 +299,8 @@ function assetCardHtml(asset) {
                  aria-selected="${selected ? 'true' : 'false'}"
                  aria-label="${escapeHtml(asset.file_name)}">
             <div class="asset-thumb-wrap">
-                <img class="asset-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy" draggable="false">
+                ${thumbnail}
+                <span class="asset-media-badge">${isVideo ? 'VIDEO' : 'IMAGE'}</span>
                 <input class="asset-select" type="checkbox" ${selected ? 'checked' : ''}
                        aria-label="Select ${escapeHtml(asset.file_name)}">
                 <button class="asset-favorite ${asset.favorite ? 'active' : ''}" type="button"
@@ -282,7 +314,7 @@ function assetCardHtml(asset) {
                 ${tags ? `<div class="asset-tags">${tags}</div>` : ''}
                 <div class="asset-card-footer">
                     <span class="asset-rating">${rating || 'Not rated'}</span>
-                    <span class="asset-meta">${escapeHtml(dimensions)} · ${formatBytes(asset.file_size)}</span>
+                    <span class="asset-meta">${escapeHtml(technical)} · ${formatBytes(asset.file_size)}</span>
                 </div>
             </div>
         </article>`;
@@ -419,7 +451,7 @@ function updateSelectionToolbar() {
         const assetId = selectedIds()[0];
         selectionToolbarTimer = setTimeout(async () => {
             try {
-                const detail = await fetchJson(`/api/images/${assetId}`);
+                const detail = await fetchJson(`/api/assets/${assetId}`);
                 if (state.selected.size === 1 && selectedIds()[0] === assetId) {
                     const hasWorkflow = !!(detail.workflow_ui_json || detail.workflow);
                     const hasPos = !!detail.prompt_parameters?.positive_prompt;
@@ -481,7 +513,7 @@ function updateLayoutColumns() {
     const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
     dom.btnTogglePreview.classList.toggle('active', state.showPreview);
     dom.btnTogglePreview.setAttribute('aria-pressed', String(state.showPreview));
-    const previewActionLabel = state.showPreview ? 'Hide image preview' : 'Show image preview';
+    const previewActionLabel = state.showPreview ? 'Hide media preview' : 'Show media preview';
     dom.btnTogglePreview.title = previewActionLabel;
     dom.btnTogglePreview.setAttribute('aria-label', previewActionLabel);
     if (state.showPreview && activeAsset) {
@@ -517,10 +549,30 @@ function updatePreviewPanel() {
     const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
     if (state.showPreview && activeAsset) {
         const originalUrl = `/api/original/${activeAsset.id}`;
-        
-        if (dom.previewPanelImg.getAttribute('data-loaded-id') !== String(activeAsset.id)) {
-            dom.previewPanelImg.setAttribute('data-loaded-id', String(activeAsset.id));
-            dom.previewPanelImg.src = originalUrl;
+        const isVideo = activeAsset.media_type === 'video';
+
+        if (isVideo) {
+            dom.previewPanelImg.hidden = true;
+            dom.previewPanelImg.src = '';
+            dom.previewPanelImg.removeAttribute('data-loaded-id');
+            dom.previewPanelVideo.hidden = false;
+            if (dom.previewPanelVideo.getAttribute('data-loaded-id') !== String(activeAsset.id)) {
+                dom.previewPanelVideo.setAttribute('data-loaded-id', String(activeAsset.id));
+                dom.previewPanelVideo.src = originalUrl;
+                dom.previewPanelVideo.load();
+            }
+            dom.previewBackdrop.style.backgroundImage = `url("${activeAsset.thumbnail_url}")`;
+        } else {
+            if (!dom.previewPanelVideo.hidden) dom.previewPanelVideo.pause();
+            dom.previewPanelVideo.hidden = true;
+            dom.previewPanelVideo.removeAttribute('src');
+            dom.previewPanelVideo.removeAttribute('data-loaded-id');
+            dom.previewPanelVideo.load();
+            dom.previewPanelImg.hidden = false;
+            if (dom.previewPanelImg.getAttribute('data-loaded-id') !== String(activeAsset.id)) {
+                dom.previewPanelImg.setAttribute('data-loaded-id', String(activeAsset.id));
+                dom.previewPanelImg.src = originalUrl;
+            }
             dom.previewBackdrop.style.backgroundImage = `url("${originalUrl}")`;
         }
         
@@ -545,7 +597,7 @@ function updatePreviewPanel() {
 
         previewPanelTimer = setTimeout(async () => {
             try {
-                const detail = await fetchJson(`/api/images/${activeAsset.id}`);
+                const detail = await fetchJson(`/api/assets/${activeAsset.id}`);
                 if (state.activeAssetId === activeAsset.id && state.showPreview) {
                     currentSelectedDetail = detail;
                     const hasWorkflow = !!(detail.workflow_ui_json || detail.workflow);
@@ -568,6 +620,12 @@ function updatePreviewPanel() {
         updateLayoutColumns();
         dom.previewPanelImg.src = '';
         dom.previewPanelImg.removeAttribute('data-loaded-id');
+        dom.previewPanelImg.hidden = false;
+        dom.previewPanelVideo.pause();
+        dom.previewPanelVideo.hidden = true;
+        dom.previewPanelVideo.removeAttribute('src');
+        dom.previewPanelVideo.removeAttribute('data-loaded-id');
+        dom.previewPanelVideo.load();
         dom.previewBackdrop.style.backgroundImage = '';
         dom.previewCarousel.hidden = true;
         dom.previewCarousel.innerHTML = '';
@@ -1244,6 +1302,7 @@ function openLibraryImageContextMenu(event, asset, anchor) {
         imageId: asset.id,
         fileName: asset.file_name,
         sourceUrl: asset.original_url || `/api/original/${asset.id}`,
+        mediaType: asset.media_type || 'image',
         canAccessOriginal: asset.available,
         hasLocalFile: asset.has_local_file,
         rating: asset.rating,
@@ -1334,7 +1393,7 @@ function createAssetDragPreview(asset, count) {
     const copy = document.createElement('span');
     copy.className = 'asset-drag-preview-copy';
     const title = document.createElement('strong');
-    title.textContent = count === 1 ? asset.file_name : `${count} selected images`;
+    title.textContent = count === 1 ? asset.file_name : `${count} selected assets`;
     const hint = document.createElement('span');
     hint.textContent = 'Drop onto an album';
     copy.append(title, hint);
@@ -1863,8 +1922,8 @@ function sourceContentSignature(sourceState) {
             .map(([sourceId, source]) => [
                 sourceId,
                 source.revision ?? 0,
-                source.image_count ?? 0,
-                source.processed_count ?? 0,
+                source.asset_count ?? source.image_count ?? 0,
+                source.processed_asset_count ?? source.processed_count ?? 0,
             ]),
     );
 }
@@ -1977,6 +2036,10 @@ async function initialize() {
         dom.previewPanelImg.addEventListener('contextmenu', event => {
             const asset = state.assets.find(item => item.id === state.activeAssetId);
             if (asset) openLibraryImageContextMenu(event, asset, dom.previewPanelImg);
+        });
+        dom.previewPanelVideo.addEventListener('contextmenu', event => {
+            const asset = state.assets.find(item => item.id === state.activeAssetId);
+            if (asset) openLibraryImageContextMenu(event, asset, dom.previewPanelVideo);
         });
 
         dom.previewCopyWorkflow.addEventListener('click', async () => {

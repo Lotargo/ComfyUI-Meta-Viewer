@@ -7,9 +7,13 @@ from pathlib import Path
 
 from . import database as db
 from .cutout import clear_cutout
-from .extractor import SUPPORTED
+from .media import (
+    SUPPORTED_MEDIA_EXTENSIONS,
+    media_type_for_path,
+    mime_type_for_path,
+)
 from .preview import clear_preview_cache
-from .schemas import ImageInsertRow
+from .schemas import AssetInsertRow
 
 
 @dataclass(frozen=True)
@@ -19,6 +23,8 @@ class ScannedFile:
     size: int
     mtime: float
     mtime_ns: int
+    media_type: str
+    mime_type: str
 
 
 @dataclass(frozen=True)
@@ -63,7 +69,7 @@ def scan_source_directory(folder_path: Path, *, recursive: bool) -> SourceSnapsh
     errors: list[str] = []
 
     def add_file(path: Path) -> None:
-        if path.suffix.lower() not in SUPPORTED:
+        if path.suffix.lower() not in SUPPORTED_MEDIA_EXTENSIONS:
             return
         try:
             stat = path.stat()
@@ -77,6 +83,8 @@ def scan_source_directory(folder_path: Path, *, recursive: bool) -> SourceSnapsh
             size=stat.st_size,
             mtime=stat.st_mtime,
             mtime_ns=stat.st_mtime_ns,
+            media_type=media_type_for_path(path) or "image",
+            mime_type=mime_type_for_path(path),
         )
 
     if recursive:
@@ -180,20 +188,28 @@ def index_source_directory(
 
     # A unique content match is treated as a rename and updates the existing row.
     # Album, favorite, rating, tag, and note relations therefore stay attached.
-    old_by_identity: dict[tuple[int, str], list[str]] = {}
-    new_by_identity: dict[tuple[int, str], list[str]] = {}
+    old_by_identity: dict[tuple[int, str, str], list[str]] = {}
+    new_by_identity: dict[tuple[int, str, str], list[str]] = {}
     for rel_path in deleted_files:
         record = old_records[rel_path]
         fingerprint = record.get("content_fingerprint")
         if fingerprint:
             old_by_identity.setdefault(
-                (int(record["file_size"]), str(fingerprint)), []
+                (
+                    int(record["file_size"]),
+                    str(fingerprint),
+                    str(record.get("media_type") or "image"),
+                ), []
             ).append(rel_path)
     for rel_path in new_files:
         fingerprint = fingerprints.get(rel_path)
         if fingerprint:
             new_by_identity.setdefault(
-                (current.files[rel_path].size, fingerprint), []
+                (
+                    current.files[rel_path].size,
+                    fingerprint,
+                    current.files[rel_path].media_type,
+                ), []
             ).append(rel_path)
 
     renamed_old: set[str] = set()
@@ -205,13 +221,15 @@ def index_source_directory(
         old_path = old_paths[0]
         new_path = new_paths[0]
         file = current.files[new_path]
-        db.rename_image_record(
+        db.rename_asset_record(
             int(old_records[old_path]["id"]),
             rel_path=new_path,
             file_name=file.path.name,
             file_size=file.size,
             file_mtime=file.mtime,
             content_fingerprint=fingerprints[new_path],
+            media_type=file.media_type,
+            mime_type=file.mime_type,
         )
         renamed_old.add(old_path)
         renamed_new.add(new_path)
@@ -226,7 +244,7 @@ def index_source_directory(
             clear_cutout(cutout_dir, image_id)
             clear_preview_cache(preview_dir, image_id)
 
-    new_images: list[ImageInsertRow] = []
+    new_assets: list[AssetInsertRow] = []
     cached_count = 0
     for rel_path, file in current.files.items():
         if rel_path in renamed_new:
@@ -250,11 +268,13 @@ def index_source_directory(
                 clear_cutout(cutout_dir, image_id)
                 clear_preview_cache(preview_dir, image_id)
 
-        new_images.append(ImageInsertRow(
+        new_assets.append(AssetInsertRow(
             rel_path=rel_path,
             file_name=file.path.name,
             file_size=file.size,
             file_mtime=file.mtime,
+            media_type=file.media_type,
+            mime_type=file.mime_type,
             format=None,
             width=0,
             height=0,
@@ -264,12 +284,12 @@ def index_source_directory(
             content_fingerprint=fingerprints.get(rel_path) or None,
         ))
 
-    db.insert_images(folder_id, new_images)
+    db.insert_assets(folder_id, new_assets)
     folder = db.get_folder_record(folder_id)
     if folder is None or folder["status"] != "paused":
-        has_pending = bool(new_images) or db.folder_has_unprocessed_images(folder_id)
+        has_pending = bool(new_assets) or db.folder_has_unprocessed_images(folder_id)
         db.update_folder_status(folder_id, "processing" if has_pending else "completed")
-    changed = bool(new_images or deleted_ids or renamed_new)
+    changed = bool(new_assets or deleted_ids or renamed_new)
     db.mark_folder_scanned(folder_id, changed=changed)
     if current.errors:
         db.update_source_state(
@@ -283,7 +303,7 @@ def index_source_directory(
     return IndexResult(
         folder_id=folder_id,
         cached=cached_count,
-        processed=len(new_images),
+        processed=len(new_assets),
         deleted=len(deleted_ids),
         errors=current.errors,
     )

@@ -37,6 +37,7 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 - **Object cutout** — automatic background removal with transparent PNG export
 - **SQLite persistence** — all data survives restarts
 - **Media Library** — virtual albums, favorites, ratings, tags, notes, and bulk selection without moving source files
+- **Unified image and video assets** — shared sources, albums, favorites, previews, and technical metadata
 - **Keyboard-first** workflow with 14 shortcuts
 
 ---
@@ -237,10 +238,11 @@ The app will be available at **http://localhost:7860**
 | `POST` | `/api/upload` | Upload image files |
 | `GET` | `/api/images` | List images (paginated) |
 | `GET` | `/api/images/{id}` | Get image details + metadata |
+| `GET` | `/api/assets/{id}` | Get image or video details with separated metadata layers |
 | `DELETE` | `/api/images/{id}` | Delete an image |
 | `GET` | `/api/thumbnail/{id}` | Get JPEG thumbnail |
 | `GET` | `/api/preview/{id}` | Get or generate a bounded display preview |
-| `GET` | `/api/original/{id}` | Get original image |
+| `GET` | `/api/original/{id}` | Get original image or video |
 | `POST` | `/api/cutout/{id}` | Generate transparent cutout |
 | `GET` | `/api/folders` | List scanned folders |
 | `GET` | `/api/diagnostics` | System statistics |

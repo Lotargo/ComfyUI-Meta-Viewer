@@ -112,14 +112,14 @@ Source monitoring indexes images in-place. Original files are not copied during 
 
 **Main file:** `app/database.py`
 
-SQLite stores the local image index, folder list, metadata JSON, upload BLOBs, and cache-related references.
+SQLite stores the local media index, folder list, embedded metadata JSON, upload BLOBs, user data, AI annotations, and cache-related references.
 
 ### Tables
 
 | Table | Purpose |
 |-------|---------|
 | `folders` | Indexed local folders and the special `Uploads` collection |
-| `images` | Image rows, metadata JSON, thumbnails, uploaded BLOBs |
+| `images` | Legacy-named shared asset rows for images and videos, technical fields, embedded metadata, AI annotations, and uploaded image BLOBs |
 | `albums` / `album_images` | Virtual many-to-many collections and cover selection |
 | `tags` / `image_tags` | Normalized user tags attached to indexed assets |
 
@@ -132,6 +132,8 @@ SQLite stores the local image index, folder list, metadata JSON, upload BLOBs, a
 - Scanned images remain on disk and are served from their original local paths.
 - Uploaded metadata is extracted and cached when the image is first opened.
 - Content fingerprints let a unique rename retain the same image ID and virtual relations.
+- `media_type` and `mime_type` identify every asset; video rows add duration, frame rate, codec, and preview status.
+- Embedded source metadata stays in `metadata_json`, user data stays in relational fields, and derived AI results stay in `ai_annotations_json`.
 
 ---
 
@@ -156,11 +158,19 @@ flag, zero-to-five-star rating, tags, and a note.
 - Search names, notes, and tags; sort by name, file date, indexed date, size, or rating.
 - Keep album and favorite relations while a source is disabled or temporarily unavailable.
 - Preserve the indexed identity across an unambiguous content-matched file rename.
+- Browse MP4, WebM, MOV, M4V, MKV, and AVI files alongside images, including preview frames and a basic video preview.
 
 Removing an asset from an album changes only the album membership. Removing it from the
 index also clears its virtual relations and generated caches, but still leaves the physical
 file untouched. A remaining file can be discovered again during source reconciliation.
-Physical deletion is intentionally not exposed by the Library.
+Explicit physical deletion moves supported local files to the operating system Trash or Recycle Bin.
+
+### Video indexing
+
+The source scanner recognizes images and videos as the same asset entity. `ffprobe` reads
+container and stream metadata; `ffmpeg` decodes one bounded JPEG preview frame. Both tools are
+optional. A missing tool produces `unavailable` metadata/preview state on the video card and
+does not stop the worker or affect image indexing.
 
 ---
 
@@ -345,6 +355,7 @@ Uploaded originals are stored immediately as SQLite BLOBs and can be served late
 - Generated lazily.
 - Stored as JPEG files under `cache/thumbnails/`.
 - Served from cache on later requests.
+- Video thumbnails are decoded by FFmpeg and report a clear `503` state when the tool is unavailable.
 
 ### Display previews
 

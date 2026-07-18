@@ -4,6 +4,11 @@
 
 - **Python 3.10+** (3.12 recommended)
 - **Poetry** package manager
+- **FFmpeg / ffprobe** (optional, for video technical metadata and preview frames)
+
+Images and the rest of the library continue to work when FFmpeg is absent. Video cards remain
+indexed and explain that preview or technical metadata is unavailable. Install both executables
+on `PATH` to enable those features; see the official [FFmpeg download page](https://ffmpeg.org/download.html).
 
 ## Quick Start
 
@@ -97,6 +102,7 @@ comfy-meta-viewer/
 | Flask | ^3.1 | Web server |
 | Pillow | ^11.0 | Image processing, metadata extraction |
 | Pydantic | ^2.0 | Data validation, API schemas |
+| FFmpeg / ffprobe | optional | Video preview frames and technical metadata |
 | Fuse.js | 7.0.0 | Client-side fuzzy search (vendored) |
 
 ## Troubleshooting

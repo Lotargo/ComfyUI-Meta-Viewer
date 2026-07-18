@@ -10,11 +10,18 @@ interface CollectionContext {
 interface ImageListItem {
   id?: number;
   file_name: string;
+  media_type?: 'image' | 'video';
+  mime_type?: string;
   file?: string;
   path?: string;
   format?: string | null;
   size?: number[] | null;
   mode?: string | null;
+  duration?: number | null;
+  frame_rate?: number | null;
+  codec?: string | null;
+  preview_status?: 'pending' | 'ready' | 'unavailable' | 'error' | null;
+  preview_error?: string | null;
   error?: string | null;
   thumbnail?: string | null;
   has_local_file?: boolean | null;
@@ -29,6 +36,9 @@ interface ImageDetail extends ImageListItem {
   raw_parameters?: string | null;
   raw_params?: string | null;
   folder_id?: number | null;
+  embedded_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
+  ai_annotations?: Record<string, unknown> | null;
 }
 
 interface WorkflowNode {
@@ -45,6 +55,10 @@ interface FolderInfo {
   scanned_at?: string | null;
   created_at?: string | null;
   image_count: number;
+  asset_count: number;
+  video_count: number;
+  processed_count?: number;
+  processed_asset_count?: number;
 }
 
 interface AlbumInfo {

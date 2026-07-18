@@ -102,7 +102,7 @@ not create cache files, marker files, or watcher scripts inside a selected sourc
 If the system folder dialog is unavailable (for example, Tk is missing in a minimal Linux
 environment), the web interface asks for the path manually.
 
-Scanned folder images are not copied. The database stores their metadata, local path
+Scanned folder media is not copied. The database stores embedded metadata, local path
 references, albums, favorites, ratings, tags, and notes. Uploaded files are stored as BLOBs
 in SQLite; their metadata is extracted only when an image is first opened. Because virtual
 library organization and uploaded originals live inside the disposable index, both reset
@@ -125,8 +125,12 @@ metadata queue. Missing roots are retried without treating their indexed content
 | `.bmp` | Dimensions only | No rich ComfyUI metadata expected |
 | `.tiff` | Basic/EXIF | EXIF when available |
 | `.tif` | Basic/EXIF | Served as TIFF by the API MIME map |
+| `.mp4`, `.m4v`, `.mov` | ffprobe | Video stream/container metadata; JPEG preview via ffmpeg |
+| `.webm`, `.mkv`, `.avi` | ffprobe | Video stream/container metadata; JPEG preview via ffmpeg |
 
-Folder scans filter by supported extensions case-insensitively.
+Folder scans filter by supported extensions case-insensitively. FFmpeg and ffprobe are optional:
+without them video rows remain available for albums, favorites, filtering, and original-file
+access while their technical metadata or preview status is marked `unavailable`.
 
 ---
 
@@ -141,8 +145,9 @@ The application enables:
 Relevant indexes:
 
 ```sql
-idx_images_folder        -- Folder-based image listing
+idx_images_folder        -- Folder-based asset listing (legacy table name)
 idx_images_folder_mtime  -- Incremental scan checks
+idx_images_media_type    -- Image/video collection filtering
 ```
 
 ---

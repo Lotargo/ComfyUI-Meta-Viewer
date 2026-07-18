@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import sys
@@ -22,7 +23,6 @@ SYSTEM_COLLECTIONS = (
 )
 
 _SYSTEM_IDS = {item["id"] for item in SYSTEM_COLLECTIONS}
-_VIDEO_SUFFIXES = ("mp4", "webm", "mov", "m4v", "mkv", "avi")
 _MODEL_FAMILY_PATTERNS = {
     "flux": ("%flux%",),
     "pony": ("%pony%",),
@@ -164,7 +164,8 @@ def list_metadata_filters() -> dict[str, list[dict[str, str]] | list[str]]:
             f"""SELECT DISTINCT CAST(node.value AS TEXT) AS node_type
             FROM images i,
                  json_tree({_VALID_METADATA_SQL}, '$.workflow.workflow_nodes') node
-            WHERE node.key = 'class_type'
+            WHERE i.media_type = 'image'
+              AND node.key = 'class_type'
               AND node.type = 'text'
               AND TRIM(CAST(node.value AS TEXT)) != ''
             ORDER BY node_type COLLATE NOCASE"""
@@ -639,7 +640,7 @@ def get_assets(
         conditions.append("i.is_favorite = 1")
     elif collection == "without_metadata":
         conditions.append(
-            """(i.error IS NOT NULL OR (
+            """i.media_type = 'image' AND (i.error IS NOT NULL OR (
                 i.metadata_json IS NOT NULL
                 AND json_extract(i.metadata_json, '$.prompt_parameters') IS NULL
                 AND json_extract(i.metadata_json, '$.workflow') IS NULL
@@ -656,17 +657,9 @@ def get_assets(
             )"""
         )
     elif collection == "videos":
-        placeholders = ",".join("?" for _ in _VIDEO_SUFFIXES)
-        conditions.append(
-            f"LOWER(COALESCE(i.format, substr(i.file_name, instr(i.file_name, '.') + 1))) IN ({placeholders})"
-        )
-        params.extend(_VIDEO_SUFFIXES)
+        conditions.append("i.media_type = 'video'")
     elif collection == "images":
-        placeholders = ",".join("?" for _ in _VIDEO_SUFFIXES)
-        conditions.append(
-            f"LOWER(COALESCE(i.format, substr(i.file_name, instr(i.file_name, '.') + 1))) NOT IN ({placeholders})"
-        )
-        params.extend(_VIDEO_SUFFIXES)
+        conditions.append("i.media_type = 'image'")
     elif collection == "not_rated":
         conditions.append("COALESCE(i.rating, 0) = 0")
     elif collection == "album":
@@ -719,8 +712,10 @@ def get_assets(
         )
         rows = conn.execute(
             f"""SELECT i.id, i.folder_id, i.file_name, i.rel_path, i.file_size,
-                i.file_mtime, i.format, i.width, i.height, i.error,
-                i.metadata_json, i.is_favorite, i.rating, i.note, i.indexed_at,
+                i.file_mtime, i.media_type, i.mime_type, i.format, i.width,
+                i.height, i.duration, i.frame_rate, i.codec, i.error,
+                i.metadata_json, i.ai_annotations_json, i.preview_status,
+                i.preview_error, i.is_favorite, i.rating, i.note, i.indexed_at,
                 i.original_data IS NOT NULL AS has_original_data,
                 f.name AS source_name, f.path AS source_path, f.enabled AS source_enabled,
                 f.source_status
@@ -757,6 +752,7 @@ def get_assets(
     for asset in assets:
         image_id = int(asset["id"])
         metadata_json = asset.pop("metadata_json", None)
+        ai_annotations_json = asset.pop("ai_annotations_json", None)
         asset["favorite"] = bool(asset.pop("is_favorite"))
         asset["source_enabled"] = bool(asset["source_enabled"])
         asset["has_original_data"] = bool(asset["has_original_data"])
@@ -771,11 +767,15 @@ def get_assets(
             asset["available"] and not asset["has_original_data"]
         )
         asset["has_metadata"] = False
+        asset["has_embedded_metadata"] = False
         if metadata_json:
             try:
-                import json
-
                 metadata = json.loads(metadata_json)
+                technical = metadata.get("technical_metadata") or {}
+                asset["has_embedded_metadata"] = bool(metadata) and (
+                    asset.get("media_type") != "video"
+                    or technical.get("status") == "available"
+                )
                 asset["has_metadata"] = bool(
                     metadata.get("prompt_parameters") or metadata.get("workflow")
                 )
@@ -783,6 +783,18 @@ def get_assets(
                 pass
         asset["tags"] = tags_by_asset[image_id]
         asset["album_ids"] = albums_by_asset[image_id]
+        asset["user_metadata"] = {
+            "favorite": asset["favorite"],
+            "rating": asset["rating"],
+            "note": asset["note"],
+            "tags": asset["tags"],
+        }
+        asset["has_ai_annotations"] = False
+        if ai_annotations_json:
+            try:
+                asset["has_ai_annotations"] = bool(json.loads(ai_annotations_json))
+            except (TypeError, ValueError):
+                pass
         asset["thumbnail_url"] = f"/api/thumbnail/{image_id}"
         asset["original_url"] = f"/api/original/{image_id}"
 
@@ -800,7 +812,9 @@ def library_summary() -> dict[str, Any]:
         row = conn.execute(
             """SELECT COUNT(*) AS assets,
                 SUM(CASE WHEN is_favorite = 1 THEN 1 ELSE 0 END) AS favorites,
-                SUM(CASE WHEN COALESCE(rating, 0) = 0 THEN 1 ELSE 0 END) AS not_rated
+                SUM(CASE WHEN COALESCE(rating, 0) = 0 THEN 1 ELSE 0 END) AS not_rated,
+                SUM(CASE WHEN media_type = 'image' THEN 1 ELSE 0 END) AS images,
+                SUM(CASE WHEN media_type = 'video' THEN 1 ELSE 0 END) AS videos
             FROM images"""
         ).fetchone()
         unavailable = conn.execute(
@@ -813,6 +827,8 @@ def library_summary() -> dict[str, Any]:
             "assets": int(row["assets"] or 0),
             "favorites": int(row["favorites"] or 0),
             "not_rated": int(row["not_rated"] or 0),
+            "images": int(row["images"] or 0),
+            "videos": int(row["videos"] or 0),
             "unavailable": int(unavailable or 0),
         }
     finally:

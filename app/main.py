@@ -35,6 +35,12 @@ from .extractor import (
 )
 from .folder_picker import FolderPickerUnavailable, choose_folder
 from .indexing import index_source_directory
+from .media import (
+    MediaToolUnavailableError,
+    VideoProcessingError,
+    make_video_thumbnail,
+    media_tool_status,
+)
 from .paths import (
     PathValidationError,
     RuntimePaths,
@@ -547,11 +553,12 @@ def api_images():
     return jsonify(result.model_dump())
 
 
+@app.route("/api/assets/<int:image_id>", methods=["GET"])
 @app.route("/api/images/<int:image_id>", methods=["GET"])
 def api_image_detail(image_id: int):
     detail = db.get_image_detail(image_id)
     if detail is None:
-        return jsonify({"error": "Image not found"}), 404
+        return jsonify({"error": "Asset not found"}), 404
     return jsonify(detail.model_dump())
 
 
@@ -680,6 +687,7 @@ def api_diagnostics():
         "preview_dir": str(preview_dir),
         "preview_count": preview_count,
         "upload_dir": str(storage_path("UPLOAD_FOLDER")),
+        "media_tools": media_tool_status(),
     })
     return jsonify(diagnostics)
 
@@ -694,6 +702,9 @@ def api_get_cutout(image_id: int):
 
 @app.route("/api/cutout/<int:image_id>", methods=["POST"])
 def api_create_cutout(image_id: int):
+    source = db.get_asset_source_info(image_id)
+    if source and source.get("media_type") != "image":
+        return jsonify({"error": "Cutouts are available only for images"}), 409
     try:
         _, cached = make_cutout_png(
             image_id,
@@ -727,6 +738,33 @@ def api_thumbnail(image_id: int):
     if thumb_path.exists():
         return Response(thumb_path.read_bytes(), mimetype="image/jpeg")
 
+    source = db.get_asset_source_info(image_id)
+    if not source:
+        return jsonify({"error": "not found"}), 404
+    if source.get("media_type") == "video":
+        video_path = source.get("path")
+        if not video_path or not Path(video_path).is_file():
+            return jsonify({"error": "video source not found"}), 404
+        try:
+            thumb_data = make_video_thumbnail(
+                video_path,
+                duration=source.get("duration"),
+            )
+        except MediaToolUnavailableError as exc:
+            db.update_asset_preview_status(image_id, "unavailable", str(exc))
+            return jsonify({
+                "error": str(exc),
+                "code": "video_preview_tool_unavailable",
+            }), 503
+        except VideoProcessingError as exc:
+            db.update_asset_preview_status(image_id, "error", str(exc))
+            return jsonify({"error": str(exc), "code": "video_preview_failed"}), 422
+
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        thumb_path.write_bytes(thumb_data)
+        db.update_asset_preview_status(image_id, "ready")
+        return Response(thumb_data, mimetype="image/jpeg")
+
     original = db.get_image_original_data(image_id)
     if original:
         thumb_data = make_thumbnail_bytes_from_bytes(original)
@@ -752,6 +790,9 @@ def api_thumbnail(image_id: int):
 
 @app.route("/api/preview/<int:image_id>")
 def api_preview(image_id: int):
+    source = db.get_asset_source_info(image_id)
+    if source and source.get("media_type") == "video":
+        return api_thumbnail(image_id)
     try:
         preview_path = get_or_create_preview(
             image_id,
@@ -796,9 +837,8 @@ def api_original(image_id: int):
 
     fmt = source.get("format")
     suffix = Path(source["file_name"]).suffix.lower()
-    mime = MIME_MAP.get(
-        f".{fmt}".lower() if fmt else suffix,
-        "application/octet-stream",
+    mime = source.get("mime_type") or MIME_MAP.get(
+        f".{fmt}".lower() if fmt else suffix, "application/octet-stream"
     )
 
     if source["has_original_data"]:

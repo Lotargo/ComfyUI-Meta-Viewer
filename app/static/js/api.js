@@ -32,6 +32,8 @@ import {
     sidebarSortKey,
     sidebarSortDir,
     saveState,
+    sidebarActiveImageId,
+    setSidebarActiveImageId,
 } from './state.js';
 import { showLoading, showError, customConfirm } from './utils.js';
 
@@ -265,12 +267,28 @@ export async function loadMore() {
     return didLoad;
 }
 
-export async function loadSidebarImages({ force = false, render = true } = {}) {
-    const data = await fetchJson(`/api/images?page=1&per_page=${PAGE_SIZE}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}`, { force });
+export async function loadSidebarImages({ force = false, render = true, preserveCount = false } = {}) {
+    const limit = preserveCount ? Math.max(PAGE_SIZE, sidebarPage * PAGE_SIZE) : PAGE_SIZE;
+    const data = await fetchJson(`/api/images?page=1&per_page=${limit}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}`, { force });
+    
+    const activeImageId = sidebarActiveImageId;
+    
     setSidebarImages(data.images || []);
     setSidebarTotalImages(data.total || 0);
-    setSidebarPage(data.page || 1);
-    setSidebarAllLoaded((data.images || []).length >= (data.total || 0));
+    
+    if (!preserveCount) {
+        setSidebarPage(data.page || 1);
+        setSidebarAllLoaded((data.images || []).length >= (data.total || 0));
+    } else {
+        setSidebarAllLoaded(sidebarImages.length >= (data.total || 0));
+        if (activeImageId) {
+            const newIdx = sidebarImages.findIndex(img => img.id === activeImageId);
+            if (newIdx >= 0) {
+                setSidebarActiveImageId(sidebarImages[newIdx].id);
+            }
+        }
+    }
+    
     if (render) {
         const { renderSidebar } = await import('./features/sidebar.js');
         renderSidebar();
@@ -400,21 +418,52 @@ export function deleteImageAt(index) {
     return img ? deleteImageById(img.id) : Promise.resolve(false);
 }
 
-export async function loadFolderImages(folderId, folderName, { force = false, render = true } = {}) {
+export async function loadFolderImages(folderId, folderName, { force = false, render = true, preserveCount = false } = {}) {
     setIsLoading(true);
     if (render) showLoading('Loading folder images...');
     try {
-        const data = await fetchJson(`/api/images?folder_id=${folderId}&page=1&per_page=${PAGE_SIZE}&sort_by=${sortKey}&sort_dir=${sortDir}`, { force });
+        const limit = preserveCount ? Math.max(PAGE_SIZE, currentPage * PAGE_SIZE) : PAGE_SIZE;
+        const data = await fetchJson(`/api/images?folder_id=${folderId}&page=1&per_page=${limit}&sort_by=${sortKey}&sort_dir=${sortDir}`, { force });
+        
+        const activeImageId = images[activeIndex]?.id;
+        
         setCurrentFolderId(folderId);
         dom.folderNameEl.textContent = folderName || '';
         setImages(data.images || []);
         setTotalImages(data.total || 0);
-        setCurrentPage(data.page || 1);
-        setAllLoaded((data.images || []).length >= (data.total || 0));
-        setActiveIndex((data.images || []).length ? 0 : -1);
+        
+        if (!preserveCount) {
+            setCurrentPage(data.page || 1);
+            setAllLoaded((data.images || []).length >= (data.total || 0));
+            setActiveIndex((data.images || []).length ? 0 : -1);
+        } else {
+            setAllLoaded(images.length >= (data.total || 0));
+            if (activeImageId) {
+                const newIdx = images.findIndex(img => img.id === activeImageId);
+                if (newIdx >= 0) {
+                    setActiveIndex(newIdx);
+                    if (dom.lightbox.classList.contains('open')) {
+                        const { setLightboxIndex } = await import('./state.js');
+                        setLightboxIndex(newIdx);
+                    }
+                } else {
+                    setActiveIndex(images.length ? 0 : -1);
+                    if (dom.lightbox.classList.contains('open')) {
+                        const { setLightboxIndex } = await import('./state.js');
+                        setLightboxIndex(images.length ? 0 : -1);
+                    }
+                }
+            }
+        }
         setDetailCache({});
         saveState();
         if (render) await renderCurrentContent();
+        
+        if (preserveCount && dom.lightbox.classList.contains('open')) {
+            const { updateLightbox } = await import('./lightbox.js');
+            updateLightbox();
+        }
+        
         return data;
     } catch(e) {
         if (render) showError('Error loading folder: ' + e.message);

@@ -482,10 +482,10 @@ function initFoldersSSE() {
                 refreshCacheBuster();
                 const { invalidateApiCache, loadFolderImages, loadSidebarImages } = await import('../api.js');
                 invalidateApiCache();
-                await loadSidebarImages({ force: true });
+                await loadSidebarImages({ force: true, preserveCount: true });
                 const activeFolder = updatedFolders.find(folder => folder.id === currentFolderId && folder.enabled);
                 if (activeFolder) {
-                    await loadFolderImages(activeFolder.id, activeFolder.name, { force: true });
+                    await loadFolderImages(activeFolder.id, activeFolder.name, { force: true, preserveCount: true });
                 }
             }
         } catch (e) {

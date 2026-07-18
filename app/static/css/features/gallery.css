@@ -1,13 +1,17 @@
-/* === Gallery Masonry Layout === */
+/* === Gallery Layout === */
+/* 
+   RULE: Use CSS Grid layout with repeat(auto-fill, minmax(220px, 1fr)) to keep cards in horizontal order. 
+   Do NOT use Multi-column layout (column-count) as it re-orders cards vertically and balances heights, 
+   causing cards to jump columns during pagination or background updates.
+*/
 
 .gallery-masonry {
-    column-count: 4;
-    column-gap: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
 }
 
 .gallery-card {
-    break-inside: avoid;
-    margin-bottom: 14px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -15,7 +19,8 @@
     cursor: pointer;
     transition: all var(--transition);
     position: relative;
-    display: inline-block;
+    display: flex;
+    flex-direction: column;
     width: 100%;
     box-shadow: var(--shadow-sm);
     user-select: none;
@@ -114,29 +119,9 @@
     z-index: 2;
 }
 
-/* Responsive columns */
-@media (max-width: 1200px) {
-    .gallery-masonry {
-        column-count: 3;
-    }
-}
-
-@media (max-width: 900px) {
-    .gallery-masonry {
-        column-count: 2;
-    }
-}
-
-@media (max-width: 600px) {
-    .gallery-masonry {
-        column-count: 1;
-    }
-}
-
-/* Skeleton in masonry */
+/* Skeleton in gallery grid */
 .gallery-masonry .skeleton-gallery-card {
-    break-inside: avoid;
-    margin-bottom: var(--space-md);
-    display: inline-block;
+    display: flex;
+    flex-direction: column;
     width: 100%;
 }

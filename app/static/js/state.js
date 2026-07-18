@@ -69,23 +69,33 @@ export const dom = {
     lbCutout: document.getElementById('lb-cutout'),
 };
 
-// Central content collection. It changes only when a folder is explicitly selected.
-export let images = [];
+/**
+ * Central content collection. It changes only when a folder is explicitly selected.
+ * @type {const Array} Must NOT be reassigned to preserve references in consumers.
+ */
+export const images = [];
 export let activeIndex = -1;
 export let currentFolderId = null;
 export let currentPage = 0;
 export let totalImages = 0;
 export let allLoaded = true;
 
-// Global Images sidebar collection. It never controls the central gallery.
-export let sidebarImages = [];
+/**
+ * Global Images sidebar collection. It never controls the central gallery.
+ * @type {const Array} Must NOT be reassigned to preserve references in consumers.
+ */
+export const sidebarImages = [];
 export let sidebarPage = 0;
 export let sidebarTotalImages = 0;
 export let sidebarAllLoaded = true;
 export let sidebarActiveImageId = null;
 export let activeSidebarTab = 'images';
 
-export let folders = [];
+/**
+ * Folders collection.
+ * @type {const Array} Must NOT be reassigned to preserve references.
+ */
+export const folders = [];
 export let viewMode = 'gallery';
 export let galleryActive = true;
 export let lightboxIndex = -1;
@@ -120,10 +130,18 @@ export function setSidebarCollapsed(v) { sidebarCollapsed = Boolean(v); }
 export function setLightboxMetaOpen(v) { lightboxMetaOpen = Boolean(v); }
 export function setMetadataTab(v) { metadataTab = ['workflow', 'raw'].includes(v) ? v : 'summary'; }
 
-
-export function setImages(v) { images = Array.isArray(v) ? [...v] : []; }
-export function setSidebarImages(v) { sidebarImages = Array.isArray(v) ? [...v] : []; }
-export function setFolders(v) { folders = Array.isArray(v) ? [...v] : []; }
+export function setImages(v) {
+    images.length = 0;
+    if (Array.isArray(v)) images.push(...v);
+}
+export function setSidebarImages(v) {
+    sidebarImages.length = 0;
+    if (Array.isArray(v)) sidebarImages.push(...v);
+}
+export function setFolders(v) {
+    folders.length = 0;
+    if (Array.isArray(v)) folders.push(...v);
+}
 export function setActiveIndex(v) { activeIndex = Number.isInteger(v) ? v : -1; }
 export function setViewModeValue(v) { viewMode = v === 'list' ? 'list' : (v === 'upload' ? 'upload' : 'gallery'); }
 export function setGalleryActive(v) { galleryActive = Boolean(v); }

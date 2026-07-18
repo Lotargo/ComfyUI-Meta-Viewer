@@ -306,14 +306,17 @@ class LibraryApiTest(LibraryTestCase):
         sidebar_styles = (
             root / "app" / "static" / "css" / "layout" / "sidebar.css"
         ).read_text(encoding="utf-8")
+        header_styles = (
+            root / "app" / "static" / "css" / "components" / "header.css"
+        ).read_text(encoding="utf-8")
         self.assertIn(".viewer-album-stack", sidebar_styles)
         self.assertIn("aspect-ratio: 4 / 5", sidebar_styles)
         self.assertIn('href="/library"', viewer)
-        self.assertIn('class="btn library-entry-btn"', viewer)
-        buttons = (
-            root / "app" / "static" / "css" / "components" / "buttons.css"
-        ).read_text(encoding="utf-8")
-        self.assertIn(".library-entry-btn", buttons)
+        self.assertIn('class="app-switcher-link active" href="/"', viewer)
+        self.assertIn('class="app-switcher-link active" href="/library"', template)
+        self.assertIn('class="library-view-actions"', template)
+        self.assertIn(".global-header", header_styles)
+        self.assertIn(".app-switcher-link.active", header_styles)
 
     def test_smart_metadata_filters_are_combined_on_the_backend(self) -> None:
         for name, color in (

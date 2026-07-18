@@ -12,30 +12,30 @@
     <link rel="stylesheet" href="/static/css/components/buttons.css">
     <link rel="stylesheet" href="/static/css/components/inputs.css">
     <link rel="stylesheet" href="/static/css/features/library.css?v={{ static_version('css/features/library.css') }}">
+    <link rel="stylesheet" href="/static/css/components/header.css">
 </head>
 <body class="library-body">
-    <header class="library-header">
-        <div class="library-brand">
-            <button id="btn-toggle-sidebar" class="btn btn-icon btn-ghost btn-sidebar-toggle" type="button" title="Toggle sidebar" aria-label="Toggle sidebar" aria-expanded="true">
+    <header class="library-header global-header">
+        <div class="global-header-left">
+            <button id="btn-toggle-sidebar" class="header-icon-button" type="button" title="Toggle sidebar" aria-label="Toggle sidebar" aria-expanded="true">
                 <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
             <a class="header-logo" href="/"><span>Comfy</span>UI Meta Viewer</a>
-            <span class="library-page-label">Library</span>
+            <nav class="app-switcher" aria-label="Primary navigation">
+                <a class="app-switcher-link" href="/">Viewer</a>
+                <a class="app-switcher-link active" href="/library" aria-current="page">Library</a>
+            </nav>
         </div>
-        <nav class="library-nav" aria-label="Primary navigation">
-            <button id="btn-toggle-preview" class="btn btn-ghost btn-preview-toggle active" type="button" title="Toggle preview panel" aria-pressed="true">
-                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="3" width="7" height="18" rx="1"></rect><rect x="3" y="3" width="7" height="18" rx="1"></rect></svg>
-                <span>Preview</span>
+        <div class="global-header-actions">
+            <button id="library-add-files-button" class="header-primary-action" type="button" title="Add files">
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+                <span>Add</span>
             </button>
-            <button id="btn-library-guide" class="btn btn-ghost btn-library-guide" type="button" title="Open library guide" aria-haspopup="dialog" aria-expanded="false">
+            <button id="btn-library-guide" class="header-icon-button" type="button" title="Open library guide" aria-label="Open library guide" aria-haspopup="dialog" aria-expanded="false">
                 <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.7 9a2.5 2.5 0 0 1 4.8 1c0 1.7-2.5 2-2.5 3.5"></path><path d="M12 17h.01"></path></svg>
-                <span>Guide</span>
             </button>
-            <label class="btn" for="library-add-files-input" style="cursor:pointer">Add Files</label>
             <input type="file" id="library-add-files-input" class="hidden-input" multiple accept="image/*" style="display:none">
-            <a class="btn btn-ghost" href="/">Viewer</a>
-            <a class="btn btn-primary" href="/library" aria-current="page">Library</a>
-        </nav>
+        </div>
     </header>
 
     <div class="library-shell">
@@ -98,16 +98,25 @@
                     <select id="library-node-filter" aria-label="Filter by ComfyUI node">
                         <option value="">All generation nodes</option>
                     </select>
-                    <select id="library-sort" aria-label="Sort assets">
-                        <option value="date:desc">Newest file</option>
-                        <option value="date:asc">Oldest file</option>
-                        <option value="added:desc">Recently indexed</option>
-                        <option value="name:asc">Name A–Z</option>
-                        <option value="name:desc">Name Z–A</option>
-                        <option value="size:desc">Largest first</option>
-                        <option value="rating:desc">Highest rated</option>
-                    </select>
-                    <button id="btn-toggle-select" class="btn" type="button" title="Toggle selection mode">Select</button>
+                    <div class="library-view-actions" aria-label="Library view controls">
+                        <select id="library-sort" aria-label="Sort assets">
+                            <option value="date:desc">Newest file</option>
+                            <option value="date:asc">Oldest file</option>
+                            <option value="added:desc">Recently indexed</option>
+                            <option value="name:asc">Name A–Z</option>
+                            <option value="name:desc">Name Z–A</option>
+                            <option value="size:desc">Largest first</option>
+                            <option value="rating:desc">Highest rated</option>
+                        </select>
+                        <button id="btn-toggle-select" class="btn" type="button" title="Toggle selection mode">
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="m8 12 3 3 5-6"></path></svg>
+                            <span>Select</span>
+                        </button>
+                        <button id="btn-toggle-preview" class="btn btn-preview-toggle active" type="button" title="Toggle preview panel" aria-pressed="true">
+                            <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="3" width="7" height="18" rx="1"></rect><rect x="3" y="3" width="7" height="18" rx="1"></rect></svg>
+                            <span>Preview</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div id="selection-toolbar" class="selection-toolbar" hidden>

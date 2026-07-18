@@ -12,6 +12,7 @@ export const dom = {
     imageList: document.getElementById('image-list'),
     imageCount: document.getElementById('image-count'),
     folderNameEl: document.getElementById('folder-name'),
+    viewerCollectionName: document.getElementById('viewer-collection-name'),
     collectionKindEl: document.getElementById('collection-kind'),
     addFileInput: document.getElementById('add-file-input'),
     btnOpenFolder: document.getElementById('btn-open-folder'),

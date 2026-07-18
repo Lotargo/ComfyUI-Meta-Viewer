@@ -15,17 +15,28 @@ export function initSearch() {
     dom.searchInput.addEventListener('keydown', onKeydown);
 
     if (dom.searchSettingsBtn && dom.searchSettingsDropdown) {
+        const setSettingsVisible = visible => {
+            dom.searchSettingsDropdown.style.display = visible ? 'flex' : 'none';
+            dom.searchSettingsBtn.setAttribute('aria-expanded', String(visible));
+        };
+
         dom.searchSettingsBtn.addEventListener('click', event => {
             event.stopPropagation();
             const isVisible = dom.searchSettingsDropdown.style.display !== 'none';
-            dom.searchSettingsDropdown.style.display = isVisible ? 'none' : 'flex';
+            setSettingsVisible(!isVisible);
             if (!isVisible) syncSettingsToUI();
         });
 
         document.addEventListener('click', event => {
             if (!dom.searchSettingsDropdown.contains(event.target) && !dom.searchSettingsBtn.contains(event.target)) {
-                dom.searchSettingsDropdown.style.display = 'none';
+                setSettingsVisible(false);
             }
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Escape' || dom.searchSettingsDropdown.style.display === 'none') return;
+            setSettingsVisible(false);
+            dom.searchSettingsBtn.focus();
         });
 
         const bindCheckbox = (id, key, fieldKey) => {

@@ -344,8 +344,10 @@ class LazyUploadTest(unittest.TestCase):
 
         self.assertNotIn("Open Files", html)
         self.assertNotIn('id="file-input"', html)
-        self.assertIn("Add Files", html)
+        self.assertIn("Add files", html)
         self.assertIn('id="add-file-input"', html)
+        self.assertIn('data-header-menu-trigger', html)
+        self.assertIn('class="viewer-context-toolbar"', html)
         self.assertIn('id="lb-view-original"', html)
         self.assertIn('class="folder-list view-list"', html)
 

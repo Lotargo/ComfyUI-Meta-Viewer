@@ -100,12 +100,14 @@ export function bindCentralSortEvents() {
         
         if (isVisible) {
             sortMenu.style.display = 'none';
+            sortBtn.setAttribute('aria-expanded', 'false');
         } else {
             renderSortMenu(sortMenu, sortKey, sortDir, sortOptions,
                 async (newKey) => {
                     setSortKey(newKey);
                     saveState();
                     sortMenu.style.display = 'none';
+                    sortBtn.setAttribute('aria-expanded', 'false');
                     invalidateApiCache();
                     if (currentCollection.id) {
                         await loadCollectionImages({ ...currentCollection }, { force: true });
@@ -115,6 +117,7 @@ export function bindCentralSortEvents() {
                     setSortDir(newDir);
                     saveState();
                     sortMenu.style.display = 'none';
+                    sortBtn.setAttribute('aria-expanded', 'false');
                     invalidateApiCache();
                     if (currentCollection.id) {
                         await loadCollectionImages({ ...currentCollection }, { force: true });
@@ -122,6 +125,7 @@ export function bindCentralSortEvents() {
                 }
             );
             sortMenu.style.display = 'flex';
+            sortBtn.setAttribute('aria-expanded', 'true');
         }
     };
 }
@@ -137,6 +141,7 @@ export function bindSidebarSortEvents() {
         
         const sortMenu = document.querySelector('#sort-dropdown-menu');
         if (sortMenu) sortMenu.style.display = 'none';
+        document.querySelector('#sort-btn')?.setAttribute('aria-expanded', 'false');
         const foldersMenu = document.querySelector('#folders-sort-dropdown-menu');
         if (foldersMenu) foldersMenu.style.display = 'none';
         const albumsMenu = document.querySelector('#viewer-albums-sort-dropdown-menu');
@@ -177,6 +182,7 @@ export function bindFoldersSortEvents() {
         
         const sortMenu = document.querySelector('#sort-dropdown-menu');
         if (sortMenu) sortMenu.style.display = 'none';
+        document.querySelector('#sort-btn')?.setAttribute('aria-expanded', 'false');
         const sidebarMenu = document.querySelector('#sidebar-sort-dropdown-menu');
         if (sidebarMenu) sidebarMenu.style.display = 'none';
         const albumsMenu = document.querySelector('#viewer-albums-sort-dropdown-menu');
@@ -216,6 +222,7 @@ export function bindAlbumsSortEvents() {
         const isVisible = albumsSortMenu.style.display !== 'none';
         document.querySelectorAll('#sort-dropdown-menu, #sidebar-sort-dropdown-menu, #folders-sort-dropdown-menu')
             .forEach(menu => { menu.style.display = 'none'; });
+        document.querySelector('#sort-btn')?.setAttribute('aria-expanded', 'false');
 
         if (isVisible) {
             albumsSortMenu.style.display = 'none';
@@ -251,6 +258,7 @@ export function initSorting() {
     document.addEventListener('click', () => {
         const sortMenu = document.querySelector('#sort-dropdown-menu');
         if (sortMenu) sortMenu.style.display = 'none';
+        document.querySelector('#sort-btn')?.setAttribute('aria-expanded', 'false');
         const sidebarMenu = document.querySelector('#sidebar-sort-dropdown-menu');
         if (sidebarMenu) sidebarMenu.style.display = 'none';
         const foldersMenu = document.querySelector('#folders-sort-dropdown-menu');

@@ -38,6 +38,7 @@ const dom = {
     albumDialogForm: document.getElementById('album-dialog-form'),
     albumDialogTitle: document.getElementById('album-dialog-title'),
     albumDialogName: document.getElementById('album-dialog-name'),
+    addFilesButton: document.getElementById('library-add-files-button'),
     addFilesInput: document.getElementById('library-add-files-input'),
     toolbarCopyWorkflow: document.getElementById('toolbar-copy-workflow'),
     toolbarCopyPosPrompt: document.getElementById('toolbar-copy-pos-prompt'),
@@ -1314,6 +1315,8 @@ dom.toolbarCopyNegPrompt.addEventListener('click', async () => {
         showToast(error.message, true);
     }
 });
+
+dom.addFilesButton.addEventListener('click', () => dom.addFilesInput.click());
 
 dom.addFilesInput.addEventListener('change', async () => {
     if (!dom.addFilesInput.files.length) return;

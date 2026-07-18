@@ -6,6 +6,7 @@ import {
     images,
     activeIndex,
     viewMode,
+    currentCollection,
     setActiveSidebarTab,
     saveState,
     clearStoredPreferences,
@@ -14,7 +15,68 @@ import { loadFromFiles, loadFromPaths, scanFolder, invalidateApiCache } from './
 import { renderSidebar } from './features/sidebar.js';
 import { customConfirm, customPrompt } from './utils.js';
 
+function syncViewerContext() {
+    if (!dom.viewerCollectionName) return;
+    dom.viewerCollectionName.textContent = viewMode === 'upload'
+        ? 'Drop zone'
+        : (currentCollection.name || 'Gallery');
+}
+
+function initHeaderMenus() {
+    const menus = [...document.querySelectorAll('[data-header-menu]')];
+    if (!menus.length) return;
+
+    const closeMenu = (menu, { restoreFocus = false } = {}) => {
+        const trigger = menu.querySelector('[data-header-menu-trigger]');
+        const dropdown = menu.querySelector('.header-dropdown');
+        menu.classList.remove('open');
+        trigger?.setAttribute('aria-expanded', 'false');
+        if (dropdown) dropdown.hidden = true;
+        if (restoreFocus) trigger?.focus();
+    };
+
+    const closeAll = except => {
+        menus.forEach(menu => {
+            if (menu !== except) closeMenu(menu);
+        });
+    };
+
+    menus.forEach(menu => {
+        const trigger = menu.querySelector('[data-header-menu-trigger]');
+        const dropdown = menu.querySelector('.header-dropdown');
+        if (!trigger || !dropdown) return;
+
+        trigger.addEventListener('click', event => {
+            event.stopPropagation();
+            const willOpen = dropdown.hidden;
+            closeAll(menu);
+            dropdown.hidden = !willOpen;
+            menu.classList.toggle('open', willOpen);
+            trigger.setAttribute('aria-expanded', String(willOpen));
+        });
+
+        dropdown.addEventListener('click', event => event.stopPropagation());
+        dropdown.querySelectorAll('[data-header-menu-action]').forEach(action => {
+            action.addEventListener('click', () => closeMenu(menu));
+            if (action.tagName !== 'LABEL') return;
+            action.addEventListener('keydown', event => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                action.click();
+            });
+        });
+    });
+
+    document.addEventListener('click', () => closeAll());
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') return;
+        const openMenu = menus.find(menu => menu.classList.contains('open'));
+        if (openMenu) closeMenu(openMenu, { restoreFocus: true });
+    });
+}
+
 export async function renderCurrentContent() {
+    syncViewerContext();
     if (viewMode === 'upload') {
         const { renderUploadView } = await import('./meta-view.js');
         renderUploadView();
@@ -88,6 +150,7 @@ async function scanDragAndDropItems(items) {
 }
 
 export function initEvents() {
+    initHeaderMenus();
     let isInternalDrag = false;
     window.addEventListener('dragstart', () => { isInternalDrag = true; });
     window.addEventListener('dragend', () => { isInternalDrag = false; });
@@ -238,6 +301,7 @@ export function setViewMode(mode, { render = true, persist = true } = {}) {
     dom.btnViewList.classList.toggle('active', normalized === 'list');
     dom.btnViewGallery.classList.toggle('active', normalized === 'gallery');
     dom.btnViewUpload?.classList.toggle('active', normalized === 'upload');
+    syncViewerContext();
     if (persist) saveState();
     if (render) renderCurrentContent();
 }

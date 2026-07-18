@@ -1,10 +1,189 @@
 .content-area {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 22px;
     min-width: 0;
     background:
         linear-gradient(180deg, color-mix(in srgb, var(--bg) 94%, var(--surface2)) 0%, var(--bg) 100%);
+}
+
+/* Persistent Viewer controls aligned with the sidebar tabs. */
+.viewer-context-toolbar {
+    min-width: 0;
+    height: var(--panel-header-height);
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+    position: relative;
+    z-index: 20;
+}
+
+.viewer-context-collection {
+    min-width: 100px;
+    max-width: 210px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--accent);
+    flex: 0 1 210px;
+}
+
+.viewer-context-collection svg {
+    flex-shrink: 0;
+}
+
+.viewer-context-collection span {
+    overflow: hidden;
+    color: var(--text);
+    font-family: var(--font-title);
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.viewer-context-search {
+    min-width: 180px;
+    max-width: 520px;
+    margin: 0 auto;
+    position: relative;
+    flex: 1 1 420px;
+}
+
+.viewer-context-search .search-input {
+    min-height: 32px;
+    height: 32px;
+    padding-top: 6px;
+    padding-right: 40px;
+    padding-bottom: 6px;
+    background-color: color-mix(in srgb, var(--bg) 84%, var(--surface));
+    font-size: 12px;
+}
+
+.viewer-search-settings {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transform: translateY(-50%);
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.viewer-search-settings:hover,
+.viewer-search-settings[aria-expanded="true"] {
+    background: var(--surface2);
+    color: var(--text);
+}
+
+.viewer-context-actions {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+}
+
+.context-view-toggle {
+    height: 32px;
+}
+
+.context-view-toggle button {
+    min-width: 0;
+    padding: 0 10px;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.context-view-toggle button svg {
+    width: 15px;
+    height: 15px;
+}
+
+.context-sort-button {
+    height: 32px;
+    padding: 0 9px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--bg) 78%, var(--surface));
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.context-sort-button:hover {
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+    background: var(--surface2);
+    color: var(--text);
+}
+
+.viewer-sort-container .dropdown-menu {
+    top: calc(100% + 7px);
+}
+
+@media (max-width: 1120px) {
+    .viewer-context-toolbar {
+        gap: 8px;
+        padding: 0 9px;
+    }
+
+    .viewer-context-collection {
+        max-width: 140px;
+        flex-basis: 140px;
+    }
+
+    .context-view-toggle button span {
+        display: none;
+    }
+
+    .context-view-toggle button {
+        width: 34px;
+        padding: 0;
+    }
+}
+
+@media (max-width: 720px) {
+    .viewer-context-collection {
+        display: none;
+    }
+
+    .viewer-context-search {
+        min-width: 120px;
+    }
+
+    .context-sort-button span {
+        display: none;
+    }
+
+    .context-sort-button {
+        width: 34px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    .context-sort-button svg:last-child {
+        display: none;
+    }
 }
 
 /* Drop zone */
@@ -117,7 +296,7 @@
     display: block;
 }
 
-/* Pinned Toolbar at the top of content area */
+/* Legacy content toolbar retained for non-viewer embedded surfaces. */
 .content-toolbar {
     display: flex;
     justify-content: space-between;

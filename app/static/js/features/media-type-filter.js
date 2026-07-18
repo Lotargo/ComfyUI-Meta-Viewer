@@ -1,11 +1,16 @@
 import {
     dom,
+    currentCollection,
     mediaTypeFilter,
     saveState,
     setMediaTypeFilter,
     showToast,
 } from '../state.js';
-import { invalidateApiCache, loadSidebarImages } from '../api.js';
+import {
+    invalidateApiCache,
+    loadCollectionImages,
+    loadSidebarImages,
+} from '../api.js';
 
 function filterLabel() {
     if (mediaTypeFilter.images && mediaTypeFilter.videos) return 'All';
@@ -44,7 +49,20 @@ async function applyMediaTypeFilter(nextFilter) {
     invalidateApiCache();
     dom.mediaTypeFilterBtn.disabled = true;
     try {
-        await loadSidebarImages({ force: true, render: true });
+        const loads = [loadSidebarImages({ force: true, render: false })];
+        if (currentCollection.id) {
+            loads.push(loadCollectionImages(
+                { ...currentCollection },
+                { force: true, render: false },
+            ));
+        }
+        await Promise.all(loads);
+        const [{ renderSidebar }, { renderCurrentContent }] = await Promise.all([
+            import('./sidebar.js'),
+            import('../events.js'),
+        ]);
+        renderSidebar();
+        await renderCurrentContent();
         if (dom.lightbox?.classList.contains('open')) {
             const { syncLightboxAfterCollectionChange } = await import('../lightbox.js');
             syncLightboxAfterCollectionChange();

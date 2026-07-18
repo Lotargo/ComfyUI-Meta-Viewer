@@ -72,9 +72,9 @@ The app uses a small shared state module instead of an external state management
 
 ```javascript
 {
-    images: [],           // Current image list/page
+    images: [],           // Current filtered folder/album media page
     sidebarImages: [],    // Global Media tab: filtered images and videos
-    activeIndex: -1,      // Selected image index
+    activeIndex: -1,      // Selected asset index
     viewMode: 'gallery',  // 'upload' | 'list' | 'gallery'
     currentFolderId: null,// Stable selected folder ID
     folders: [],          // Indexed folders
@@ -164,9 +164,9 @@ Responsibilities:
 
 - Resize handle.
 - Folder list rendering.
-- Image list rendering.
+- Media list rendering.
 - Infinite scroll sentinel.
-- Image selection and deletion actions.
+- Asset selection and deletion actions.
 
 ### `features/workflow-graph.js`
 

@@ -88,19 +88,22 @@ function collectionFilter(collection = currentCollection) {
         : `folder_id=${collection.id}`;
 }
 
+function selectedMediaTypes() {
+    return [
+        mediaTypeFilter.images ? 'image' : null,
+        mediaTypeFilter.videos ? 'video' : null,
+    ].filter(Boolean).join(',');
+}
+
 function collectionImagesUrl(collection, page, perPage) {
     const filter = collectionFilter(collection);
     const rating = ratingFilter === null ? '' : `&rating=${ratingFilter}`;
-    return `/api/images?${filter}&page=${page}&per_page=${perPage}&sort_by=${sortKey}&sort_dir=${sortDir}${rating}`;
+    return `/api/images?${filter}&page=${page}&per_page=${perPage}&sort_by=${sortKey}&sort_dir=${sortDir}&media_type=${selectedMediaTypes()}${rating}`;
 }
 
 function sidebarImagesUrl(page, perPage) {
     const rating = ratingFilter === null ? '' : `&rating=${ratingFilter}`;
-    const mediaTypes = [
-        mediaTypeFilter.images ? 'image' : null,
-        mediaTypeFilter.videos ? 'video' : null,
-    ].filter(Boolean).join(',');
-    return `/api/images?page=${page}&per_page=${perPage}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}&media_type=${mediaTypes}${rating}`;
+    return `/api/images?page=${page}&per_page=${perPage}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}&media_type=${selectedMediaTypes()}${rating}`;
 }
 
 async function renderCurrentContent({ reconcileGallery = false } = {}) {
@@ -185,13 +188,11 @@ export async function scanFolder(path, { recursive = false } = {}) {
         const refreshes = [
             getFolders({ force: true }),
             loadSidebarImages({ force: true, render: false }),
-        ];
-        if (ratingFilter !== null) {
-            refreshes.push(loadCollectionImages(
+            loadCollectionImages(
                 { ...currentCollection },
                 { force: true, render: false },
-            ));
-        }
+            ),
+        ];
         const [folders] = await Promise.all(refreshes);
         setFolders(folders);
 
@@ -257,12 +258,12 @@ export async function loadFromFiles(files) {
         invalidateApiCache();
         const folders = await getFolders({ force: true });
         setFolders(folders);
-        const imageAsset = addedAssets.find(asset => asset.media_type === 'image');
-        const uploadFolder = folders.find(folder => folder.id === imageAsset?.folder_id);
+        const primaryAsset = addedAssets[0];
+        const uploadFolder = folders.find(folder => folder.id === primaryAsset?.folder_id);
         const refreshTasks = [loadSidebarImages({ force: true, render: false })];
-        if (imageAsset) {
+        if (primaryAsset?.folder_id) {
             refreshTasks.push(loadFolderImages(
-                imageAsset.folder_id,
+                primaryAsset.folder_id,
                 uploadFolder?.name || 'Uploads',
                 { force: true, render: false },
             ));
@@ -275,7 +276,7 @@ export async function loadFromFiles(files) {
         await renderCurrentContent();
         const videoCount = addedAssets.filter(asset => asset.media_type === 'video').length;
         if (videoCount) {
-            showToast(`${videoCount} video file(s) added — open Library to view them`);
+            showToast(`${videoCount} video file(s) added`);
         }
     } catch(e) {
         showError('Error: ' + e.message);
@@ -608,7 +609,7 @@ export function deleteImageAt(index) {
 
 export async function loadCollectionImages(collection, { force = false, render = true, preserveCount = false } = {}) {
     setIsLoading(true);
-    if (render && !preserveCount) showLoading(`Loading ${collection.type === 'album' ? 'album' : 'folder'} images...`);
+    if (render && !preserveCount) showLoading(`Loading ${collection.type === 'album' ? 'album' : 'folder'} media...`);
     try {
         const limit = preserveCount ? Math.max(PAGE_SIZE, currentPage * PAGE_SIZE) : PAGE_SIZE;
         const data = await fetchJson(collectionImagesUrl(collection, 1, limit), { force });

@@ -177,9 +177,10 @@ does not stop the worker or affect image indexing.
 
 The Viewer sidebar uses one `Media` tab for the global asset stream. Images and videos are
 enabled by default; a checkbox filter can show only images or only videos, and the selection
-is persisted with the other UI preferences. At least one type must remain enabled. Video
-items carry a visible badge and open in the same lightbox with native playback and technical
-metadata, while image-only workflow and cutout behavior remains unchanged.
+is persisted with the other UI preferences. The same filter is applied to the open central
+folder or album. At least one type must remain enabled. Video items carry a visible badge and
+open in the same lightbox with native playback and technical metadata, while image-only
+workflow and cutout behavior remains unchanged.
 
 ---
 
@@ -187,16 +188,17 @@ metadata, while image-only workflow and cutout behavior remains unchanged.
 
 **Main file:** `app/static/js/gallery.js`
 
-The gallery provides a visual browsing mode for indexed images.
+The gallery provides a visual browsing mode for indexed images and videos in the selected
+folder or album.
 
 ### Capabilities
 
 - Masonry-style layout.
-- Lazy thumbnail loading.
+- Lazy image thumbnails and video poster frames, with a video placeholder when no poster is available.
 - Infinite scrolling through paginated results.
 - List/gallery switching.
 - Quick preview through the lightbox flow.
-- Image context menu for opening/copying the original and local-file actions.
+- Media context menu for opening/copying the original and local-file actions; cutout remains image-only.
 
 ---
 

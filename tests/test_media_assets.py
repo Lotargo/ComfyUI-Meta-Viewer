@@ -135,6 +135,20 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         self.assertIn('id="media-filter-images"', html)
         self.assertIn('id="media-filter-videos"', html)
         self.assertIn('id="lb-video"', html)
+        project_root = Path(__file__).resolve().parents[1]
+        api_script = (project_root / "app/static/js/api.js").read_text(
+            encoding="utf-8"
+        )
+        filter_script = (
+            project_root / "app/static/js/features/media-type-filter.js"
+        ).read_text(encoding="utf-8")
+        gallery_script = (project_root / "app/static/js/gallery.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("media_type=${selectedMediaTypes()}", api_script)
+        self.assertIn("loadCollectionImages(", filter_script)
+        self.assertIn("gallery-media-type-badge", gallery_script)
+        self.assertIn("img.media_type === 'video' ? []", gallery_script)
 
     def test_images_and_videos_share_sources_albums_and_user_metadata(self) -> None:
         self.make_image()

@@ -225,3 +225,19 @@
     min-width: 140px;
     font-size: 12px;
 }
+.media-type-badge {
+    position: absolute;
+    left: 4px;
+    bottom: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 5px;
+    border-radius: var(--radius-full);
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}

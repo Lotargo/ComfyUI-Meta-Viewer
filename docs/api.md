@@ -260,6 +260,9 @@ for compatibility and defaults to images only. Pass `media_type=image,video` for
 list or `media_type=video` for videos only. Assets from disabled sources are omitted;
 `folder_id` and `album_id` are mutually exclusive.
 
+The Viewer always supplies its persisted image/video checkbox selection through this
+parameter for both the global Media sidebar and the central folder or album gallery.
+
 **Query Parameters:**
 
 | Parameter | Type | Default | Required | Description |

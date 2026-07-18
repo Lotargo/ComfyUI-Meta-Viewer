@@ -38,7 +38,7 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 - **SQLite persistence** — all data survives restarts
 - **Media Library** — virtual albums, favorites, ratings, tags, notes, and bulk selection without moving source files
 - **Unified image and video assets** — shared sources, albums, favorites, previews, and technical metadata
-- **Unified Media sidebar** — browse images and videos together or filter either type independently
+- **Unified media browsing** — folders, albums, the central gallery, and the Media sidebar can show images and videos together or filter either type independently
 - **Keyboard-first** workflow with 14 shortcuts
 
 ---

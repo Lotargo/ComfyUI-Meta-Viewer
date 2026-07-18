@@ -184,8 +184,9 @@ The frontend renders the response in three main views: Summary, Workflow, and Ra
 
 Physical source scans and browser uploads create shared asset rows for both images and videos. The SQLite table
 retains its legacy `images` name for migration compatibility, while `media_type`, `mime_type`,
-and the asset-oriented Library API form the common layer. The old `/api/images` listing remains
-image-only so the metadata viewer is not forced to behave as a video viewer.
+and the asset-oriented Library API form the common layer. The legacy-named `/api/images`
+listing defaults to images for compatibility but accepts a media-type list; the Viewer uses
+that option to build mixed image/video folder, album, gallery, and sidebar collections.
 
 ```text
 Source file
@@ -306,8 +307,8 @@ SHA-256 fingerprint.
 
 ```
 state.js
-  ├── images[]           -- current page/list of images
-  ├── activeIndex        -- selected image index
+  ├── images[]           -- current filtered page/list of media assets
+  ├── activeIndex        -- selected asset index
   ├── sessions[]         -- available local sessions
   ├── currentSession     -- current session state
   ├── viewMode           -- 'list' | 'gallery'
@@ -318,7 +319,7 @@ state.js
   └── isLoading          -- request/loading flag
 ```
 
-Runtime state and durable preferences are deliberately separated. Image arrays, pagination, loading flags, open overlays, and zoom/scroll positions exist only in memory. A small versioned and field-validated preference document is stored in `localStorage`; startup restores it before the boot layer is removed and validates the saved folder ID against the current SQLite folder list.
+Runtime state and durable preferences are deliberately separated. Media arrays, pagination, loading flags, open overlays, and zoom/scroll positions exist only in memory. A small versioned and field-validated preference document is stored in `localStorage`; startup restores it before the boot layer is removed and validates the saved folder ID against the current SQLite folder list.
 
 ### API Client (`api.js`)
 
@@ -342,12 +343,12 @@ api.js
 
 | Module | File | Description |
 |--------|------|-------------|
-| Sidebar | `features/sidebar.js` | Resizable sidebar, image list, folder browser |
+| Sidebar | `features/sidebar.js` | Resizable sidebar, media list, folder browser |
 | Workflow Graph | `features/workflow-graph.js` | SVG visualization of ComfyUI node graphs |
 | Keyboard | `features/keyboard.js` | 14 shortcuts + Help Center |
 | Cutout | `features/cutout.js` | Background-removal panel |
-| Gallery | `gallery.js` | Masonry layout + lazy loading |
-| Lightbox | `lightbox.js` | Fullscreen viewer + cursor zoom/pan/rotate |
+| Gallery | `gallery.js` | Mixed-media masonry layout + lazy loading |
+| Lightbox | `lightbox.js` | Image zoom/pan/rotate plus native video playback |
 | Meta View | `meta-view.js` | 3 tabs: Summary, Workflow, Raw |
 | Search | `components/search-bar.js` | Fuse.js fuzzy search |
 

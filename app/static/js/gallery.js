@@ -1,5 +1,5 @@
 /**
- * Central gallery view. The source collection is always the currently selected folder.
+ * Central mixed-media gallery for the currently selected folder or album.
  */
 
 import {
@@ -51,19 +51,32 @@ function galleryCardHtml(img, index) {
     const ratioStyle = ` style="aspect-ratio: ${size[0]} / ${size[1]}; position: relative; width: 100%; background: var(--surface2);"`;
     const imgStyle = ' style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;"';
     const fileName = img.file_name || img.file || '';
+    const isVideo = img.media_type === 'video';
+    const mediaBadge = isVideo
+        ? `<span class="media-type-badge gallery-media-type-badge" aria-label="Video">
+            <svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"></path></svg>Video
+        </span>`
+        : '';
+    const videoPlaceholder = isVideo
+        ? `<span class="gallery-video-placeholder" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="42" height="42" stroke="currentColor" stroke-width="1.6" fill="none"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m10 9 5 3-5 3z"></path></svg>
+        </span>`
+        : '';
 
     return `
         <div class="gallery-card${isActive}" data-index="${index}" data-image-id="${img.id ?? ''}">
             <div class="img-wrapper"${ratioStyle}>
-                <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}">
+                ${videoPlaceholder}
+                <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}" onerror="if(this.dataset.mediaType==='video'){this.hidden=true;}" data-media-type="${isVideo ? 'video' : 'image'}">
+                ${mediaBadge}
             </div>
-            <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
+            <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete asset" aria-label="Delete ${escapeHtml(fileName)}">
                 <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
             </button>
             ${hasError}
             <div class="card-info">
                 <div class="card-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
-                <div class="card-meta">${fmt} ${dims}</div>
+                <div class="card-meta">${isVideo ? 'Video · ' : ''}${fmt} ${dims}</div>
             </div>
         </div>
     `;
@@ -104,7 +117,7 @@ function bindGalleryCard(card) {
             rating: img.rating,
             onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
             onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
-            extraSections: [[{
+            extraSections: img.media_type === 'video' ? [] : [[{
                 label: 'Create transparent PNG',
                 icon: 'cutout',
                 run: async () => {
@@ -186,7 +199,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0, reconcile = 
                 <div class="empty-state-icon" style="margin-bottom: 16px;">
                     <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                 </div>
-                <p>No images found</p>
+                <p>No media found for the selected filters</p>
             </div>
         `;
         return;

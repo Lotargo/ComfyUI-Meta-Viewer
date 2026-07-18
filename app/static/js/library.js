@@ -1,3 +1,5 @@
+import { showImageContextMenu } from './components/image-context-menu.js';
+
 const dom = {
     systemCollections: document.getElementById('system-collections'),
     albumList: document.getElementById('album-list'),
@@ -242,6 +244,7 @@ function assetRenderSignature(asset) {
         asset.thumbnail_url,
         asset.favorite,
         asset.available,
+        asset.has_local_file,
         asset.rating,
         asset.tags,
         asset.width,
@@ -1144,6 +1147,34 @@ dom.grid.addEventListener('click', async event => {
     }
 });
 
+function openLibraryImageContextMenu(event, asset, anchor) {
+    showImageContextMenu(event, {
+        imageId: asset.id,
+        fileName: asset.file_name,
+        sourceUrl: asset.original_url || `/api/original/${asset.id}`,
+        canAccessOriginal: asset.available,
+        hasLocalFile: asset.has_local_file,
+        anchor,
+        notify: showToast,
+    });
+}
+
+dom.grid.addEventListener('contextmenu', event => {
+    const card = event.target.closest('[data-asset-id]');
+    if (!card || state.collection === 'albums') return;
+    const assetId = Number(card.dataset.assetId);
+    const asset = state.assets.find(item => item.id === assetId);
+    if (!asset) return;
+
+    state.activeAssetId = assetId;
+    dom.grid.querySelectorAll('.asset-card').forEach(assetCard => {
+        const cardAsset = state.assets.find(item => item.id === Number(assetCard.dataset.assetId));
+        if (cardAsset) syncAssetCardState(assetCard, cardAsset);
+    });
+    updatePreviewPanel();
+    openLibraryImageContextMenu(event, asset, card);
+});
+
 function createAssetDragPreview(asset, count) {
     const preview = document.createElement('div');
     preview.className = 'asset-drag-preview';
@@ -1791,6 +1822,11 @@ async function initialize() {
             state.activeAssetId = assetId;
             renderAssets();
             updatePreviewPanel();
+        });
+
+        dom.previewPanelImg.addEventListener('contextmenu', event => {
+            const asset = state.assets.find(item => item.id === state.activeAssetId);
+            if (asset) openLibraryImageContextMenu(event, asset, dom.previewPanelImg);
         });
 
         dom.previewCopyWorkflow.addEventListener('click', async () => {

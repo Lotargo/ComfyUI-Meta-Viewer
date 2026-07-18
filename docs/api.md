@@ -126,7 +126,8 @@ Connects and scans a local folder in-place. Existing rows are reused when file s
       "error": null,
       "thumbnail": null,
       "file": null,
-      "path": null
+      "path": null,
+      "has_local_file": true
     }
   ],
   "cached": 40,
@@ -292,6 +293,7 @@ Returns full metadata for a single image. If an uploaded image has not been open
   "thumbnail": null,
   "file": null,
   "path": null,
+  "has_local_file": true,
   "prompt_parameters": {
     "positive_prompt": "a beautiful landscape",
     "negative_prompt": "blurry",
@@ -326,6 +328,28 @@ cache files. The physical source file is not deleted.
 
 ---
 
+### `GET /api/images/{image_id}/file-location`
+
+Returns the resolved physical path for a scanned local image. Uploaded originals stored
+inside the app return `409 no_local_file`; missing physical sources return
+`404 local_file_unavailable`.
+
+```json
+{ "path": "C:\\images\\image.png" }
+```
+
+### `POST /api/images/{image_id}/reveal`
+
+Opens the operating system's file manager for a scanned local image. Windows Explorer
+and macOS Finder select the file; Linux opens the containing directory through
+`xdg-open`.
+
+```json
+{ "ok": true }
+```
+
+---
+
 ## Library and Albums
 
 The separate `/library` page uses these endpoints for virtual organization. Library reads
@@ -343,8 +367,8 @@ Returns paginated library cards. Supported query parameters are `collection`, `a
 of `all`, `favorites`, `without_metadata`, `recently_added`, `unavailable`, `images`,
 `videos`, `not_rated`, or `album`.
 
-Each asset includes source/availability fields, favorite/rating/note/tags, all album IDs,
-and thumbnail/original URLs.
+Each asset includes source/availability fields, `has_local_file`, favorite/rating/note/tags,
+all album IDs, and thumbnail/original URLs.
 
 ### `PATCH /api/library/assets/{asset_id}`
 

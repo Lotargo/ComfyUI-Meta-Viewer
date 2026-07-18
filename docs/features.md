@@ -177,6 +177,7 @@ The gallery provides a visual browsing mode for indexed images.
 - Infinite scrolling through paginated results.
 - List/gallery switching.
 - Quick preview through the lightbox flow.
+- Image context menu for opening/copying the original and local-file actions.
 
 ---
 
@@ -197,6 +198,19 @@ The lightbox is the main inspection surface for a selected image.
 - Metadata panel toggle.
 - Summary, Workflow, and Raw metadata tabs.
 - Touch-friendly navigation where supported by the browser.
+- The same image context menu used by gallery cards and Library previews.
+
+### Image Context Menu
+
+Right-clicking an indexed image in Viewer or Library exposes a compact shared menu:
+
+- Open the original in a new tab.
+- Copy the image to the system clipboard as PNG.
+- Show a scanned source in the operating system's file manager.
+- Copy the resolved local file path.
+
+Physical-path actions are disabled for uploaded originals stored inside the app and for
+unavailable sources.
 
 ---
 

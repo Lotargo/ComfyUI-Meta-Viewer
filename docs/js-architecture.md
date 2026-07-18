@@ -50,6 +50,7 @@ app/static/js/
 ├── utils.js               # Generic helpers
 ├── components/
 │   ├── search-bar.js      # Fuse.js search UI
+│   ├── image-context-menu.js # Shared Viewer/Library image actions
 │   ├── sidebar-item.js    # Sidebar image item rendering
 │   └── skeleton.js        # Loading placeholders
 ├── features/

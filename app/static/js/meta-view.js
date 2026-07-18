@@ -14,10 +14,12 @@ import {
     metadataTab,
     saveState,
     setMetadataTab,
+    showToast,
 } from './state.js';
-import { escapeHtml, formatValue, getStringValue, thumbUrl, copyText } from './utils.js';
+import { escapeHtml, formatValue, getStringValue, originalUrl, thumbUrl, copyText } from './utils.js';
 import { currentSearchTerms, isExactMatch } from './components/search-bar.js';
 import { skeletonMetaView } from './components/skeleton.js';
+import { showImageContextMenu } from './components/image-context-menu.js';
 import { renderWorkflowGraph, initWorkflowGraphEvents } from './features/workflow-graph.js';
 
 export function renderUploadView() {
@@ -142,6 +144,17 @@ export function renderMeta(img) {
 
     // Event listeners
     attachEventListeners();
+    dom.contentArea.querySelector('.meta-thumb')?.addEventListener('contextmenu', event => {
+        if (!detail.id) return;
+        showImageContextMenu(event, {
+            imageId: detail.id,
+            fileName,
+            sourceUrl: originalUrl(detail),
+            canAccessOriginal: true,
+            hasLocalFile: Boolean(detail.id && detail.has_local_file),
+            notify: showToast,
+        });
+    });
 }
 
 function renderSummaryTab(detail) {

@@ -340,6 +340,21 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("showPreviewCopyFeedback", script)
         self.assertIn(".global-header", header_styles)
         self.assertIn(".app-switcher-link.active", header_styles)
+        context_menu = (
+            root / "app" / "static" / "js" / "components" / "image-context-menu.js"
+        ).read_text(encoding="utf-8")
+        context_menu_styles = (
+            root / "app" / "static" / "css" / "components" / "image-context-menu.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn("showImageContextMenu", script)
+        self.assertIn("addEventListener('contextmenu'", script)
+        self.assertIn("Show in folder", context_menu)
+        self.assertIn("Copy image", context_menu)
+        self.assertIn("Copy file path", context_menu)
+        self.assertIn("setAttribute('role', 'menu')", context_menu)
+        self.assertIn(".image-context-menu__item:not(:disabled):focus-visible", context_menu_styles)
+        self.assertIn("static_version('css/components/image-context-menu.css')", template)
+        self.assertIn("static_version('css/components/image-context-menu.css')", viewer)
 
     def test_live_source_updates_preserve_viewer_and_library_content(self) -> None:
         root = Path(__file__).parents[1]

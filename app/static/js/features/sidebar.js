@@ -11,6 +11,7 @@ import {
     sidebarScrollObserver,
     sidebarTotalImages,
     dom,
+    showToast,
     setActiveIndex,
     setSidebarScrollObserver,
     sidebarImages,
@@ -40,8 +41,9 @@ import {
     sidebarWidth,
     refreshCacheBuster,
 } from '../state.js';
-import { escapeHtml, customConfirm, formatImageCountLabel, imageRenderSignature } from '../utils.js';
+import { escapeHtml, customConfirm, formatImageCountLabel, imageRenderSignature, originalUrl } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
+import { showImageContextMenu } from '../components/image-context-menu.js';
 
 function bindSidebarItem(item) {
     item.onclick = () => selectSidebarImage(Number.parseInt(item.dataset.index, 10));
@@ -50,6 +52,19 @@ function bindSidebarItem(item) {
         const index = Number.parseInt(item.dataset.index, 10);
         const imageId = sidebarImages[index]?.id;
         if (imageId) import('../api.js').then(module => module.deleteImageById(imageId));
+    });
+    item.addEventListener('contextmenu', event => {
+        const index = Number.parseInt(item.dataset.index, 10);
+        const img = sidebarImages[index];
+        if (!img?.id) return;
+        showImageContextMenu(event, {
+            imageId: img.id,
+            fileName: img.file_name || img.file || '',
+            sourceUrl: originalUrl(img),
+            canAccessOriginal: true,
+            hasLocalFile: Boolean(img.id && img.has_local_file),
+            notify: showToast,
+        });
     });
 }
 

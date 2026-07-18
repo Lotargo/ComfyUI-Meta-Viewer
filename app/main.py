@@ -21,6 +21,7 @@ from flask import (
 )
 
 from . import database as db
+from . import file_actions
 from . import library as media_library
 from .cutout import clear_cutout, get_cutout_path, make_cutout_png
 from .config_store import ConfigStore, ConfigStoreError
@@ -131,6 +132,11 @@ def library_error(error):
     else:
         status = 400
     return jsonify({"error": str(error), "code": "library_error"}), status
+
+
+@app.errorhandler(file_actions.ImageFileActionError)
+def image_file_action_error(error):
+    return jsonify({"error": str(error), "code": error.code}), error.status_code
 
 
 @app.route("/")
@@ -506,6 +512,18 @@ def api_delete_image(image_id: int):
     (thumb_dir / f"{image_id}.jpg").unlink(missing_ok=True)
     clear_cutout(storage_path("CUTOUT_FOLDER"), image_id)
     clear_preview_cache(storage_path("PREVIEW_FOLDER"), image_id)
+    return jsonify(OkResponse().model_dump())
+
+
+@app.route("/api/images/<int:image_id>/file-location", methods=["GET"])
+def api_image_file_location(image_id: int):
+    path = file_actions.get_local_image_path(image_id)
+    return jsonify({"path": str(path)})
+
+
+@app.route("/api/images/<int:image_id>/reveal", methods=["POST"])
+def api_reveal_image(image_id: int):
+    file_actions.reveal_image_file(image_id)
     return jsonify(OkResponse().model_dump())
 
 

@@ -14,6 +14,7 @@ import {
     galleryActive,
     detailCache,
     dom,
+    showToast,
     lightboxMetaOpen,
     setLightboxMetaOpen,
     setLightboxIndex,
@@ -22,6 +23,7 @@ import {
 } from './state.js';
 import { escapeHtml, thumbUrl, previewUrl, originalUrl, copyText } from './utils.js';
 import { initCutoutEvents, resetCutoutPanel } from './features/cutout.js';
+import { showImageContextMenu } from './components/image-context-menu.js';
 
 let zoomLevel = 1;
 let rotation = 0;
@@ -625,6 +627,18 @@ export function initLightboxEvents() {
     });
     dom.lbImg?.addEventListener('dragstart', e => e.preventDefault());
     dom.lbImg?.addEventListener('load', applyImageTransform);
+    dom.lbImg?.addEventListener('contextmenu', event => {
+        const img = getDetailForLightbox();
+        if (!img?.id) return;
+        showImageContextMenu(event, {
+            imageId: img.id,
+            fileName: img.file_name || img.file || '',
+            sourceUrl: originalUrl(img),
+            canAccessOriginal: true,
+            hasLocalFile: Boolean(img.id && img.has_local_file),
+            notify: showToast,
+        });
+    });
 
     // Keep the image within the viewport after fullscreen/layout changes.
     window.addEventListener('resize', applyImageTransform);

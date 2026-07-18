@@ -4,12 +4,14 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
 from PIL import Image
 
 from app import database as db
+from app import file_actions
 from app.config_store import ConfigStore
 from app.folder_picker import FolderPickerUnavailable
 from app.main import app
@@ -132,6 +134,17 @@ class NativeDirectoryScanTest(unittest.TestCase):
         app.config.update(self.old_config)
         self.temp_dir.cleanup()
 
+    def index_image(self, name: str = "sample image.png") -> tuple[Path, int]:
+        source = self.root / "source media"
+        source.mkdir(parents=True, exist_ok=True)
+        image_path = source / name
+        Image.new("RGB", (2, 2), color="blue").save(image_path)
+        with patch("app.worker.start_worker"):
+            response = self.client.post("/api/scan", json={"path": str(source)})
+        self.assertEqual(response.status_code, 200, response.get_json())
+        image_id = db.get_folder_image_ids(response.get_json()["folder_id"])[0]
+        return image_path, image_id
+
     def test_scan_normalizes_native_unicode_path_without_source_writes(self) -> None:
         source = self.root / "source media" / "кириллица 🖼"
         source.mkdir(parents=True)
@@ -171,6 +184,77 @@ class NativeDirectoryScanTest(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.get_json()["code"], "folder_picker_unavailable")
         self.assertIn("manual", response.get_json()["fallback"].lower())
+
+    def test_file_location_and_reveal_use_the_indexed_image_path(self) -> None:
+        image_path, image_id = self.index_image("кадр с пробелами.png")
+
+        location = self.client.get(f"/api/images/{image_id}/file-location")
+        self.assertEqual(location.status_code, 200)
+        self.assertEqual(Path(location.get_json()["path"]), image_path.resolve())
+
+        with (
+            patch("app.file_actions.sys.platform", "win32"),
+            patch("app.file_actions.subprocess.Popen") as popen,
+        ):
+            reveal = self.client.post(f"/api/images/{image_id}/reveal")
+
+        self.assertEqual(reveal.status_code, 200)
+        command = popen.call_args.args[0]
+        self.assertEqual(command[0], "explorer.exe")
+        self.assertEqual(command[1], f"/select,{image_path.resolve()}")
+
+    def test_uploaded_original_has_no_physical_file_actions(self) -> None:
+        original = BytesIO()
+        Image.new("RGB", (2, 2), color="red").save(original, format="PNG")
+        image_id, _ = db.insert_upload_image(
+            "uploaded.png",
+            original.getvalue(),
+            has_metadata=False,
+        )
+
+        location = self.client.get(f"/api/images/{image_id}/file-location")
+        self.assertEqual(location.status_code, 409)
+        self.assertEqual(location.get_json()["code"], "no_local_file")
+        reveal = self.client.post(f"/api/images/{image_id}/reveal")
+        self.assertEqual(reveal.status_code, 409)
+        self.assertEqual(reveal.get_json()["code"], "no_local_file")
+
+        viewer_asset = self.client.get("/api/images").get_json()["images"][0]
+        self.assertFalse(viewer_asset["has_local_file"])
+        library_asset = self.client.get("/api/library/assets").get_json()["assets"][0]
+        self.assertFalse(library_asset["has_local_file"])
+
+    def test_missing_physical_file_reports_unavailable(self) -> None:
+        image_path, image_id = self.index_image()
+        image_path.unlink()
+
+        response = self.client.get(f"/api/images/{image_id}/file-location")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json()["code"], "local_file_unavailable")
+
+
+class FileManagerCommandTest(unittest.TestCase):
+    def test_platform_commands_select_when_supported(self) -> None:
+        path = Path("/images/example image.png")
+        self.assertEqual(
+            file_actions._file_manager_command(path, "win32"),
+            ["explorer.exe", f"/select,{path}"],
+        )
+        self.assertEqual(
+            file_actions._file_manager_command(path, "darwin"),
+            ["open", "-R", str(path)],
+        )
+        with patch("app.file_actions.shutil.which", return_value="/usr/bin/xdg-open"):
+            self.assertEqual(
+                file_actions._file_manager_command(path, "linux"),
+                ["/usr/bin/xdg-open", str(path.parent)],
+            )
+
+    def test_linux_requires_a_desktop_launcher(self) -> None:
+        with patch("app.file_actions.shutil.which", return_value=None):
+            with self.assertRaises(file_actions.FileManagerUnavailableError):
+                file_actions._file_manager_command(Path("/images/example.png"), "linux")
 
 
 if __name__ == "__main__":

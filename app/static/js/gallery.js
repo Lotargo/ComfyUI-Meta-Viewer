@@ -9,10 +9,12 @@ import {
     allLoaded,
     galleryScrollObserver,
     dom,
+    showToast,
     setGalleryScrollObserver,
 } from './state.js';
-import { escapeHtml, imageRenderSignature, thumbUrl } from './utils.js';
+import { escapeHtml, imageRenderSignature, originalUrl, thumbUrl } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
+import { showImageContextMenu } from './components/image-context-menu.js';
 
 let resizeTimeout = null;
 export function resizeAllGridItems() {
@@ -87,6 +89,20 @@ function bindGalleryCard(card) {
         const index = Number.parseInt(card.dataset.index, 10);
         const imageId = images[index]?.id;
         if (imageId) import('./api.js').then(module => module.deleteImageById(imageId));
+    });
+
+    card.addEventListener('contextmenu', event => {
+        const index = Number.parseInt(card.dataset.index, 10);
+        const img = images[index];
+        if (!img?.id) return;
+        showImageContextMenu(event, {
+            imageId: img.id,
+            fileName: img.file_name || img.file || '',
+            sourceUrl: originalUrl(img),
+            canAccessOriginal: true,
+            hasLocalFile: Boolean(img.id && img.has_local_file),
+            notify: showToast,
+        });
     });
 }
 

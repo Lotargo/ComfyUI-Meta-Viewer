@@ -708,6 +708,9 @@ def get_assets(
                 and asset["source_status"] in ("available", "partially_available")
             )
         )
+        asset["has_local_file"] = bool(
+            asset["available"] and not asset["has_original_data"]
+        )
         asset["has_metadata"] = False
         if metadata_json:
             try:

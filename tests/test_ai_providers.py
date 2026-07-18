@@ -167,6 +167,17 @@ class AIRoutesTest(unittest.TestCase):
         page = self.client.get("/settings/ai")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"AI connections", page.data)
+        self.assertIn(b'id="secret-store-detail"', page.data)
+        settings_css = (
+            Path(__file__).parents[1]
+            / "app"
+            / "static"
+            / "css"
+            / "features"
+            / "ai-settings.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn("overflow-y: auto", settings_css)
+        self.assertIn("grid-template-columns: 9px minmax(0, 1fr)", settings_css)
 
         created_response = self.client.post("/api/ai/profiles", json=direct_payload())
         self.assertEqual(created_response.status_code, 201)

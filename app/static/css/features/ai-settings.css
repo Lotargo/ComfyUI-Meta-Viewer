@@ -1,10 +1,14 @@
-html,
-body {
+html {
     min-height: 100%;
+    overflow-y: auto;
 }
 
 .ai-settings-body {
+    min-height: 100vh;
+    height: auto;
     margin: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
     background:
         radial-gradient(circle at 18% 0%, var(--accent-dim), transparent 32rem),
         var(--bg);
@@ -48,6 +52,7 @@ body {
     font-size: clamp(34px, 5vw, 58px);
     line-height: 1;
     letter-spacing: -0.045em;
+    word-spacing: 0.1em;
 }
 
 .ai-hero > div > p:last-child {
@@ -61,7 +66,8 @@ body {
 .security-status {
     min-height: 76px;
     padding: 16px 18px;
-    display: flex;
+    display: grid;
+    grid-template-columns: 9px minmax(0, 1fr);
     align-items: flex-start;
     gap: 12px;
     border: 1px solid var(--border);
@@ -90,20 +96,28 @@ body {
     box-shadow: 0 0 12px var(--red-dim);
 }
 
-.security-status div {
+.security-status-copy {
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 5px;
 }
 
-.security-status strong {
+.security-status-copy strong {
+    display: block;
+    min-width: 0;
     font-size: 12px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
-.security-status span:last-child {
+.security-status-copy span {
+    display: block;
+    min-width: 0;
     color: var(--text-muted);
     font-size: 11px;
     line-height: 1.45;
+    overflow-wrap: anywhere;
 }
 
 .page-feedback {
@@ -151,7 +165,8 @@ body {
     margin: 0;
     font-family: var(--font-title);
     font-size: 21px;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
+    word-spacing: 0.12em;
 }
 
 .section-heading > div > p:last-child {
@@ -269,6 +284,12 @@ body {
     overflow-wrap: anywhere;
     font-family: var(--font-title);
     font-size: 15px;
+    letter-spacing: 0;
+    word-spacing: 0.1em;
+}
+
+.ai-settings-body .header-logo {
+    word-spacing: 0.12em;
 }
 
 .profile-card .model-id,

@@ -1,5 +1,7 @@
 const elements = {
     secretStatus: document.getElementById('secret-store-status'),
+    secretTitle: document.getElementById('secret-store-title'),
+    secretDetail: document.getElementById('secret-store-detail'),
     feedback: document.getElementById('page-feedback'),
     profilesGrid: document.getElementById('profiles-grid'),
     profilesEmpty: document.getElementById('profiles-empty'),
@@ -67,12 +69,11 @@ function setFeedback(message, type = '') {
 function renderSecretStore() {
     elements.secretStatus.classList.toggle('available', secretStore.available);
     elements.secretStatus.classList.toggle('unavailable', !secretStore.available);
-    const title = elements.secretStatus.querySelector('strong');
-    const detail = elements.secretStatus.querySelector('div span');
-    title.textContent = secretStore.available
+    elements.secretTitle.textContent = secretStore.available
         ? 'System credential storage available'
         : 'System credential storage unavailable';
-    detail.textContent = secretStore.message || 'Use an environment variable for API credentials.';
+    elements.secretDetail.textContent = secretStore.message
+        || 'Use an environment variable for API credentials.';
     const systemOption = elements.keySource.querySelector('option[value="system"]');
     systemOption.disabled = !secretStore.available;
 }

@@ -35,6 +35,7 @@ let imageLoadToken = 0;
 let previewAbortController = null;
 let displayedPreviewObjectUrl = null;
 let displayedPreviewToken = -1;
+let displayedImageId = null;
 let currentImagesArray = [];
 let usesGalleryPagination = false;
 const ZOOM_MIN = 0.1;
@@ -299,6 +300,7 @@ export function closeLightbox() {
     dom.lightbox.classList.remove('open');
     document.body.style.overflow = '';
     setLightboxIndex(-1);
+    displayedImageId = null;
     resetCutoutPanel();
 }
 
@@ -313,6 +315,8 @@ export function updateLightbox() {
     const img = getDetailForLightbox();
     if (!img) { closeLightbox(); return; }
 
+    const nextImageId = img.id ?? null;
+
     setActiveIndex(lightboxIndex);
 
     if (galleryActive) {
@@ -325,6 +329,7 @@ export function updateLightbox() {
     dom.lbTitle.textContent = fileName;
     dom.lbCounter.textContent = `${lightboxIndex + 1} / ${totalImages || currentImagesArray.length}`;
     loadLightboxImage(img);
+    displayedImageId = nextImageId;
     if (dom.lbViewOriginal) dom.lbViewOriginal.disabled = !img.id;
 
     // Update meta panel visibility
@@ -436,6 +441,34 @@ export function updateLightbox() {
             copyText(btn.dataset.copyValue || '');
         });
     });
+}
+
+export function syncLightboxAfterCollectionChange({ changedImageIds = new Set() } = {}) {
+    if (!dom.lightbox.classList.contains('open')) return;
+
+    const previousImageId = displayedImageId;
+    const nextIndex = previousImageId === null
+        ? -1
+        : currentImagesArray.findIndex(img => img.id === previousImageId);
+    if (nextIndex >= 0) {
+        setLightboxIndex(nextIndex);
+        if (changedImageIds.has(previousImageId)) {
+            updateLightbox();
+            return;
+        }
+
+        setActiveIndex(nextIndex);
+        const img = currentImagesArray[nextIndex];
+        dom.lbTitle.textContent = img.file_name || img.file || '';
+        dom.lbCounter.textContent = `${nextIndex + 1} / ${totalImages || currentImagesArray.length}`;
+        if (galleryActive) {
+            import('./gallery.js').then(module => module.updateActiveGalleryCard(nextIndex));
+        }
+        return;
+    }
+
+    setLightboxIndex(Math.min(Math.max(lightboxIndex, 0), currentImagesArray.length - 1));
+    updateLightbox();
 }
 
 async function navigateLightbox(dir, { wrap = false } = {}) {

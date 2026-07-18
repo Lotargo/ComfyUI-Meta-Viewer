@@ -40,23 +40,71 @@ import {
     sidebarWidth,
     refreshCacheBuster,
 } from '../state.js';
-import { escapeHtml, customConfirm, formatImageCountLabel } from '../utils.js';
+import { escapeHtml, customConfirm, formatImageCountLabel, imageRenderSignature } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
 
-export function renderSidebar() {
-    dom.imageList.innerHTML = '';
-    dom.imageCount.textContent = formatImageCountLabel(sidebarImages.length, sidebarTotalImages);
+function bindSidebarItem(item) {
+    item.onclick = () => selectSidebarImage(Number.parseInt(item.dataset.index, 10));
+    item.querySelector('.sidebar-delete')?.addEventListener('click', event => {
+        event.stopPropagation();
+        const index = Number.parseInt(item.dataset.index, 10);
+        const imageId = sidebarImages[index]?.id;
+        if (imageId) import('../api.js').then(module => module.deleteImageById(imageId));
+    });
+}
+
+function reconcileSidebarItems() {
+    const existingById = new Map(
+        [...dom.imageList.querySelectorAll('.image-item[data-image-id]')]
+            .map(item => [item.dataset.imageId, item]),
+    );
+    let cursor = dom.imageList.firstElementChild;
 
     sidebarImages.forEach((img, index) => {
-        const isActive = sidebarActiveImageId === img.id;
-        const item = createSidebarItem(img, index, isActive);
-        item.onclick = () => selectSidebarImage(index);
-        item.querySelector('.sidebar-delete')?.addEventListener('click', event => {
-            event.stopPropagation();
-            import('../api.js').then(module => module.deleteImageById(img.id));
-        });
-        dom.imageList.appendChild(item);
+        const imageId = String(img.id ?? '');
+        const signature = imageRenderSignature(img);
+        let item = existingById.get(imageId);
+        if (!item || item.dataset.renderSignature !== signature) {
+            const replacement = createSidebarItem(img, index, sidebarActiveImageId === img.id);
+            bindSidebarItem(replacement);
+            if (item) {
+                const replacesCursor = item === cursor;
+                item.replaceWith(replacement);
+                if (replacesCursor) cursor = replacement;
+                existingById.delete(imageId);
+            }
+            item = replacement;
+        } else {
+            existingById.delete(imageId);
+            item.dataset.index = String(index);
+            item.classList.toggle('active', sidebarActiveImageId === img.id);
+            const deleteButton = item.querySelector('.sidebar-delete');
+            if (deleteButton) deleteButton.dataset.index = String(index);
+        }
+
+        if (item !== cursor) dom.imageList.insertBefore(item, cursor);
+        cursor = item.nextElementSibling;
     });
+
+    existingById.forEach(item => item.remove());
+}
+
+export function renderSidebar({ reconcile = false } = {}) {
+    dom.imageCount.textContent = formatImageCountLabel(sidebarImages.length, sidebarTotalImages);
+
+    if (reconcile) {
+        dom.imageList.querySelector('#scroll-sentinel')?.remove();
+        reconcileSidebarItems();
+    } else {
+        dom.imageList.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+        sidebarImages.forEach((img, index) => {
+            const item = createSidebarItem(img, index, sidebarActiveImageId === img.id);
+            bindSidebarItem(item);
+            fragment.appendChild(item);
+        });
+        dom.imageList.appendChild(fragment);
+    }
 
     appendSentinel();
     import('../components/search-bar.js').then(module => module.applySearchFilter());
@@ -542,7 +590,7 @@ function initFoldersSSE() {
             }
             
             let changed = false;
-            let revisionChanged = false;
+            const contentChangedSourceIds = new Set();
             let activeSourceDisabled = false;
             const trackedFields = [
                 'status',
@@ -560,7 +608,13 @@ function initFoldersSSE() {
                 if (update) {
                     if (trackedFields.some(field => f[field] !== update[field])) {
                         changed = true;
-                        revisionChanged ||= f.revision !== update.revision;
+                        if (
+                            f.revision !== update.revision
+                            || f.processed_count !== update.processed_count
+                            || f.image_count !== update.image_count
+                        ) {
+                            contentChangedSourceIds.add(f.id);
+                        }
                         activeSourceDisabled ||= f.id === currentFolderId && !update.enabled;
                         return { ...f, ...update };
                     }
@@ -576,13 +630,13 @@ function initFoldersSSE() {
                 await refreshAfterSourceMutation(currentFolderId);
                 return;
             }
-            if (revisionChanged) {
+            if (contentChangedSourceIds.size > 0) {
                 refreshCacheBuster();
                 const { invalidateApiCache, loadFolderImages, loadSidebarImages } = await import('../api.js');
                 invalidateApiCache();
                 await loadSidebarImages({ force: true, preserveCount: true });
                 const activeFolder = updatedFolders.find(folder => folder.id === currentFolderId && folder.enabled);
-                if (activeFolder) {
+                if (activeFolder && contentChangedSourceIds.has(activeFolder.id)) {
                     await loadFolderImages(activeFolder.id, activeFolder.name, { force: true, preserveCount: true });
                 }
             }

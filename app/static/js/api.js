@@ -36,7 +36,7 @@ import {
     sidebarActiveImageId,
     setSidebarActiveImageId,
 } from './state.js';
-import { showLoading, showError, customConfirm } from './utils.js';
+import { imageRenderSignature, showLoading, showError, customConfirm } from './utils.js';
 
 const PAGE_SIZE = 50;
 const responseCache = new Map();
@@ -90,7 +90,7 @@ function collectionImagesUrl(collection, page, perPage) {
     return `/api/images?${filter}&page=${page}&per_page=${perPage}&sort_by=${sortKey}&sort_dir=${sortDir}`;
 }
 
-async function renderCurrentContent() {
+async function renderCurrentContent({ reconcileGallery = false } = {}) {
     const { viewMode } = await import('./state.js');
     if (viewMode === 'upload') {
         const { setViewMode } = await import('./events.js');
@@ -98,7 +98,7 @@ async function renderCurrentContent() {
     }
     if (galleryActive) {
         const { renderGallery } = await import('./gallery.js');
-        renderGallery();
+        renderGallery({ reconcile: reconcileGallery });
         return;
     }
     const { renderImageMeta } = await import('./detail-loader.js');
@@ -302,10 +302,16 @@ export async function loadMore() {
 export async function loadSidebarImages({ force = false, render = true, preserveCount = false } = {}) {
     const limit = preserveCount ? Math.max(PAGE_SIZE, sidebarPage * PAGE_SIZE) : PAGE_SIZE;
     const data = await fetchJson(`/api/images?page=1&per_page=${limit}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}`, { force });
-    
+    const nextImages = data.images || [];
+    const previousSignatures = new Map(sidebarImages.map(img => [img.id, imageRenderSignature(img)]));
+    const changedImageIds = new Set(
+        nextImages
+            .filter(img => previousSignatures.has(img.id) && previousSignatures.get(img.id) !== imageRenderSignature(img))
+            .map(img => img.id),
+    );
     const activeImageId = sidebarActiveImageId;
     
-    setSidebarImages(data.images || []);
+    setSidebarImages(nextImages);
     setSidebarTotalImages(data.total || 0);
     
     if (!preserveCount) {
@@ -320,10 +326,24 @@ export async function loadSidebarImages({ force = false, render = true, preserve
             }
         }
     }
+
+    if (preserveCount) {
+        const retainedIds = new Set([...images, ...nextImages].map(img => img.id));
+        setDetailCache(Object.fromEntries(
+            Object.entries(detailCache).filter(([imageId]) => {
+                const numericId = Number(imageId);
+                return retainedIds.has(numericId) && !changedImageIds.has(numericId);
+            }),
+        ));
+    }
     
     if (render) {
         const { renderSidebar } = await import('./features/sidebar.js');
-        renderSidebar();
+        renderSidebar({ reconcile: preserveCount });
+    }
+    if (preserveCount && dom.lightbox.classList.contains('open')) {
+        const { syncLightboxAfterCollectionChange } = await import('./lightbox.js');
+        syncLightboxAfterCollectionChange({ changedImageIds });
     }
     return data;
 }
@@ -460,48 +480,56 @@ export function deleteImageAt(index) {
 
 export async function loadCollectionImages(collection, { force = false, render = true, preserveCount = false } = {}) {
     setIsLoading(true);
-    if (render) showLoading(`Loading ${collection.type === 'album' ? 'album' : 'folder'} images...`);
+    if (render && !preserveCount) showLoading(`Loading ${collection.type === 'album' ? 'album' : 'folder'} images...`);
     try {
         const limit = preserveCount ? Math.max(PAGE_SIZE, currentPage * PAGE_SIZE) : PAGE_SIZE;
         const data = await fetchJson(collectionImagesUrl(collection, 1, limit), { force });
-        
+        const nextImages = data.images || [];
+        const previousSignatures = new Map(images.map(img => [img.id, imageRenderSignature(img)]));
+        const changedImageIds = new Set(
+            nextImages
+                .filter(img => previousSignatures.has(img.id) && previousSignatures.get(img.id) !== imageRenderSignature(img))
+                .map(img => img.id),
+        );
         const activeImageId = images[activeIndex]?.id;
         
         setCurrentCollection(collection);
         dom.folderNameEl.textContent = collection.name || '';
-        setImages(data.images || []);
+        setImages(nextImages);
         setTotalImages(data.total || 0);
         
         if (!preserveCount) {
             setCurrentPage(data.page || 1);
-            setAllLoaded((data.images || []).length >= (data.total || 0));
-            setActiveIndex((data.images || []).length ? 0 : -1);
+            setAllLoaded(nextImages.length >= (data.total || 0));
+            setActiveIndex(nextImages.length ? 0 : -1);
         } else {
             setAllLoaded(images.length >= (data.total || 0));
             if (activeImageId) {
                 const newIdx = images.findIndex(img => img.id === activeImageId);
                 if (newIdx >= 0) {
                     setActiveIndex(newIdx);
-                    if (dom.lightbox.classList.contains('open')) {
-                        const { setLightboxIndex } = await import('./state.js');
-                        setLightboxIndex(newIdx);
-                    }
                 } else {
                     setActiveIndex(images.length ? 0 : -1);
-                    if (dom.lightbox.classList.contains('open')) {
-                        const { setLightboxIndex } = await import('./state.js');
-                        setLightboxIndex(images.length ? 0 : -1);
-                    }
                 }
             }
         }
-        setDetailCache({});
+        if (preserveCount) {
+            const nextIds = new Set([...nextImages, ...sidebarImages].map(img => img.id));
+            setDetailCache(Object.fromEntries(
+                Object.entries(detailCache).filter(([imageId]) => {
+                    const numericId = Number(imageId);
+                    return nextIds.has(numericId) && !changedImageIds.has(numericId);
+                }),
+            ));
+        } else {
+            setDetailCache({});
+        }
         saveState();
-        if (render) await renderCurrentContent();
+        if (render) await renderCurrentContent({ reconcileGallery: preserveCount });
         
         if (preserveCount && dom.lightbox.classList.contains('open')) {
-            const { updateLightbox } = await import('./lightbox.js');
-            updateLightbox();
+            const { syncLightboxAfterCollectionChange } = await import('./lightbox.js');
+            syncLightboxAfterCollectionChange({ changedImageIds });
         }
         
         return data;

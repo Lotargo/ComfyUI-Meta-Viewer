@@ -117,6 +117,13 @@ def _worker_loop():
                     # Generate thumbnail bytes
                     thumb_data = make_thumbnail_bytes(abs_path)
 
+                    # Publish the processed DB state only after its thumbnail is ready.
+                    # SSE clients use metadata_json/processed_count as the signal to
+                    # render the finished card and must not race a missing cache file.
+                    if thumb_data:
+                        _thumbnail_dir.mkdir(parents=True, exist_ok=True)
+                        (_thumbnail_dir / f"{img_id}.jpg").write_bytes(thumb_data)
+
                     # Save to DB
                     with closing(db.get_conn()) as conn:
                         conn.execute(
@@ -135,11 +142,6 @@ def _worker_loop():
                             ),
                         )
                         conn.commit()
-
-                    # Save thumbnail file
-                    if thumb_data:
-                        _thumbnail_dir.mkdir(parents=True, exist_ok=True)
-                        (_thumbnail_dir / f"{img_id}.jpg").write_bytes(thumb_data)
                 except Exception as e:
                     err_str = str(e) + "\n" + traceback.format_exc()
                     _record_error(img_id, err_str)

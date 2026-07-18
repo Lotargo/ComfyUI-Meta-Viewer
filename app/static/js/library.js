@@ -233,7 +233,109 @@ function formatBytes(value) {
     return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 }
 
-function renderAssets() {
+function assetRenderSignature(asset) {
+    return JSON.stringify([
+        asset.id,
+        asset.file_name,
+        asset.source_name,
+        asset.source_path,
+        asset.thumbnail_url,
+        asset.favorite,
+        asset.available,
+        asset.rating,
+        asset.tags,
+        asset.width,
+        asset.height,
+        asset.format,
+        asset.file_size,
+    ]);
+}
+
+function assetCardHtml(asset) {
+    const selected = state.selected.has(asset.id);
+    const rating = '★'.repeat(asset.rating || 0);
+    const tags = (asset.tags || []).slice(0, 3).map(tag => `<span class="asset-tag">${escapeHtml(tag)}</span>`).join('');
+    const dimensions = asset.width && asset.height ? `${asset.width}×${asset.height}` : (asset.format || 'asset');
+    const isActive = asset.id === state.activeAssetId;
+    return `
+        <article class="asset-card ${selected ? 'selected' : ''} ${isActive ? 'active' : ''} ${asset.available ? '' : 'unavailable'}"
+                 data-asset-id="${asset.id}" tabindex="${isActive ? '0' : '-1'}"
+                 aria-selected="${selected ? 'true' : 'false'}"
+                 aria-label="${escapeHtml(asset.file_name)}">
+            <div class="asset-thumb-wrap">
+                <img class="asset-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy" draggable="false">
+                <input class="asset-select" type="checkbox" ${selected ? 'checked' : ''}
+                       aria-label="Select ${escapeHtml(asset.file_name)}">
+                <button class="asset-favorite ${asset.favorite ? 'active' : ''}" type="button"
+                        title="${asset.favorite ? 'Remove from favorites' : 'Add to favorites'}"
+                        aria-label="${asset.favorite ? 'Remove from favorites' : 'Add to favorites'}">♥</button>
+                ${asset.available ? '' : '<span class="asset-availability">Unavailable source</span>'}
+            </div>
+            <div class="asset-info">
+                <div class="asset-name" title="${escapeHtml(asset.file_name)}">${escapeHtml(asset.file_name)}</div>
+                <div class="asset-source" title="${escapeHtml(asset.source_path)}">${escapeHtml(asset.source_name)}</div>
+                ${tags ? `<div class="asset-tags">${tags}</div>` : ''}
+                <div class="asset-card-footer">
+                    <span class="asset-rating">${rating || 'Not rated'}</span>
+                    <span class="asset-meta">${escapeHtml(dimensions)} · ${formatBytes(asset.file_size)}</span>
+                </div>
+            </div>
+        </article>`;
+}
+
+function syncAssetCardState(card, asset) {
+    const selected = state.selected.has(asset.id);
+    const isActive = asset.id === state.activeAssetId;
+    card.classList.toggle('selected', selected);
+    card.classList.toggle('active', isActive);
+    card.classList.toggle('unavailable', !asset.available);
+    card.tabIndex = isActive ? 0 : -1;
+    card.setAttribute('aria-selected', String(selected));
+    const checkbox = card.querySelector('.asset-select');
+    if (checkbox) checkbox.checked = selected;
+}
+
+function createAssetCard(asset) {
+    const template = document.createElement('template');
+    template.innerHTML = assetCardHtml(asset).trim();
+    const card = template.content.firstElementChild;
+    card.dataset.renderSignature = assetRenderSignature(asset);
+    return card;
+}
+
+function reconcileAssetCards() {
+    const existingById = new Map(
+        [...dom.grid.querySelectorAll('.asset-card[data-asset-id]')]
+            .map(card => [card.dataset.assetId, card]),
+    );
+    let cursor = dom.grid.firstElementChild;
+
+    state.assets.forEach(asset => {
+        const assetId = String(asset.id);
+        const signature = assetRenderSignature(asset);
+        let card = existingById.get(assetId);
+        if (!card || card.dataset.renderSignature !== signature) {
+            const replacement = createAssetCard(asset);
+            if (card) {
+                const replacesCursor = card === cursor;
+                card.replaceWith(replacement);
+                if (replacesCursor) cursor = replacement;
+                existingById.delete(assetId);
+            }
+            card = replacement;
+        } else {
+            existingById.delete(assetId);
+            syncAssetCardState(card, asset);
+        }
+
+        if (card !== cursor) dom.grid.insertBefore(card, cursor);
+        cursor = card.nextElementSibling;
+    });
+
+    existingById.forEach(card => card.remove());
+}
+
+function renderAssets({ reconcile = false } = {}) {
     if (state.collection === 'albums') {
         if (!state.albums.length) {
             dom.grid.innerHTML = '';
@@ -272,37 +374,14 @@ function renderAssets() {
         dom.feedback.textContent = state.loading ? 'Loading library…' : 'No assets match this collection.';
     } else {
         dom.feedback.hidden = true;
-        dom.grid.innerHTML = state.assets.map(asset => {
-            const selected = state.selected.has(asset.id);
-            const rating = '★'.repeat(asset.rating || 0);
-            const tags = (asset.tags || []).slice(0, 3).map(tag => `<span class="asset-tag">${escapeHtml(tag)}</span>`).join('');
-            const dimensions = asset.width && asset.height ? `${asset.width}×${asset.height}` : (asset.format || 'asset');
-            const isActive = asset.id === state.activeAssetId;
-            return `
-                <article class="asset-card ${selected ? 'selected' : ''} ${isActive ? 'active' : ''} ${asset.available ? '' : 'unavailable'}"
-                         data-asset-id="${asset.id}" tabindex="${isActive ? '0' : '-1'}"
-                         aria-selected="${selected ? 'true' : 'false'}"
-                         aria-label="${escapeHtml(asset.file_name)}">
-                    <div class="asset-thumb-wrap">
-                        <img class="asset-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy" draggable="false">
-                        <input class="asset-select" type="checkbox" ${selected ? 'checked' : ''}
-                               aria-label="Select ${escapeHtml(asset.file_name)}">
-                        <button class="asset-favorite ${asset.favorite ? 'active' : ''}" type="button"
-                                title="${asset.favorite ? 'Remove from favorites' : 'Add to favorites'}"
-                                aria-label="${asset.favorite ? 'Remove from favorites' : 'Add to favorites'}">♥</button>
-                        ${asset.available ? '' : '<span class="asset-availability">Unavailable source</span>'}
-                    </div>
-                    <div class="asset-info">
-                        <div class="asset-name" title="${escapeHtml(asset.file_name)}">${escapeHtml(asset.file_name)}</div>
-                        <div class="asset-source" title="${escapeHtml(asset.source_path)}">${escapeHtml(asset.source_name)}</div>
-                        ${tags ? `<div class="asset-tags">${tags}</div>` : ''}
-                        <div class="asset-card-footer">
-                            <span class="asset-rating">${rating || 'Not rated'}</span>
-                            <span class="asset-meta">${escapeHtml(dimensions)} · ${formatBytes(asset.file_size)}</span>
-                        </div>
-                    </div>
-                </article>`;
-        }).join('');
+        if (reconcile) {
+            reconcileAssetCards();
+        } else {
+            dom.grid.innerHTML = state.assets.map(assetCardHtml).join('');
+            dom.grid.querySelectorAll('.asset-card').forEach((card, index) => {
+                card.dataset.renderSignature = assetRenderSignature(state.assets[index]);
+            });
+        }
     }
     updateInfiniteScroll();
     dom.collectionTitle.textContent = state.collectionName;
@@ -509,7 +588,18 @@ function buildAssetsUrl() {
     return `/api/library/assets?${params}`;
 }
 
-async function refreshAssets() {
+async function refreshAssets({ reconcile = false, preserveScroll = false } = {}) {
+    const scrollState = preserveScroll ? captureLibraryScroll() : null;
+    const visibleCard = preserveScroll
+        ? [...dom.grid.querySelectorAll('[data-asset-id]')].find(card => {
+            const rect = card.getBoundingClientRect();
+            return rect.bottom > 0 && rect.top < window.innerHeight;
+        })
+        : null;
+    const anchor = visibleCard ? {
+        assetId: visibleCard.dataset.assetId,
+        top: visibleCard.getBoundingClientRect().top,
+    } : null;
     if (state.assetRequestController) state.assetRequestController.abort();
     const controller = new AbortController();
     state.assetRequestController = controller;
@@ -536,8 +626,12 @@ async function refreshAssets() {
         if (state.assetRequestController === controller) {
             state.assetRequestController = null;
             state.loading = false;
-            renderAssets();
+            renderAssets({ reconcile });
             updatePreviewPanel();
+            if (scrollState) {
+                preserveVisibleCardPosition(anchor, scrollState);
+                window.requestAnimationFrame(() => preserveVisibleCardPosition(anchor, scrollState));
+            }
         }
     }
 }
@@ -1575,6 +1669,74 @@ function setupDialogBackdropClose(dialogEl) {
     });
 }
 
+let librarySourceEvents = null;
+let lastSourceContentSignature = null;
+let sourceRefreshTimer = null;
+let sourceRefreshPromise = null;
+let sourceRefreshQueued = false;
+
+function sourceContentSignature(sourceState) {
+    return JSON.stringify(
+        Object.entries(sourceState || {})
+            .sort(([leftId], [rightId]) => Number(leftId) - Number(rightId))
+            .map(([sourceId, source]) => [
+                sourceId,
+                source.revision ?? 0,
+                source.image_count ?? 0,
+                source.processed_count ?? 0,
+            ]),
+    );
+}
+
+function refreshLibraryFromSources() {
+    if (sourceRefreshPromise) {
+        sourceRefreshQueued = true;
+        return sourceRefreshPromise;
+    }
+
+    sourceRefreshPromise = (async () => {
+        do {
+            sourceRefreshQueued = false;
+            // eslint-disable-next-line no-await-in-loop -- one queued pass coalesces events received during the active refresh
+            await Promise.all([
+                loadMetadata({ includeFilters: true }),
+                refreshAssets({ reconcile: true, preserveScroll: true }),
+            ]);
+        } while (sourceRefreshQueued);
+    })().finally(() => {
+        sourceRefreshPromise = null;
+    });
+    return sourceRefreshPromise;
+}
+
+function scheduleSourceRefresh() {
+    window.clearTimeout(sourceRefreshTimer);
+    sourceRefreshTimer = window.setTimeout(() => {
+        refreshLibraryFromSources().catch(error => showToast(error.message, true));
+    }, 200);
+}
+
+function initLibrarySourceEvents() {
+    if (librarySourceEvents) return;
+    librarySourceEvents = new EventSource('/api/folders/events');
+    librarySourceEvents.onmessage = event => {
+        try {
+            const signature = sourceContentSignature(JSON.parse(event.data));
+            if (signature !== lastSourceContentSignature) {
+                lastSourceContentSignature = signature;
+                scheduleSourceRefresh();
+            }
+        } catch (error) {
+            console.error('Library source event parsing error:', error);
+        }
+    };
+}
+
+window.addEventListener('beforeunload', () => {
+    window.clearTimeout(sourceRefreshTimer);
+    librarySourceEvents?.close();
+});
+
 async function initialize() {
     try {
         makeDraggable(dom.editor, dom.editor.querySelector('.editor-heading'));
@@ -1752,6 +1914,7 @@ async function initialize() {
 
         await loadMetadata({ includeFilters: true });
         await loadAssets();
+        initLibrarySourceEvents();
     } catch (error) {
         dom.feedback.textContent = `Library could not be loaded: ${error.message}`;
         showToast(error.message, true);

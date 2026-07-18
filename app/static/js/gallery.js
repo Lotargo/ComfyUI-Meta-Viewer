@@ -11,7 +11,7 @@ import {
     dom,
     setGalleryScrollObserver,
 } from './state.js';
-import { escapeHtml, thumbUrl } from './utils.js';
+import { escapeHtml, imageRenderSignature, thumbUrl } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
 
 let resizeTimeout = null;
@@ -39,6 +39,93 @@ window.addEventListener('resize', resizeAllGridItems);
 
 let nextGalleryPagePromise = null;
 
+function galleryCardHtml(img, index) {
+    const src = thumbUrl(img);
+    const isActive = index === activeIndex ? ' active' : '';
+    const hasError = img.error ? '<div class="card-error"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>' : '';
+    const fmt = img.format || '';
+    const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
+    const size = img.size && img.size[0] > 0 && img.size[1] > 0 ? img.size : [4, 3];
+    const ratioStyle = ` style="aspect-ratio: ${size[0]} / ${size[1]}; position: relative; width: 100%; background: var(--surface2);"`;
+    const imgStyle = ' style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;"';
+    const fileName = img.file_name || img.file || '';
+
+    return `
+        <div class="gallery-card${isActive}" data-index="${index}" data-image-id="${img.id ?? ''}">
+            <div class="img-wrapper"${ratioStyle}>
+                <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}">
+            </div>
+            <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
+                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
+            </button>
+            ${hasError}
+            <div class="card-info">
+                <div class="card-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
+                <div class="card-meta">${fmt} ${dims}</div>
+            </div>
+        </div>
+    `;
+}
+
+function createGalleryCard(img, index) {
+    const template = document.createElement('template');
+    template.innerHTML = galleryCardHtml(img, index).trim();
+    const card = template.content.firstElementChild;
+    card.dataset.renderSignature = imageRenderSignature(img);
+    bindGalleryCard(card);
+    return card;
+}
+
+function bindGalleryCard(card) {
+    card.addEventListener('click', () => {
+        const index = Number.parseInt(card.dataset.index, 10);
+        import('./lightbox.js').then(module => module.openLightbox(index, images));
+    });
+
+    card.querySelector('.gallery-delete')?.addEventListener('click', event => {
+        event.stopPropagation();
+        const index = Number.parseInt(card.dataset.index, 10);
+        const imageId = images[index]?.id;
+        if (imageId) import('./api.js').then(module => module.deleteImageById(imageId));
+    });
+}
+
+function reconcileGalleryCards(masonry) {
+    const existingById = new Map(
+        [...masonry.querySelectorAll('.gallery-card[data-image-id]')]
+            .map(card => [card.dataset.imageId, card]),
+    );
+    let cursor = masonry.firstElementChild;
+
+    images.forEach((img, index) => {
+        const imageId = String(img.id ?? '');
+        const signature = imageRenderSignature(img);
+        let card = existingById.get(imageId);
+
+        if (!card || card.dataset.renderSignature !== signature) {
+            const replacement = createGalleryCard(img, index);
+            if (card) {
+                const replacesCursor = card === cursor;
+                card.replaceWith(replacement);
+                if (replacesCursor) cursor = replacement;
+                existingById.delete(imageId);
+            }
+            card = replacement;
+        } else {
+            existingById.delete(imageId);
+            card.dataset.index = String(index);
+            card.classList.toggle('active', index === activeIndex);
+            const deleteButton = card.querySelector('.gallery-delete');
+            if (deleteButton) deleteButton.dataset.index = String(index);
+        }
+
+        if (card !== cursor) masonry.insertBefore(card, cursor);
+        cursor = card.nextElementSibling;
+    });
+
+    existingById.forEach(card => card.remove());
+}
+
 export function loadNextGalleryPage() {
     if (nextGalleryPagePromise) return nextGalleryPagePromise;
 
@@ -57,7 +144,7 @@ export function loadNextGalleryPage() {
     return nextGalleryPagePromise;
 }
 
-export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
+export function renderGallery({ appendOnly = false, startIndex = 0, reconcile = false } = {}) {
     if (galleryScrollObserver) galleryScrollObserver.disconnect();
 
     if (images.length === 0) {
@@ -77,108 +164,29 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
     }
 
     const masonry = dom.contentArea.querySelector('.gallery-masonry');
-    if (appendOnly && masonry) {
-        let newHtml = '';
+    if (reconcile && masonry) {
+        reconcileGalleryCards(masonry);
+        resizeAllGridItems();
+        import('./components/search-bar.js').then(module => module.applySearchFilter());
+    } else if (appendOnly && masonry) {
+        const fragment = document.createDocumentFragment();
         for (let index = startIndex; index < images.length; index++) {
-            const img = images[index];
-            const src = thumbUrl(img);
-            const isActive = index === activeIndex ? ' active' : '';
-            const hasError = img.error ? '<div class="card-error"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>' : '';
-            const fmt = img.format || '';
-            const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
-            const size = img.size && img.size[0] > 0 && img.size[1] > 0 ? img.size : [4, 3];
-            const ratioStyle = ` style="aspect-ratio: ${size[0]} / ${size[1]}; position: relative; width: 100%; background: var(--surface2);"`;
-            const imgStyle = ` style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;"`;
-            const fileName = img.file_name || img.file || '';
-
-            newHtml += `
-                <div class="gallery-card${isActive}" data-index="${index}">
-                    <div class="img-wrapper"${ratioStyle}>
-                        <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}">
-                    </div>
-                    <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
-                        <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
-                    </button>
-                    ${hasError}
-                    <div class="card-info">
-                        <div class="card-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
-                        <div class="card-meta">${fmt} ${dims}</div>
-                    </div>
-                </div>
-            `;
+            // eslint-disable-next-line no-restricted-syntax -- appending to a detached fragment batches the DOM update
+            fragment.appendChild(createGalleryCard(images[index], index));
         }
-
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = newHtml;
-        const newCards = Array.from(tempDiv.children);
-        newCards.forEach(card => {
-            masonry.appendChild(card);
-            
-            card.addEventListener('click', () => {
-                const index = Number.parseInt(card.dataset.index, 10);
-                import('./lightbox.js').then(module => module.openLightbox(index, images));
-            });
-
-            const deleteBtn = card.querySelector('.gallery-delete');
-            if (deleteBtn) {
-                deleteBtn.addEventListener('click', event => {
-                    event.stopPropagation();
-                    const index = Number.parseInt(deleteBtn.dataset.index, 10);
-                    const imageId = images[index]?.id;
-                    if (imageId) import('./api.js').then(module => module.deleteImageById(imageId));
-                });
-            }
-        });
+        masonry.appendChild(fragment);
 
         resizeAllGridItems();
         import('./components/search-bar.js').then(module => module.applySearchFilter());
     } else {
-        let html = '<div class="gallery-masonry">';
-        images.forEach((img, index) => {
-            const src = thumbUrl(img);
-            const isActive = index === activeIndex ? ' active' : '';
-            const hasError = img.error ? '<div class="card-error"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>' : '';
-            const fmt = img.format || '';
-            const dims = img.size ? `${img.size[0]}x${img.size[1]}` : '';
-            const size = img.size && img.size[0] > 0 && img.size[1] > 0 ? img.size : [4, 3];
-            const ratioStyle = ` style="aspect-ratio: ${size[0]} / ${size[1]}; position: relative; width: 100%; background: var(--surface2);"`;
-            const imgStyle = ` style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;"`;
-            const fileName = img.file_name || img.file || '';
-
-            html += `
-                <div class="gallery-card${isActive}" data-index="${index}">
-                    <div class="img-wrapper"${ratioStyle}>
-                        <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}">
-                    </div>
-                    <button class="image-delete-btn gallery-delete" data-index="${index}" title="Delete image" aria-label="Delete ${escapeHtml(fileName)}">
-                        <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
-                    </button>
-                    ${hasError}
-                    <div class="card-info">
-                        <div class="card-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
-                        <div class="card-meta">${fmt} ${dims}</div>
-                    </div>
-                </div>
-            `;
-        });
-        html += '</div>';
+        const html = `<div class="gallery-masonry">${images.map(galleryCardHtml).join('')}</div>`;
         dom.contentArea.innerHTML = html;
         import('./components/search-bar.js').then(module => module.applySearchFilter());
 
         dom.contentArea.querySelectorAll('.gallery-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const index = Number.parseInt(card.dataset.index, 10);
-                import('./lightbox.js').then(module => module.openLightbox(index, images));
-            });
-        });
-
-        dom.contentArea.querySelectorAll('.gallery-delete').forEach(button => {
-            button.addEventListener('click', event => {
-                event.stopPropagation();
-                const index = Number.parseInt(button.dataset.index, 10);
-                const imageId = images[index]?.id;
-                if (imageId) import('./api.js').then(module => module.deleteImageById(imageId));
-            });
+            const index = Number.parseInt(card.dataset.index, 10);
+            card.dataset.renderSignature = imageRenderSignature(images[index]);
+            bindGalleryCard(card);
         });
 
         resizeAllGridItems();
@@ -202,6 +210,8 @@ export function renderGallery({ appendOnly = false, startIndex = 0 } = {}) {
         }, { root: dom.contentArea, threshold: 0.1 });
         setGalleryScrollObserver(observer);
         observer.observe(sentinel);
+    } else {
+        dom.contentArea.querySelector('#gallery-sentinel')?.remove();
     }
 }
 

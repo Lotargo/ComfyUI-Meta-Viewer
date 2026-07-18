@@ -280,6 +280,11 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("function captureLibraryScroll", script)
         self.assertIn("addContainer(document.scrollingElement)", script)
         self.assertIn("function preserveVisibleCardPosition", script)
+        self.assertIn("new EventSource('/api/folders/events')", script)
+        self.assertIn(
+            "refreshAssets({ reconcile: true, preserveScroll: true })", script
+        )
+        self.assertIn("function reconcileAssetCards", script)
         self.assertIn("event.stopImmediatePropagation()", script)
         self.assertIn("{ capture: true }", script)
         self.assertIn("dom.btnLibraryGuide.focus({ preventScroll: true })", script)
@@ -301,6 +306,9 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn('id="viewer-album-list"', viewer)
         self.assertIn('title="Details view"', viewer)
         self.assertIn("function renderAlbumsList", viewer_sidebar)
+        self.assertIn("contentChangedSourceIds", viewer_sidebar)
+        self.assertIn("preserveCount: true", viewer_sidebar)
+        self.assertIn("function reconcileSidebarItems", viewer_sidebar)
         self.assertIn("loadAlbumImages(album.id, album.name)", viewer_sidebar)
         self.assertIn('draggable="false"', viewer_sidebar)
         sidebar_styles = (
@@ -332,6 +340,29 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("showPreviewCopyFeedback", script)
         self.assertIn(".global-header", header_styles)
         self.assertIn(".app-switcher-link.active", header_styles)
+
+    def test_live_source_updates_preserve_viewer_and_library_content(self) -> None:
+        root = Path(__file__).parents[1]
+        api_script = (root / "app" / "static" / "js" / "api.js").read_text(
+            encoding="utf-8"
+        )
+        gallery_script = (
+            root / "app" / "static" / "js" / "gallery.js"
+        ).read_text(encoding="utf-8")
+        library_script = (
+            root / "app" / "static" / "js" / "library.js"
+        ).read_text(encoding="utf-8")
+        lightbox_script = (
+            root / "app" / "static" / "js" / "lightbox.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("render && !preserveCount", api_script)
+        self.assertIn("renderGallery({ reconcile: reconcileGallery })", api_script)
+        self.assertIn("function reconcileGalleryCards", gallery_script)
+        self.assertIn("data-image-id=", gallery_script)
+        self.assertIn("function reconcileAssetCards", library_script)
+        self.assertIn("initLibrarySourceEvents()", library_script)
+        self.assertIn("syncLightboxAfterCollectionChange", lightbox_script)
 
     def test_smart_metadata_filters_are_combined_on_the_backend(self) -> None:
         for name, color in (

@@ -251,6 +251,12 @@ class SourceMonitoringTest(unittest.TestCase):
 
         image = self.make_image("watched.png", size=(3, 3))
         wait_until(lambda: set(db.get_folder_file_stats(source_id)) == {"watched.png"})
+        wait_until(
+            lambda: db.get_folders()[0].processed_count
+            == db.get_folders()[0].image_count
+        )
+        image_id = int(db.get_folder_file_records(source_id)["watched.png"]["id"])
+        self.assertTrue((self.paths.thumbnails / f"{image_id}.jpg").is_file())
         first_mtime = db.get_folder_file_stats(source_id)["watched.png"][1]
 
         time.sleep(0.02)

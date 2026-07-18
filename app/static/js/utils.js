@@ -62,6 +62,17 @@ export function thumbUrl(img) {
     return img.id ? `/api/thumbnail/${img.id}?t=${cacheBuster}` : (img.thumbnail || '');
 }
 
+export function imageRenderSignature(img) {
+    return JSON.stringify([
+        img.id ?? null,
+        img.file_name || img.file || '',
+        img.format || '',
+        Array.isArray(img.size) ? img.size : null,
+        img.mode || '',
+        img.error || '',
+    ]);
+}
+
 export function originalUrl(img) {
     return img.id ? `/api/original/${img.id}?t=${cacheBuster}` : (img.thumbnail || '');
 }

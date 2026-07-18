@@ -2,12 +2,14 @@
  * Sidebar image item component
  */
 
-import { escapeHtml, thumbUrl } from '../utils.js';
+import { escapeHtml, imageRenderSignature, thumbUrl } from '../utils.js';
 
 export function createSidebarItem(img, index, isActive) {
     const div = document.createElement('div');
     div.className = 'image-item' + (isActive ? ' active' : '');
     div.dataset.index = index;
+    div.dataset.imageId = img.id ?? '';
+    div.dataset.renderSignature = imageRenderSignature(img);
 
     const src = thumbUrl(img);
     const fileName = img.file_name || img.file || '';

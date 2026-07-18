@@ -488,8 +488,21 @@ def api_images():
     per_page = request.args.get("per_page", 50, type=int)
     sort_by = request.args.get("sort_by", "date")
     sort_dir = request.args.get("sort_dir", "desc")
+    rating_value = request.args.get("rating")
+    try:
+        rating = None if rating_value is None else int(rating_value)
+    except ValueError:
+        return jsonify({"error": "rating must be between 0 and 5"}), 400
+    if rating is not None and rating not in range(6):
+        return jsonify({"error": "rating must be between 0 and 5"}), 400
     result = db.get_images_page(
-        folder_id, page, per_page, sort_by, sort_dir, album_id=album_id
+        folder_id,
+        page,
+        per_page,
+        sort_by,
+        sort_dir,
+        album_id=album_id,
+        rating=rating,
     )
     return jsonify(result.model_dump())
 

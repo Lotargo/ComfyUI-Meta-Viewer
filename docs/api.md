@@ -241,15 +241,20 @@ Uploads image files through `multipart/form-data`. Uploaded originals are stored
 
 ### `GET /api/images`
 
-Returns a paginated list of images for a folder. Images from disabled sources are omitted from folder and global listings.
+Returns a paginated folder, album, or global image list. Images from disabled sources are
+omitted. `folder_id` and `album_id` are mutually exclusive.
 
 **Query Parameters:**
 
 | Parameter | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `folder_id` | int | -- | yes | Folder ID to load |
+| `folder_id` | int | -- | no | Folder ID to load |
+| `album_id` | int | -- | no | Virtual album ID to load |
 | `page` | int | `1` | no | Page number |
 | `per_page` | int | `50` | no | Images per page |
+| `sort_by` | string | `date` | no | `name`, `date`, `size`, or `type` |
+| `sort_dir` | string | `desc` | no | `asc` or `desc` |
+| `rating` | int | -- | no | Exact rating from `0` (unrated) through `5` |
 
 **Response:**
 
@@ -265,7 +270,8 @@ Returns a paginated list of images for a folder. Images from disabled sources ar
       "error": null,
       "thumbnail": null,
       "file": null,
-      "path": null
+      "path": null,
+      "rating": 4
     }
   ],
   "total": 200,
@@ -593,7 +599,8 @@ Returns local diagnostics and cache statistics.
   "error": "string | null",
   "thumbnail": "string | null",
   "file": "string | null",
-  "path": "string | null"
+  "path": "string | null",
+  "rating": "int | null"
 }
 ```
 

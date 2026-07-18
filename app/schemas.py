@@ -127,6 +127,7 @@ class ImageListItem(BaseModel):
     file: str | None = None
     path: str | None = None
     has_local_file: bool | None = None
+    rating: int | None = Field(default=None, ge=0, le=5)
     prompt_parameters: dict[str, Any] | None = None
 
 

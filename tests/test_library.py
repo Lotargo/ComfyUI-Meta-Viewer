@@ -182,6 +182,41 @@ class LibraryApiTest(LibraryTestCase):
         )
         self.assertEqual(conflict.status_code, 400)
 
+    def test_viewer_images_endpoint_filters_exact_ratings(self) -> None:
+        self.make_image("three-stars.png")
+        self.make_image("five-stars.png", "blue")
+        self.make_image("unrated.png", "red")
+        result = self.index()
+        records = db.get_folder_file_records(result.folder_id)
+        client = app.test_client()
+        rated_update = client.patch(
+            f"/api/library/assets/{records['three-stars.png']['id']}",
+            json={"rating": 3},
+        )
+        self.assertEqual(rated_update.status_code, 200)
+        self.assertEqual(rated_update.get_json()["asset"]["rating"], 3)
+        library.update_asset(int(records["five-stars.png"]["id"]), rating=5)
+
+        rated = client.get(
+            f"/api/images?folder_id={result.folder_id}&rating=3"
+        )
+        self.assertEqual(rated.status_code, 200)
+        self.assertEqual(rated.get_json()["total"], 1)
+        self.assertEqual(rated.get_json()["images"][0]["file_name"], "three-stars.png")
+        self.assertEqual(rated.get_json()["images"][0]["rating"], 3)
+
+        unrated = client.get("/api/images?rating=0")
+        self.assertEqual(unrated.status_code, 200)
+        self.assertEqual(unrated.get_json()["total"], 1)
+        self.assertEqual(unrated.get_json()["images"][0]["file_name"], "unrated.png")
+
+        detail = client.get(
+            f"/api/images/{records['five-stars.png']['id']}"
+        )
+        self.assertEqual(detail.get_json()["rating"], 5)
+        self.assertEqual(client.get("/api/images?rating=6").status_code, 400)
+        self.assertEqual(client.get("/api/images?rating=stars").status_code, 400)
+
     def test_asset_rename_moves_the_file_and_preserves_virtual_metadata(self) -> None:
         original = self.make_image("before.png")
         collision = self.make_image("occupied.png", "blue")
@@ -417,6 +452,8 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("Copy image", context_menu)
         self.assertIn("Copy file path", context_menu)
         self.assertIn("Rename file…", context_menu)
+        self.assertIn("Set rating", context_menu)
+        self.assertIn("Clear rating", context_menu)
         self.assertIn("Copy positive prompt", context_menu)
         self.assertIn("Copy negative prompt", context_menu)
         self.assertIn("Copy workflow", context_menu)
@@ -434,6 +471,9 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn(".image-context-menu__item--danger", context_menu_styles)
         self.assertIn("static_version('css/components/image-context-menu.css')", template)
         self.assertIn("static_version('css/components/image-context-menu.css')", viewer)
+        self.assertIn('id="viewer-rating-filter-btn"', viewer)
+        self.assertIn('data-viewer-rating="0"', viewer)
+        self.assertIn('data-viewer-rating="5"', viewer)
 
     def test_live_source_updates_preserve_viewer_and_library_content(self) -> None:
         root = Path(__file__).parents[1]

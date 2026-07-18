@@ -1201,10 +1201,17 @@ function openLibraryImageContextMenu(event, asset, anchor) {
         sourceUrl: asset.original_url || `/api/original/${asset.id}`,
         canAccessOriginal: asset.available,
         hasLocalFile: asset.has_local_file,
+        rating: asset.rating,
         detail: currentSelectedDetail?.id === asset.id ? currentSelectedDetail : null,
         onRenamed: async renamedAsset => {
             if (currentSelectedDetail?.id === renamedAsset.id) {
                 currentSelectedDetail.file_name = renamedAsset.file_name;
+            }
+            await refreshAssets({ reconcile: true, preserveScroll: true });
+        },
+        onRatingChanged: async ratedAsset => {
+            if (currentSelectedDetail?.id === ratedAsset.id) {
+                currentSelectedDetail.rating = ratedAsset.rating;
             }
             await refreshAssets({ reconcile: true, preserveScroll: true });
         },

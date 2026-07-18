@@ -152,8 +152,10 @@ export function renderMeta(img) {
             sourceUrl: originalUrl(detail),
             canAccessOriginal: true,
             hasLocalFile: Boolean(detail.id && detail.has_local_file),
+            rating: detail.rating,
             detail,
             onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
+            onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
             extraSections: [[{
                 label: 'Create transparent PNG',
                 icon: 'cutout',

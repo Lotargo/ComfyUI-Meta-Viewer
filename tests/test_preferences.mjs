@@ -62,6 +62,7 @@ test('current preferences are validated field by field', () => {
             folders: { key: 'image_count', direction: 'invalid' },
             albums: { key: 'asset_count', direction: 'desc' },
         },
+        filters: { rating: 4 },
         searchSettings: {
             exactMatch: true,
             fields: { model: false },
@@ -82,6 +83,7 @@ test('current preferences are validated field by field', () => {
     assert.deepEqual(preferences.sorting.images, { key: 'date', direction: 'asc' });
     assert.deepEqual(preferences.sorting.folders, { key: 'image_count', direction: 'desc' });
     assert.deepEqual(preferences.sorting.albums, { key: 'asset_count', direction: 'desc' });
+    assert.equal(preferences.filters.rating, 4);
     assert.equal(preferences.searchSettings.exactMatch, true);
     assert.equal(preferences.searchSettings.fields.model, false);
     assert.equal(preferences.searchSettings.fields.positive_prompt, true);
@@ -115,6 +117,14 @@ test('unknown future schemas are ignored safely', () => {
     assert.deepEqual(preferences, createDefaultPreferences());
 });
 
+test('invalid rating filters fall back to all ratings', () => {
+    const preferences = normalizePreferences({
+        version: PREFERENCES_VERSION,
+        filters: { rating: 9 },
+    });
+    assert.equal(preferences.filters.rating, null);
+});
+
 test('state persistence restores stable preferences but not runtime collections', async () => {
     globalThis.document = { getElementById: () => null };
     globalThis.localStorage = new MemoryStorage();
@@ -131,6 +141,7 @@ test('state persistence restores stable preferences but not runtime collections'
     state.setAlbumsViewMode('tile');
     state.setSortKey('name');
     state.setSortDir('asc');
+    state.setRatingFilter(3);
     state.setLightboxMetaOpen(false);
     state.setMetadataTab('workflow');
     state.setImages([{ id: 1 }]);
@@ -153,6 +164,7 @@ test('state persistence restores stable preferences but not runtime collections'
     assert.equal(state.albumsViewMode, 'tile');
     assert.equal(state.sortKey, 'name');
     assert.equal(state.sortDir, 'asc');
+    assert.equal(state.ratingFilter, 3);
     assert.equal(state.lightboxMetaOpen, false);
     assert.equal(state.metadataTab, 'workflow');
     assert.deepEqual(state.images, []);

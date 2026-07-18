@@ -13,6 +13,7 @@ const icons = {
     album: '<rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M3 9h18M8 13h8M8 17h5"></path>',
     edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path>',
     rename: '<path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3"></path><path d="m8 16 1.2-4.2L16 5l3 3-6.8 6.8Z"></path>',
+    star: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"></path>',
     cutout: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"></path><path d="M9 9h6v6H9Z"></path>',
     remove: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"></path>',
     loading: '<path d="M20 12a8 8 0 1 1-2.3-5.7"></path>',
@@ -123,6 +124,24 @@ async function renameImageFile(imageId, fileName, notify, onRenamed) {
     });
     notify(`Renamed to ${data.asset.file_name}`);
     if (onRenamed) await onRenamed(data.asset);
+}
+
+function normalizedRating(value) {
+    const rating = Number(value);
+    return Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : 0;
+}
+
+async function setImageRating(imageId, rating, notify, onRatingChanged) {
+    const data = await fetchJson(`/api/library/assets/${imageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating }),
+    });
+    const nextRating = normalizedRating(data.asset.rating);
+    notify(nextRating
+        ? `Rated ${nextRating} star${nextRating === 1 ? '' : 's'}`
+        : 'Rating cleared');
+    if (onRatingChanged) await onRatingChanged(data.asset);
 }
 
 function loadImageDetail(imageId) {
@@ -427,9 +446,12 @@ export function showImageContextMenu(event, {
     canAccessOriginal = true,
     hasLocalFile = false,
     canRename = canAccessOriginal,
+    canRate = true,
+    rating = null,
     detail = null,
     extraSections = [],
     onRenamed = null,
+    onRatingChanged = null,
     anchor = event.currentTarget || event.target,
     notify = () => {},
 }) {
@@ -438,6 +460,12 @@ export function showImageContextMenu(event, {
     closeImageContextMenu();
 
     const localFileDisabledReason = 'This image has no available local file';
+    const currentRating = normalizedRating(rating);
+    const ratingChoices = [1, 2, 3, 4, 5].map(value => ({
+        label: `${currentRating === value ? '✓ ' : ''}${'★'.repeat(value)} ${value} star${value === 1 ? '' : 's'}`,
+        icon: 'star',
+        run: () => setImageRating(imageId, value, notify, onRatingChanged),
+    }));
     const coreSections = [
         [
             {
@@ -470,6 +498,24 @@ export function showImageContextMenu(event, {
                 enabled: Boolean(sourceUrl && canAccessOriginal),
                 disabledReason: 'The original image is unavailable',
                 run: () => downloadImage(sourceUrl, fileName, notify),
+            },
+        ],
+        [
+            {
+                label: currentRating ? `Rating: ${'★'.repeat(currentRating)}` : 'Set rating',
+                icon: 'star',
+                enabled: Boolean(imageId && canRate),
+                disabledReason: 'Rating is unavailable for this image',
+                children: [
+                    {
+                        label: 'Clear rating',
+                        icon: 'star',
+                        enabled: currentRating > 0,
+                        disabledReason: 'This image is not rated',
+                        run: () => setImageRating(imageId, 0, notify, onRatingChanged),
+                    },
+                    ...ratingChoices,
+                ],
             },
         ],
         [

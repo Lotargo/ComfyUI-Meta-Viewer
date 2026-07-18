@@ -636,8 +636,10 @@ export function initLightboxEvents() {
             sourceUrl: originalUrl(img),
             canAccessOriginal: true,
             hasLocalFile: Boolean(img.id && img.has_local_file),
+            rating: img.rating,
             detail: img,
             onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
+            onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
             extraSections: [[{
                 label: 'Create transparent PNG',
                 icon: 'cutout',

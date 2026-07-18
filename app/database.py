@@ -799,29 +799,36 @@ def get_images_page(
     sort_by: str = "date",
     sort_dir: str = "desc",
     album_id: int | None = None,
+    rating: int | None = None,
 ) -> ImagesResponse:
+    if rating is not None and rating not in range(6):
+        raise ValueError("rating must be between 0 and 5")
+
     conn = get_conn()
     try:
+        rating_clause = "" if rating is None else " AND COALESCE(i.rating, 0) = ?"
+        rating_params: tuple[int, ...] = () if rating is None else (rating,)
         if album_id is not None:
             total_row = conn.execute(
-                """SELECT COUNT(*) AS c FROM images i
+                f"""SELECT COUNT(*) AS c FROM images i
                 JOIN folders f ON f.id = i.folder_id
                 JOIN album_images ai ON ai.image_id = i.id
-                WHERE ai.album_id = ? AND f.enabled = 1""",
-                (album_id,),
+                WHERE ai.album_id = ? AND f.enabled = 1{rating_clause}""",
+                (album_id, *rating_params),
             ).fetchone()
         elif folder_id is not None:
             total_row = conn.execute(
-                """SELECT COUNT(*) AS c FROM images i
+                f"""SELECT COUNT(*) AS c FROM images i
                 JOIN folders f ON f.id = i.folder_id
-                WHERE i.folder_id = ? AND f.enabled = 1""",
-                (folder_id,),
+                WHERE i.folder_id = ? AND f.enabled = 1{rating_clause}""",
+                (folder_id, *rating_params),
             ).fetchone()
         else:
             total_row = conn.execute(
-                """SELECT COUNT(*) AS c FROM images i
+                f"""SELECT COUNT(*) AS c FROM images i
                 JOIN folders f ON f.id = i.folder_id
-                WHERE f.enabled = 1"""
+                WHERE f.enabled = 1{rating_clause}""",
+                rating_params,
             ).fetchone()
 
         total = total_row["c"] if total_row else 0
@@ -846,34 +853,34 @@ def get_images_page(
         if album_id is not None:
             rows = conn.execute(
                 f"""SELECT i.id, i.file_name, i.format, i.width, i.height, i.mode,
-                    i.error, i.metadata_json,
+                    i.error, i.metadata_json, i.rating,
                     i.original_data IS NULL AS has_local_file
                 FROM images i
                 JOIN folders f ON f.id = i.folder_id
                 JOIN album_images ai ON ai.image_id = i.id
-                WHERE ai.album_id = ? AND f.enabled = 1
+                WHERE ai.album_id = ? AND f.enabled = 1{rating_clause}
                 {order_clause} LIMIT ? OFFSET ?""",
-                (album_id, per_page, offset),
+                (album_id, *rating_params, per_page, offset),
             ).fetchall()
         elif folder_id is not None:
             rows = conn.execute(
                 f"""SELECT i.id, i.file_name, i.format, i.width, i.height, i.mode,
-                    i.error, i.metadata_json,
+                    i.error, i.metadata_json, i.rating,
                     i.original_data IS NULL AS has_local_file
                 FROM images i JOIN folders f ON f.id = i.folder_id
-                WHERE i.folder_id = ? AND f.enabled = 1
+                WHERE i.folder_id = ? AND f.enabled = 1{rating_clause}
                 {order_clause} LIMIT ? OFFSET ?""",
-                (folder_id, per_page, offset),
+                (folder_id, *rating_params, per_page, offset),
             ).fetchall()
         else:
             rows = conn.execute(
                 f"""SELECT i.id, i.file_name, i.format, i.width, i.height, i.mode,
-                    i.error, i.metadata_json,
+                    i.error, i.metadata_json, i.rating,
                     i.original_data IS NULL AS has_local_file
                 FROM images i JOIN folders f ON f.id = i.folder_id
-                WHERE f.enabled = 1
+                WHERE f.enabled = 1{rating_clause}
                 {order_clause} LIMIT ? OFFSET ?""",
-                (per_page, offset),
+                (*rating_params, per_page, offset),
             ).fetchall()
         images = []
         for r in rows:
@@ -895,6 +902,7 @@ def get_images_page(
                 mode=d.get("mode"),
                 error=d.get("error"),
                 has_local_file=bool(d.get("has_local_file")),
+                rating=d.get("rating"),
                 prompt_parameters=prompt_parameters,
             ))
         return ImagesResponse(images=images, total=total, page=page, per_page=per_page)
@@ -973,6 +981,7 @@ def get_image_detail(image_id: int) -> ImageDetail | None:
         row = conn.execute(
             """SELECT i.id, i.folder_id, i.rel_path, i.file_name, i.format,
                 i.width, i.height, i.mode, i.error, i.metadata_json,
+                i.rating,
                 i.original_data IS NOT NULL AS has_original_data,
                 i.original_data IS NULL AS has_local_file,
                 f.path AS folder_path
@@ -1049,6 +1058,7 @@ def get_image_detail(image_id: int) -> ImageDetail | None:
             raw_params=merged.get("raw_parameters"),
             folder_id=d.get("folder_id"),
             has_local_file=bool(d.get("has_local_file")),
+            rating=d.get("rating"),
         )
     finally:
         conn.close()

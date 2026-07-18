@@ -50,6 +50,9 @@ export const dom = {
     searchInput: document.getElementById('search-input'),
     searchSettingsBtn: document.getElementById('search-settings-btn'),
     searchSettingsDropdown: document.getElementById('search-settings-dropdown'),
+    ratingFilterBtn: document.getElementById('viewer-rating-filter-btn'),
+    ratingFilterLabel: document.getElementById('viewer-rating-filter-label'),
+    ratingFilterMenu: document.getElementById('viewer-rating-filter-menu'),
     shortcutsOverlay: document.getElementById('shortcuts-overlay'),
     shortcutsClose: document.getElementById('shortcuts-close'),
     copyDiagnostics: document.getElementById('copy-diagnostics'),
@@ -121,6 +124,7 @@ export let sortKey = 'date';
 export let sortDir = 'desc';
 export let sidebarSortKey = 'date';
 export let sidebarSortDir = 'desc';
+export let ratingFilter = null;
 export let foldersSortKey = 'scanned_at';
 export let foldersSortDir = 'desc';
 export let foldersViewMode = 'list';
@@ -136,6 +140,7 @@ export function setSortKey(v) { sortKey = v; }
 export function setSortDir(v) { sortDir = v; }
 export function setSidebarSortKey(v) { sidebarSortKey = v; }
 export function setSidebarSortDir(v) { sidebarSortDir = v; }
+export function setRatingFilter(v) { ratingFilter = Number.isInteger(v) && v >= 0 && v <= 5 ? v : null; }
 export function setFoldersSortKey(v) { foldersSortKey = v; }
 export function setFoldersSortDir(v) { foldersSortDir = v; }
 export function setFoldersViewMode(v) { foldersViewMode = v === 'list' ? 'list' : 'tile'; }
@@ -258,6 +263,7 @@ function applyPreferences(preferences) {
     setFoldersSortDir(preferences.sorting.folders.direction);
     setAlbumsSortKey(preferences.sorting.albums.key);
     setAlbumsSortDir(preferences.sorting.albums.direction);
+    setRatingFilter(preferences.filters.rating);
     setSearchSettings(preferences.searchSettings);
 }
 
@@ -290,6 +296,9 @@ export function saveState() {
             images: { key: sidebarSortKey, direction: sidebarSortDir },
             folders: { key: foldersSortKey, direction: foldersSortDir },
             albums: { key: albumsSortKey, direction: albumsSortDir },
+        },
+        filters: {
+            rating: ratingFilter,
         },
         searchSettings,
     });
@@ -353,6 +362,7 @@ export function resetRuntimeState() {
     setAlbumsSortKey(defaults.sorting.albums.key);
     setAlbumsSortDir(defaults.sorting.albums.direction);
     setAlbumsViewMode(defaults.layout.albumsViewMode);
+    setRatingFilter(defaults.filters.rating);
     setSidebarWidth(defaults.layout.sidebarWidth);
     setSidebarCollapsed(defaults.layout.sidebarCollapsed);
     setLightboxMetaOpen(defaults.layout.lightboxMetaOpen);

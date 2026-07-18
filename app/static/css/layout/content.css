@@ -137,6 +137,26 @@
     color: var(--text);
 }
 
+.viewer-rating-filter-button.active {
+    border-color: color-mix(in srgb, var(--accent2) 58%, var(--border));
+    background: var(--accent2-dim);
+    color: var(--accent2);
+}
+
+.viewer-rating-filter-container .dropdown-menu {
+    top: calc(100% + 7px);
+    right: 0;
+    left: auto;
+    width: 205px;
+}
+
+.viewer-rating-filter-menu .rating-option-stars {
+    min-width: 48px;
+    color: var(--accent2);
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
 .viewer-sort-container .dropdown-menu {
     top: calc(100% + 7px);
 }

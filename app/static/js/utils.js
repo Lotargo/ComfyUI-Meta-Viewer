@@ -70,6 +70,7 @@ export function imageRenderSignature(img) {
         Array.isArray(img.size) ? img.size : null,
         img.mode || '',
         img.error || '',
+        img.rating || 0,
     ]);
 }
 

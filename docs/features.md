@@ -211,7 +211,12 @@ Right-clicking an indexed image in Viewer or Library exposes a compact shared me
 - Rename an available file through a modal while keeping its extension unchanged.
 - Copy the resolved local file path.
 - Copy positive/negative prompts and workflow JSON when present.
+- Set or clear a 1–5 star rating without leaving the current view.
 - Create a transparent PNG cutout directly from Viewer.
+
+Viewer can filter folders, albums, and the global Images feed by an exact rating or show
+only unrated images. The selected rating filter is retained with the other local viewer
+preferences and applies to subsequent pages as they load.
 
 Library adds contextual organization actions: toggle favorite, add to an album through a
 submenu, edit asset details, or remove the item from the index without deleting its

@@ -18,6 +18,7 @@ interface ImageListItem {
   error?: string | null;
   thumbnail?: string | null;
   has_local_file?: boolean | null;
+  rating?: number | null;
 }
 
 interface ImageDetail extends ImageListItem {

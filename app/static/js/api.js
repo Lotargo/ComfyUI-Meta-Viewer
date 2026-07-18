@@ -32,6 +32,7 @@ import {
     sortDir,
     sidebarSortKey,
     sidebarSortDir,
+    ratingFilter,
     saveState,
     sidebarActiveImageId,
     setSidebarActiveImageId,
@@ -87,7 +88,13 @@ function collectionFilter(collection = currentCollection) {
 
 function collectionImagesUrl(collection, page, perPage) {
     const filter = collectionFilter(collection);
-    return `/api/images?${filter}&page=${page}&per_page=${perPage}&sort_by=${sortKey}&sort_dir=${sortDir}`;
+    const rating = ratingFilter === null ? '' : `&rating=${ratingFilter}`;
+    return `/api/images?${filter}&page=${page}&per_page=${perPage}&sort_by=${sortKey}&sort_dir=${sortDir}${rating}`;
+}
+
+function sidebarImagesUrl(page, perPage) {
+    const rating = ratingFilter === null ? '' : `&rating=${ratingFilter}`;
+    return `/api/images?page=${page}&per_page=${perPage}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}${rating}`;
 }
 
 async function renderCurrentContent({ reconcileGallery = false } = {}) {
@@ -110,7 +117,7 @@ export async function loadBootstrap({ preferredCollection = null } = {}) {
     const [folderData, albumData, globalPage] = await Promise.all([
         fetchJson('/api/folders', { force: true }),
         fetchJson('/api/albums', { force: true }),
-        fetchJson(`/api/images?page=1&per_page=${PAGE_SIZE}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}`, { force: true }),
+        fetchJson(sidebarImagesUrl(1, PAGE_SIZE), { force: true }),
     ]);
     const folderList = folderData.folders || [];
     const albumList = albumData.albums || [];
@@ -169,10 +176,17 @@ export async function scanFolder(path, { recursive = false } = {}) {
         dom.folderNameEl.textContent = data.folder?.name || '';
         saveState();
 
-        const [folders] = await Promise.all([
+        const refreshes = [
             getFolders({ force: true }),
             loadSidebarImages({ force: true, render: false }),
-        ]);
+        ];
+        if (ratingFilter !== null) {
+            refreshes.push(loadCollectionImages(
+                { ...currentCollection },
+                { force: true, render: false },
+            ));
+        }
+        const [folders] = await Promise.all(refreshes);
         setFolders(folders);
 
         const { renderFoldersList, renderSidebar } = await import('./features/sidebar.js');
@@ -301,7 +315,7 @@ export async function loadMore() {
 
 export async function loadSidebarImages({ force = false, render = true, preserveCount = false } = {}) {
     const limit = preserveCount ? Math.max(PAGE_SIZE, sidebarPage * PAGE_SIZE) : PAGE_SIZE;
-    const data = await fetchJson(`/api/images?page=1&per_page=${limit}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}`, { force });
+    const data = await fetchJson(sidebarImagesUrl(1, limit), { force });
     const nextImages = data.images || [];
     const previousSignatures = new Map(sidebarImages.map(img => [img.id, imageRenderSignature(img)]));
     const changedImageIds = new Set(
@@ -372,7 +386,7 @@ export async function loadMoreSidebarImages() {
     }
     const nextPage = sidebarPage + 1;
     try {
-        const data = await fetchJson(`/api/images?page=${nextPage}&per_page=${PAGE_SIZE}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}`);
+        const data = await fetchJson(sidebarImagesUrl(nextPage, PAGE_SIZE));
         if (data.images?.length) {
             sidebarImages.push(...data.images);
             setSidebarPage(nextPage);
@@ -484,6 +498,38 @@ export async function applyImageRename(renamedAsset) {
     if (detailCache[imageId]) detailCache[imageId].file_name = fileName;
     invalidateApiCache();
     saveState();
+
+    const { renderSidebar } = await import('./features/sidebar.js');
+    renderSidebar({ reconcile: true });
+    await renderCurrentContent({ reconcileGallery: true });
+
+    if (dom.lightbox.classList.contains('open')) {
+        const { syncLightboxAfterCollectionChange } = await import('./lightbox.js');
+        syncLightboxAfterCollectionChange({ changedImageIds: new Set([imageId]) });
+    }
+}
+
+export async function applyImageRating(ratedAsset) {
+    const imageId = Number(ratedAsset?.id);
+    const rating = Number(ratedAsset?.rating) || null;
+    if (!Number.isInteger(imageId)) return;
+
+    [...images, ...sidebarImages].forEach(image => {
+        if (image.id === imageId) image.rating = rating;
+    });
+    if (detailCache[imageId]) detailCache[imageId].rating = rating;
+    invalidateApiCache();
+
+    if (ratingFilter !== null && (rating || 0) !== ratingFilter) {
+        const loads = [loadSidebarImages({ force: true, render: false, preserveCount: true })];
+        if (currentCollection.id) {
+            loads.push(loadCollectionImages(
+                { ...currentCollection },
+                { force: true, render: false, preserveCount: true },
+            ));
+        }
+        await Promise.all(loads);
+    }
 
     const { renderSidebar } = await import('./features/sidebar.js');
     renderSidebar({ reconcile: true });

@@ -50,6 +50,11 @@ const dirOptions = [
     { dir: 'desc', label: 'Descending' }
 ];
 
+function closeRatingFilterMenu() {
+    if (dom.ratingFilterMenu) dom.ratingFilterMenu.style.display = 'none';
+    dom.ratingFilterBtn?.setAttribute('aria-expanded', 'false');
+}
+
 function renderSortMenu(menuElement, currentKey, currentDir, options, onSortSelect, onDirSelect) {
     menuElement.innerHTML = '';
     
@@ -97,6 +102,7 @@ export function bindCentralSortEvents() {
         if (foldersMenu) foldersMenu.style.display = 'none';
         const albumsMenu = document.querySelector('#viewer-albums-sort-dropdown-menu');
         if (albumsMenu) albumsMenu.style.display = 'none';
+        closeRatingFilterMenu();
         
         if (isVisible) {
             sortMenu.style.display = 'none';
@@ -137,6 +143,7 @@ export function bindSidebarSortEvents() {
     
     sidebarSortBtn.onclick = (e) => {
         e.stopPropagation();
+        closeRatingFilterMenu();
         const isVisible = sidebarSortMenu.style.display !== 'none';
         
         const sortMenu = document.querySelector('#sort-dropdown-menu');
@@ -178,6 +185,7 @@ export function bindFoldersSortEvents() {
     
     foldersSortBtn.onclick = (e) => {
         e.stopPropagation();
+        closeRatingFilterMenu();
         const isVisible = foldersSortMenu.style.display !== 'none';
         
         const sortMenu = document.querySelector('#sort-dropdown-menu');
@@ -219,6 +227,7 @@ export function bindAlbumsSortEvents() {
 
     albumsSortBtn.onclick = event => {
         event.stopPropagation();
+        closeRatingFilterMenu();
         const isVisible = albumsSortMenu.style.display !== 'none';
         document.querySelectorAll('#sort-dropdown-menu, #sidebar-sort-dropdown-menu, #folders-sort-dropdown-menu')
             .forEach(menu => { menu.style.display = 'none'; });

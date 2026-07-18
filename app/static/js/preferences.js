@@ -40,6 +40,10 @@ function sidebarWidth(value) {
     return Math.min(500, Math.max(280, Math.round(value)));
 }
 
+function ratingFilter(value) {
+    return Number.isInteger(value) && value >= 0 && value <= 5 ? value : null;
+}
+
 export function createDefaultPreferences() {
     return {
         version: PREFERENCES_VERSION,
@@ -62,6 +66,9 @@ export function createDefaultPreferences() {
             images: { key: 'date', direction: 'desc' },
             folders: { key: 'scanned_at', direction: 'desc' },
             albums: { key: 'name', direction: 'asc' },
+        },
+        filters: {
+            rating: null,
         },
         searchSettings: {
             exactMatch: false,
@@ -89,6 +96,7 @@ export function normalizePreferences(value) {
     const imagesSort = isRecord(sorting.images) ? sorting.images : {};
     const foldersSort = isRecord(sorting.folders) ? sorting.folders : {};
     const albumsSort = isRecord(sorting.albums) ? sorting.albums : {};
+    const filters = isRecord(current.filters) ? current.filters : {};
     const search = isCurrentVersion || isLegacyVersion
         ? (isRecord(source.searchSettings) ? source.searchSettings : {})
         : {};
@@ -128,6 +136,9 @@ export function normalizePreferences(value) {
                 key: enumValue(albumsSort.key, ALBUM_SORT_KEYS, defaults.sorting.albums.key),
                 direction: enumValue(albumsSort.direction, SORT_DIRECTIONS, defaults.sorting.albums.direction),
             },
+        },
+        filters: {
+            rating: ratingFilter(filters.rating),
         },
         searchSettings: {
             exactMatch: booleanValue(search.exactMatch, defaults.searchSettings.exactMatch),

@@ -23,6 +23,10 @@ export function initSearch() {
         dom.searchSettingsBtn.addEventListener('click', event => {
             event.stopPropagation();
             const isVisible = dom.searchSettingsDropdown.style.display !== 'none';
+            if (!isVisible && dom.ratingFilterMenu) {
+                dom.ratingFilterMenu.style.display = 'none';
+                dom.ratingFilterBtn?.setAttribute('aria-expanded', 'false');
+            }
             setSettingsVisible(!isVisible);
             if (!isVisible) syncSettingsToUI();
         });

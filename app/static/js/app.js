@@ -28,6 +28,7 @@ import { initKeyboardShortcuts } from './features/keyboard.js';
 import { initCentralCollectionShortcuts } from './central-shortcuts.js';
 import { loadBootstrap } from './api.js';
 import { initSorting } from './features/sorting.js';
+import { initRatingFilter } from './features/rating-filter.js';
 
 function finishBoot() {
     requestAnimationFrame(() => {
@@ -41,6 +42,7 @@ async function bootstrapApplication() {
     setIsLoading(true);
     resetRuntimeState();
     loadState();
+    initRatingFilter();
     const preferredCollection = { type: currentCollection.type, id: currentCollection.id };
 
     applySidebarLayout();

@@ -74,7 +74,7 @@ class AISkillsTest(unittest.TestCase):
         # Pony supports captions and tags; tag-only is not treated as fact.
         self.assertIn("natural-language captions", text)
         self.assertIn("It is NOT a tag-only model", text)
-        self.assertIn("deterministic hybrid structure", text)
+        self.assertRegex(text, r"deterministic\s+hybrid structure")
 
         # Base Pony normally starts without a negative prompt.
         self.assertIn('negative_prompt": ""', text)

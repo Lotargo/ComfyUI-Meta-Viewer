@@ -95,6 +95,30 @@ Antigravity. Это уменьшает поверхность утечки и с
 - [Google Antigravity CLI print mode and OAuth flow](https://codelabs.developers.google.com/sdd-agy-cli)
 - [Python Keyring API and backend behavior](https://keyring.readthedocs.io/en/stable/)
 
+## Архитектурная граница с prompt execution
+
+Задание 05 отвечает за подключения, авторизацию, вызов транспорта, отмену, timeout и нормализацию технических ошибок. Оно не должно содержать prompt knowledge или собственный workflow реконструкции.
+
+Нужно различать два типа execution backend:
+
+### Direct model
+
+- OpenAI-compatible профиль;
+- LM Studio как preset того же протокола;
+- прямой text или vision запрос;
+- system/user messages и структурированный ответ контролируются приложением.
+
+### Agent host
+
+- OpenCode;
+- Claude Code;
+- Antigravity;
+- будущий Codex adapter.
+
+Agent host не является обычным model provider. Он имеет собственный agent loop, управление контекстом, skills, tools, permissions и возможную MCP/subagent архитектуру. Meta Viewer использует штатную авторизацию host и не должен подменять его внутренний runtime большим OpenAI-подобным system prompt.
+
+Канонические prompt profiles, `InstructionBundle`, capability-based routing, skill exporters и границы MCP описаны в [06A. Prompt profile and agent execution architecture](06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md).
+
 ## Критерии готовности
 
 - Пользователь может создать несколько OpenAI-compatible профилей.
@@ -103,3 +127,5 @@ Antigravity. Это уменьшает поверхность утечки и с
 - Секреты не попадают в интерфейс и логи открытым текстом.
 - Ошибки цензуры, сети, timeout и несовместимого формата различаются.
 - AI-данные не подменяют metadata исходного asset.
+- Direct model и agent host различаются в доменной модели и UI.
+- Transport adapters не содержат prompt knowledge и не дублируют manifests.

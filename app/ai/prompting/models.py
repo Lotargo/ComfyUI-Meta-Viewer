@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -63,6 +63,14 @@ class PromptTask(StrictModel):
         cleaned = value.strip()
         return cleaned or None
 
+    @field_validator("output_contract")
+    @classmethod
+    def clean_output_contract(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("output_contract cannot be empty.")
+        return cleaned
+
     @model_validator(mode="after")
     def validate_modifiers(self) -> "PromptTask":
         if len(set(self.modifiers)) != len(self.modifiers):
@@ -81,6 +89,14 @@ class SceneSubject(StrictModel):
     attributes: dict[str, str] = Field(default_factory=dict)
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
+    @field_validator("kind")
+    @classmethod
+    def clean_kind(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Scene subject kind cannot be empty.")
+        return cleaned
+
 
 class SceneComposition(StrictModel):
     shot: str | None = Field(default=None, max_length=240)
@@ -93,9 +109,17 @@ class VisibleText(StrictModel):
     placement: str | None = Field(default=None, max_length=500)
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
+    @field_validator("text")
+    @classmethod
+    def clean_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Visible text cannot be empty.")
+        return cleaned
+
 
 class SceneSpec(StrictModel):
-    schema_version: str = "1"
+    schema_version: Literal["1"] = "1"
     recommended_scenario: PromptScenario | None = None
     subjects: tuple[SceneSubject, ...] = ()
     composition: SceneComposition = Field(default_factory=SceneComposition)
@@ -109,13 +133,21 @@ class SceneSpec(StrictModel):
 
 
 class PromptResult(StrictModel):
-    schema_version: str = "1"
+    schema_version: Literal["1"] = "1"
     positive_prompt: str = Field(min_length=1, max_length=40_000)
     negative_prompt: str = Field(default="", max_length=20_000)
 
-    @field_validator("positive_prompt", "negative_prompt")
+    @field_validator("positive_prompt")
     @classmethod
-    def strip_prompt(cls, value: str) -> str:
+    def clean_positive_prompt(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("positive_prompt cannot be empty.")
+        return cleaned
+
+    @field_validator("negative_prompt")
+    @classmethod
+    def clean_negative_prompt(cls, value: str) -> str:
         return value.strip()
 
 
@@ -126,10 +158,13 @@ class InstructionSection(StrictModel):
     source: str = Field(min_length=1, max_length=500)
     content: str = Field(min_length=1)
 
-    @field_validator("content")
+    @field_validator("section_id", "kind", "version", "source", "content")
     @classmethod
-    def strip_content(cls, value: str) -> str:
-        return value.strip()
+    def clean_required_string(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Instruction section fields cannot be empty.")
+        return cleaned
 
 
 class InstructionBundle(StrictModel):

@@ -184,12 +184,16 @@ class InstructionBundle(StrictModel):
             "4. Selected operation manifest.\n"
             "5. Family base defaults."
         ]
+        warnings_added = False
         for section in self.sections:
+            if section.kind == "output_contract" and self.warnings:
+                blocks.append("COMPILER WARNINGS\n" + "\n".join(self.warnings))
+                warnings_added = True
             blocks.append(
                 f"SECTION {section.kind.upper()}: {section.section_id} "
                 f"(version {section.version})\n{section.content}"
             )
-        if self.warnings:
+        if self.warnings and not warnings_added:
             blocks.append("COMPILER WARNINGS\n" + "\n".join(self.warnings))
         return "\n\n".join(blocks).strip() + "\n"
 

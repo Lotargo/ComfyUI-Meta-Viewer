@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from ..skills import load_skill
@@ -47,13 +48,20 @@ class PromptCompiler:
         except PromptRegistryError as exc:
             raise PromptCompilerError(str(exc)) from exc
 
+        try:
+            family_content = load_skill(family_profile.legacy_skill_name)
+        except OSError as exc:
+            raise PromptCompilerError(
+                f"Cannot read family base '{family_profile.legacy_skill_name}'."
+            ) from exc
+
         sections = [
-            InstructionSection(
+            self._build_section(
                 section_id=task.family.value,
                 kind="family_base",
                 version=family_profile.version,
                 source=f"app/ai/skills/{family_profile.legacy_skill_name}.txt",
-                content=load_skill(family_profile.legacy_skill_name),
+                content=family_content,
             ),
             self._load_manifest(operation, kind="operation"),
             self._load_manifest(scenario, kind="scenario"),
@@ -110,16 +118,36 @@ class PromptCompiler:
                 f"Cannot read {kind} manifest '{definition.manifest_id}' "
                 f"from {PromptCompiler._display_path(path)}."
             ) from exc
-        if not content.strip():
-            raise PromptCompilerError(
-                f"The {kind} manifest '{definition.manifest_id}' is empty."
-            )
-        return InstructionSection(
+        return PromptCompiler._build_section(
             section_id=definition.manifest_id,
             kind=kind,
             version=definition.version,
             source=PromptCompiler._display_path(path),
             content=content,
+        )
+
+    @staticmethod
+    def _build_section(
+        *,
+        section_id: str,
+        kind: str,
+        version: str,
+        source: str,
+        content: str,
+    ) -> InstructionSection:
+        normalized = content.strip()
+        if not normalized:
+            raise PromptCompilerError(
+                f"The {kind} instruction section '{section_id}' is empty."
+            )
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        return InstructionSection(
+            section_id=section_id,
+            kind=kind,
+            version=version,
+            source=source,
+            content_sha256=digest,
+            content=normalized,
         )
 
     @staticmethod

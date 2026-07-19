@@ -5,7 +5,7 @@ import base64
 import hashlib
 import json
 import sys
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Literal
@@ -15,8 +15,13 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from ..paths import build_runtime_paths, normalize_path
-from .execution import DirectPromptExecutionError, DirectPromptExecutionResult, DirectPromptExecutor
+from ..config_store import ConfigStoreError
+from ..paths import PathValidationError, build_runtime_paths, normalize_path
+from .execution import (
+    DirectPromptExecutionError,
+    DirectPromptExecutionResult,
+    DirectPromptExecutor,
+)
 from .profiles import AIProfileStore, AIProfileStoreError
 from .prompting import (
     CapabilityStatus,
@@ -27,6 +32,7 @@ from .prompting import (
     PromptScenario,
     PromptTask,
 )
+from .secrets import SecretStoreError
 
 
 SmokeStatus = Literal["pass", "warn", "fail"]
@@ -88,6 +94,13 @@ class SmokeRunReport:
         return any(check.status == "fail" for check in self.checks)
 
     def to_dict(self) -> dict[str, Any]:
+        image = None
+        if self.image is not None:
+            image = {
+                "path": str(self.image.path),
+                "bytes": self.image.byte_count,
+                "sha256": self.image.sha256,
+            }
         return {
             "schema_version": "1",
             "started_at": self.started_at,
@@ -108,15 +121,7 @@ class SmokeRunReport:
             "input": {
                 "text": self.effective_input,
                 "used_default": self.used_default_input,
-                "image": (
-                    {
-                        "path": str(self.image.path),
-                        "bytes": self.image.byte_count,
-                        "sha256": self.image.sha256,
-                    }
-                    if self.image is not None
-                    else None
-                ),
+                "image": image,
             },
             "result": self.execution.result.model_dump(mode="json"),
             "execution": self.execution.metadata(),
@@ -136,7 +141,7 @@ SCENARIOS: dict[str, SmokeScenario] = {
     "flux-portrait-generate": SmokeScenario(
         scenario_id="flux-portrait-generate",
         title="FLUX portrait generation",
-        description="Text-only safe portrait prompt through the FLUX family profile.",
+        description="Text-only safe portrait through the FLUX family profile.",
         task=PromptTask(
             family=PromptFamily.FLUX,
             operation=PromptOperation.GENERATE,
@@ -153,7 +158,7 @@ SCENARIOS: dict[str, SmokeScenario] = {
     "pony-portrait-generate": SmokeScenario(
         scenario_id="pony-portrait-generate",
         title="Pony portrait generation",
-        description="Checks the Pony hybrid syntax, complete score prefix, source and safe rating.",
+        description="Checks Pony hybrid syntax, score prefix, source and safe rating.",
         task=PromptTask(
             family=PromptFamily.PONY,
             operation=PromptOperation.GENERATE,
@@ -176,7 +181,7 @@ SCENARIOS: dict[str, SmokeScenario] = {
     "sdxl-graphic-text-generate": SmokeScenario(
         scenario_id="sdxl-graphic-text-generate",
         title="SDXL graphic design generation",
-        description="Exercises a limited typography capability and exact visible-text preservation.",
+        description="Exercises limited typography and exact visible-text preservation.",
         task=PromptTask(
             family=PromptFamily.SDXL,
             operation=PromptOperation.GENERATE,
@@ -252,9 +257,10 @@ def resolve_smoke_profile(
     selected: dict[str, Any] | None = None
     selected_by = ""
     if selector:
-        exact_id = next((profile for profile in profiles if profile["id"] == selector), None)
-        if exact_id is not None:
-            selected = exact_id
+        selected = next(
+            (profile for profile in profiles if profile["id"] == selector), None
+        )
+        if selected is not None:
             selected_by = "explicit id"
         else:
             matches = [
@@ -264,7 +270,7 @@ def resolve_smoke_profile(
             ]
             if len(matches) > 1:
                 raise SmokeRunnerError(
-                    "More than one direct profile has this name; use the profile ID.",
+                    "More than one direct profile has this name; use its ID.",
                     code="ambiguous_profile",
                 )
             if matches:
@@ -294,7 +300,12 @@ def resolve_smoke_profile(
         raise SmokeRunnerError(str(detail), code="missing_credentials")
 
     private_profile = store.get(selected["id"])
-    api_key = store.resolve_api_key(private_profile)
+    try:
+        api_key = store.resolve_api_key(private_profile)
+    except SecretStoreError as exc:
+        raise SmokeRunnerError(
+            f"Cannot read the credential store: {exc}", code="credential_store_error"
+        ) from exc
     return ResolvedSmokeProfile(
         profile=private_profile,
         api_key=api_key,
@@ -309,12 +320,15 @@ def load_smoke_image(path_value: str | Path) -> LoadedSmokeImage:
     mime_type = _IMAGE_MIME_TYPES.get(path.suffix.lower())
     if mime_type is None:
         raise SmokeRunnerError(
-            "Smoke images must be PNG, JPEG, WEBP, or GIF.", code="unsupported_image"
+            "Smoke images must be PNG, JPEG, WEBP, or GIF.",
+            code="unsupported_image",
         )
     try:
         payload = path.read_bytes()
     except OSError as exc:
-        raise SmokeRunnerError(f"Cannot read image: {path}: {exc}", code="image_read_error") from exc
+        raise SmokeRunnerError(
+            f"Cannot read image: {path}: {exc}", code="image_read_error"
+        ) from exc
     if not payload:
         raise SmokeRunnerError("The selected image is empty.", code="invalid_image")
     return LoadedSmokeImage(
@@ -340,26 +354,25 @@ def evaluate_smoke_checks(
     result: PromptResult = execution.result
     checks: list[SmokeCheckResult] = []
     for check_id in scenario.checks:
+        status: SmokeStatus = "fail"
+        detail = f"Unknown smoke check: {check_id}"
         if check_id == "nonempty_result":
             passed = bool(result.positive_prompt.strip())
-            checks.append(SmokeCheckResult(
-                check_id,
-                "pass" if passed else "fail",
-                "Positive prompt is non-empty." if passed else "Positive prompt is empty.",
-            ))
+            status = "pass" if passed else "fail"
+            detail = "Positive prompt is non-empty." if passed else "Positive prompt is empty."
         elif check_id == "strict_schema":
-            checks.append(SmokeCheckResult(
-                check_id,
-                "pass",
-                f"PromptResult schema_version={result.schema_version} passed Pydantic validation.",
-            ))
+            status = "pass"
+            detail = (
+                f"PromptResult schema_version={result.schema_version} passed Pydantic validation."
+            )
         elif check_id == "safe_modifier_compiled":
             passed = PromptModifier.SAFE in execution.bundle.task.modifiers
-            checks.append(SmokeCheckResult(
-                check_id,
-                "pass" if passed else "fail",
-                "Safe modifier is present in the compiled task." if passed else "Safe modifier is missing.",
-            ))
+            status = "pass" if passed else "fail"
+            detail = (
+                "Safe modifier is present in the compiled task."
+                if passed
+                else "Safe modifier is missing."
+            )
         elif check_id == "pony_complete_score_prefix":
             tokens = (
                 "score_9",
@@ -370,65 +383,66 @@ def evaluate_smoke_checks(
                 "score_4_up",
             )
             passed = _contains_all(result.positive_prompt, tokens)
-            checks.append(SmokeCheckResult(
-                check_id,
-                "pass" if passed else "fail",
-                "Complete Pony V6 XL score prefix found." if passed else "One or more Pony score tokens are missing.",
-            ))
+            status = "pass" if passed else "fail"
+            detail = (
+                "Complete Pony V6 XL score prefix found."
+                if passed
+                else "One or more Pony score tokens are missing."
+            )
         elif check_id == "pony_source_tag":
             passed = any(
                 token in result.positive_prompt.casefold()
-                for token in ("source_anime", "source_cartoon", "source_furry", "source_pony")
+                for token in (
+                    "source_anime",
+                    "source_cartoon",
+                    "source_furry",
+                    "source_pony",
+                )
             )
-            checks.append(SmokeCheckResult(
-                check_id,
-                "pass" if passed else "fail",
-                "A supported Pony source tag is present." if passed else "No supported Pony source tag was found.",
-            ))
+            status = "pass" if passed else "fail"
+            detail = (
+                "A supported Pony source tag is present."
+                if passed
+                else "No supported Pony source tag was found."
+            )
         elif check_id == "pony_safe_rating":
             passed = "rating_safe" in result.positive_prompt.casefold()
-            checks.append(SmokeCheckResult(
-                check_id,
-                "pass" if passed else "fail",
-                "rating_safe is present." if passed else "rating_safe is missing.",
-            ))
+            status = "pass" if passed else "fail"
+            detail = "rating_safe is present." if passed else "rating_safe is missing."
         elif check_id == "limited_warning":
             passed = (
                 execution.bundle.capability_status is CapabilityStatus.LIMITED
                 and bool(execution.bundle.warnings)
             )
-            checks.append(SmokeCheckResult(
-                check_id,
-                "pass" if passed else "fail",
-                "Limited capability warning was compiled." if passed else "Expected limited capability warning is missing.",
-            ))
+            status = "pass" if passed else "fail"
+            detail = (
+                "Limited capability warning was compiled."
+                if passed
+                else "Expected limited capability warning is missing."
+            )
         elif check_id == "default_visible_text_preserved":
             if not used_default_input:
-                checks.append(SmokeCheckResult(
-                    check_id,
-                    "warn",
-                    "Custom input was used, so the built-in VECTOR GARDEN preservation check was skipped.",
-                ))
+                status = "warn"
+                detail = (
+                    "Custom input was used, so the built-in VECTOR GARDEN check was skipped."
+                )
             else:
                 passed = "VECTOR GARDEN" in result.positive_prompt
-                checks.append(SmokeCheckResult(
-                    check_id,
-                    "pass" if passed else "fail",
-                    "Exact title VECTOR GARDEN was preserved." if passed else "Exact title VECTOR GARDEN was not preserved.",
-                ))
+                status = "pass" if passed else "fail"
+                detail = (
+                    "Exact title VECTOR GARDEN was preserved."
+                    if passed
+                    else "Exact title VECTOR GARDEN was not preserved."
+                )
         elif check_id == "multimodal_input_used":
             passed = image is not None
-            checks.append(SmokeCheckResult(
-                check_id,
-                "pass" if passed else "fail",
-                "A validated local image was attached." if passed else "No image was attached.",
-            ))
-        else:
-            checks.append(SmokeCheckResult(
-                check_id,
-                "fail",
-                f"Unknown smoke check: {check_id}",
-            ))
+            status = "pass" if passed else "fail"
+            detail = (
+                "A validated local image was attached."
+                if passed
+                else "No image was attached."
+            )
+        checks.append(SmokeCheckResult(check_id, status, detail))
     return tuple(checks)
 
 
@@ -442,29 +456,35 @@ def run_smoke_scenario(
     checkpoint_profile: str | None = None,
     timeout_seconds: int | None = None,
     executor: DirectPromptExecutor | None = None,
-) -> tuple[SmokeRunReport, ResolvedSmokeProfile]:
+    resolved_profile: ResolvedSmokeProfile | None = None,
+    loaded_image: LoadedSmokeImage | None = None,
+) -> SmokeRunReport:
     used_default_input = user_input is None
     effective_input = scenario.default_input if user_input is None else user_input.strip()
     if not effective_input:
         raise SmokeRunnerError("Smoke scenario input cannot be empty.", code="invalid_input")
 
-    if scenario.requires_image and image_path is None:
+    if loaded_image is not None and image_path is not None:
+        raise SmokeRunnerError(
+            "Pass either loaded_image or image_path, not both.", code="invalid_image_input"
+        )
+    image = loaded_image or (load_smoke_image(image_path) if image_path is not None else None)
+    if scenario.requires_image and image is None:
         raise SmokeRunnerError(
             f"Scenario '{scenario.scenario_id}' requires --image PATH.",
             code="image_required",
         )
-    if not scenario.requires_image and image_path is not None:
+    if not scenario.requires_image and image is not None:
         raise SmokeRunnerError(
             f"Scenario '{scenario.scenario_id}' does not accept an image.",
             code="unexpected_image",
         )
-    image = load_smoke_image(image_path) if image_path is not None else None
-    resolved = resolve_smoke_profile(
+
+    resolved = resolved_profile or resolve_smoke_profile(
         store,
         selector=selector,
         requires_image=scenario.requires_image,
     )
-
     profile = dict(resolved.profile)
     if timeout_seconds is not None:
         if not 5 <= timeout_seconds <= 600:
@@ -473,13 +493,13 @@ def run_smoke_scenario(
             )
         profile["timeout_seconds"] = timeout_seconds
 
-    task = scenario.task
+    task_payload = scenario.task.model_dump(mode="json")
     if checkpoint_profile is not None:
-        task = task.model_copy(update={"checkpoint_profile": checkpoint_profile.strip() or None})
+        task_payload["checkpoint_profile"] = checkpoint_profile.strip() or None
+    task = PromptTask.model_validate(task_payload)
 
     started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    direct_executor = executor or DirectPromptExecutor()
-    execution = direct_executor.execute(
+    execution = (executor or DirectPromptExecutor()).execute(
         profile=profile,
         api_key=resolved.api_key,
         task=task,
@@ -492,7 +512,7 @@ def run_smoke_scenario(
         used_default_input=used_default_input,
         image=image,
     )
-    report = SmokeRunReport(
+    return SmokeRunReport(
         scenario=scenario,
         profile=profile,
         execution=execution,
@@ -502,7 +522,6 @@ def run_smoke_scenario(
         image=image,
         started_at=started_at,
     )
-    return report, resolved
 
 
 def _status_style(status: SmokeStatus) -> str:
@@ -566,7 +585,7 @@ def _print_profiles(console: Console, store: AIProfileStore) -> None:
 def _print_run_header(
     console: Console,
     *,
-    report_scenario: SmokeScenario,
+    scenario: SmokeScenario,
     profile: dict[str, Any],
     selected_by: str,
     config_path: Path,
@@ -575,8 +594,12 @@ def _print_run_header(
     table = Table(show_header=False, box=None, pad_edge=False)
     table.add_column(style="bold cyan")
     table.add_column()
-    table.add_row("Scenario", f"{report_scenario.scenario_id} · {report_scenario.title}")
-    table.add_row("Task", f"{report_scenario.task.family.value} / {report_scenario.task.operation.value} / {report_scenario.task.scenario.value}")
+    table.add_row("Scenario", f"{scenario.scenario_id} · {scenario.title}")
+    table.add_row(
+        "Task",
+        f"{scenario.task.family.value} / {scenario.task.operation.value} / "
+        f"{scenario.task.scenario.value}",
+    )
     table.add_row("Profile", f"{profile['name']} · {profile['model']} ({selected_by})")
     table.add_row("Config", str(config_path))
     table.add_row("Image", str(image.path) if image is not None else "none")
@@ -591,16 +614,17 @@ def _print_report(console: Console, report: SmokeRunReport, *, show_bundle: bool
     result_table.add_column("Value", overflow="fold")
     result_table.add_row("schema_version", report.execution.result.schema_version)
     result_table.add_row("positive_prompt", report.execution.result.positive_prompt)
-    result_table.add_row("negative_prompt", report.execution.result.negative_prompt or "<empty>")
+    result_table.add_row(
+        "negative_prompt", report.execution.result.negative_prompt or "<empty>"
+    )
     console.print(result_table)
 
-    metadata = report.execution.metadata()
     section_table = Table(title="Compiled instruction sections")
     section_table.add_column("Kind")
     section_table.add_column("ID")
     section_table.add_column("Version")
     section_table.add_column("SHA-256")
-    for section in metadata["bundle"]["sections"]:
+    for section in report.execution.metadata()["bundle"]["sections"]:
         section_table.add_row(
             section["kind"],
             section["section_id"],
@@ -629,14 +653,22 @@ def _print_report(console: Console, report: SmokeRunReport, *, show_bundle: bool
     summary.add_row("Capability", report.execution.bundle.capability_status.value)
     summary.add_row("Warnings", str(len(report.execution.bundle.warnings)))
     summary.add_row("Result", "FAILED" if report.failed else "PASSED")
-    console.print(Panel(summary, title="Summary", border_style="red" if report.failed else "green"))
+    console.print(
+        Panel(
+            summary,
+            title="Summary",
+            border_style="red" if report.failed else "green",
+        )
+    )
 
     if show_bundle:
-        console.print(Panel(
-            Text(report.execution.bundle.render()),
-            title="Full InstructionBundle",
-            border_style="magenta",
-        ))
+        console.print(
+            Panel(
+                Text(report.execution.bundle.render()),
+                title="Full InstructionBundle",
+                border_style="magenta",
+            )
+        )
 
 
 def _read_input(args: argparse.Namespace) -> str | None:
@@ -648,45 +680,66 @@ def _read_input(args: argparse.Namespace) -> str | None:
     try:
         return path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise SmokeRunnerError(f"Cannot read input file: {path}: {exc}", code="input_read_error") from exc
+        raise SmokeRunnerError(
+            f"Cannot read input file: {path}: {exc}", code="input_read_error"
+        ) from exc
 
 
 def _write_json_report(path_value: str, report: SmokeRunReport) -> Path:
     path = normalize_path(path_value)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(report.to_dict(), ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(report.to_dict(), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise SmokeRunnerError(
+            f"Cannot write JSON report: {path}: {exc}", code="report_write_error"
+        ) from exc
     return path
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.ai.smoke",
-        description="Run explicit real-provider AI smoke scenarios with Rich console output.",
+        description="Run explicit real-provider AI smoke scenarios with Rich output.",
     )
     parser.add_argument("--no-color", action="store_true", help="Disable terminal colors.")
     subparsers = parser.add_subparsers(dest="command", required=True)
-
     subparsers.add_parser("list", help="List built-in smoke scenarios.")
 
-    profiles = subparsers.add_parser("profiles", help="List configured AI profiles without secrets.")
+    profiles = subparsers.add_parser(
+        "profiles", help="List configured AI profiles without secrets."
+    )
     profiles.add_argument("--config", help="Override the application config.json path.")
 
     run = subparsers.add_parser("run", help="Run one real-provider scenario.")
     run.add_argument("scenario", choices=tuple(SCENARIOS))
-    run.add_argument("--profile", help="Direct profile ID or exact profile name. Defaults to app settings.")
+    run.add_argument(
+        "--profile",
+        help="Direct profile ID or exact profile name. Defaults to app settings.",
+    )
     run.add_argument("--config", help="Override the application config.json path.")
     input_group = run.add_mutually_exclusive_group()
     input_group.add_argument("--input", help="Override the built-in scenario input.")
-    input_group.add_argument("--input-file", help="Read the scenario input from a UTF-8 text file.")
+    input_group.add_argument(
+        "--input-file", help="Read the scenario input from a UTF-8 text file."
+    )
     run.add_argument("--image", help="Local image path for multimodal scenarios.")
-    run.add_argument("--checkpoint-profile", help="Attach an explicit checkpoint profile identifier.")
-    run.add_argument("--timeout", type=int, help="Override timeout for this run only (5–600 seconds).")
-    run.add_argument("--show-bundle", action="store_true", help="Print the full compiled instruction bundle.")
+    run.add_argument(
+        "--checkpoint-profile", help="Attach an explicit checkpoint profile identifier."
+    )
+    run.add_argument(
+        "--timeout", type=int, help="Override timeout for this run only (5–600 seconds)."
+    )
+    run.add_argument(
+        "--show-bundle", action="store_true", help="Print the full instruction bundle."
+    )
     run.add_argument("--json-out", help="Write a sanitized JSON report to this path.")
-    run.add_argument("--debug", action="store_true", help="Print normalized technical error details.")
+    run.add_argument(
+        "--debug", action="store_true", help="Print normalized technical error details."
+    )
     return parser
 
 
@@ -702,42 +755,39 @@ def main(argv: list[str] | None = None) -> int:
         _print_scenarios(console)
         return 0
 
-    config_path = _config_path(getattr(args, "config", None))
-    store = AIProfileStore(config_path)
-    if args.command == "profiles":
-        try:
+    try:
+        config_path = _config_path(getattr(args, "config", None))
+        store = AIProfileStore(config_path)
+        if args.command == "profiles":
             _print_profiles(console, store)
             return 0
-        except (AIProfileStoreError, OSError) as exc:
-            console.print(Panel(str(exc), title="Profile error", border_style="red"))
-            return 2
 
-    scenario = scenario_by_id(args.scenario)
-    image_preview = load_smoke_image(args.image) if args.image else None
-    try:
+        scenario = scenario_by_id(args.scenario)
         user_input = _read_input(args)
-        resolved_preview = resolve_smoke_profile(
+        image = load_smoke_image(args.image) if args.image else None
+        resolved = resolve_smoke_profile(
             store,
             selector=args.profile,
             requires_image=scenario.requires_image,
         )
         _print_run_header(
             console,
-            report_scenario=scenario,
-            profile=resolved_preview.profile,
-            selected_by=resolved_preview.selected_by,
+            scenario=scenario,
+            profile=resolved.profile,
+            selected_by=resolved.selected_by,
             config_path=config_path,
-            image=image_preview,
+            image=image,
         )
         with console.status("Executing real provider call…", spinner="dots"):
-            report, resolved = run_smoke_scenario(
+            report = run_smoke_scenario(
                 store=store,
                 scenario=scenario,
                 selector=args.profile,
                 user_input=user_input,
-                image_path=args.image,
                 checkpoint_profile=args.checkpoint_profile,
                 timeout_seconds=args.timeout,
+                resolved_profile=resolved,
+                loaded_image=image,
             )
         _print_report(console, report, show_bundle=args.show_bundle)
         if args.json_out:
@@ -746,13 +796,28 @@ def main(argv: list[str] | None = None) -> int:
         return 3 if report.failed else 0
     except DirectPromptExecutionError as exc:
         detail = f"stage={exc.stage} · code={exc.code}\n{exc}"
-        if args.debug and exc.technical_error:
+        if getattr(args, "debug", False) and exc.technical_error:
             detail += f"\n\nTechnical detail:\n{exc.technical_error}"
-        console.print(Panel(Text(detail), title="Execution failed", border_style="red"))
+        console.print(
+            Panel(Text(detail), title="Execution failed", border_style="red")
+        )
         return 1
-    except (SmokeRunnerError, AIProfileStoreError, OSError) as exc:
+    except (
+        SmokeRunnerError,
+        AIProfileStoreError,
+        ConfigStoreError,
+        SecretStoreError,
+        PathValidationError,
+        OSError,
+    ) as exc:
         code = getattr(exc, "code", "configuration_error")
-        console.print(Panel(Text(f"code={code}\n{exc}"), title="Smoke configuration error", border_style="red"))
+        console.print(
+            Panel(
+                Text(f"code={code}\n{exc}"),
+                title="Smoke configuration error",
+                border_style="red",
+            )
+        )
         return 2
 
 

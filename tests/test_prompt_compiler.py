@@ -56,6 +56,13 @@ class PromptCompilerTest(unittest.TestCase):
         self.assertEqual(first.versions["operation"], "1")
         self.assertEqual(first.versions["scenario"], "1")
         self.assertEqual(first.versions["modifier:safe"], "1")
+        self.assertTrue(all(
+            len(section.content_sha256) == 64 for section in first.sections
+        ))
+        self.assertEqual(
+            first.metadata()["sections"][0]["content_sha256"],
+            first.sections[0].content_sha256,
+        )
         self.assertIn("INSTRUCTION PRECEDENCE", first.render())
         self.assertIn("Output contract and hard content boundaries", first.render())
         self.assertIn('"schema_version": "1"', first.render())
@@ -67,10 +74,18 @@ class PromptCompilerTest(unittest.TestCase):
             scenario=PromptScenario.GRAPHIC_DESIGN_TEXT,
         ))
 
+        rendered = bundle.render()
         self.assertEqual(bundle.capability_status, CapabilityStatus.LIMITED)
         self.assertEqual(len(bundle.warnings), 1)
         self.assertIn("limited support", bundle.warnings[0])
-        self.assertIn("booklet covers", bundle.render())
+        self.assertIn("booklet covers", rendered)
+        self.assertLess(
+            rendered.index("COMPILER WARNINGS"),
+            rendered.index("SECTION OUTPUT_CONTRACT"),
+        )
+        self.assertTrue(
+            rendered.rstrip().endswith("the response remains valid JSON.")
+        )
 
     def test_unsupported_pony_graphic_design_is_rejected(self) -> None:
         with self.assertRaisesRegex(

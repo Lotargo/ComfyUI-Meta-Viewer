@@ -5,6 +5,7 @@ description = "ComfyUI image metadata viewer"
 authors = ["Lotargo"]
 license = "AGPL-3.0-only"
 readme = "README.md"
+packages = [{ include = "app" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"

@@ -92,8 +92,14 @@ class OpenCodePromptExecutorTest(unittest.TestCase):
             captured["task"] = (workspace / "cmv-task.md").read_text(
                 encoding="utf-8"
             )
-            task_arg = next(arg for arg in args if arg.startswith("--file=") and arg.endswith("cmv-task.md"))
-            captured["task_arg_exists"] = Path(task_arg.split("=", 1)[1]).is_file()
+            task_arg = next(
+                arg
+                for arg in args
+                if arg.startswith("--file=") and arg.endswith("cmv-task.md")
+            )
+            captured["task_arg_exists"] = Path(
+                task_arg.split("=", 1)[1]
+            ).is_file()
             return CommandResult(
                 returncode=0,
                 stdout=event_output,
@@ -123,6 +129,7 @@ class OpenCodePromptExecutorTest(unittest.TestCase):
             executed.result.positive_prompt,
             "studio portrait, warm side light",
         )
+        self.assertEqual(executed.response_normalizations, ())
         self.assertRegex(executed.raw_response_sha256, r"^[0-9a-f]{64}$")
         self.assertTrue(captured["workspace_exists"])
         self.assertTrue(captured["task_arg_exists"])
@@ -151,10 +158,55 @@ class OpenCodePromptExecutorTest(unittest.TestCase):
         self.assertEqual(caught.exception.stage, "input")
         executable.assert_not_called()
 
-    def test_markdown_wrapped_result_is_a_contract_failure(self) -> None:
+    def test_single_markdown_json_fence_is_normalized_at_host_boundary(self) -> None:
         output = json.dumps({
             "part": {
-                "text": '```json\n{"schema_version":"1","positive_prompt":"portrait","negative_prompt":""}\n```'
+                "text": (
+                    '```json\n'
+                    '{"schema_version":"1","positive_prompt":"portrait",'
+                    '"negative_prompt":""}\n'
+                    '```'
+                )
+            }
+        })
+        with (
+            patch(
+                "app.ai.execution.opencode.find_executable",
+                return_value="C:/tools/opencode.cmd",
+            ),
+            patch(
+                "app.ai.execution.opencode.run_command",
+                return_value=CommandResult(
+                    returncode=0,
+                    stdout=output,
+                    stderr="",
+                    elapsed_ms=20,
+                ),
+            ),
+        ):
+            executed = OpenCodePromptExecutor().execute(
+                profile=opencode_profile(multimodal=False),
+                task=portrait_task(),
+                user_input="Create a portrait.",
+            )
+        self.assertEqual(executed.result.positive_prompt, "portrait")
+        self.assertEqual(
+            executed.response_normalizations,
+            ("markdown_json_fence_removed",),
+        )
+        self.assertEqual(
+            executed.metadata()["response_normalizations"],
+            ["markdown_json_fence_removed"],
+        )
+
+    def test_markdown_fence_with_commentary_remains_a_contract_failure(self) -> None:
+        output = json.dumps({
+            "part": {
+                "text": (
+                    'Here is the result:\n```json\n'
+                    '{"schema_version":"1","positive_prompt":"portrait",'
+                    '"negative_prompt":""}\n```'
+                )
             }
         })
         with (

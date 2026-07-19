@@ -10,6 +10,11 @@ from .opencode import (
     OpenCodePromptExecutionResult,
     OpenCodePromptExecutor,
 )
+from .opencode_judge import (
+    OpenCodeIntentJudgeExecutionError,
+    OpenCodeIntentJudgeExecutionResult,
+    OpenCodeIntentJudgeExecutor,
+)
 
 __all__ = [
     "DirectPromptExecutionError",
@@ -18,4 +23,7 @@ __all__ = [
     "OpenCodePromptExecutionError",
     "OpenCodePromptExecutionResult",
     "OpenCodePromptExecutor",
+    "OpenCodeIntentJudgeExecutionError",
+    "OpenCodeIntentJudgeExecutionResult",
+    "OpenCodeIntentJudgeExecutor",
 ]

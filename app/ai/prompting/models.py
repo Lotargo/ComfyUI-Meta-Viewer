@@ -156,6 +156,7 @@ class InstructionSection(StrictModel):
     kind: str = Field(min_length=1, max_length=80)
     version: str = Field(min_length=1, max_length=80)
     source: str = Field(min_length=1, max_length=500)
+    content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     content: str = Field(min_length=1)
 
     @field_validator("section_id", "kind", "version", "source", "content")
@@ -200,4 +201,14 @@ class InstructionBundle(StrictModel):
             "checkpoint_profile": self.task.checkpoint_profile,
             "capability_status": self.capability_status.value,
             "versions": dict(self.versions),
+            "sections": [
+                {
+                    "section_id": section.section_id,
+                    "kind": section.kind,
+                    "version": section.version,
+                    "source": section.source,
+                    "content_sha256": section.content_sha256,
+                }
+                for section in self.sections
+            ],
         }

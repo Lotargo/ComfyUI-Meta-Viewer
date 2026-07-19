@@ -5,6 +5,7 @@ import socket
 import time
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from typing import Any
 
 from .cli import CLIIntegrationError, run_cli_test, sanitize_output
@@ -19,6 +20,7 @@ CONTENT_REJECTED_MESSAGE = (
     "Провайдер или выбранная модель отклонили изображение из-за ограничений "
     "обработки контента. Выберите другой настроенный профиль и повторите попытку."
 )
+MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 
 
 class AIProviderRequestError(RuntimeError):
@@ -32,6 +34,12 @@ class AIProviderRequestError(RuntimeError):
         self.code = code
         self.technical_error = technical_error
         super().__init__(message)
+
+
+@dataclass(frozen=True)
+class OpenAICompatibleResponse:
+    text: str
+    latency_ms: int
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -128,40 +136,44 @@ def _response_text(payload: Any) -> str:
     )
 
 
-def run_openai_compatible_test(
+def _chat_completions_endpoint(base_url: str) -> str:
+    endpoint = base_url.rstrip("/")
+    if not endpoint.endswith("/chat/completions"):
+        endpoint = f"{endpoint}/chat/completions"
+    return endpoint
+
+
+def run_openai_compatible_chat(
     profile: dict[str, Any],
     *,
     api_key: str | None,
-    multimodal: bool = False,
-) -> dict[str, Any]:
-    if multimodal and not profile["multimodal"]:
+    messages: list[dict[str, Any]],
+) -> OpenAICompatibleResponse:
+    """Execute one non-streaming OpenAI-compatible chat completion.
+
+    Provider-specific optional request fields come from ``extra_body``. Critical
+    fields are always replaced by the selected profile and caller messages so a
+    saved profile cannot silently redirect the model, inject messages, or enable
+    streaming in a code path that expects one bounded JSON response.
+    """
+    if profile.get("kind", "openai_compatible") != "openai_compatible":
         raise AIProviderRequestError(
-            "This profile is not marked as multimodal.", code="incompatible_format"
+            "This operation requires an OpenAI-compatible profile.",
+            code="incompatible_profile",
         )
-    prompt = "Reply with exactly CMV_OK and no other text."
-    if multimodal:
-        content: str | list[dict[str, Any]] = [
-            {"type": "text", "text": prompt},
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/png;base64,{TEST_PNG_BASE64}",
-                    "detail": "low",
-                },
-            },
-        ]
-    else:
-        content = prompt
+    if not isinstance(messages, list) or not messages:
+        raise AIProviderRequestError(
+            "At least one chat message is required.",
+            code="incompatible_format",
+        )
 
     body = dict(profile.get("extra_body") or {})
     body.update({
         "model": profile["model"],
-        "messages": [{"role": "user", "content": content}],
+        "messages": messages,
         "stream": False,
     })
-    endpoint = profile["base_url"]
-    if not endpoint.rstrip("/").endswith("/chat/completions"):
-        endpoint = f"{endpoint.rstrip('/')}/chat/completions"
+    endpoint = _chat_completions_endpoint(profile["base_url"])
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -174,7 +186,7 @@ def run_openai_compatible_test(
     started = time.monotonic()
     try:
         with _open_url(request, timeout=profile["timeout_seconds"]) as response:
-            raw = response.read(2 * 1024 * 1024)
+            raw = response.read(MAX_RESPONSE_BYTES)
     except urllib.error.HTTPError as exc:
         message, provider_code = _extract_error(exc.read(64_000), api_key)
         code = _classify_provider_error(exc.code, message, provider_code)
@@ -216,11 +228,47 @@ def run_openai_compatible_test(
         raise AIProviderRequestError(
             "The provider returned an empty response.", code="incompatible_format"
         )
+    return OpenAICompatibleResponse(
+        text=result,
+        latency_ms=round((time.monotonic() - started) * 1000),
+    )
+
+
+def run_openai_compatible_test(
+    profile: dict[str, Any],
+    *,
+    api_key: str | None,
+    multimodal: bool = False,
+) -> dict[str, Any]:
+    if multimodal and not profile["multimodal"]:
+        raise AIProviderRequestError(
+            "This profile is not marked as multimodal.", code="incompatible_format"
+        )
+    prompt = "Reply with exactly CMV_OK and no other text."
+    if multimodal:
+        content: str | list[dict[str, Any]] = [
+            {"type": "text", "text": prompt},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/png;base64,{TEST_PNG_BASE64}",
+                    "detail": "low",
+                },
+            },
+        ]
+    else:
+        content = prompt
+
+    response = run_openai_compatible_chat(
+        profile,
+        api_key=api_key,
+        messages=[{"role": "user", "content": content}],
+    )
     return {
         "ok": True,
         "transport": "openai_compatible",
-        "latency_ms": round((time.monotonic() - started) * 1000),
-        "response_preview": result[:500],
+        "latency_ms": response.latency_ms,
+        "response_preview": response.text[:500],
     }
 
 

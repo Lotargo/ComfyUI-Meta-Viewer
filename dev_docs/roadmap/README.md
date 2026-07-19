@@ -30,7 +30,7 @@
 ### AI
 
 - [x] [05. AI provider layer](ai/05_AI_PROVIDER_LAYER.md)
-- [ ] [06. Prompt skills research](ai/06_PROMPT_SKILLS_RESEARCH.md)
+- [x] [06. Prompt skills research](ai/06_PROMPT_SKILLS_RESEARCH.md)
 - [ ] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)
 
 ### ComfyUI

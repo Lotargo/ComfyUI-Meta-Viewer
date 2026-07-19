@@ -68,6 +68,20 @@ class PromptQualityBenchmarkTest(unittest.TestCase):
         self.assertEqual(metrics["flux_negative_policy"].status, "fail")
         self.assertEqual(metrics["concrete_language"].status, "fail")
 
+    def test_overlong_prompt_reports_above_maximum(self) -> None:
+        result = PromptResult(
+            positive_prompt=" ".join(["detail"] * 196),
+            negative_prompt="",
+        )
+        metrics = {
+            metric.metric_id: metric
+            for metric in evaluate_prompt_quality(self.benchmark, result)
+        }
+        word_budget = metrics["word_budget"]
+        self.assertEqual(word_budget.status, "warn")
+        self.assertIn("above the benchmark maximum", word_budget.detail)
+        self.assertNotIn("below the detailed benchmark minimum", word_budget.detail)
+
 
 if __name__ == "__main__":
     unittest.main()

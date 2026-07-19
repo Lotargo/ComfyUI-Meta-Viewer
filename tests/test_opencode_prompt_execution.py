@@ -144,7 +144,19 @@ class OpenCodePromptExecutorTest(unittest.TestCase):
         self.assertIn("--pure", captured["args"])
         self.assertIn("cmv-prompt-smoke", captured["args"])
         self.assertIn("provider/model", captured["args"])
-        self.assertEqual(captured["timeout"], 60)
+        self.assertEqual(captured["timeout"], 300)
+
+    def test_legacy_timeout_is_extended_but_explicit_values_are_preserved(self) -> None:
+        self.assertEqual(
+            OpenCodePromptExecutor._resolve_timeout(opencode_profile()),
+            300,
+        )
+        self.assertEqual(
+            OpenCodePromptExecutor._resolve_timeout(
+                opencode_profile(timeout_seconds=420)
+            ),
+            420,
+        )
 
     def test_invalid_profile_is_rejected_before_cli_lookup(self) -> None:
         with patch("app.ai.execution.opencode.find_executable") as executable:

@@ -176,13 +176,25 @@ class InstructionBundle(StrictModel):
     warnings: tuple[str, ...] = ()
 
     def render(self) -> str:
+        modifier_text = ", ".join(item.value for item in self.task.modifiers) or "none"
+        task_block = (
+            "COMPILED TASK\n"
+            f"family: {self.task.family.value}\n"
+            f"operation: {self.task.operation.value}\n"
+            f"scenario: {self.task.scenario.value}\n"
+            f"checkpoint_profile: {self.task.checkpoint_profile or 'none'}\n"
+            f"modifiers: {modifier_text}\n"
+            f"capability_status: {self.capability_status.value}\n"
+            f"output_contract: {self.task.output_contract}"
+        )
         blocks = [
+            task_block,
             "INSTRUCTION PRECEDENCE\n"
             "1. Output contract and hard content boundaries.\n"
             "2. Verified checkpoint-specific overrides.\n"
             "3. Selected scenario manifest.\n"
             "4. Selected operation manifest.\n"
-            "5. Family base defaults."
+            "5. Family base defaults.",
         ]
         warnings_added = False
         for section in self.sections:

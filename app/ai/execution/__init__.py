@@ -8,6 +8,7 @@ from .direct import (
     DirectPromptExecutionResult,
     DirectPromptExecutor,
 )
+from .intent_judge_policy import install_intent_judge_policy
 from .opencode import (
     OpenCodePromptExecutionError,
     OpenCodePromptExecutionResult,
@@ -23,6 +24,10 @@ from .opencode_judge import (
 # exits. Bind both managed adapters to the Job Object aware runner at package load.
 _opencode_module.run_command = run_managed_command
 _opencode_judge_module.run_command = run_managed_command
+
+# Keep the public judge executor stable while benchmark-specific evaluation policy
+# remains replaceable and independently testable.
+install_intent_judge_policy(OpenCodeIntentJudgeExecutor)
 
 __all__ = [
     "DirectPromptExecutionError",

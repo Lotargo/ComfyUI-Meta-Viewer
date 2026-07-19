@@ -31,6 +31,7 @@
 
 - [x] [05. AI provider layer](ai/05_AI_PROVIDER_LAYER.md)
 - [x] [06. Prompt skills research](ai/06_PROMPT_SKILLS_RESEARCH.md)
+- [ ] [06A. Prompt profile and agent execution architecture](ai/06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md)
 - [ ] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)
 
 ### ComfyUI

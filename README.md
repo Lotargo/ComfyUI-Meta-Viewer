@@ -16,6 +16,7 @@
 
 <p align="center">
   <a href="#features">Features</a> &bull;
+  <a href="#ai-prompt-compiler-status">AI Status</a> &bull;
   <a href="#quick-start">Quick Start</a> &bull;
   <a href="#screenshots">Screenshots</a> &bull;
   <a href="#documentation">Documentation</a> &bull;
@@ -40,6 +41,7 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 - **Unified image and video assets** — shared sources, albums, favorites, previews, and technical metadata
 - **Unified media browsing** — folders, albums, the central gallery, and the Media sidebar can show images and videos together or filter either type independently
 - **BYOK provider profiles** — OpenAI-compatible endpoints with OS-keyring or environment-variable credentials, plus detected OpenCode, Claude Code, and Antigravity CLI adapters
+- **Model-aware prompt compiler** — layered family, operation, scenario, modifier, and output-contract instructions with strict structured results
 - **Keyboard-first** workflow with 14 shortcuts
 
 ---
@@ -99,6 +101,63 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
     </td>
   </tr>
 </table>
+
+---
+
+## AI Prompt Compiler Status
+
+The AI subsystem is being developed as a model-aware prompt compiler rather than one large universal system prompt. Benchmarks are intentionally exposed as **targeted scenario calls**. A mandatory run of every benchmark is not planned because real provider calls can be slow, rate-limited, or paid.
+
+### Completed
+
+- [x] Define strict contracts for `PromptTask`, `SceneSpec`, `PromptResult`, and compiled `InstructionBundle`
+- [x] Add family profiles for FLUX, SDXL, and Pony
+- [x] Add operation layers for `generate`, `reconstruct`, `adapt`, and `translate`
+- [x] Add `safe` and `adult_only` modifier layers with validation
+- [x] Add strict JSON output parsing and normalized execution errors
+- [x] Add direct OpenAI-compatible prompt execution
+- [x] Add isolated OpenCode execution with tool-denied agents
+- [x] Add five-minute managed CLI timeout and Windows descendant-process cleanup
+- [x] Add transport smoke tests and detailed prompt-quality benchmarks
+- [x] Add same-model intent judge with deterministic heuristic checks
+- [x] Add portrait intent benchmark: `flux-portrait-intent-basic`
+- [x] Add product advertising intent benchmark: `flux-product-intent-basic`
+- [x] Add migrated scenario manifests for `portrait`, `product_object`, and `graphic_design_text`
+- [x] Keep benchmarks available as independent, point-in-time calls instead of requiring a global run-all command
+
+### Next benchmark and prompt work
+
+- [ ] Add intent benchmarks for `single_character`
+- [ ] Add intent benchmarks for `architecture_interior`
+- [ ] Add intent benchmarks for `landscape_environment`
+- [ ] Add intent benchmarks for `illustration_art`
+- [ ] Add intent benchmarks for `graphic_design_text`
+- [ ] Add `multi_character` benchmarks after tested checkpoint capability profiles exist
+- [ ] Migrate the remaining scenario manifests before using them in executable benchmark tasks
+- [ ] Add operation-focused benchmarks for `reconstruct`, `adapt`, and `translate`
+- [ ] Add image-conditioned and multimodal prompt tests where the selected provider supports vision
+- [ ] Validate the same scenarios on SDXL and Pony instead of treating FLUX results as universal
+- [ ] Add checkpoint-specific capability profiles and regression cases
+- [ ] Add repeat-run statistics for model reliability when useful, without making repeated runs mandatory
+- [ ] Add an interactive CLI menu for choosing benchmark family, scenario, operation, profile, and output path
+
+### Current targeted commands
+
+```powershell
+# List available intent benchmarks
+.venv\Scripts\python.exe -m app.ai.intent_benchmark list
+
+# Run one selected scenario
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-portrait-intent-basic `
+  --profile "OpenCode" `
+  --debug
+
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-product-intent-basic `
+  --profile "OpenCode" `
+  --debug
+```
+
+See [Prompt intent benchmarks](docs/ai-intent-benchmark.md) and [OpenCode smoke testing](docs/ai-opencode-smoke-testing.md) for the current execution model.
 
 ---
 
@@ -227,6 +286,8 @@ The app will be available at **http://localhost:7860**
 | [Development](docs/development.md) | Guide for contributors |
 | [JS Architecture](docs/js-architecture.md) | Frontend module structure |
 | [CSS Architecture](docs/css-architecture.md) | Styling system and custom properties |
+| [Prompt intent benchmarks](docs/ai-intent-benchmark.md) | Targeted raw-intent generation and model-judge evaluation |
+| [OpenCode smoke testing](docs/ai-opencode-smoke-testing.md) | Managed CLI execution, profiles, scenarios, and reports |
 
 ---
 

@@ -67,6 +67,7 @@ class OpenCodeIntentJudgeExecutor:
         family: str,
         user_request: str,
         candidate: PromptResult,
+        required_intents: tuple[str, ...] = (),
     ) -> OpenCodeIntentJudgeExecutionResult:
         try:
             OpenCodePromptExecutor._validate_profile(profile)
@@ -87,6 +88,10 @@ class OpenCodeIntentJudgeExecutor:
             "User request",
             maximum=MAX_JUDGE_INPUT_CHARS,
         )
+        cleaned_intents = tuple(
+            self._clean_text(item, "Required intent", maximum=120)
+            for item in required_intents
+        )
         executable = find_executable("opencode", profile.get("executable"))
         if executable is None:
             raise OpenCodeIntentJudgeExecutionError(
@@ -105,6 +110,7 @@ class OpenCodeIntentJudgeExecutor:
                         family=cleaned_family,
                         user_request=cleaned_request,
                         candidate=candidate,
+                        required_intents=cleaned_intents,
                     ),
                     encoding="utf-8",
                     newline="\n",
@@ -238,18 +244,44 @@ class OpenCodeIntentJudgeExecutor:
         )
 
     @staticmethod
+    def _family_policy(family: str) -> str:
+        if family.casefold() == "flux":
+            return (
+                "- FLUX family rule: an empty negative_prompt is correct and must not be "
+                "penalized or listed as a weakness. Do not request a negative prompt.\n"
+                "- Judge the positive prompt as coherent natural-language scene direction; "
+                "do not require tag-style syntax."
+            )
+        return "- Apply the normal conventions of the named model family."
+
+    @classmethod
     def _render_judge_package(
+        cls,
         *,
         family: str,
         user_request: str,
         candidate: PromptResult,
+        required_intents: tuple[str, ...] = (),
     ) -> str:
+        intent_lines = (
+            "\n".join(f"- {item}" for item in required_intents)
+            if required_intents
+            else "- Infer the requested intent dimensions from the original request."
+        )
         return f"""# CMV intent benchmark judge task
 
 Evaluate the candidate as if it came from an unknown system. The original request is intentionally short and incomplete. Reward useful visual decisions that preserve its intent. Do not reward length by itself. Penalize restatement, contradictions, generic quality slogans, and details that distort the user's goal.
 
 MODEL FAMILY
 {family}
+
+FAMILY-SPECIFIC POLICY
+{cls._family_policy(family)}
+
+REQUIRED INTENT DIMENSIONS
+{intent_lines}
+
+Evaluate every required intent dimension independently. A vague repetition of an adjective is weaker than translating it into visible choices. If any required dimension is not visually translated, mention it in weaknesses and do not award more than 10/15 for atmosphere_translation.
 
 ORIGINAL HUMAN REQUEST
 {user_request}
@@ -261,13 +293,13 @@ CANDIDATE NEGATIVE PROMPT
 {candidate.negative_prompt or '<empty>'}
 
 SCORING RUBRIC — exactly 100 points
-- intent_fidelity: 0-20. Preserve subject, setting, adulthood, action, and requested mood without contradiction.
+- intent_fidelity: 0-20. Preserve subject, setting, adulthood, action, and every requested mood direction without contradiction.
 - useful_visual_expansion: 0-20. Add concrete, useful visual decisions rather than merely paraphrasing the request.
-- atmosphere_translation: 0-15. Translate abstract mood words into visible choices such as palette, texture, framing, depth, and light.
+- atmosphere_translation: 0-15. Translate each required mood direction into visible choices such as palette, texture, framing, depth, styling, and light.
 - composition_and_camera: 0-10. Provide a coherent framing or camera strategy appropriate to the request.
 - lighting: 0-10. Provide motivated light with useful direction, quality, contrast, or colour relationships.
 - environment_and_materials: 0-10. Make the setting and surfaces visually specific and relevant.
-- coherence_and_model_fit: 0-10. Produce one coherent prompt suited to the named model family.
+- coherence_and_model_fit: 0-10. Produce one coherent prompt suited to the named model family and its family-specific policy.
 - restraint_and_consistency: 0-5. Avoid contradictions, gratuitous invention, repetition, and generic quality slogans.
 
 Return exactly this JSON object and no other text:

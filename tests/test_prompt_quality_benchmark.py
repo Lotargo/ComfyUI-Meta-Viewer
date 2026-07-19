@@ -53,7 +53,8 @@ class PromptQualityBenchmarkTest(unittest.TestCase):
             if metric.status == "fail" and metric.metric_id.startswith("coverage:")
         }
         self.assertIn("coverage:hands_and_object", failed_groups)
-        self.assertIn("coverage:foreground_midground_background", failed_groups)
+        self.assertIn("coverage:camera_and_crop", failed_groups)
+        self.assertIn("coverage:lighting_layers", failed_groups)
 
     def test_flux_negative_prompt_and_quality_slogans_are_penalized(self) -> None:
         result = PromptResult(

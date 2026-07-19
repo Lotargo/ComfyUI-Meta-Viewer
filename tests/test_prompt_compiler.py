@@ -8,6 +8,7 @@ from app.ai.prompting import (
     CapabilityStatus,
     PromptCompiler,
     PromptCompilerError,
+    PromptContractError,
     PromptFamily,
     PromptModifier,
     PromptOperation,
@@ -18,6 +19,8 @@ from app.ai.prompting import (
     SceneSpec,
     SceneSubject,
     VisibleText,
+    parse_prompt_result,
+    parse_scene_spec,
 )
 
 
@@ -154,11 +157,40 @@ class PromptCompilerTest(unittest.TestCase):
         self.assertEqual(result.negative_prompt, "watermark")
 
         with self.assertRaises(ValidationError):
+            PromptResult(positive_prompt="   ")
+
+        with self.assertRaises(ValidationError):
             PromptResult(
                 positive_prompt="valid",
                 negative_prompt="",
                 commentary="not allowed",
             )
+
+    def test_parse_prompt_result_uses_one_strict_contract(self) -> None:
+        result = parse_prompt_result(
+            '{"schema_version":"1","positive_prompt":"portrait",'
+            '"negative_prompt":"watermark"}'
+        )
+        self.assertEqual(result.positive_prompt, "portrait")
+
+        with self.assertRaises(PromptContractError) as markdown_error:
+            parse_prompt_result(
+                '```json\n{"schema_version":"1",'
+                '"positive_prompt":"portrait","negative_prompt":""}\n```'
+            )
+        self.assertEqual(markdown_error.exception.code, "markdown_wrapped_json")
+
+        with self.assertRaises(PromptContractError) as version_error:
+            parse_prompt_result(
+                '{"schema_version":"2","positive_prompt":"portrait",'
+                '"negative_prompt":""}'
+            )
+        self.assertEqual(version_error.exception.code, "contract_validation_error")
+
+    def test_parse_scene_spec_rejects_non_object_json(self) -> None:
+        with self.assertRaises(PromptContractError) as error:
+            parse_scene_spec("[]")
+        self.assertEqual(error.exception.code, "invalid_contract_shape")
 
 
 if __name__ == "__main__":

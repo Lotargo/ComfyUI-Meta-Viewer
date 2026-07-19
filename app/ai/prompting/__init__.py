@@ -15,6 +15,7 @@ from .models import (
     VisibleText,
 )
 from .registry import PromptRegistryError
+from .validation import PromptContractError, parse_prompt_result, parse_scene_spec
 
 __all__ = [
     "CapabilityStatus",
@@ -22,6 +23,7 @@ __all__ = [
     "InstructionSection",
     "PromptCompiler",
     "PromptCompilerError",
+    "PromptContractError",
     "PromptFamily",
     "PromptModifier",
     "PromptOperation",
@@ -33,4 +35,6 @@ __all__ = [
     "SceneSpec",
     "SceneSubject",
     "VisibleText",
+    "parse_prompt_result",
+    "parse_scene_spec",
 ]

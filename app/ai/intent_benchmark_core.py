@@ -54,12 +54,23 @@ _GENERIC_BUZZWORDS = (
 
 
 @dataclass(frozen=True)
+class IntentCoverageRule:
+    metric_id: str
+    label: str
+    markers: tuple[str, ...]
+    maximum: int
+
+
+@dataclass(frozen=True)
 class IntentBenchmark:
     benchmark_id: str
     title: str
     description: str
     task: PromptTask
     input_text: str
+    core_groups: dict[str, tuple[str, ...]]
+    coverage_rules: tuple[IntentCoverageRule, ...]
+    expansion_groups: dict[str, tuple[str, ...]]
     required_intents: dict[str, tuple[str, ...]]
 
 
@@ -108,9 +119,6 @@ class IntentBenchmarkReport:
 
     @property
     def score_weights(self) -> tuple[float, float]:
-        # A same-model judge can be biased toward its own generation. Deterministic
-        # checks therefore receive more weight in the free baseline. A separate
-        # judge profile restores equal weighting.
         return (0.60, 0.40) if self.same_model_judge else (0.50, 0.50)
 
     @property
@@ -127,31 +135,17 @@ class IntentBenchmarkReport:
 
     @property
     def missing_required_intents(self) -> tuple[str, ...]:
-        metric = next(
-            (
-                item
-                for item in self.heuristic_metrics
-                if item.metric_id == "requested_intent_coverage"
-            ),
-            None,
-        )
-        if metric is None or metric.status == "pass":
-            return ()
-        covered = {
-            item.strip()
-            for item in metric.detail.partition("Covered:")[2]
-            .partition("; Missing:")[0]
-            .split(",")
-            if item.strip() and item.strip() != "none"
-        }
+        prompt = self.generation.result.positive_prompt
         return tuple(
-            name for name in self.benchmark.required_intents if name not in covered
+            name
+            for name, markers in self.benchmark.required_intents.items()
+            if not _contains_any(prompt, markers)
         )
 
     def to_dict(self) -> dict[str, Any]:
         heuristic_weight, judge_weight = self.score_weights
         return {
-            "schema_version": "2",
+            "schema_version": "3",
             "benchmark": {
                 "id": self.benchmark.benchmark_id,
                 "title": self.benchmark.title,
@@ -199,71 +193,77 @@ class IntentBenchmarkReport:
         }
 
 
-BENCHMARKS: dict[str, IntentBenchmark] = {
-    "flux-portrait-intent-basic": IntentBenchmark(
-        benchmark_id="flux-portrait-intent-basic",
-        title="Short human portrait intent",
-        description=(
-            "Measures whether the model can turn a short Russian user request into a coherent, "
-            "visually specific FLUX prompt without receiving a ready-made production brief."
-        ),
-        task=PromptTask(
-            family=PromptFamily.FLUX,
-            operation=PromptOperation.GENERATE,
-            scenario=PromptScenario.PORTRAIT,
-            modifiers=(PromptModifier.SAFE,),
-            checkpoint_profile="flux-intent-benchmark-v2",
-        ),
-        input_text=(
-            "Сделай атмосферный портрет взрослой девушки-керамиста в её мастерской. "
-            "Хочется, чтобы кадр выглядел естественно, дорого и немного уютно."
-        ),
-        required_intents={
-            "natural": (
-                "natural",
-                "authentic",
-                "unposed",
-                "candid",
-                "relaxed",
-                "realistic",
-                "естествен",
-                "аутентич",
-                "непостановоч",
-            ),
-            "premium_refined": (
-                "refined",
-                "editorial",
-                "elegant",
-                "polished",
-                "sophisticated",
-                "premium",
-                "luxury",
-                "high-end",
-                "art-directed",
-                "restrained",
-                "дорог",
-                "премиаль",
-                "элегант",
-                "изыскан",
-                "редакцион",
-            ),
-            "cozy": (
-                "cozy",
-                "warm",
-                "intimate",
-                "inviting",
-                "softly lit",
-                "уют",
-                "тёпл",
-                "тепл",
-                "камерн",
-            ),
-        },
-    ),
-}
+_CAMERA_MARKERS = (
+    "close-up",
+    "close up",
+    "medium shot",
+    "medium portrait",
+    "three-quarter",
+    "eye-level",
+    "eye level",
+    "low angle",
+    "high angle",
+    "lens",
+    "framing",
+    "camera",
+    "hero shot",
+    "macro",
+    "крупный план",
+    "средний план",
+    "ракурс",
+    "объектив",
+    "кадрирование",
+)
 
+_LIGHTING_MARKERS = (
+    "window light",
+    "side light",
+    "key light",
+    "fill light",
+    "rim light",
+    "diffused light",
+    "soft light",
+    "warm light",
+    "backlight",
+    "gradient light",
+    "specular highlight",
+    "shadow",
+    "golden-hour",
+    "golden hour",
+    "оконный свет",
+    "боковой свет",
+    "мягкий свет",
+    "контровой",
+    "блик",
+    "тень",
+)
 
-_CORE_GROUPS = {
+_DEPTH_COLOUR_MEDIUM_MARKERS = (
+    "depth of field",
+    "bokeh",
+    "foreground",
+    "background",
+    "earth tones",
+    "muted palette",
+    "restrained palette",
+    "colour palette",
+    "color palette",
+    "editorial photography",
+    "product photography",
+    "commercial photography",
+    "photographic",
+    "film grain",
+    "negative space",
+    "глубина резкости",
+    "боке",
+    "передний план",
+    "фон",
+    "палитра",
+    "фотография",
+    "негативное пространство",
+)
+
+_PORTRAIT_CORE = {
     "adult": (
         "adult",
         "grown woman",
@@ -292,116 +292,311 @@ _CORE_GROUPS = {
     ),
 }
 
-_VISUAL_DECISION_GROUPS = {
-    "camera": (
-        "close-up",
-        "close up",
-        "medium shot",
-        "medium portrait",
-        "three-quarter",
-        "eye-level",
-        "eye level",
-        "lens",
-        "framing",
-        "camera",
-        "portrait crop",
-        "крупный план",
-        "средний план",
-        "ракурс",
-        "объектив",
-        "кадрирование",
+_PORTRAIT_ENVIRONMENT = (
+    "pottery wheel",
+    "kiln",
+    "shelves",
+    "ceramic tools",
+    "pottery tools",
+    "bowls",
+    "vessels",
+    "clay",
+    "workbench",
+    "studio shelves",
+    "handmade ceramics",
+    "гончарный круг",
+    "печь",
+    "полки",
+    "инструменты",
+    "глина",
+    "верстак",
+)
+
+_PORTRAIT_MATERIALS = (
+    "skin texture",
+    "linen",
+    "clay dust",
+    "matte ceramic",
+    "glazed ceramic",
+    "wood grain",
+    "fabric texture",
+    "handmade surface",
+    "material response",
+    "текстура кожи",
+    "лён",
+    "глиняная пыль",
+    "матовая керамика",
+    "фактура ткани",
+)
+
+_PORTRAIT_DIRECTION = (
+    "gaze",
+    "looks",
+    "looking",
+    "off-camera",
+    "off camera",
+    "expression",
+    "pose",
+    "posture",
+    "holds",
+    "holding",
+    "works",
+    "working",
+    "взгляд",
+    "смотрит",
+    "выражение",
+    "поза",
+    "держит",
+    "работает",
+)
+
+_PRODUCT_CORE = {
+    "perfume_bottle": (
+        "perfume bottle",
+        "fragrance bottle",
+        "perfume flacon",
+        "fragrance flacon",
+        "bottle of perfume",
+        "флакон духов",
+        "флакон парфюма",
+        "духи",
+        "парфюм",
     ),
-    "lighting": (
-        "window light",
-        "side light",
-        "key light",
-        "fill light",
-        "rim light",
-        "diffused light",
-        "soft light",
-        "warm light",
-        "shadow",
-        "backlight",
-        "golden-hour",
-        "golden hour",
-        "оконный свет",
-        "боковой свет",
-        "мягкий свет",
-        "тень",
-        "контровой",
+    "commercial_product_image": (
+        "product photograph",
+        "product photography",
+        "advertising photograph",
+        "advertising image",
+        "commercial photograph",
+        "commercial campaign",
+        "campaign image",
+        "packshot",
+        "рекламная фотография",
+        "рекламный кадр",
+        "предметная съёмка",
     ),
-    "environment": (
-        "pottery wheel",
-        "kiln",
-        "shelves",
-        "ceramic tools",
-        "pottery tools",
-        "bowls",
-        "vessels",
-        "clay",
-        "workbench",
-        "studio shelves",
-        "handmade ceramics",
-        "гончарный круг",
-        "печь",
-        "полки",
-        "инструменты",
-        "глина",
-        "верстак",
+}
+
+_PRODUCT_SET = (
+    "seamless background",
+    "gradient background",
+    "studio background",
+    "studio set",
+    "backdrop",
+    "pedestal",
+    "plinth",
+    "reflective surface",
+    "acrylic surface",
+    "stone slab",
+    "glass platform",
+    "soft fabric",
+    "декорация",
+    "подиум",
+    "фон",
+    "градиент",
+    "отражающая поверхность",
+)
+
+_PRODUCT_MATERIALS = (
+    "glass",
+    "transparent glass",
+    "translucent glass",
+    "liquid",
+    "metal cap",
+    "gold cap",
+    "silver cap",
+    "reflection",
+    "refraction",
+    "specular highlight",
+    "glass edge",
+    "embossed label",
+    "etched label",
+    "стекло",
+    "жидкость",
+    "металлическая крышка",
+    "отражение",
+    "преломление",
+    "блик",
+    "этикетка",
+)
+
+_PRODUCT_PRESENTATION = (
+    "centered",
+    "upright",
+    "hero product",
+    "hero shot",
+    "label visible",
+    "front-facing",
+    "front facing",
+    "three-quarter view",
+    "symmetrical",
+    "negative space",
+    "grounded shadow",
+    "base contact",
+    "по центру",
+    "вертикально",
+    "этикетка видна",
+    "симметрич",
+    "негативное пространство",
+)
+
+_PREMIUM_REFINED_INTENT = (
+    "refined",
+    "editorial",
+    "elegant",
+    "polished",
+    "sophisticated",
+    "premium",
+    "luxury",
+    "luxurious",
+    "high-end",
+    "art-directed",
+    "restrained",
+    "дорог",
+    "премиаль",
+    "элегант",
+    "изыскан",
+    "редакцион",
+)
+
+_WARM_INTENT = (
+    "warm",
+    "amber",
+    "golden",
+    "honey",
+    "soft warmth",
+    "warm beige",
+    "тёпл",
+    "тепл",
+    "янтар",
+    "золотист",
+    "медов",
+)
+
+
+def _rule(
+    metric_id: str,
+    label: str,
+    markers: tuple[str, ...],
+    maximum: int,
+) -> IntentCoverageRule:
+    return IntentCoverageRule(metric_id, label, markers, maximum)
+
+
+BENCHMARKS: dict[str, IntentBenchmark] = {
+    "flux-portrait-intent-basic": IntentBenchmark(
+        benchmark_id="flux-portrait-intent-basic",
+        title="Short human portrait intent",
+        description=(
+            "Measures whether the model can turn a short Russian user request into a coherent, "
+            "visually specific FLUX portrait prompt without a ready-made production brief."
+        ),
+        task=PromptTask(
+            family=PromptFamily.FLUX,
+            operation=PromptOperation.GENERATE,
+            scenario=PromptScenario.PORTRAIT,
+            modifiers=(PromptModifier.SAFE,),
+            checkpoint_profile="flux-intent-benchmark-v3-portrait",
+        ),
+        input_text=(
+            "Сделай атмосферный портрет взрослой девушки-керамиста в её мастерской. "
+            "Хочется, чтобы кадр выглядел естественно, дорого и немного уютно."
+        ),
+        core_groups=_PORTRAIT_CORE,
+        coverage_rules=(
+            _rule("invented_camera_language", "Camera or framing language", _CAMERA_MARKERS, 8),
+            _rule("invented_lighting", "Motivated lighting", _LIGHTING_MARKERS, 8),
+            _rule("invented_environment_detail", "Workshop detail", _PORTRAIT_ENVIRONMENT, 8),
+            _rule("tactile_materials", "Tactile material language", _PORTRAIT_MATERIALS, 8),
+            _rule("subject_direction", "Subject pose, gaze, or action", _PORTRAIT_DIRECTION, 6),
+        ),
+        expansion_groups={
+            "camera": _CAMERA_MARKERS,
+            "lighting": _LIGHTING_MARKERS,
+            "environment": _PORTRAIT_ENVIRONMENT,
+            "materials": _PORTRAIT_MATERIALS,
+            "subject_direction": _PORTRAIT_DIRECTION,
+            "depth_colour_medium": _DEPTH_COLOUR_MEDIUM_MARKERS,
+        },
+        required_intents={
+            "natural": (
+                "natural",
+                "authentic",
+                "unposed",
+                "candid",
+                "relaxed",
+                "realistic",
+                "естествен",
+                "аутентич",
+                "непостановоч",
+            ),
+            "premium_refined": _PREMIUM_REFINED_INTENT,
+            "cozy": (
+                "cozy",
+                "warm",
+                "intimate",
+                "inviting",
+                "softly lit",
+                "уют",
+                "тёпл",
+                "тепл",
+                "камерн",
+            ),
+        },
     ),
-    "materials": (
-        "skin texture",
-        "linen",
-        "clay dust",
-        "matte ceramic",
-        "glazed ceramic",
-        "wood grain",
-        "fabric texture",
-        "handmade surface",
-        "material response",
-        "текстура кожи",
-        "лён",
-        "глиняная пыль",
-        "матовая керамика",
-        "фактура ткани",
-    ),
-    "subject_direction": (
-        "gaze",
-        "looks",
-        "looking",
-        "off-camera",
-        "off camera",
-        "expression",
-        "pose",
-        "posture",
-        "holds",
-        "holding",
-        "works",
-        "working",
-        "взгляд",
-        "смотрит",
-        "выражение",
-        "поза",
-        "держит",
-        "работает",
-    ),
-    "depth_colour_medium": (
-        "depth of field",
-        "bokeh",
-        "foreground",
-        "background",
-        "earth tones",
-        "muted palette",
-        "restrained palette",
-        "editorial photography",
-        "photographic",
-        "film grain",
-        "глубина резкости",
-        "боке",
-        "передний план",
-        "фон",
-        "палитра",
-        "фотография",
+    "flux-product-intent-basic": IntentBenchmark(
+        benchmark_id="flux-product-intent-basic",
+        title="Short human perfume advertising intent",
+        description=(
+            "Measures whether the model can turn a short Russian product request into a "
+            "specific FLUX advertising prompt with coherent art direction."
+        ),
+        task=PromptTask(
+            family=PromptFamily.FLUX,
+            operation=PromptOperation.GENERATE,
+            scenario=PromptScenario.PRODUCT_OBJECT,
+            modifiers=(PromptModifier.SAFE,),
+            checkpoint_profile="flux-intent-benchmark-v3-product",
+        ),
+        input_text=(
+            "Сделай красивую рекламную фотографию флакона духов. "
+            "Нужен дорогой, чистый и немного тёплый образ."
+        ),
+        core_groups=_PRODUCT_CORE,
+        coverage_rules=(
+            _rule("invented_camera_language", "Camera or framing language", _CAMERA_MARKERS, 8),
+            _rule("invented_lighting", "Motivated lighting", _LIGHTING_MARKERS, 8),
+            _rule("invented_product_set", "Product set or background", _PRODUCT_SET, 8),
+            _rule("product_materials", "Glass, liquid, or reflective material language", _PRODUCT_MATERIALS, 8),
+            _rule("product_presentation", "Product placement and readability", _PRODUCT_PRESENTATION, 6),
+        ),
+        expansion_groups={
+            "camera": _CAMERA_MARKERS,
+            "lighting": _LIGHTING_MARKERS,
+            "set_background": _PRODUCT_SET,
+            "materials_reflections": _PRODUCT_MATERIALS,
+            "product_presentation": _PRODUCT_PRESENTATION,
+            "depth_colour_medium": _DEPTH_COLOUR_MEDIUM_MARKERS,
+        },
+        required_intents={
+            "premium_refined": _PREMIUM_REFINED_INTENT,
+            "clean_minimal": (
+                "clean",
+                "minimal",
+                "minimalist",
+                "uncluttered",
+                "seamless",
+                "crisp",
+                "pure",
+                "negative space",
+                "simple composition",
+                "чист",
+                "минимал",
+                "лаконич",
+                "без лишних деталей",
+            ),
+            "warm": _WARM_INTENT,
+        },
     ),
 }
 
@@ -421,29 +616,47 @@ def _contains_any(text: str, markers: tuple[str, ...]) -> list[str]:
     return [marker for marker in markers if marker.casefold() in lowered]
 
 
-def _coverage_metric(
-    *,
-    metric_id: str,
-    prompt: str,
-    markers: tuple[str, ...],
-    maximum: int,
-    label: str,
-) -> IntentHeuristicMetric:
-    found = _contains_any(prompt, markers)
+def _coverage_metric(rule: IntentCoverageRule, prompt: str) -> IntentHeuristicMetric:
+    found = _contains_any(prompt, rule.markers)
     if found:
         return IntentHeuristicMetric(
-            metric_id,
+            rule.metric_id,
             "pass",
-            maximum,
-            maximum,
-            f"{label}: " + ", ".join(found[:4]),
+            rule.maximum,
+            rule.maximum,
+            f"{rule.label}: " + ", ".join(found[:4]),
         )
     return IntentHeuristicMetric(
-        metric_id,
+        rule.metric_id,
         "fail",
         0,
-        maximum,
-        f"No concrete {label.lower()} was found.",
+        rule.maximum,
+        f"No concrete {rule.label.lower()} was found.",
+    )
+
+
+def _core_intent_metric(benchmark: IntentBenchmark, prompt: str) -> IntentHeuristicMetric:
+    covered = [
+        name
+        for name, markers in benchmark.core_groups.items()
+        if _contains_any(prompt, markers)
+    ]
+    total = len(benchmark.core_groups)
+    points = round(16 * len(covered) / max(1, total))
+    status: IntentStatus = (
+        "pass"
+        if len(covered) == total
+        else "warn"
+        if len(covered) >= max(1, total - 1)
+        else "fail"
+    )
+    return IntentHeuristicMetric(
+        "core_intent",
+        status,
+        points,
+        16,
+        f"Preserved {len(covered)}/{total} core groups: "
+        + (", ".join(covered) or "none"),
     )
 
 
@@ -472,30 +685,36 @@ def _requested_intent_metric(
     )
 
 
-def _expansion_metric(prompt: str) -> IntentHeuristicMetric:
+def _expansion_metric(
+    benchmark: IntentBenchmark,
+    prompt: str,
+) -> IntentHeuristicMetric:
     output_words = _WORD_RE.findall(prompt)
     covered = [
         name
-        for name, markers in _VISUAL_DECISION_GROUPS.items()
+        for name, markers in benchmark.expansion_groups.items()
         if _contains_any(prompt, markers)
     ]
+    total = len(benchmark.expansion_groups)
     count = len(covered)
-    if len(output_words) >= 60 and count >= 5:
+    pass_groups = max(1, total - 1)
+    warn_groups = max(2, total // 2)
+    if len(output_words) >= 60 and count >= pass_groups:
         return IntentHeuristicMetric(
             "non_trivial_expansion",
             "pass",
             12,
             12,
-            f"{len(output_words)} words; {count}/6 independent visual decision groups: "
+            f"{len(output_words)} words; {count}/{total} independent visual decision groups: "
             + ", ".join(covered),
         )
-    if len(output_words) >= 35 and count >= 3:
+    if len(output_words) >= 35 and count >= warn_groups:
         return IntentHeuristicMetric(
             "non_trivial_expansion",
             "warn",
             7,
             12,
-            f"{len(output_words)} words; {count}/6 visual decision groups: "
+            f"{len(output_words)} words; {count}/{total} visual decision groups: "
             + ", ".join(covered),
         )
     return IntentHeuristicMetric(
@@ -503,7 +722,7 @@ def _expansion_metric(prompt: str) -> IntentHeuristicMetric:
         "fail",
         0,
         12,
-        f"{len(output_words)} words; only {count}/6 visual decision groups. "
+        f"{len(output_words)} words; only {count}/{total} visual decision groups. "
         "The result is likely a paraphrase or shallow expansion.",
     )
 
@@ -513,79 +732,10 @@ def evaluate_intent_heuristics(
     result: PromptResult,
 ) -> tuple[IntentHeuristicMetric, ...]:
     prompt = result.positive_prompt.strip()
-    metrics: list[IntentHeuristicMetric] = []
-
-    covered_core = [
-        group
-        for group, markers in _CORE_GROUPS.items()
-        if _contains_any(prompt, markers)
-    ]
-    core_points = round(16 * len(covered_core) / len(_CORE_GROUPS))
-    core_status: IntentStatus = (
-        "pass"
-        if len(covered_core) == len(_CORE_GROUPS)
-        else "warn"
-        if len(covered_core) >= 3
-        else "fail"
-    )
-    metrics.append(
-        IntentHeuristicMetric(
-            "core_intent",
-            core_status,
-            core_points,
-            16,
-            f"Preserved {len(covered_core)}/4 core groups: "
-            + (", ".join(covered_core) or "none"),
-        )
-    )
-
-    metrics.append(
-        _coverage_metric(
-            metric_id="invented_camera_language",
-            prompt=prompt,
-            markers=_VISUAL_DECISION_GROUPS["camera"],
-            maximum=8,
-            label="Camera or framing language",
-        )
-    )
-    metrics.append(
-        _coverage_metric(
-            metric_id="invented_lighting",
-            prompt=prompt,
-            markers=_VISUAL_DECISION_GROUPS["lighting"],
-            maximum=8,
-            label="Motivated lighting",
-        )
-    )
-    metrics.append(
-        _coverage_metric(
-            metric_id="invented_environment_detail",
-            prompt=prompt,
-            markers=_VISUAL_DECISION_GROUPS["environment"],
-            maximum=8,
-            label="Workshop detail",
-        )
-    )
-    metrics.append(
-        _coverage_metric(
-            metric_id="tactile_materials",
-            prompt=prompt,
-            markers=_VISUAL_DECISION_GROUPS["materials"],
-            maximum=8,
-            label="Tactile material language",
-        )
-    )
-    metrics.append(
-        _coverage_metric(
-            metric_id="subject_direction",
-            prompt=prompt,
-            markers=_VISUAL_DECISION_GROUPS["subject_direction"],
-            maximum=6,
-            label="Subject pose, gaze, or action",
-        )
-    )
+    metrics: list[IntentHeuristicMetric] = [_core_intent_metric(benchmark, prompt)]
+    metrics.extend(_coverage_metric(rule, prompt) for rule in benchmark.coverage_rules)
     metrics.append(_requested_intent_metric(benchmark, prompt))
-    metrics.append(_expansion_metric(prompt))
+    metrics.append(_expansion_metric(benchmark, prompt))
 
     output_words = _WORD_RE.findall(prompt)
     sentence_count = len(_SENTENCE_RE.findall(prompt))
@@ -620,15 +770,23 @@ def evaluate_intent_heuristics(
             )
         )
 
+    if benchmark.task.family == PromptFamily.FLUX:
+        negative_ok = result.negative_prompt == ""
+        negative_detail = (
+            "FLUX negative_prompt is correctly empty."
+            if negative_ok
+            else "FLUX benchmark expects an empty negative_prompt."
+        )
+    else:
+        negative_ok = True
+        negative_detail = "No family-specific negative prompt policy is enforced."
     metrics.append(
         IntentHeuristicMetric(
-            "flux_negative_policy",
-            "pass" if result.negative_prompt == "" else "fail",
-            3 if result.negative_prompt == "" else 0,
+            "family_negative_policy",
+            "pass" if negative_ok else "fail",
+            3 if negative_ok else 0,
             3,
-            "FLUX negative_prompt is correctly empty."
-            if result.negative_prompt == ""
-            else "FLUX benchmark expects an empty negative_prompt.",
+            negative_detail,
         )
     )
 
@@ -655,16 +813,12 @@ def intent_status(
         metric.metric_id
         for metric in report.heuristic_metrics
         if metric.status == "fail"
-        and metric.metric_id in {"core_intent", "flux_negative_policy"}
+        and metric.metric_id in {"core_intent", "family_negative_policy"}
     }
     if hard_failures:
         return "fail"
-
-    # Missing one requested mood direction is not fatal for a free model, but it
-    # prevents a clean PASS because the benchmark explicitly asked for it.
-    missing_required_intents = report.missing_required_intents
     if report.combined_score >= minimum_score:
-        if missing_required_intents or report.score_gap > 25:
+        if report.missing_required_intents or report.score_gap > 25:
             return "warn"
         return "pass"
     if report.combined_score >= max(0, minimum_score - 15):
@@ -710,6 +864,7 @@ def _print_benchmarks(console: Console) -> None:
     table = Table(title="Prompt intent benchmarks")
     table.add_column("ID", style="bold cyan")
     table.add_column("Family")
+    table.add_column("Scenario")
     table.add_column("Input language")
     table.add_column("Required intents")
     table.add_column("Purpose")
@@ -717,6 +872,7 @@ def _print_benchmarks(console: Console) -> None:
         table.add_row(
             benchmark.benchmark_id,
             benchmark.task.family.value,
+            benchmark.task.scenario.value,
             "Russian",
             ", ".join(benchmark.required_intents),
             benchmark.description,
@@ -929,6 +1085,7 @@ def main(argv: list[str] | None = None) -> int:
         header.add_column(style="bold cyan")
         header.add_column()
         header.add_row("Benchmark", f"{benchmark.benchmark_id} · {benchmark.title}")
+        header.add_row("Scenario", benchmark.task.scenario.value)
         header.add_row(
             "Generator", f"{generator_profile['name']} · {generator_profile['model']}"
         )

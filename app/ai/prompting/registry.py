@@ -112,6 +112,12 @@ SCENARIO_MANIFESTS: dict[PromptScenario, ManifestDefinition] = {
         path=CONTENT_DIR / "scenarios" / "portrait.md",
         families=_ALL_FAMILIES,
     ),
+    PromptScenario.PRODUCT_OBJECT: ManifestDefinition(
+        manifest_id=PromptScenario.PRODUCT_OBJECT.value,
+        version="1",
+        path=CONTENT_DIR / "scenarios" / "product_object.md",
+        families=_ALL_FAMILIES,
+    ),
     PromptScenario.GRAPHIC_DESIGN_TEXT: ManifestDefinition(
         manifest_id=PromptScenario.GRAPHIC_DESIGN_TEXT.value,
         version="1",

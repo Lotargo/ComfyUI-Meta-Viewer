@@ -81,6 +81,12 @@ class DirectPromptExecutor:
         user_input: str,
         image_data_url: str | None = None,
     ) -> DirectPromptExecutionResult:
+        if profile.get("kind", "openai_compatible") != "openai_compatible":
+            raise DirectPromptExecutionError(
+                "This operation requires an OpenAI-compatible profile.",
+                code="incompatible_profile",
+                stage="input",
+            )
         cleaned_input = self._validate_user_input(user_input)
         cleaned_image = self._validate_image_data_url(image_data_url)
         if cleaned_image is not None and profile.get("multimodal") is not True:

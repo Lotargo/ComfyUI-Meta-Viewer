@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -24,6 +25,10 @@ MAX_USER_INPUT_CHARS = 100_000
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 OPENCODE_AGENT_NAME = "cmv-prompt-smoke"
+_SINGLE_JSON_FENCE_RE = re.compile(
+    r"\A\s*```(?:json)?[ \t]*\r?\n(?P<body>\{.*\})\r?\n```[ \t]*\s*\Z",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 class OpenCodePromptExecutionError(RuntimeError):
@@ -51,6 +56,7 @@ class OpenCodePromptExecutionResult:
     raw_response_sha256: str
     transport: str = "opencode"
     agent: str = OPENCODE_AGENT_NAME
+    response_normalizations: tuple[str, ...] = ()
 
     def metadata(self) -> dict[str, Any]:
         return {
@@ -58,6 +64,7 @@ class OpenCodePromptExecutionResult:
             "agent": self.agent,
             "latency_ms": self.latency_ms,
             "raw_response_sha256": self.raw_response_sha256,
+            "response_normalizations": list(self.response_normalizations),
             "bundle": self.bundle.metadata(),
         }
 
@@ -197,8 +204,9 @@ class OpenCodePromptExecutor:
                 technical_error=combined_output[:16_000] or None,
             )
 
+        normalized_text, response_normalizations = self._normalize_response(raw_text)
         try:
-            result = parse_prompt_result(raw_text)
+            result = parse_prompt_result(normalized_text)
         except PromptContractError as exc:
             raise OpenCodePromptExecutionError(
                 str(exc),
@@ -212,6 +220,7 @@ class OpenCodePromptExecutor:
             bundle=bundle,
             latency_ms=command.elapsed_ms,
             raw_response_sha256=hashlib.sha256(raw_text.encode("utf-8")).hexdigest(),
+            response_normalizations=response_normalizations,
         )
 
     @staticmethod
@@ -343,3 +352,15 @@ class OpenCodePromptExecutor:
             if isinstance(text, str) and text:
                 text_parts.append(text)
         return "".join(text_parts).strip()
+
+    @staticmethod
+    def _normalize_response(raw: str) -> tuple[str, tuple[str, ...]]:
+        """Remove only one lossless outer JSON code fence from a host response.
+
+        The core PromptResult parser remains strict. This host-boundary normalization
+        accepts no prose before or after the fence and does not attempt JSON repair.
+        """
+        match = _SINGLE_JSON_FENCE_RE.fullmatch(raw)
+        if match is None:
+            return raw, ()
+        return match.group("body").strip(), ("markdown_json_fence_removed",)

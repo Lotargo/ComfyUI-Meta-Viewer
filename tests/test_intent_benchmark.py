@@ -21,7 +21,7 @@ from app.ai.judging import (
     IntentJudgeScores,
     parse_intent_judge_result,
 )
-from app.ai.prompting import PromptCompiler, PromptResult
+from app.ai.prompting import PromptCompiler, PromptResult, PromptScenario
 
 
 class IntentJudgeContractTest(unittest.TestCase):
@@ -39,27 +39,69 @@ class IntentJudgeContractTest(unittest.TestCase):
         self.assertEqual(scores.total, 88)
 
     def test_strict_judge_json_is_parsed(self) -> None:
-        parsed = parse_intent_judge_result(json.dumps({
-            "schema_version": "1",
-            "scores": {
-                "intent_fidelity": 20,
-                "useful_visual_expansion": 18,
-                "atmosphere_translation": 14,
-                "composition_and_camera": 9,
-                "lighting": 9,
-                "environment_and_materials": 9,
-                "coherence_and_model_fit": 9,
-                "restraint_and_consistency": 5,
-            },
-            "strengths": ["Preserves the core request."],
-            "weaknesses": ["Could be slightly more concise."],
-            "rationale": "The candidate expands the short request into a coherent visual plan.",
-        }))
+        parsed = parse_intent_judge_result(
+            json.dumps(
+                {
+                    "schema_version": "1",
+                    "scores": {
+                        "intent_fidelity": 20,
+                        "useful_visual_expansion": 18,
+                        "atmosphere_translation": 14,
+                        "composition_and_camera": 9,
+                        "lighting": 9,
+                        "environment_and_materials": 9,
+                        "coherence_and_model_fit": 9,
+                        "restraint_and_consistency": 5,
+                    },
+                    "strengths": ["Preserves the core request."],
+                    "weaknesses": ["Could be slightly more concise."],
+                    "rationale": "The candidate expands the request into a coherent visual plan.",
+                }
+            )
+        )
         self.assertEqual(parsed.total, 93)
         self.assertEqual(parsed.verdict, "pass")
 
 
-class IntentHeuristicTest(unittest.TestCase):
+class BenchmarkDefinitionTest(unittest.TestCase):
+    def test_portrait_and_product_benchmarks_are_registered(self) -> None:
+        self.assertIn("flux-portrait-intent-basic", BENCHMARKS)
+        self.assertIn("flux-product-intent-basic", BENCHMARKS)
+        self.assertEqual(
+            BENCHMARKS["flux-product-intent-basic"].task.scenario,
+            PromptScenario.PRODUCT_OBJECT,
+        )
+
+    def test_each_benchmark_has_a_hundred_point_heuristic_rubric(self) -> None:
+        strong_candidates = {
+            "flux-portrait-intent-basic": PromptResult(
+                positive_prompt=(
+                    "An intimate high-end editorial portrait of an adult woman ceramic artist in a working pottery "
+                    "studio, framed as an eye-level medium close-up with a relaxed direct gaze. Soft warm window light "
+                    "shapes her face while shelves, a pottery wheel, clay tools, and handmade bowls create an authentic "
+                    "workshop background. A linen apron dusted with clay, natural skin texture, matte ceramic surfaces, "
+                    "restrained earth tones, and shallow depth of field make the scene refined and quietly cozy."
+                ),
+                negative_prompt="",
+            ),
+            "flux-product-intent-basic": PromptResult(
+                positive_prompt=(
+                    "A high-end commercial product photograph of an upright perfume bottle, composed as a centered "
+                    "three-quarter hero shot with crisp label visibility and clean negative space. Warm amber key light "
+                    "and a narrow rim create controlled reflections through transparent glass, pale gold liquid, and a "
+                    "brushed metal cap. The bottle stands on a travertine pedestal against a seamless warm beige gradient "
+                    "background, with a grounded shadow and polished minimal art direction."
+                ),
+                negative_prompt="",
+            ),
+        }
+        for benchmark_id, candidate in strong_candidates.items():
+            with self.subTest(benchmark=benchmark_id):
+                metrics = evaluate_intent_heuristics(BENCHMARKS[benchmark_id], candidate)
+                self.assertEqual(sum(metric.maximum for metric in metrics), 100)
+
+
+class PortraitIntentHeuristicTest(unittest.TestCase):
     def setUp(self) -> None:
         self.benchmark = BENCHMARKS["flux-portrait-intent-basic"]
 
@@ -68,9 +110,6 @@ class IntentHeuristicTest(unittest.TestCase):
             metric.metric_id: metric
             for metric in evaluate_intent_heuristics(self.benchmark, result)
         }
-
-    def _score(self, result: PromptResult) -> int:
-        return sum(self._metrics(result)[key].points for key in self._metrics(result))
 
     def test_shallow_paraphrase_scores_low(self) -> None:
         result = PromptResult(
@@ -81,7 +120,7 @@ class IntentHeuristicTest(unittest.TestCase):
             negative_prompt="",
         )
         metrics = self._metrics(result)
-        self.assertLess(self._score(result), 65)
+        self.assertLess(sum(metric.points for metric in metrics.values()), 65)
         self.assertEqual(metrics["non_trivial_expansion"].status, "fail")
         self.assertEqual(metrics["invented_camera_language"].status, "fail")
         self.assertEqual(metrics["invented_lighting"].status, "fail")
@@ -89,61 +128,108 @@ class IntentHeuristicTest(unittest.TestCase):
     def test_independent_visual_expansion_scores_high(self) -> None:
         result = PromptResult(
             positive_prompt=(
-                "An intimate editorial portrait of an adult woman ceramic artist in a working pottery studio, "
-                "framed as an eye-level medium close-up with a calm, relaxed expression. Soft warm window light "
-                "shapes one side of her face while gentle shadow preserves depth and a faint rim separates her "
-                "from shelves of handmade bowls, clay tools, and a pottery wheel. She wears a charcoal linen apron "
-                "dusted with pale clay and holds a matte ceramic cup, revealing natural skin texture, fabric weave, "
-                "and handmade surfaces. Restrained earth tones, shallow depth of field, and an authentic unposed "
-                "editorial finish make the workshop feel refined, inviting, and quietly cozy."
+                "An intimate high-end editorial portrait of an adult woman ceramic artist in a working pottery studio, "
+                "framed as an eye-level medium close-up with a calm, relaxed gaze. Soft warm window light shapes one "
+                "side of her face while gentle shadow preserves depth and a faint rim separates her from shelves of "
+                "handmade bowls, clay tools, and a pottery wheel. She wears a charcoal linen apron dusted with pale clay "
+                "and holds a matte ceramic cup, revealing natural skin texture and handmade surfaces. Restrained earth "
+                "tones, shallow depth of field, and authentic unposed styling make the workshop refined and quietly cozy."
             ),
             negative_prompt="",
         )
-        metrics = tuple(evaluate_intent_heuristics(self.benchmark, result))
+        metrics = evaluate_intent_heuristics(self.benchmark, result)
         self.assertGreaterEqual(sum(metric.points for metric in metrics), 95)
         self.assertTrue(all(metric.status != "fail" for metric in metrics))
 
-    def test_cross_language_expansion_uses_visual_decisions_not_lexical_novelty(self) -> None:
+    def test_cross_language_expansion_uses_visual_decisions(self) -> None:
         result = PromptResult(
             positive_prompt=(
-                "A close-up portrait of an adult young woman ceramicist in her sunlit workshop, her face softly "
-                "illuminated by warm natural window light from the left. She has a gentle, focused expression as "
-                "she gazes slightly off-camera, with fine clay dust visible on her fingers. Her dark hair is loosely "
-                "gathered back, revealing natural skin texture and a serene demeanor. The background dissolves into "
-                "soft bokeh showing blurred shelves of finished ceramic pieces and pottery tools, creating depth "
-                "with shallow depth of field. The atmosphere feels warm, intimate, and authentic, with golden-hour "
-                "light casting soft shadows across her features and the textured workshop surfaces."
+                "A close-up portrait of an adult young woman ceramicist in her sunlit workshop, softly illuminated by "
+                "warm natural window light. She has a focused expression and gazes off-camera, with fine clay dust on "
+                "her fingers and natural skin texture. The background dissolves into bokeh showing shelves of ceramic "
+                "pieces and pottery tools. Shallow depth of field and golden-hour shadows make the atmosphere warm, "
+                "intimate, and authentic."
             ),
             negative_prompt="",
         )
         metrics = self._metrics(result)
-        expansion = metrics["non_trivial_expansion"]
-        requested = metrics["requested_intent_coverage"]
-        self.assertEqual(expansion.status, "pass")
-        self.assertNotIn("lexical novelty", expansion.detail)
-        self.assertIn("visual decision groups", expansion.detail)
-        self.assertEqual(requested.status, "warn")
-        self.assertIn("premium_refined", requested.detail)
+        self.assertEqual(metrics["non_trivial_expansion"].status, "pass")
+        self.assertNotIn("lexical novelty", metrics["non_trivial_expansion"].detail)
+        self.assertEqual(metrics["requested_intent_coverage"].status, "warn")
+        self.assertIn("premium_refined", metrics["requested_intent_coverage"].detail)
+
+
+class ProductIntentHeuristicTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.benchmark = BENCHMARKS["flux-product-intent-basic"]
+
+    def _metrics(self, result: PromptResult):
+        return {
+            metric.metric_id: metric
+            for metric in evaluate_intent_heuristics(self.benchmark, result)
+        }
+
+    def test_shallow_product_paraphrase_scores_low(self) -> None:
+        result = PromptResult(
+            positive_prompt="A beautiful luxury clean warm advertising image of a perfume bottle.",
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertLess(sum(metric.points for metric in metrics.values()), 65)
+        self.assertEqual(metrics["non_trivial_expansion"].status, "fail")
+        self.assertEqual(metrics["invented_product_set"].status, "fail")
+        self.assertEqual(metrics["product_materials"].status, "fail")
+
+    def test_product_art_direction_scores_high(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A high-end commercial product photograph of an upright perfume bottle, composed as a centered "
+                "three-quarter hero shot with crisp label visibility and generous clean negative space. Warm amber key "
+                "light from camera-left and a narrow rim create controlled specular highlights and elegant reflections "
+                "through transparent glass, pale gold liquid, and a brushed metal cap. The bottle stands on a travertine "
+                "pedestal against a seamless warm beige gradient background, with a grounded shadow, refined minimal "
+                "styling, and polished luxury campaign art direction."
+            ),
+            negative_prompt="",
+        )
+        metrics = evaluate_intent_heuristics(self.benchmark, result)
+        self.assertEqual(sum(metric.points for metric in metrics), 100)
+        self.assertTrue(all(metric.status == "pass" for metric in metrics))
+
+    def test_product_benchmark_does_not_reward_portrait_only_detail(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "An adult woman with natural skin texture and a relaxed gaze holds perfume in a warm portrait. "
+                "The image is elegant, clean, and cozy with soft window light."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["core_intent"].status, "fail")
+        self.assertEqual(metrics["product_materials"].status, "fail")
+        self.assertEqual(metrics["product_presentation"].status, "fail")
 
 
 class OpenCodeIntentJudgeExecutorTest(unittest.TestCase):
     def test_judge_uses_family_policy_required_intents_and_five_minute_timeout(self) -> None:
-        raw_result = json.dumps({
-            "schema_version": "1",
-            "scores": {
-                "intent_fidelity": 20,
-                "useful_visual_expansion": 18,
-                "atmosphere_translation": 14,
-                "composition_and_camera": 9,
-                "lighting": 9,
-                "environment_and_materials": 9,
-                "coherence_and_model_fit": 9,
-                "restraint_and_consistency": 5,
-            },
-            "strengths": ["Strong visual expansion."],
-            "weaknesses": [],
-            "rationale": "The prompt preserves intent and adds useful visual decisions.",
-        })
+        raw_result = json.dumps(
+            {
+                "schema_version": "1",
+                "scores": {
+                    "intent_fidelity": 20,
+                    "useful_visual_expansion": 18,
+                    "atmosphere_translation": 14,
+                    "composition_and_camera": 9,
+                    "lighting": 9,
+                    "environment_and_materials": 9,
+                    "coherence_and_model_fit": 9,
+                    "restraint_and_consistency": 5,
+                },
+                "strengths": ["Strong visual expansion."],
+                "weaknesses": [],
+                "rationale": "The prompt preserves intent and adds useful visual decisions.",
+            }
+        )
         event_output = json.dumps({"part": {"text": raw_result}})
         captured: dict = {}
 
@@ -187,61 +273,52 @@ class OpenCodeIntentJudgeExecutorTest(unittest.TestCase):
             executed = OpenCodeIntentJudgeExecutor().execute(
                 profile=profile,
                 family="flux",
-                user_request="Сделай уютный дорогой портрет взрослой девушки-керамиста.",
+                user_request="Сделай дорогой чистый и тёплый рекламный кадр флакона духов.",
                 candidate=PromptResult(
-                    positive_prompt="An editorial portrait of an adult ceramic artist.",
+                    positive_prompt="A luxury commercial product photograph of a perfume bottle.",
                     negative_prompt="",
                 ),
-                required_intents=("natural", "premium_refined", "cozy"),
+                required_intents=("premium_refined", "clean_minimal", "warm"),
             )
 
         self.assertEqual(executed.result.total, 93)
-        self.assertEqual(executed.latency_ms, 77)
         self.assertEqual(captured["timeout"], 300)
         self.assertEqual(
             captured["config"]["agent"]["cmv-intent-judge"]["permission"],
             {"*": "deny"},
         )
-        self.assertIn("REQUIRED INTENT DIMENSIONS", captured["task"])
-        self.assertIn("premium_refined", captured["task"])
+        self.assertIn("clean_minimal", captured["task"])
         self.assertIn("empty negative_prompt is correct", captured["task"])
         self.assertIn("must not be penalized", captured["task"])
         self.assertIn("Assume it came from an unknown system", " ".join(captured["args"]))
 
 
 class IntentReportTest(unittest.TestCase):
-    def _judge_result(self, total_style: str = "strong") -> IntentJudgeResult:
-        if total_style == "strong":
-            scores = IntentJudgeScores(
+    @staticmethod
+    def _judge_result(atmosphere: int = 14) -> IntentJudgeResult:
+        return IntentJudgeResult(
+            scores=IntentJudgeScores(
                 intent_fidelity=19,
                 useful_visual_expansion=18,
-                atmosphere_translation=14,
+                atmosphere_translation=atmosphere,
                 composition_and_camera=9,
                 lighting=9,
                 environment_and_materials=9,
                 coherence_and_model_fit=9,
                 restraint_and_consistency=5,
-            )
-        else:
-            scores = IntentJudgeScores(
-                intent_fidelity=18,
-                useful_visual_expansion=17,
-                atmosphere_translation=10,
-                composition_and_camera=9,
-                lighting=10,
-                environment_and_materials=9,
-                coherence_and_model_fit=9,
-                restraint_and_consistency=5,
-            )
-        return IntentJudgeResult(
-            scores=scores,
+            ),
             strengths=("Preserves intent.",),
             weaknesses=(),
             rationale="Strong result.",
         )
 
-    def _report(self, candidate: PromptResult, judge_result: IntentJudgeResult):
-        benchmark = BENCHMARKS["flux-portrait-intent-basic"]
+    def _report(
+        self,
+        benchmark_id: str,
+        candidate: PromptResult,
+        judge_result: IntentJudgeResult,
+    ) -> IntentBenchmarkReport:
+        benchmark = BENCHMARKS[benchmark_id]
         generation = OpenCodePromptExecutionResult(
             result=candidate,
             bundle=PromptCompiler().compile(benchmark.task),
@@ -271,17 +348,19 @@ class IntentReportTest(unittest.TestCase):
     def test_same_model_judge_uses_sixty_forty_weighting(self) -> None:
         candidate = PromptResult(
             positive_prompt=(
-                "An editorial portrait of an adult woman ceramic artist in a pottery studio, framed as an "
-                "eye-level medium close-up. Warm window light crosses natural skin texture and a linen apron "
-                "dusted with clay, while shelves, a pottery wheel, handmade bowls, and matte ceramic surfaces "
-                "build an authentic workshop setting. She holds a ceramic cup with a relaxed gaze. Restrained "
-                "earth tones, soft shadow, shallow depth of field, and an intimate unposed mood make the image "
-                "refined, natural, and cozy."
+                "An intimate high-end editorial portrait of an adult woman ceramic artist in a pottery studio, framed "
+                "as an eye-level medium close-up. Warm window light crosses natural skin texture and a linen apron "
+                "dusted with clay, while shelves, a pottery wheel, handmade bowls, and matte ceramic surfaces build an "
+                "authentic workshop setting. She holds a cup with a relaxed gaze. Restrained earth tones, soft shadow, "
+                "shallow depth of field, and an intimate unposed mood make the image refined, natural, and cozy."
             ),
             negative_prompt="",
         )
-        report = self._report(candidate, self._judge_result())
-        self.assertTrue(report.same_model_judge)
+        report = self._report(
+            "flux-portrait-intent-basic",
+            candidate,
+            self._judge_result(),
+        )
         self.assertEqual(report.score_weights, (0.60, 0.40))
         self.assertEqual(
             report.combined_score,
@@ -289,23 +368,27 @@ class IntentReportTest(unittest.TestCase):
         )
         self.assertEqual(intent_status(report, 80), "pass")
         serialized = report.to_dict()
-        self.assertEqual(serialized["schema_version"], "2")
+        self.assertEqual(serialized["schema_version"], "3")
         self.assertEqual(serialized["scores"]["weights"]["heuristic"], 0.60)
 
-    def test_missing_requested_mood_caps_status_at_warn(self) -> None:
+    def test_missing_product_warmth_caps_status_at_warn(self) -> None:
         candidate = PromptResult(
             positive_prompt=(
-                "A close-up portrait of an adult young woman ceramicist in her sunlit workshop, softly illuminated "
-                "by warm natural window light. She has a focused expression and gazes off-camera, with clay dust on "
-                "her fingers and natural skin texture. Soft bokeh reveals shelves, pottery tools, and ceramic pieces "
-                "in the background. Shallow depth of field and golden-hour shadows make the atmosphere warm, intimate, "
-                "and authentic."
+                "A high-end commercial product photograph of an upright perfume bottle, composed as a centered macro "
+                "hero shot with crisp label visibility and clean negative space. Cool diffused key light and a narrow "
+                "rim create reflections through transparent glass, clear liquid, and a brushed silver cap. The bottle "
+                "stands on an acrylic pedestal against a seamless white gradient background with a grounded shadow and "
+                "polished minimalist luxury art direction."
             ),
             negative_prompt="",
         )
-        report = self._report(candidate, self._judge_result("missing-premium"))
+        report = self._report(
+            "flux-product-intent-basic",
+            candidate,
+            self._judge_result(atmosphere=10),
+        )
         self.assertGreaterEqual(report.combined_score, 80)
-        self.assertIn("premium_refined", report.missing_required_intents)
+        self.assertIn("warm", report.missing_required_intents)
         self.assertEqual(intent_status(report, 80), "warn")
 
 

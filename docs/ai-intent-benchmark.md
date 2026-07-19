@@ -13,13 +13,16 @@ One benchmark run makes two explicit OpenCode calls:
 
 By default the judge uses the same OpenCode profile and model as the generator. This keeps the benchmark free when the selected provider/model is free. A different judge profile can be supplied later with `--judge-profile`.
 
-The same-model judge is treated as a potentially correlated evaluator. The final score is therefore:
+The same-model judge is treated as a potentially correlated evaluator. The free baseline therefore weights deterministic checks more heavily:
 
 ```text
-combined = round((deterministic_score + judge_score) / 2)
+same model: combined = round(deterministic_score * 0.60 + judge_score * 0.40)
+separate judge: combined = round(deterministic_score * 0.50 + judge_score * 0.50)
 ```
 
 The judge cannot override hard deterministic failures such as losing the core subject intent or returning a non-empty FLUX negative prompt.
+
+Missing a requested mood direction is not a hard failure for a free model, but it caps the final status at `WARN` even when the numerical score crosses the pass threshold.
 
 ## Current benchmark
 
@@ -33,6 +36,12 @@ Raw user request:
 
 The request deliberately omits camera, lens, lighting, materials, environment details, composition, and depth. The generator must infer useful visual decisions while preserving the subject and mood.
 
+Required intent dimensions are evaluated independently:
+
+- `natural`;
+- `premium_refined`, representing «дорого»;
+- `cozy`.
+
 The deterministic checks score:
 
 - core intent preservation;
@@ -40,11 +49,14 @@ The deterministic checks score:
 - motivated lighting;
 - workshop-specific details;
 - tactile material language;
-- translation of natural/refined/cozy mood into visual terms;
-- non-trivial expansion beyond paraphrase;
+- subject pose, gaze, or action;
+- explicit coverage of every requested intent dimension;
+- non-trivial expansion through independent visual decision groups;
 - coherent structure;
 - FLUX empty-negative policy;
 - absence of generic quality slogans.
+
+The expansion check is language-independent at the input/output boundary. It no longer compares Russian input words against English output words. Instead it verifies concrete visual decision groups such as camera, lighting, environment, materials, subject direction, and depth/colour/medium.
 
 The model judge independently scores:
 
@@ -56,6 +68,8 @@ The model judge independently scores:
 - environment and materials — 10;
 - coherence and model fit — 10;
 - restraint and consistency — 5.
+
+The judge receives the required intent dimensions and family-specific policy. For FLUX, an empty `negative_prompt` is explicitly correct and must not be penalized or listed as a weakness.
 
 ## Commands
 
@@ -102,10 +116,11 @@ Both calls use the managed OpenCode five-minute timeout unless `--timeout` expli
 
 ## Interpretation
 
-A high same-model judge score is not independent proof of quality. Read all three signals:
+A high same-model judge score is not independent proof of quality. Read all four signals:
 
 - deterministic score;
 - judge score;
-- score gap.
+- score gap;
+- missing required intents.
 
-A large score gap is surfaced as a warning even when the combined score crosses the pass threshold. Future versions can replace the judge profile without changing the generator or benchmark definition.
+A large score gap or a missing requested intent direction is surfaced as a warning even when the combined score crosses the pass threshold. Future versions can replace the judge profile without changing the generator or benchmark definition.

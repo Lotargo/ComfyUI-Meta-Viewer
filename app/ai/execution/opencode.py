@@ -25,6 +25,8 @@ MAX_USER_INPUT_CHARS = 100_000
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 OPENCODE_AGENT_NAME = "cmv-prompt-smoke"
+LEGACY_OPENCODE_TIMEOUT_SECONDS = 60
+DEFAULT_OPENCODE_TIMEOUT_SECONDS = 5 * 60
 _SINGLE_JSON_FENCE_RE = re.compile(
     r"\A\s*```(?:json)?[ \t]*\r?\n(?P<body>\{.*\})\r?\n```[ \t]*\s*\Z",
     re.IGNORECASE | re.DOTALL,
@@ -90,6 +92,7 @@ class OpenCodePromptExecutor:
         image_path: str | Path | None = None,
     ) -> OpenCodePromptExecutionResult:
         self._validate_profile(profile)
+        timeout_seconds = self._resolve_timeout(profile)
         cleaned_input = self._validate_user_input(user_input)
         validated_image = self._validate_image_path(image_path)
         if validated_image is not None and profile.get("multimodal") is not True:
@@ -157,7 +160,7 @@ class OpenCodePromptExecutor:
                 ]
                 command = run_command(
                     args,
-                    timeout=profile["timeout_seconds"],
+                    timeout=timeout_seconds,
                     cwd=workspace,
                 )
         except CLIIntegrationError as exc:
@@ -237,6 +240,33 @@ class OpenCodePromptExecutor:
                 code="invalid_profile",
                 stage="input",
             )
+
+    @staticmethod
+    def _resolve_timeout(profile: dict[str, Any]) -> int:
+        """Map the old 60-second default to the five-minute host default.
+
+        Values other than the legacy default are treated as explicit user choices
+        and remain unchanged within the supported 5-600 second range.
+        """
+        raw_timeout = profile.get("timeout_seconds", DEFAULT_OPENCODE_TIMEOUT_SECONDS)
+        try:
+            timeout_seconds = int(raw_timeout)
+        except (TypeError, ValueError) as exc:
+            raise OpenCodePromptExecutionError(
+                "The OpenCode profile timeout must be a whole number of seconds.",
+                code="invalid_profile",
+                stage="input",
+                technical_error=str(exc),
+            ) from exc
+        if not 5 <= timeout_seconds <= 600:
+            raise OpenCodePromptExecutionError(
+                "The OpenCode profile timeout must be between 5 and 600 seconds.",
+                code="invalid_profile",
+                stage="input",
+            )
+        if timeout_seconds == LEGACY_OPENCODE_TIMEOUT_SECONDS:
+            return DEFAULT_OPENCODE_TIMEOUT_SECONDS
+        return timeout_seconds
 
     @staticmethod
     def _validate_user_input(value: str) -> str:

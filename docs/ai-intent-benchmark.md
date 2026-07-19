@@ -20,11 +20,11 @@ same model: combined = round(deterministic_score * 0.60 + judge_score * 0.40)
 separate judge: combined = round(deterministic_score * 0.50 + judge_score * 0.50)
 ```
 
-The judge cannot override hard deterministic failures such as losing the core subject intent or returning a non-empty FLUX negative prompt.
+The judge cannot override hard deterministic failures such as losing the core subject intent or violating the model-family negative prompt policy.
 
-Missing a requested mood direction is not a hard failure for a free model, but it caps the final status at `WARN` even when the numerical score crosses the pass threshold.
+Missing a requested intent direction is not a hard failure for a free model, but it caps the final status at `WARN` even when the numerical score crosses the pass threshold.
 
-## Current benchmark
+## Benchmarks
 
 ### `flux-portrait-intent-basic`
 
@@ -36,27 +36,63 @@ Raw user request:
 
 The request deliberately omits camera, lens, lighting, materials, environment details, composition, and depth. The generator must infer useful visual decisions while preserving the subject and mood.
 
-Required intent dimensions are evaluated independently:
+Required intent dimensions:
 
 - `natural`;
 - `premium_refined`, representing «дорого»;
 - `cozy`.
 
-The deterministic checks score:
+Portrait-specific deterministic checks include:
 
-- core intent preservation;
-- invented camera/framing language;
+- adult female ceramic artist in a workshop;
+- camera and framing;
 - motivated lighting;
 - workshop-specific details;
-- tactile material language;
+- tactile materials;
 - subject pose, gaze, or action;
-- explicit coverage of every requested intent dimension;
-- non-trivial expansion through independent visual decision groups;
-- coherent structure;
-- FLUX empty-negative policy;
-- absence of generic quality slogans.
+- depth, colour, and photographic medium.
 
-The expansion check is language-independent at the input/output boundary. It no longer compares Russian input words against English output words. Instead it verifies concrete visual decision groups such as camera, lighting, environment, materials, subject direction, and depth/colour/medium.
+### `flux-product-intent-basic`
+
+Raw user request:
+
+```text
+Сделай красивую рекламную фотографию флакона духов. Нужен дорогой, чистый и немного тёплый образ.
+```
+
+This benchmark checks whether the same prompt system generalises from people to commercial object photography. The input does not specify lens, bottle placement, background, materials, reflections, light direction, or campaign art direction.
+
+Required intent dimensions:
+
+- `premium_refined`;
+- `clean_minimal`;
+- `warm`.
+
+Product-specific deterministic checks include:
+
+- perfume bottle and commercial product-image intent;
+- camera and hero framing;
+- motivated studio lighting;
+- product set or background;
+- glass, liquid, metal, reflections, or refraction;
+- bottle placement, label readability, and negative space;
+- depth, colour, and commercial photographic medium.
+
+## Shared deterministic rubric
+
+Every benchmark has a 100-point deterministic rubric:
+
+- core intent preservation — 16;
+- five scenario-specific coverage checks — 38;
+- explicit coverage of requested intent dimensions — 24;
+- non-trivial expansion through independent visual decision groups — 12;
+- coherent structure — 4;
+- family negative prompt policy — 3;
+- absence of generic quality slogans — 3.
+
+The expansion check is language-independent at the input/output boundary. It does not compare Russian input words with English output words. Instead it verifies scenario-specific visual decision groups.
+
+## Model judge rubric
 
 The model judge independently scores:
 
@@ -71,6 +107,14 @@ The model judge independently scores:
 
 The judge receives the required intent dimensions and family-specific policy. For FLUX, an empty `negative_prompt` is explicitly correct and must not be penalized or listed as a weakness.
 
+## Managed process cleanup
+
+OpenCode generator and judge calls use `app.ai.managed_process.run_managed_command`.
+
+On Windows, the root npm/cmd process is attached to a Job Object with `KILL_ON_JOB_CLOSE`. This prevents an orphaned `node.exe` from surviving after its parent exits, retaining stdout pipes, or locking the temporary `cmv-opencode-*` workspace. On timeout, the job is terminated, `taskkill /T /F` remains as a fallback, and pipes are drained or closed before the temporary directory is removed.
+
+The normal default timeout is five minutes per generator or judge call unless `--timeout` explicitly overrides it.
+
 ## Commands
 
 List benchmarks:
@@ -79,7 +123,7 @@ List benchmarks:
 .venv\Scripts\python.exe -m app.ai.intent_benchmark list
 ```
 
-Run with the same OpenCode profile as generator and judge:
+Run the portrait benchmark:
 
 ```powershell
 .venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-portrait-intent-basic `
@@ -87,23 +131,22 @@ Run with the same OpenCode profile as generator and judge:
   --debug
 ```
 
+Run the product benchmark:
+
+```powershell
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-product-intent-basic `
+  --profile "OpenCode" `
+  --json-out ".\reports\flux-product-intent.json" `
+  --debug
+```
+
 Use a separate judge profile later:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-portrait-intent-basic `
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-product-intent-basic `
   --profile "OpenCode Generator" `
   --judge-profile "OpenCode Judge"
 ```
-
-Save a sanitized JSON report:
-
-```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-portrait-intent-basic `
-  --profile "OpenCode" `
-  --json-out ".\reports\flux-portrait-intent.json"
-```
-
-Both calls use the managed OpenCode five-minute timeout unless `--timeout` explicitly overrides it.
 
 ## Exit codes
 

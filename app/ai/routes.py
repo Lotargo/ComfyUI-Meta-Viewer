@@ -12,6 +12,7 @@ from .cli import (
     list_cli_models,
     probe_cli,
 )
+from .job_store import AIJobStore, AIJobStoreError
 from .profiles import AIProfileStore, AIProfileStoreError
 from .secrets import SecretStoreError
 from .transport import AIProviderRequestError, test_profile
@@ -34,6 +35,10 @@ def _json_object() -> dict:
     return payload
 
 
+def _job_store() -> AIJobStore:
+    return AIJobStore()
+
+
 @ai_blueprint.errorhandler(AIProfileStoreError)
 def profile_error(error: AIProfileStoreError):
     if error.code == "profile_not_found":
@@ -54,6 +59,12 @@ def secret_store_error(error: SecretStoreError):
 def cli_error(error: CLIIntegrationError):
     status = 404 if error.code == "cli_unavailable" else 422
     return jsonify({"error": str(error), "code": error.code}), status
+
+
+@ai_blueprint.errorhandler(AIJobStoreError)
+def ai_job_error(error: AIJobStoreError):
+    status = 404 if "does not exist" in str(error) else 422
+    return jsonify({"error": str(error), "code": "ai_job_store_error"}), status
 
 
 @ai_blueprint.route("/settings/ai")
@@ -125,3 +136,33 @@ def ai_cli_integration(cli_type: str):
 @ai_blueprint.route("/api/ai/cli-integrations/<cli_type>/models", methods=["GET"])
 def ai_cli_models(cli_type: str):
     return jsonify(list_cli_models(cli_type, provider=request.args.get("provider")))
+
+
+@ai_blueprint.route("/api/ai/jobs/<int:job_id>", methods=["GET"])
+def ai_job(job_id: int):
+    snapshot = _job_store().get(job_id)
+    return jsonify(snapshot.model_dump(mode="json"))
+
+
+@ai_blueprint.route("/api/ai/prompt-drafts/<int:draft_id>", methods=["GET", "PATCH"])
+def ai_prompt_draft(draft_id: int):
+    store = _job_store()
+    if request.method == "GET":
+        draft = store.get_draft(draft_id)
+    else:
+        payload = _json_object()
+        unexpected = set(payload) - {"positive_prompt", "negative_prompt"}
+        if unexpected:
+            raise AIJobStoreError(
+                "Unsupported prompt draft fields: " + ", ".join(sorted(unexpected))
+            )
+        draft = store.revise_draft(
+            draft_id,
+            positive_prompt=payload.get("positive_prompt"),
+            negative_prompt=payload.get("negative_prompt"),
+        )
+    job = store.get(draft.job_id).job
+    return jsonify({
+        "draft": draft.model_dump(mode="json"),
+        "context": store.draft_context(draft, job).model_dump(mode="json"),
+    })

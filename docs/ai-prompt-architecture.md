@@ -69,12 +69,18 @@ SQLite stores backend-neutral state in four tables:
 |-------|---------|
 | `ai_jobs` | Task selection, backend/profile/model, bundle metadata, status, and errors |
 | `ai_scene_specs` | Current editable neutral scene analysis |
-| `ai_prompt_drafts` | Append-only prompt draft history and profile versions |
+| `ai_prompt_drafts` | Append-only editable prompt revisions, source snapshots, and profile versions |
 | `ai_results` | Normalized final result and execution metadata |
 
 Job transitions are checked and terminal states cannot silently become successful later. Deleting
 a job cascades to its intermediate artifacts; deleting a media asset keeps the job and clears its
 optional asset link.
+
+Each generated draft records whether it came from user text, an asset, translation, adaptation,
+or a reviewed `SceneSpec`. Editing creates a child revision instead of overwriting the model
+output. The draft API joins that immutable revision with its job context, so family, checkpoint,
+scenario, backend, provider profile, model, output contract, and technical status remain available
+after an application restart.
 
 ## Native agent-host packages
 

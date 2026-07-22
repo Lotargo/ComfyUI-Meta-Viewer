@@ -11,7 +11,7 @@ from app.ai.execution import (
     ExecutionMode,
     ExecutionRouter,
 )
-from app.ai.job_store import AIJobStore
+from app.ai.job_store import AIJobStore, PromptDraftSource
 from app.ai.prompting import (
     PromptFamily,
     PromptOperation,
@@ -103,6 +103,12 @@ class PromptReconstructionTest(unittest.TestCase):
         self.assertTrue(all("REVIEWED SCENE SPEC JSON" in call.user_input for call in self.adapter.calls))
         self.assertEqual(self.store.get(first.job_id).scene_spec, self.scene_spec)
         self.assertEqual(self.store.get(second.job_id).scene_spec, self.scene_spec)
+        first_draft = self.store.get(first.job_id).drafts[-1].draft
+        self.assertEqual(first_draft.source_kind, PromptDraftSource.SCENE_SPEC)
+        self.assertEqual(
+            first_draft.source_payload["composition"]["background"],
+            "warm beige",
+        )
 
     def test_edited_scene_spec_is_the_persisted_render_source(self) -> None:
         edited = self.scene_spec.model_copy(

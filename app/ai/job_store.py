@@ -5,7 +5,7 @@ import sqlite3
 from enum import Enum
 from typing import Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 
 from .. import database
 from .prompting import InstructionBundle, PromptResult, PromptTask, SceneSpec
@@ -24,10 +24,21 @@ class AIJobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class PromptDraftSource(str, Enum):
+    USER_TEXT = "user_text"
+    ASSET = "asset"
+    SCENE_SPEC = "scene_spec"
+    TRANSLATION = "translation"
+    ADAPTATION = "adaptation"
+    MANUAL = "manual"
+
+
 class PromptDraft(StrictModel):
     schema_version: str = Field(default="1", min_length=1, max_length=40)
     positive_prompt: str = Field(default="", max_length=40_000)
     negative_prompt: str = Field(default="", max_length=20_000)
+    source_kind: PromptDraftSource = PromptDraftSource.USER_TEXT
+    source_payload: dict[str, Any] = Field(default_factory=dict)
     versions: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("schema_version", "positive_prompt", "negative_prompt")
@@ -61,8 +72,23 @@ class AIJob(StrictModel):
 
 class StoredPromptDraft(StrictModel):
     id: int
+    job_id: int
+    parent_draft_id: int | None = None
     draft: PromptDraft
     created_at: str
+    updated_at: str
+
+
+class PromptDraftContext(StrictModel):
+    family: str
+    checkpoint_profile: str | None = None
+    scenario: str
+    operation: str
+    execution_backend: str
+    provider_profile_id: str | None = None
+    model_id: str | None = None
+    output_contract: str
+    technical_status: AIJobStatus
 
 
 class AIJobSnapshot(StrictModel):
@@ -156,19 +182,42 @@ class AIJobStore:
             conn.close()
         return scene_spec
 
-    def save_draft(self, job_id: int, draft: PromptDraft) -> StoredPromptDraft:
-        self._require_job(job_id)
+    def save_draft(
+        self,
+        job_id: int,
+        draft: PromptDraft,
+        *,
+        parent_draft_id: int | None = None,
+    ) -> StoredPromptDraft:
+        job = self._require_job(job_id)
         conn = database.get_conn()
         try:
+            if parent_draft_id is not None:
+                parent = conn.execute(
+                    "SELECT job_id FROM ai_prompt_drafts WHERE id=?",
+                    (parent_draft_id,),
+                ).fetchone()
+                if parent is None:
+                    raise AIJobStoreError(
+                        f"Prompt draft {parent_draft_id} does not exist."
+                    )
+                if int(parent["job_id"]) != job_id:
+                    raise AIJobStoreError(
+                        "A prompt draft revision must belong to the same AI job."
+                    )
             cursor = conn.execute(
                 """INSERT INTO ai_prompt_drafts (
-                    job_id, schema_version, positive_prompt, negative_prompt, versions_json
-                ) VALUES (?, ?, ?, ?, ?)""",
+                    job_id, parent_draft_id, schema_version, positive_prompt,
+                    negative_prompt, source_kind, source_payload_json, versions_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     job_id,
+                    parent_draft_id,
                     draft.schema_version,
                     draft.positive_prompt,
                     draft.negative_prompt,
+                    draft.source_kind.value,
+                    self._json(draft.source_payload),
                     self._json(draft.versions),
                 ),
             )
@@ -177,13 +226,65 @@ class AIJobStore:
                 "UPDATE ai_jobs SET updated_at=datetime('now') WHERE id=?",
                 (job_id,),
             )
-            row = conn.execute(
-                "SELECT created_at FROM ai_prompt_drafts WHERE id=?", (draft_id,)
-            ).fetchone()
             conn.commit()
         finally:
             conn.close()
-        return StoredPromptDraft(id=draft_id, draft=draft, created_at=row["created_at"])
+        return self.get_draft(draft_id, job=job)
+
+    def get_draft(
+        self,
+        draft_id: int,
+        *,
+        job: AIJob | None = None,
+    ) -> StoredPromptDraft:
+        conn = database.get_conn()
+        try:
+            row = conn.execute(
+                "SELECT * FROM ai_prompt_drafts WHERE id=?", (draft_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+        if row is None:
+            raise AIJobStoreError(f"Prompt draft {draft_id} does not exist.")
+        resolved_job = job or self._require_job(int(row["job_id"]))
+        return self._draft_from_row(row, resolved_job)
+
+    def revise_draft(
+        self,
+        draft_id: int,
+        *,
+        positive_prompt: str | None = None,
+        negative_prompt: str | None = None,
+    ) -> StoredPromptDraft:
+        if positive_prompt is None and negative_prompt is None:
+            raise AIJobStoreError(
+                "A prompt draft revision must change at least one prompt field."
+            )
+        current = self.get_draft(draft_id)
+        try:
+            revised = PromptDraft(
+                schema_version=current.draft.schema_version,
+                positive_prompt=(
+                    current.draft.positive_prompt
+                    if positive_prompt is None
+                    else positive_prompt
+                ),
+                negative_prompt=(
+                    current.draft.negative_prompt
+                    if negative_prompt is None
+                    else negative_prompt
+                ),
+                source_kind=PromptDraftSource.MANUAL,
+                source_payload={"revised_from_draft_id": draft_id},
+                versions=current.draft.versions,
+            )
+        except ValidationError as exc:
+            raise AIJobStoreError(f"Invalid prompt draft revision: {exc}") from exc
+        return self.save_draft(
+            current.job_id,
+            revised,
+            parent_draft_id=draft_id,
+        )
 
     def complete(
         self,
@@ -279,19 +380,8 @@ class AIJobStore:
             if scene_row is not None
             else None
         )
-        drafts = tuple(
-            StoredPromptDraft(
-                id=row["id"],
-                draft=PromptDraft(
-                    schema_version=row["schema_version"],
-                    positive_prompt=row["positive_prompt"],
-                    negative_prompt=row["negative_prompt"],
-                    versions=self._load_json(row["versions_json"], expected=dict),
-                ),
-                created_at=row["created_at"],
-            )
-            for row in draft_rows
-        )
+        job = self._job_from_row(job_row)
+        drafts = tuple(self._draft_from_row(row, job) for row in draft_rows)
         result = None
         execution_metadata: dict[str, Any] = {}
         if result_row is not None:
@@ -304,11 +394,47 @@ class AIJobStore:
                 result_row["execution_metadata_json"], expected=dict
             )
         return AIJobSnapshot(
-            job=self._job_from_row(job_row),
+            job=job,
             scene_spec=scene_spec,
             drafts=drafts,
             result=result,
             execution_metadata=execution_metadata,
+        )
+
+    @staticmethod
+    def draft_context(stored: StoredPromptDraft, job: AIJob) -> PromptDraftContext:
+        if stored.job_id != job.id:
+            raise AIJobStoreError("Prompt draft and AI job do not match.")
+        return PromptDraftContext(
+            family=job.task.family.value,
+            checkpoint_profile=job.task.checkpoint_profile,
+            scenario=job.task.scenario.value,
+            operation=job.task.operation.value,
+            execution_backend=job.execution_backend,
+            provider_profile_id=job.provider_profile_id,
+            model_id=job.model_id,
+            output_contract=job.task.output_contract,
+            technical_status=job.status,
+        )
+
+    @staticmethod
+    def _draft_from_row(row: sqlite3.Row, job: AIJob) -> StoredPromptDraft:
+        return StoredPromptDraft(
+            id=row["id"],
+            job_id=row["job_id"],
+            parent_draft_id=row["parent_draft_id"],
+            draft=PromptDraft(
+                schema_version=row["schema_version"],
+                positive_prompt=row["positive_prompt"],
+                negative_prompt=row["negative_prompt"],
+                source_kind=PromptDraftSource(row["source_kind"]),
+                source_payload=AIJobStore._load_json(
+                    row["source_payload_json"], expected=dict
+                ),
+                versions=AIJobStore._load_json(row["versions_json"], expected=dict),
+            ),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
         )
 
     def _require_job(self, job_id: int) -> AIJob:
@@ -451,5 +577,7 @@ __all__ = [
     "AIJobStore",
     "AIJobStoreError",
     "PromptDraft",
+    "PromptDraftContext",
+    "PromptDraftSource",
     "StoredPromptDraft",
 ]

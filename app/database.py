@@ -227,11 +227,15 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS ai_prompt_drafts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 job_id INTEGER NOT NULL REFERENCES ai_jobs(id) ON DELETE CASCADE,
+                parent_draft_id INTEGER REFERENCES ai_prompt_drafts(id) ON DELETE SET NULL,
                 schema_version TEXT NOT NULL,
                 positive_prompt TEXT NOT NULL DEFAULT '',
                 negative_prompt TEXT NOT NULL DEFAULT '',
+                source_kind TEXT NOT NULL DEFAULT 'user_text',
+                source_payload_json TEXT NOT NULL DEFAULT '{}',
                 versions_json TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
             CREATE TABLE IF NOT EXISTS ai_results (
@@ -286,6 +290,10 @@ def init_db() -> None:
             "ALTER TABLE images ADD COLUMN ai_annotations_json TEXT",
             "ALTER TABLE images ADD COLUMN preview_status TEXT NOT NULL DEFAULT 'pending'",
             "ALTER TABLE images ADD COLUMN preview_error TEXT",
+            "ALTER TABLE ai_prompt_drafts ADD COLUMN parent_draft_id INTEGER REFERENCES ai_prompt_drafts(id) ON DELETE SET NULL",
+            "ALTER TABLE ai_prompt_drafts ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'user_text'",
+            "ALTER TABLE ai_prompt_drafts ADD COLUMN source_payload_json TEXT NOT NULL DEFAULT '{}'",
+            "ALTER TABLE ai_prompt_drafts ADD COLUMN updated_at TEXT",
         )
         for migration in migrations:
             try:
@@ -295,6 +303,10 @@ def init_db() -> None:
                     raise
         conn.execute(
             "UPDATE images SET indexed_at = COALESCE(indexed_at, created_at, datetime('now'))"
+        )
+        conn.execute(
+            """UPDATE ai_prompt_drafts SET
+                updated_at = COALESCE(updated_at, created_at, datetime('now'))"""
         )
         conn.execute(
             """UPDATE images SET

@@ -3,7 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Iterable
 
-from ..job_store import AIJobStore, AIJobStoreError, PromptDraft
+from ..job_store import (
+    AIJobStore,
+    AIJobStoreError,
+    PromptDraft,
+    PromptDraftSource,
+)
 from ..prompting import PromptCompiler, PromptCompilerError, PromptTask, SceneSpec
 from .adapters import DirectOpenAICompatibleAdapter, OpenCodeAgentHostAdapter
 from .base import (
@@ -152,6 +157,16 @@ class ExecutionRouter:
                     schema_version=executed.result.schema_version,
                     positive_prompt=executed.result.positive_prompt,
                     negative_prompt=executed.result.negative_prompt,
+                    source_kind=self._draft_source_kind(
+                        task=task,
+                        asset_id=asset_id,
+                        scene_spec=scene_spec,
+                    ),
+                    source_payload=self._draft_source_payload(
+                        user_input=user_input,
+                        asset_id=asset_id,
+                        scene_spec=scene_spec,
+                    ),
                     versions=executed.bundle.versions,
                 ),
             )
@@ -223,6 +238,39 @@ class ExecutionRouter:
     def _profile_text(profile: dict[str, Any], key: str) -> str | None:
         value = profile.get(key)
         return value if isinstance(value, str) and value.strip() else None
+
+    @staticmethod
+    def _draft_source_kind(
+        *,
+        task: PromptTask,
+        asset_id: int | None,
+        scene_spec: SceneSpec | None,
+    ) -> PromptDraftSource:
+        from ..prompting import PromptOperation
+
+        if scene_spec is not None:
+            return PromptDraftSource.SCENE_SPEC
+        if task.operation is PromptOperation.TRANSLATE:
+            return PromptDraftSource.TRANSLATION
+        if task.operation is PromptOperation.ADAPT:
+            return PromptDraftSource.ADAPTATION
+        if asset_id is not None:
+            return PromptDraftSource.ASSET
+        return PromptDraftSource.USER_TEXT
+
+    @staticmethod
+    def _draft_source_payload(
+        *,
+        user_input: str,
+        asset_id: int | None,
+        scene_spec: SceneSpec | None,
+    ) -> dict[str, Any]:
+        if scene_spec is not None:
+            return scene_spec.model_dump(mode="json")
+        payload: dict[str, Any] = {"user_input": user_input}
+        if asset_id is not None:
+            payload["asset_id"] = asset_id
+        return payload
 
     def _record_failure(self, job_id: int, technical_error: str) -> None:
         try:

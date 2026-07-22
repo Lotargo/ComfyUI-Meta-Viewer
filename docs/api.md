@@ -738,6 +738,25 @@ Returns local diagnostics and cache statistics.
 
 ---
 
+## AI Prompt Drafts
+
+`GET /api/ai/jobs/<job_id>` returns the durable job snapshot, including the current `SceneSpec`,
+all prompt draft revisions, the normalized result, and execution metadata.
+
+`GET /api/ai/prompt-drafts/<draft_id>` returns one draft plus its execution context.
+
+`PATCH /api/ai/prompt-drafts/<draft_id>` accepts `positive_prompt` and/or `negative_prompt`.
+It creates and returns an append-only manual revision; the original AI output is not overwritten.
+
+```json
+{
+  "positive_prompt": "edited prompt",
+  "negative_prompt": "edited negative prompt"
+}
+```
+
+---
+
 ## Data Models
 
 ### `ImageMetadata`

@@ -13,3 +13,4 @@ cache/cutouts*
 cache/previews
 .playwright-mcp
 .pytest_cache
+reports

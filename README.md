@@ -122,14 +122,14 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
 - [x] Add same-model intent judge with deterministic heuristic checks
 - [x] Add portrait intent benchmark: `flux-portrait-intent-basic`
 - [x] Add product advertising intent benchmark: `flux-product-intent-basic`
-- [x] Add migrated scenario manifests for `portrait`, `single_character`, `product_object`, `architecture_interior`, and `graphic_design_text`
+- [x] Add migrated scenario manifests for `portrait`, `single_character`, `product_object`, `architecture_interior`, `landscape_environment`, and `graphic_design_text`
 - [x] Keep benchmarks available as independent, point-in-time calls instead of requiring a global run-all command
 
 ### Next benchmark and prompt work
 
 - [x] Add intent benchmark for `single_character`: `flux-single-character-intent-basic`
 - [x] Add intent benchmark for `architecture_interior`: `flux-architecture-interior-intent-basic`
-- [ ] Add intent benchmarks for `landscape_environment`
+- [x] Add intent benchmark for `landscape_environment`: `flux-landscape-environment-intent-basic`
 - [ ] Add intent benchmarks for `illustration_art`
 - [ ] Add intent benchmarks for `graphic_design_text`
 - [ ] Add `multi_character` benchmarks after tested checkpoint capability profiles exist
@@ -161,6 +161,10 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
   --debug
 
 .venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-architecture-interior-intent-basic `
+  --profile "OpenCode" `
+  --debug
+
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-landscape-environment-intent-basic `
   --profile "OpenCode" `
   --debug
 ```

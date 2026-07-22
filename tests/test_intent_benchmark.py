@@ -68,6 +68,7 @@ class BenchmarkDefinitionTest(unittest.TestCase):
         self.assertIn("flux-portrait-intent-basic", BENCHMARKS)
         self.assertIn("flux-single-character-intent-basic", BENCHMARKS)
         self.assertIn("flux-architecture-interior-intent-basic", BENCHMARKS)
+        self.assertIn("flux-landscape-environment-intent-basic", BENCHMARKS)
         self.assertIn("flux-product-intent-basic", BENCHMARKS)
         self.assertEqual(
             BENCHMARKS["flux-single-character-intent-basic"].task.scenario,
@@ -76,6 +77,10 @@ class BenchmarkDefinitionTest(unittest.TestCase):
         self.assertEqual(
             BENCHMARKS["flux-architecture-interior-intent-basic"].task.scenario,
             PromptScenario.ARCHITECTURE_INTERIOR,
+        )
+        self.assertEqual(
+            BENCHMARKS["flux-landscape-environment-intent-basic"].task.scenario,
+            PromptScenario.LANDSCAPE_ENVIRONMENT,
         )
         self.assertEqual(
             BENCHMARKS["flux-product-intent-basic"].task.scenario,
@@ -125,6 +130,18 @@ class BenchmarkDefinitionTest(unittest.TestCase):
                     "from tall windows washes warm plaster walls and timber surfaces while pendant lights add a soft "
                     "warm glow. Restrained earth tones and quiet architectural-photography styling keep the intimate "
                     "space serene, welcoming, and well-organized."
+                ),
+                negative_prompt="",
+            ),
+            "flux-landscape-environment-intent-basic": PromptResult(
+                positive_prompt=(
+                    "A wide panoramic northern valley landscape at dawn, viewed from an elevated rocky foreground. "
+                    "A winding river leads through the broad tundra valley floor and reflective water catches cool "
+                    "blue first light before disappearing toward distant towering mountains. Moss, lichen, scattered "
+                    "boulders, and sparse birch follow the riverbanks, while low mist and atmospheric haze separate "
+                    "the middle ground from the far ridges. The high horizon and sweeping leading line create vast "
+                    "spatial depth and monumental scale. Crisp blue-grey shadows and a restrained sunrise glow make "
+                    "the natural vista feel open, cold, majestic, and awe-inspiring in photographic detail."
                 ),
                 negative_prompt="",
             ),
@@ -338,6 +355,94 @@ class ArchitectureInteriorIntentHeuristicTest(unittest.TestCase):
         metrics = self._metrics(result)
         self.assertEqual(metrics["requested_intent_coverage"].status, "pass")
         self.assertEqual(sum(metric.points for metric in metrics.values()), 100)
+
+
+class LandscapeEnvironmentIntentHeuristicTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.benchmark = BENCHMARKS["flux-landscape-environment-intent-basic"]
+
+    def _metrics(self, result: PromptResult):
+        return {
+            metric.metric_id: metric
+            for metric in evaluate_intent_heuristics(self.benchmark, result)
+        }
+
+    def test_shallow_landscape_paraphrase_scores_low(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A wide landscape of a northern valley with a river and distant mountains at dawn, "
+                "spacious, cool, and majestic."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertLess(sum(metric.points for metric in metrics.values()), 65)
+        self.assertEqual(metrics["non_trivial_expansion"].status, "fail")
+        self.assertEqual(metrics["terrain_ecology"].status, "fail")
+        self.assertEqual(metrics["water_geography"].status, "fail")
+
+    def test_coherent_northern_landscape_scores_high(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A wide panoramic northern valley landscape at dawn, viewed from an elevated rocky foreground. "
+                "A winding river leads through the broad tundra valley floor and reflective water catches cool "
+                "blue first light before disappearing toward distant towering mountains. Moss, lichen, scattered "
+                "boulders, and sparse birch follow the riverbanks, while low mist and atmospheric haze separate "
+                "the middle ground from the far ridges. The high horizon and sweeping leading line create vast "
+                "spatial depth and monumental scale. Crisp blue-grey shadows and a restrained sunrise glow make "
+                "the natural vista feel open, cold, majestic, and awe-inspiring in photographic detail."
+            ),
+            negative_prompt="",
+        )
+        metrics = evaluate_intent_heuristics(self.benchmark, result)
+        self.assertEqual(sum(metric.points for metric in metrics), 100)
+        self.assertTrue(all(metric.status == "pass" for metric in metrics))
+
+    def test_generic_epic_scenery_does_not_replace_geography(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "An epic majestic scenic view with cinematic cool light, beautiful nature, "
+                "dramatic clouds, and an expansive atmosphere."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["core_intent"].status, "fail")
+        self.assertEqual(metrics["terrain_ecology"].status, "fail")
+        self.assertEqual(metrics["water_geography"].status, "fail")
+
+    def test_real_mimo_result_accepts_establishing_view_as_landscape(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A wide establishing view of a northern valley at dawn, with a shallow braided river winding through "
+                "sparse boreal grassland in the foreground. Distant snow-capped mountains rise beyond a dark conifer "
+                "forest in the middle ground, their peaks catching the first warm light of sunrise. A pale blue-pink "
+                "sky fades to soft gold near the horizon, and low morning mist clings to the riverbanks, creating "
+                "atmospheric depth and a sense of spacious, cool, quietly majestic solitude."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["core_intent"].status, "pass")
+        self.assertEqual(sum(metric.points for metric in metrics.values()), 100)
+
+    def test_real_mimo_result_separates_water_detail_from_missing_majesty(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A wide panoramic view of a northern valley at dawn, with a silver river winding through the low "
+                "ground from left to right. The foreground shows scattered boulders and sparse boreal scrub, while "
+                "the river cuts a reflective path through dark spruce forest in the middle ground. Distant snow-dusted "
+                "mountains rise against a pale pink and blue sky, their peaks softened by morning haze. Cool dawn "
+                "light enters from the right and casts long blue shadows across the valley floor, with mist lingering "
+                "along the water's edge. Landscape photography with natural colour, atmospheric perspective, and a "
+                "sense of spacious solitude."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["water_geography"].status, "pass")
+        self.assertEqual(metrics["requested_intent_coverage"].status, "warn")
+        self.assertIn("majestic", metrics["requested_intent_coverage"].detail)
 
 
 class ProductIntentHeuristicTest(unittest.TestCase):

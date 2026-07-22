@@ -104,6 +104,32 @@ Architecture-specific deterministic checks include:
 - human scale, furnishing, or functional clearance;
 - spatial depth and architectural medium.
 
+### `flux-landscape-environment-intent-basic`
+
+Raw user request:
+
+```text
+Создай широкий пейзаж северной долины с рекой и далёкими горами на рассвете. Атмосфера должна быть просторной, прохладной и немного величественной.
+```
+
+This benchmark checks environmental structure rather than generic scenic praise. The input fixes the broad geography, time of day, and atmosphere but leaves viewpoint, foreground-to-background composition, terrain ecology, river behaviour, weather, lighting, and scale references to the generator.
+
+Required intent dimensions:
+
+- `spacious`;
+- `cool`;
+- `majestic`.
+
+Landscape-specific deterministic checks include:
+
+- a northern valley landscape with river, distant mountains, and dawn;
+- viewpoint, horizon, and foreground-to-background composition;
+- dawn lighting, sky, or atmospheric weather;
+- terrain, geology, and climate-consistent vegetation;
+- river course, banks, flow, or reflections;
+- distance progression and environmental scale;
+- depth, colour, and landscape medium.
+
 ### `flux-product-intent-basic`
 
 Raw user request:
@@ -207,6 +233,15 @@ Run the architecture-interior benchmark:
 .venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-architecture-interior-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-architecture-interior-intent.json" `
+  --debug
+```
+
+Run the landscape-environment benchmark:
+
+```powershell
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-landscape-environment-intent-basic `
+  --profile "OpenCode" `
+  --json-out ".\reports\flux-landscape-environment-intent.json" `
   --debug
 ```
 

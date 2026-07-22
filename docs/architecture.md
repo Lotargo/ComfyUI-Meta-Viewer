@@ -108,6 +108,8 @@ comfy-meta-viewer/
 ├── dev_docs/                     # Internal development notes and sprint docs
 ├── docs/                         # Public documentation
 ├── pyproject.toml                # Poetry configuration
+├── benchmark.bat                 # Windows benchmark launcher
+├── benchmark.sh                  # Linux/macOS benchmark launcher
 ├── start.bat                     # Windows launcher
 └── start.sh                      # Linux/macOS launcher
 ```

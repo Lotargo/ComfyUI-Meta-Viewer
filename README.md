@@ -145,46 +145,54 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
 
 ```powershell
 # Open the interactive family → operation → scenario menu
-.venv\Scripts\python.exe -m app.ai.intent_benchmark
+benchmark.bat
 
 # List available intent benchmarks
-.venv\Scripts\python.exe -m app.ai.intent_benchmark list
+benchmark.bat list
 
 # Run one selected scenario
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-portrait-intent-basic `
+benchmark.bat run flux-portrait-intent-basic `
   --profile "OpenCode" `
   --debug
 
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-product-intent-basic `
+benchmark.bat run flux-product-intent-basic `
   --profile "OpenCode" `
   --debug
 
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-single-character-intent-basic `
+benchmark.bat run flux-single-character-intent-basic `
   --profile "OpenCode" `
   --debug
 
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-architecture-interior-intent-basic `
+benchmark.bat run flux-architecture-interior-intent-basic `
   --profile "OpenCode" `
   --debug
 
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-landscape-environment-intent-basic `
+benchmark.bat run flux-landscape-environment-intent-basic `
   --profile "OpenCode" `
   --debug
 
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-illustration-art-intent-basic `
+benchmark.bat run flux-illustration-art-intent-basic `
   --profile "OpenCode" `
   --debug
 
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-graphic-design-text-intent-basic `
+benchmark.bat run flux-graphic-design-text-intent-basic `
   --profile "OpenCode" `
   --debug
 
 # Run independent SDXL or Pony adaptations directly
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run sdxl-portrait-intent-basic `
+benchmark.bat run sdxl-portrait-intent-basic `
   --profile "OpenCode"
 
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run pony-portrait-intent-basic `
+benchmark.bat run pony-portrait-intent-basic `
   --profile "OpenCode"
+```
+
+Linux and macOS use the equivalent launcher:
+
+```bash
+chmod +x benchmark.sh
+./benchmark.sh
+./benchmark.sh list
 ```
 
 See [Prompt intent benchmarks](docs/ai-intent-benchmark.md) and [OpenCode smoke testing](docs/ai-opencode-smoke-testing.md) for the current execution model.
@@ -387,6 +395,8 @@ comfy-meta-viewer/
 ├── .comfy_meta_uploads/     # Saved sources + disposable SQLite index
 ├── cache/                   # Thumbnails + display previews + cutouts
 ├── pyproject.toml           # Poetry config
+├── benchmark.bat            # Windows benchmark launcher
+├── benchmark.sh             # Linux/macOS benchmark launcher
 ├── start.bat                # Windows launcher
 └── start.sh                 # Linux launcher
 ```

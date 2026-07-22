@@ -2538,7 +2538,7 @@ def _write_json(path_value: str, report: IntentBenchmarkReport) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m app.ai.intent_benchmark",
+        prog="benchmark",
         description=(
             "Evaluate prompt intent expansion through generation plus an isolated model judge."
         ),

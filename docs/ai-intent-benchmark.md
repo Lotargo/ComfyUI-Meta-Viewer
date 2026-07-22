@@ -262,7 +262,14 @@ The normal default timeout is five minutes per generator or judge call unless `-
 Open the interactive launcher (also available explicitly as `interactive`):
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark
+benchmark.bat
+```
+
+On Linux or macOS:
+
+```bash
+chmod +x benchmark.sh
+./benchmark.sh
 ```
 
 The menu asks for one prompt family, operation, scenario benchmark, generator profile, judge profile, and JSON report path. Pressing Enter accepts the displayed default; `q` cancels without making an LLM request. The default report is `reports/<benchmark-id>.json` and entering `-` disables it.
@@ -272,13 +279,13 @@ Non-interactive `list` and `run` commands remain available for scripts and repea
 List benchmarks:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark list
+benchmark.bat list
 ```
 
 Run the portrait benchmark:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-portrait-intent-basic `
+benchmark.bat run flux-portrait-intent-basic `
   --profile "OpenCode" `
   --debug
 ```
@@ -286,7 +293,7 @@ Run the portrait benchmark:
 Run the product benchmark:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-product-intent-basic `
+benchmark.bat run flux-product-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-product-intent.json" `
   --debug
@@ -295,11 +302,11 @@ Run the product benchmark:
 Run independent SDXL and Pony portrait adaptations:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run sdxl-portrait-intent-basic `
+benchmark.bat run sdxl-portrait-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\sdxl-portrait-intent.json"
 
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run pony-portrait-intent-basic `
+benchmark.bat run pony-portrait-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\pony-portrait-intent.json"
 ```
@@ -307,7 +314,7 @@ Run independent SDXL and Pony portrait adaptations:
 Run the single-character benchmark:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-single-character-intent-basic `
+benchmark.bat run flux-single-character-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-single-character-intent.json" `
   --debug
@@ -316,7 +323,7 @@ Run the single-character benchmark:
 Run the architecture-interior benchmark:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-architecture-interior-intent-basic `
+benchmark.bat run flux-architecture-interior-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-architecture-interior-intent.json" `
   --debug
@@ -325,7 +332,7 @@ Run the architecture-interior benchmark:
 Run the landscape-environment benchmark:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-landscape-environment-intent-basic `
+benchmark.bat run flux-landscape-environment-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-landscape-environment-intent.json" `
   --debug
@@ -334,7 +341,7 @@ Run the landscape-environment benchmark:
 Run the illustration-art benchmark:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-illustration-art-intent-basic `
+benchmark.bat run flux-illustration-art-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-illustration-art-intent.json" `
   --debug
@@ -343,7 +350,7 @@ Run the illustration-art benchmark:
 Run the graphic-design-text benchmark:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-graphic-design-text-intent-basic `
+benchmark.bat run flux-graphic-design-text-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-graphic-design-text-intent.json" `
   --debug
@@ -352,7 +359,7 @@ Run the graphic-design-text benchmark:
 Use a separate judge profile later:
 
 ```powershell
-.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-product-intent-basic `
+benchmark.bat run flux-product-intent-basic `
   --profile "OpenCode Generator" `
   --judge-profile "OpenCode Judge"
 ```

@@ -67,6 +67,8 @@ ComfyUI-Meta-Viewer/
 ├── dev_docs/                     # Internal development notes
 ├── docs/                         # Public documentation
 ├── pyproject.toml                # Poetry project configuration
+├── benchmark.bat                 # Windows benchmark launcher
+├── benchmark.sh                  # Linux/macOS benchmark launcher
 ├── start.bat                     # Windows launcher
 └── start.sh                      # Linux/macOS launcher
 ```

@@ -78,6 +78,32 @@ Single-character-specific deterministic checks include:
 - physical grounding in the forest environment;
 - depth, colour, and medium.
 
+### `flux-architecture-interior-intent-basic`
+
+Raw user request:
+
+```text
+Создай светлый интерьер небольшой современной библиотеки с зоной чтения. Пространство должно выглядеть спокойным, тёплым и функциональным.
+```
+
+This benchmark checks architectural reasoning rather than a decorative list. The input fixes the space type, scale, reading function, and broad atmosphere but leaves viewpoint, perspective, zoning, circulation, materials, lighting, furnishing, and spatial depth to the generator.
+
+Required intent dimensions:
+
+- `calm`;
+- `warm`;
+- `functional`.
+
+Architecture-specific deterministic checks include:
+
+- a compact library interior with an explicit reading area;
+- camera position or coherent architectural perspective;
+- natural or artificial lighting strategy;
+- zoning, shelving, and circulation;
+- surface-specific materials;
+- human scale, furnishing, or functional clearance;
+- spatial depth and architectural medium.
+
 ### `flux-product-intent-basic`
 
 Raw user request:
@@ -172,6 +198,15 @@ Run the single-character benchmark:
 .venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-single-character-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-single-character-intent.json" `
+  --debug
+```
+
+Run the architecture-interior benchmark:
+
+```powershell
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-architecture-interior-intent-basic `
+  --profile "OpenCode" `
+  --json-out ".\reports\flux-architecture-interior-intent.json" `
   --debug
 ```
 

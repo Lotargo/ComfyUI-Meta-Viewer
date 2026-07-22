@@ -67,10 +67,15 @@ class BenchmarkDefinitionTest(unittest.TestCase):
     def test_migrated_scenario_benchmarks_are_registered(self) -> None:
         self.assertIn("flux-portrait-intent-basic", BENCHMARKS)
         self.assertIn("flux-single-character-intent-basic", BENCHMARKS)
+        self.assertIn("flux-architecture-interior-intent-basic", BENCHMARKS)
         self.assertIn("flux-product-intent-basic", BENCHMARKS)
         self.assertEqual(
             BENCHMARKS["flux-single-character-intent-basic"].task.scenario,
             PromptScenario.SINGLE_CHARACTER,
+        )
+        self.assertEqual(
+            BENCHMARKS["flux-architecture-interior-intent-basic"].task.scenario,
+            PromptScenario.ARCHITECTURE_INTERIOR,
         )
         self.assertEqual(
             BENCHMARKS["flux-product-intent-basic"].task.scenario,
@@ -107,6 +112,19 @@ class BenchmarkDefinitionTest(unittest.TestCase):
                     "travel-worn silhouette. Soft side light filters through the canopy and catches the woven fabric "
                     "while her feet stay grounded among moss, roots, and fallen leaves with a contact shadow. Muted "
                     "earth tones, background fog, and subtle shadowed mystery create a purposeful concept-art scene."
+                ),
+                negative_prompt="",
+            ),
+            "flux-architecture-interior-intent-basic": PromptResult(
+                positive_prompt=(
+                    "A bright compact modern library interior photographed from eye height with a wide-angle "
+                    "architectural lens and coherent one-point perspective. A clear central aisle leads from the "
+                    "foreground to a calm reading area in the background, with built-in oak bookshelves defining the "
+                    "perimeter. Comfortable wool-upholstered reading chairs, side tables, integrated storage, and task "
+                    "lighting create a functional human-scale layout with unobstructed circulation. Natural daylight "
+                    "from tall windows washes warm plaster walls and timber surfaces while pendant lights add a soft "
+                    "warm glow. Restrained earth tones and quiet architectural-photography styling keep the intimate "
+                    "space serene, welcoming, and well-organized."
                 ),
                 negative_prompt="",
             ),
@@ -244,6 +262,80 @@ class SingleCharacterIntentHeuristicTest(unittest.TestCase):
         )
         metrics = self._metrics(result)
         self.assertEqual(metrics["coherent_costume"].status, "pass")
+        self.assertEqual(metrics["requested_intent_coverage"].status, "pass")
+        self.assertEqual(sum(metric.points for metric in metrics.values()), 100)
+
+
+class ArchitectureInteriorIntentHeuristicTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.benchmark = BENCHMARKS["flux-architecture-interior-intent-basic"]
+
+    def _metrics(self, result: PromptResult):
+        return {
+            metric.metric_id: metric
+            for metric in evaluate_intent_heuristics(self.benchmark, result)
+        }
+
+    def test_shallow_interior_paraphrase_scores_low(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A bright small modern library interior with a reading area, "
+                "calm, warm, and functional."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertLess(sum(metric.points for metric in metrics.values()), 65)
+        self.assertEqual(metrics["non_trivial_expansion"].status, "fail")
+        self.assertEqual(metrics["architectural_perspective"].status, "fail")
+        self.assertEqual(metrics["surface_materials"].status, "fail")
+
+    def test_coherent_library_architecture_scores_high(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A bright compact modern library interior photographed from eye height with a wide-angle "
+                "architectural lens and coherent one-point perspective. A clear central aisle leads from the "
+                "foreground to a calm reading area in the background, with built-in oak bookshelves defining the "
+                "perimeter. Comfortable wool-upholstered reading chairs, side tables, integrated storage, and task "
+                "lighting create a functional human-scale layout with unobstructed circulation. Natural daylight "
+                "from tall windows washes warm plaster walls and timber surfaces while pendant lights add a soft "
+                "warm glow. Restrained earth tones and quiet architectural-photography styling keep the intimate "
+                "space serene, welcoming, and well-organized."
+            ),
+            negative_prompt="",
+        )
+        metrics = evaluate_intent_heuristics(self.benchmark, result)
+        self.assertEqual(sum(metric.points for metric in metrics), 100)
+        self.assertTrue(all(metric.status == "pass" for metric in metrics))
+
+    def test_decorative_mood_does_not_replace_spatial_design(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A serene warm photograph of a woman reading in a beautiful room, with cozy light, "
+                "soft fabric, and an elegant atmosphere."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["core_intent"].status, "fail")
+        self.assertEqual(metrics["architectural_perspective"].status, "fail")
+        self.assertEqual(metrics["spatial_layout"].status, "fail")
+
+    def test_real_mimo_result_recognizes_visible_calm_and_function(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A bright interior view of a small modern library with a reading zone. A tall floor-to-ceiling oak "
+                "bookshelf lines the left wall, filled with organized books. In the centre, a low-profile linen sofa "
+                "and round wooden side table rest on a soft wool rug beneath a large south-facing window. Warm diffused "
+                "daylight pours through the window, casting gentle shadows across the oak flooring and illuminating "
+                "the warm timber tones. A slender brass floor lamp stands beside the sofa. Recessed warm LED strips "
+                "trace the flat white ceiling. Eye-level perspective from the entrance, creating depth through layered "
+                "furniture and shelving. Architectural visualization with natural lighting and realistic material "
+                "textures."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
         self.assertEqual(metrics["requested_intent_coverage"].status, "pass")
         self.assertEqual(sum(metric.points for metric in metrics.values()), 100)
 

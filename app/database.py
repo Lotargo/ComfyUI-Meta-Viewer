@@ -243,6 +243,18 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS ai_prompt_translations (
+                job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+                schema_version TEXT NOT NULL DEFAULT '1',
+                source_language TEXT,
+                target_language TEXT NOT NULL,
+                source_positive_prompt TEXT NOT NULL,
+                source_negative_prompt TEXT NOT NULL DEFAULT '',
+                translated_positive_prompt TEXT NOT NULL,
+                translated_negative_prompt TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
             CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
             CREATE INDEX IF NOT EXISTS idx_album_images_image ON album_images(image_id);
@@ -250,6 +262,8 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
             CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
             CREATE INDEX IF NOT EXISTS idx_ai_prompt_drafts_job ON ai_prompt_drafts(job_id, id);
+            CREATE INDEX IF NOT EXISTS idx_ai_prompt_translations_language
+                ON ai_prompt_translations(target_language);
         """)
         migrations = (
             "ALTER TABLE images ADD COLUMN original_data BLOB",

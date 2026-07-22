@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyUI Integration — ComfyUI Meta Viewer</title>
+    <link rel="preload" href="/static/fonts/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/static/css/fonts.css">
+    <link rel="stylesheet" href="/static/css/base/variables.css">
+    <link rel="stylesheet" href="/static/css/base/reset.css">
+    <link rel="stylesheet" href="/static/css/base/typography.css">
+    <link rel="stylesheet" href="/static/css/components/buttons.css">
+    <link rel="stylesheet" href="/static/css/components/header.css">
+    <link rel="stylesheet" href="/static/css/components/inputs.css">
+    <link rel="stylesheet" href="/static/css/components/badges.css">
+    <link rel="stylesheet" href="/static/css/components/toast.css">
+    <link rel="stylesheet" href="/static/css/features/comfyui-settings.css?v={{ static_version('css/features/comfyui-settings.css') }}">
+</head>
+<body class="comfyui-settings-body">
+    <header class="global-header comfyui-settings-header">
+        <div class="global-header-left">
+            <a class="header-logo" href="/"><span>Comfy</span>UI Meta Viewer</a>
+            <nav class="app-switcher" aria-label="Primary navigation">
+                <a class="app-switcher-link" href="/">Viewer</a>
+                <a class="app-switcher-link" href="/library">Library</a>
+                <a class="app-switcher-link" href="/settings/ai">AI</a>
+                <a class="app-switcher-link active" href="/settings/comfyui" aria-current="page">ComfyUI</a>
+            </nav>
+        </div>
+        <div class="global-header-actions">
+            <button id="refresh-status" class="header-primary-action" type="button">Refresh status</button>
+        </div>
+    </header>
+
+    <main class="comfyui-settings-main">
+        <div class="page-head">
+            <div class="page-head-copy">
+                <p class="comfyui-eyebrow">Local Process & Runtime Control</p>
+                <h1>ComfyUI Integration</h1>
+                <p class="page-sub">Connect your standard local ComfyUI installation, monitor runtime health, view live logs, and manage process execution.</p>
+            </div>
+            <div id="runtime-status-pill" class="status-pill status-stopped" role="status">
+                <span class="status-dot"></span>
+                <span id="runtime-status-text">Stopped</span>
+                <span id="runtime-status-detail" class="status-pill-detail">No process running</span>
+            </div>
+        </div>
+
+        <!-- Control Actions Panel -->
+        <section class="settings-section" aria-labelledby="controls-heading">
+            <div class="section-heading">
+                <div>
+                    <p class="section-kicker">Process Management</p>
+                    <h2 id="controls-heading">Runtime Controls</h2>
+                    <p>Start local managed process, monitor external instance, or interrupt running prompt generation.</p>
+                </div>
+                <div class="control-btn-group">
+                    <button id="btn-start" class="btn btn-success" type="button">Start ComfyUI</button>
+                    <button id="btn-stop" class="btn btn-danger" type="button" disabled>Stop ComfyUI</button>
+                    <button id="btn-restart" class="btn btn-secondary" type="button">Restart</button>
+                    <button id="btn-interrupt" class="btn btn-warning" type="button">Interrupt Generation</button>
+                    <button id="btn-gen-script" class="btn btn-secondary" type="button">Generate Script</button>
+                </div>
+            </div>
+
+            <div class="status-grid">
+                <div class="status-card">
+                    <span class="status-card-label">Mode</span>
+                    <span id="stat-mode" class="status-card-val">None</span>
+                </div>
+                <div class="status-card">
+                    <span class="status-card-label">Status</span>
+                    <span id="stat-status" class="status-card-val">Stopped</span>
+                </div>
+                <div class="status-card">
+                    <span class="status-card-label">PID</span>
+                    <span id="stat-pid" class="status-card-val">—</span>
+                </div>
+                <div class="status-card">
+                    <span class="status-card-label">Endpoint</span>
+                    <span id="stat-endpoint" class="status-card-val">http://127.0.0.1:8188</span>
+                </div>
+                <div class="status-card">
+                    <span class="status-card-label">Queue</span>
+                    <span id="stat-queue" class="status-card-val">0 active</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Detection & Configuration Section -->
+        <section class="settings-section" aria-labelledby="config-heading">
+            <div class="section-heading">
+                <div>
+                    <p class="section-kicker">Installation Setup</p>
+                    <h2 id="config-heading">Detection & Configuration</h2>
+                    <p>Select your ComfyUI root directory or nested ComfyUI directory.</p>
+                </div>
+                <button id="btn-save-config" class="btn btn-primary" type="button">Save Configuration</button>
+            </div>
+
+            <form id="comfyui-config-form" class="config-form" onsubmit="return false;">
+                <div class="form-group">
+                    <label for="install-path">Installation Path</label>
+                    <div class="input-with-button">
+                        <input type="text" id="install-path" placeholder="e.g. F:\ComfyUI_windows_portable or /home/user/ComfyUI" autocomplete="off">
+                        <button id="btn-detect-path" class="btn btn-secondary" type="button">Detect</button>
+                    </div>
+                    <small class="form-help">Selected directory containing main.py or nested ComfyUI/main.py.</small>
+                </div>
+
+                <div id="detection-result-card" class="detection-card" hidden>
+                    <div class="detection-header">
+                        <span id="detection-badge" class="badge">Not checked</span>
+                        <span id="detection-summary">Click Detect to check installation structure</span>
+                    </div>
+                    <div id="detection-details" class="detection-details"></div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="host-input">Host</label>
+                        <input type="text" id="host-input" value="127.0.0.1">
+                    </div>
+                    <div class="form-group">
+                        <label for="port-input">Port</label>
+                        <input type="number" id="port-input" value="8188" min="1" max="65535">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="extra-args-input">Extra Arguments (Optional)</label>
+                    <input type="text" id="extra-args-input" placeholder="e.g. --lowvram --xformers --fp16-vae">
+                    <small class="form-help">Additional command line options passed to main.py.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="custom-python-input">Custom Python Interpreter (Optional)</label>
+                    <input type="text" id="custom-python-input" placeholder="Leave empty for automatic detection">
+                    <small class="form-help">Override automatic Python executable detection.</small>
+                </div>
+            </form>
+        </section>
+
+        <!-- System Stats Section -->
+        <section class="settings-section" aria-labelledby="stats-heading">
+            <div class="section-heading">
+                <div>
+                    <p class="section-kicker">Hardware & Environment</p>
+                    <h2 id="stats-heading">System Statistics</h2>
+                    <p>GPU devices, VRAM allocation, and Python environment details reported by ComfyUI API.</p>
+                </div>
+            </div>
+            <div id="system-stats-panel" class="system-stats-panel">
+                <p class="no-stats-msg">System statistics unavailable (ComfyUI API is offline or starting).</p>
+            </div>
+        </section>
+
+        <!-- Live Logs Console Section -->
+        <section class="settings-section" aria-labelledby="logs-heading">
+            <div class="section-heading">
+                <div>
+                    <p class="section-kicker">Console Output</p>
+                    <h2 id="logs-heading">Process Output Logs</h2>
+                    <p>Real-time stdout and stderr output captured from ComfyUI.</p>
+                </div>
+                <div class="logs-actions">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="autoscroll-logs" checked> Auto-scroll
+                    </label>
+                    <button id="btn-clear-logs" class="btn btn-secondary btn-sm" type="button">Clear</button>
+                    <button id="btn-refresh-logs" class="btn btn-secondary btn-sm" type="button">Refresh Logs</button>
+                </div>
+            </div>
+            <div class="logs-console-container">
+                <pre id="logs-console" class="logs-console"><code>[CMV] Listening for process logs...</code></pre>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <script src="/static/js/features/comfyui-settings.js?v={{ static_version('js/features/comfyui-settings.js') }}"></script>
+</body>
+</html>

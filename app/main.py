@@ -24,6 +24,7 @@ from . import database as db
 from . import file_actions
 from . import library as media_library
 from .ai import ai_blueprint
+from .comfyui import comfyui_blueprint
 from .cutout import clear_cutout, get_cutout_path, make_cutout_png
 from .config_store import ConfigStore, ConfigStoreError
 from .extractor import (
@@ -80,6 +81,7 @@ app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 app.config["SEND_FILE_MAX_AGE"] = 3600
 app.config.update(build_runtime_paths().flask_config())
 app.register_blueprint(ai_blueprint)
+app.register_blueprint(comfyui_blueprint)
 app.jinja_env.auto_reload = True
 
 

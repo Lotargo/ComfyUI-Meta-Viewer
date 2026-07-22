@@ -45,6 +45,14 @@ def _default_config() -> dict[str, Any]:
                 "multimodal_profile_id": None,
             },
         },
+        "comfyui": {
+            "install_path": None,
+            "custom_python": None,
+            "host": "127.0.0.1",
+            "port": 8188,
+            "extra_args": "",
+            "auto_start": False,
+        },
     }
 
 
@@ -113,6 +121,9 @@ class ConfigStore:
             raw_defaults = ai.get("defaults")
             defaults = raw_defaults if isinstance(raw_defaults, dict) else {}
 
+            raw_comfyui = raw.get("comfyui")
+            comfyui = raw_comfyui if isinstance(raw_comfyui, dict) else {}
+
             return {
                 "version": CONFIG_VERSION,
                 "sources": sources,
@@ -124,6 +135,14 @@ class ConfigStore:
                             "multimodal_profile_id"
                         ),
                     },
+                },
+                "comfyui": {
+                    "install_path": comfyui.get("install_path"),
+                    "custom_python": comfyui.get("custom_python"),
+                    "host": comfyui.get("host") or "127.0.0.1",
+                    "port": int(comfyui.get("port") or 8188),
+                    "extra_args": comfyui.get("extra_args") or "",
+                    "auto_start": comfyui.get("auto_start") is True,
                 },
             }
 
@@ -297,3 +316,42 @@ class ConfigStore:
                 raise ConfigStoreError(
                     "Cannot delete application configuration: " + "; ".join(errors)
                 )
+
+    def comfyui_settings(self) -> dict[str, Any]:
+        return self.load().get("comfyui", {
+            "install_path": None,
+            "custom_python": None,
+            "host": "127.0.0.1",
+            "port": 8188,
+            "extra_args": "",
+            "auto_start": False,
+        })
+
+    def update_comfyui_settings(
+        self,
+        *,
+        install_path: str | None = None,
+        custom_python: str | None = None,
+        host: str | None = None,
+        port: int | None = None,
+        extra_args: str | None = None,
+        auto_start: bool | None = None,
+    ) -> dict[str, Any]:
+        with _config_lock:
+            config = self.load()
+            comfyui = config.setdefault("comfyui", {})
+            if install_path is not None:
+                comfyui["install_path"] = install_path.strip() if install_path and install_path.strip() else None
+            if custom_python is not None:
+                comfyui["custom_python"] = custom_python.strip() if custom_python and custom_python.strip() else None
+            if host is not None:
+                comfyui["host"] = host.strip() or "127.0.0.1"
+            if port is not None:
+                comfyui["port"] = int(port)
+            if extra_args is not None:
+                comfyui["extra_args"] = extra_args.strip()
+            if auto_start is not None:
+                comfyui["auto_start"] = bool(auto_start)
+
+            self.save(config)
+            return comfyui

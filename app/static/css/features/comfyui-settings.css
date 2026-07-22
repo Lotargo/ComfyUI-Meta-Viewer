@@ -1,0 +1,341 @@
+/* ComfyUI Integration Settings Styles */
+.comfyui-settings-body {
+    background-color: var(--color-bg-subtle, #0d1117);
+    color: var(--color-text-main, #c9d1d9);
+    min-height: 100vh;
+    font-family: var(--font-family, sans-serif);
+}
+
+.comfyui-settings-main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem 1.5rem;
+}
+
+.page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.comfyui-eyebrow {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-accent, #58a6ff);
+    margin-bottom: 0.4rem;
+}
+
+.page-head h1 {
+    font-size: 1.85rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: #f0f6fc;
+}
+
+.page-sub {
+    font-size: 0.95rem;
+    color: #8b949e;
+    max-width: 650px;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-pill .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #8b949e;
+}
+
+.status-pill.status-ready {
+    border-color: rgba(46, 160, 67, 0.4);
+    background: rgba(46, 160, 67, 0.15);
+    color: #3fb950;
+}
+.status-pill.status-ready .status-dot {
+    background-color: #3fb950;
+    box-shadow: 0 0 8px #3fb950;
+}
+
+.status-pill.status-busy {
+    border-color: rgba(210, 153, 34, 0.4);
+    background: rgba(210, 153, 34, 0.15);
+    color: #d29922;
+}
+.status-pill.status-busy .status-dot {
+    background-color: #d29922;
+    box-shadow: 0 0 8px #d29922;
+}
+
+.status-pill.status-starting {
+    border-color: rgba(88, 166, 255, 0.4);
+    background: rgba(88, 166, 255, 0.15);
+    color: #58a6ff;
+}
+.status-pill.status-starting .status-dot {
+    background-color: #58a6ff;
+    animation: pulse 1.5s infinite;
+}
+
+.status-pill.status-error {
+    border-color: rgba(248, 81, 73, 0.4);
+    background: rgba(248, 81, 73, 0.15);
+    color: #f85149;
+}
+.status-pill.status-error .status-dot {
+    background-color: #f85149;
+}
+
+.status-pill.status-external {
+    border-color: rgba(163, 113, 247, 0.4);
+    background: rgba(163, 113, 247, 0.15);
+    color: #a371f7;
+}
+.status-pill.status-external .status-dot {
+    background-color: #a371f7;
+}
+
+.status-pill-detail {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #8b949e;
+}
+
+.settings-section {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid #21262d;
+    padding-bottom: 1rem;
+}
+
+.section-kicker {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #8b949e;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.2rem;
+}
+
+.section-heading h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #f0f6fc;
+}
+
+.section-heading p {
+    font-size: 0.85rem;
+    color: #8b949e;
+    margin-top: 0.2rem;
+}
+
+.control-btn-group {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-success {
+    background-color: #238636;
+    color: #ffffff;
+}
+.btn-success:hover {
+    background-color: #2ea043;
+}
+
+.btn-danger {
+    background-color: #da3633;
+    color: #ffffff;
+}
+.btn-danger:hover {
+    background-color: #f85149;
+}
+
+.btn-warning {
+    background-color: #9e6a03;
+    color: #ffffff;
+}
+.btn-warning:hover {
+    background-color: #b58407;
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.status-card {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.status-card-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #8b949e;
+    text-transform: uppercase;
+}
+
+.status-card-val {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #f0f6fc;
+}
+
+.config-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.form-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #c9d1d9;
+}
+
+.input-with-button {
+    display: flex;
+    gap: 0.5rem;
+}
+.input-with-button input {
+    flex: 1;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-help {
+    font-size: 0.75rem;
+    color: #8b949e;
+}
+
+.detection-card {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 0.5rem;
+}
+
+.detection-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.detection-details {
+    font-size: 0.825rem;
+    color: #8b949e;
+    line-height: 1.5;
+    font-family: monospace;
+    white-space: pre-wrap;
+}
+
+.badge-success {
+    background: rgba(46, 160, 67, 0.2);
+    color: #3fb950;
+    border: 1px solid rgba(46, 160, 67, 0.4);
+}
+
+.badge-error {
+    background: rgba(248, 81, 73, 0.2);
+    color: #f85149;
+    border: 1px solid rgba(248, 81, 73, 0.4);
+}
+
+.system-stats-panel {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 1rem;
+    min-height: 80px;
+    font-size: 0.85rem;
+}
+
+.no-stats-msg {
+    color: #8b949e;
+    font-style: italic;
+}
+
+.logs-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.checkbox-label {
+    font-size: 0.85rem;
+    color: #8b949e;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.logs-console-container {
+    background: #090d12;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 0.85rem;
+    height: 320px;
+    overflow-y: auto;
+}
+
+.logs-console {
+    margin: 0;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: #7ee787;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+}

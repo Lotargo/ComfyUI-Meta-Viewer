@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ..job_store import AIJobStore, AIJobStoreError, PromptDraft
-from ..prompting import PromptCompiler, PromptCompilerError, PromptTask
+from ..prompting import PromptCompiler, PromptCompilerError, PromptTask, SceneSpec
 from .adapters import DirectOpenAICompatibleAdapter, OpenCodeAgentHostAdapter
 from .base import (
     AdapterExecutionError,
@@ -67,6 +67,7 @@ class ExecutionRouter:
         image_data_url: str | None = None,
         image_path: str | Path | None = None,
         asset_id: int | None = None,
+        scene_spec: SceneSpec | None = None,
     ) -> PromptExecutionOutcome:
         adapter = self._select_adapter(profile)
         normalized_path = Path(image_path) if image_path is not None else None
@@ -97,6 +98,18 @@ class ExecutionRouter:
                 stage="persistence",
                 technical_error=str(exc),
             ) from exc
+        if scene_spec is not None:
+            try:
+                self.job_store.save_scene_spec(job.id, scene_spec)
+            except AIJobStoreError as exc:
+                self._record_failure(job.id, str(exc))
+                raise ExecutionRouterError(
+                    "The SceneSpec could not be persisted.",
+                    code="persistence_error",
+                    stage="persistence",
+                    job_id=job.id,
+                    technical_error=str(exc),
+                ) from exc
         try:
             bundle = self.compiler.compile(task)
             self.job_store.mark_running(job.id, bundle)

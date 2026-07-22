@@ -21,6 +21,7 @@ from app.ai.prompting import (
     PromptResult,
     PromptScenario,
     PromptTask,
+    SceneSpec,
 )
 
 
@@ -208,6 +209,19 @@ class ExecutionRouterTest(unittest.TestCase):
         self.assertIsNone(caught.exception.job_id)
         self.assertIn("FOREIGN KEY", caught.exception.technical_error)
         self.assertIsNone(self.direct.prepared)
+
+    def test_scene_spec_is_persisted_as_part_of_the_routed_job(self) -> None:
+        scene_spec = SceneSpec(
+            recommended_scenario=PromptScenario.PORTRAIT,
+            uncertain_details=("small earring",),
+        )
+        outcome = self.router.execute(
+            profile={"kind": "openai_compatible"},
+            task=self.task,
+            user_input="Render the reviewed SceneSpec.",
+            scene_spec=scene_spec,
+        )
+        self.assertEqual(self.store.get(outcome.job_id).scene_spec, scene_spec)
 
 
 if __name__ == "__main__":

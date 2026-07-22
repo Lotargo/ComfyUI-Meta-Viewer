@@ -82,6 +82,7 @@ export const dom = {
     lbToggleMeta: document.getElementById('lb-toggle-meta'),
     lbViewOriginal: document.getElementById('lb-view-original'),
     lbDownload: document.getElementById('lb-download'),
+    lbRemix: document.getElementById('lb-remix'),
     lbDelete: document.getElementById('lb-delete'),
     lbZoomIn: document.getElementById('lb-zoom-in'),
     lbZoomOut: document.getElementById('lb-zoom-out'),

@@ -1,0 +1,28 @@
+{
+  "schema_version": "1",
+  "id": "core-reference",
+  "name": "Core reference remix",
+  "version": "1.0.0",
+  "category": "reference",
+  "media_type": "image",
+  "workflow": "workflow.json",
+  "description": "Image-to-image generation with a reference image and configurable denoise strength.",
+  "required_nodes": ["CheckpointLoaderSimple", "LoadImage", "VAEEncode", "CLIPTextEncode", "KSampler", "VAEDecode", "SaveImage"],
+  "resource_slots": {
+    "checkpoint": {"label": "Checkpoint", "accepts": ["checkpoint"], "required": true, "binding": {"kind": "node_input", "node_id": "1", "input": "ckpt_name"}},
+    "loras": {"label": "LoRA networks", "accepts": ["lora", "locon", "dora"], "required": false, "multiple": true, "binding": {"kind": "lora_chain", "source_node_id": "1"}}
+  },
+  "fields": [
+    {"id": "reference_image", "label": "Reference image", "kind": "image", "section": "Reference", "default": "", "required": true, "description": "Uploaded to the connected ComfyUI input directory.", "bindings": [{"node_id": "2", "input": "image"}]},
+    {"id": "positive_prompt", "label": "Positive prompt", "kind": "textarea", "section": "Prompt", "default": "Preserve the composition and reinterpret the image with cinematic detail", "required": true, "bindings": [{"node_id": "4", "input": "text"}]},
+    {"id": "negative_prompt", "label": "Negative prompt", "kind": "textarea", "section": "Prompt", "default": "low quality, blurry, artifacts", "bindings": [{"node_id": "5", "input": "text"}]},
+    {"id": "seed", "label": "Seed", "kind": "seed", "section": "Sampling", "default": -1, "minimum": -1, "maximum": 1125899906842624, "step": 1, "bindings": [{"node_id": "6", "input": "seed"}]},
+    {"id": "steps", "label": "Steps", "kind": "number", "section": "Sampling", "default": 28, "minimum": 1, "maximum": 200, "step": 1, "bindings": [{"node_id": "6", "input": "steps"}]},
+    {"id": "cfg", "label": "CFG", "kind": "number", "section": "Sampling", "default": 7, "minimum": 0, "maximum": 30, "step": 0.1, "bindings": [{"node_id": "6", "input": "cfg"}]},
+    {"id": "denoise", "label": "Denoise", "kind": "number", "section": "Sampling", "default": 0.62, "minimum": 0, "maximum": 1, "step": 0.01, "bindings": [{"node_id": "6", "input": "denoise"}]},
+    {"id": "sampler", "label": "Sampler", "kind": "select", "section": "Sampling", "default": "dpmpp_2m", "options": [{"value": "euler", "label": "Euler"}, {"value": "euler_ancestral", "label": "Euler ancestral"}, {"value": "dpmpp_2m", "label": "DPM++ 2M"}, {"value": "dpmpp_2m_sde", "label": "DPM++ 2M SDE"}], "bindings": [{"node_id": "6", "input": "sampler_name"}]},
+    {"id": "scheduler", "label": "Scheduler", "kind": "select", "section": "Sampling", "default": "karras", "options": [{"value": "normal", "label": "Normal"}, {"value": "karras", "label": "Karras"}, {"value": "exponential", "label": "Exponential"}], "bindings": [{"node_id": "6", "input": "scheduler"}]},
+    {"id": "filename_prefix", "label": "Filename prefix", "kind": "text", "section": "Output", "default": "CMV/Remix", "advanced": true, "bindings": [{"node_id": "8", "input": "filename_prefix"}]}
+  ],
+  "output_nodes": ["8"]
+}

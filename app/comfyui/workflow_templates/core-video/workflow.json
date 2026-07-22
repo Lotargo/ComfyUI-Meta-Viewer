@@ -1,0 +1,12 @@
+{
+  "1": {"class_type": "UNETLoader", "inputs": {"unet_name": "", "weight_dtype": "default"}},
+  "2": {"class_type": "DualCLIPLoader", "inputs": {"clip_name1": "", "clip_name2": "", "type": "hunyuan_video"}},
+  "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["2", 0]}},
+  "4": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["2", 0]}},
+  "5": {"class_type": "EmptyHunyuanLatentVideo", "inputs": {"width": 848, "height": 480, "length": 25, "batch_size": 1}},
+  "6": {"class_type": "VAELoader", "inputs": {"vae_name": ""}},
+  "7": {"class_type": "KSampler", "inputs": {"seed": 0, "steps": 30, "cfg": 6.0, "sampler_name": "euler", "scheduler": "normal", "denoise": 1.0, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["5", 0]}},
+  "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["6", 0]}},
+  "9": {"class_type": "CreateVideo", "inputs": {"images": ["8", 0], "fps": 24.0}},
+  "10": {"class_type": "SaveVideo", "inputs": {"video": ["9", 0], "filename_prefix": "CMV/Video", "format": "auto", "codec": "auto"}}
+}

@@ -63,7 +63,8 @@ comfy-meta-viewer/
 │   ├── database.py               # SQLite CRUD and persistence helpers
 │   ├── library.py                # Albums, favorites, tags, filters, bulk actions
 │   ├── config_store.py           # Atomic source configuration outside SQLite
-│   ├── ai/                       # BYOK profiles, keyring, CLI discovery, transports, routes
+│   ├── ai/                       # BYOK profiles, prompt compilation, resources, Remix
+│   ├── comfyui/                  # Runtime, template registry/compiler, drafts, execution
 │   ├── indexing.py               # Reusable source indexing service
 │   ├── source_monitor.py         # Native events + periodic reconciliation
 │   ├── reset_service.py          # Physical index/cache reset orchestration
@@ -82,6 +83,7 @@ comfy-meta-viewer/
 │   │       ├── app.js            # Viewer entry point
 │   │       ├── library.js        # Standalone Library page
 │   │       ├── ai-settings.js    # Provider and local CLI settings page
+│   │       ├── features/workflow-editor.js # Create workspace controller
 │   │       ├── state.js          # Reactive store
 │   │       ├── preferences.js    # Versioned preference schema and validation
 │   │       ├── api.js            # HTTP client
@@ -97,7 +99,8 @@ comfy-meta-viewer/
 │   └── templates/
 │       ├── index.html            # Viewer entry template
 │       ├── library.html          # Media Library entry template
-│       └── ai_settings.html      # AI connection management
+│       ├── ai_settings.html      # AI connection management
+│       └── workflow_editor.html  # Manifest-driven Create workspace
 ├── cache/
 │   ├── thumbnails/               # JPEG thumbnails (*.jpg)
 │   ├── previews/                 # Bounded JPEG/WebP lightbox previews
@@ -204,6 +207,30 @@ Source file
 
 Original embedded metadata is stored independently from relational user metadata and
 `ai_annotations_json`, preventing future AI reconstruction from being represented as source data.
+
+### ComfyUI workflow creation and execution
+
+```text
+Create page
+  -> template registry (manifest + API workflow)
+  -> dynamic fields and runtime model inventory
+  -> durable workflow_drafts row
+  -> compiler applies field bindings and generic LoRA graph transforms
+  -> dependency validator checks nodes, resource presence, and catalog compatibility
+  -> ComfyUI /prompt
+  -> workflow_runs polling through jobs/history/queue APIs
+  -> /view output download
+  -> uploaded Library asset + executed graph/provenance + optional Remix lineage
+```
+
+`workflow_registry.py` owns built-in and imported templates. `workflow_compiler.py` is deliberately
+UI-independent: the manifest is the declarative contract for graph inputs and semantic resources.
+`workflow_inventory.py` bridges ComfyUI's live model folders into the task-07 resource catalog,
+while `workflow_execution.py` owns remote state normalization and output import. The editor route
+never starts Remix automatically; it persists the draft and leaves execution as a separate user action.
+
+The runtime connection drawer uses the task-08 detector/manager/client. Managed processes can be
+started and stopped by CMV; an externally running ComfyUI is health-checked but never terminated.
 
 ### AI provider configuration
 
@@ -346,6 +373,8 @@ CREATE TABLE albums (...);
 CREATE TABLE album_images (...); -- many-to-many album membership
 CREATE TABLE tags (...);
 CREATE TABLE image_tags (...);   -- many-to-many asset tags
+CREATE TABLE workflow_drafts (...); -- manifest values, selected resources, source/AI draft lineage
+CREATE TABLE workflow_runs (...);   -- prompt identity, state, progress, outputs, imported asset IDs
 ```
 
 Embedded metadata stays in JSON separately from AI annotations. Source identity, content fingerprints, availability,
@@ -398,6 +427,7 @@ api.js
 |--------|------|-------------|
 | Sidebar | `features/sidebar.js` | Resizable sidebar, media list, folder browser |
 | Workflow Graph | `features/workflow-graph.js` | SVG visualization of ComfyUI node graphs |
+| Create Workspace | `features/workflow-editor.js` | Manifest controls, runtime drawer, preflight, runs, results |
 | Keyboard | `features/keyboard.js` | 14 shortcuts + Help Center |
 | Cutout | `features/cutout.js` | Background-removal panel |
 | Gallery | `gallery.js` | Mixed-media masonry layout + lazy loading |

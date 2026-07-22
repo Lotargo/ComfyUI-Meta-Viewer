@@ -1,0 +1,13 @@
+{
+  "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ""}},
+  "2": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ""}},
+  "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["1", 1]}},
+  "4": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["1", 1]}},
+  "5": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
+  "6": {"class_type": "KSampler", "inputs": {"seed": 0, "steps": 24, "cfg": 6.5, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["5", 0]}},
+  "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["2", 1]}},
+  "8": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["2", 1]}},
+  "9": {"class_type": "KSampler", "inputs": {"seed": 0, "steps": 12, "cfg": 6.5, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 0.28, "model": ["2", 0], "positive": ["7", 0], "negative": ["8", 0], "latent_image": ["6", 0]}},
+  "10": {"class_type": "VAEDecode", "inputs": {"samples": ["9", 0], "vae": ["2", 2]}},
+  "11": {"class_type": "SaveImage", "inputs": {"filename_prefix": "CMV/TwoStage", "images": ["10", 0]}}
+}

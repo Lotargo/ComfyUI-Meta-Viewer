@@ -17,6 +17,7 @@ The API is intentionally local-first and single-user oriented. Responses are JSO
 - [Thumbnails and Originals](#thumbnails-and-originals)
 - [Cutouts](#cutouts)
 - [AI Providers](#ai-providers)
+- [ComfyUI Runtime and Workflow Editor](#comfyui-runtime-and-workflow-editor)
 - [System](#system)
 - [Data Models](#data-models)
 
@@ -758,6 +759,69 @@ running, or review-waiting job.
   "negative_prompt": "edited negative prompt"
 }
 ```
+
+---
+
+## ComfyUI Runtime and Workflow Editor
+
+The Create page is available at `GET /editor`. `GET /settings/comfyui` remains an alias. Runtime
+configuration is stored outside SQLite; workflow drafts and runs are durable SQLite records.
+
+### Runtime control
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET/POST` | `/api/comfyui/config` | Read or update installation path, host, port, interpreter, and launch arguments |
+| `POST` | `/api/comfyui/detect` | Validate a standard or Windows Portable installation |
+| `GET` | `/api/comfyui/status` | Return managed/external mode, health, queue, installation, and hardware data |
+| `POST` | `/api/comfyui/start` | Start the detected local installation |
+| `POST` | `/api/comfyui/stop` | Stop only the CMV-managed process |
+| `POST` | `/api/comfyui/restart` | Restart the managed process |
+| `POST` | `/api/comfyui/interrupt` | Interrupt active ComfyUI execution |
+| `GET` | `/api/comfyui/logs` | Return captured managed-process output |
+| `POST` | `/api/comfyui/launcher` | Generate a platform-specific launcher script |
+
+### Templates and drafts
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/editor/bootstrap` | Return all manifests, defaults, local resource options, and runtime inventory |
+| `GET` | `/api/editor/templates` | Refresh templates and resource inventory |
+| `GET` | `/api/editor/templates/{template_id}` | Return one manifest-driven template |
+| `POST` | `/api/editor/templates/import` | Import a multipart JSON bundle or ZIP archive |
+| `POST` | `/api/editor/drafts` | Create an editing draft from a template |
+| `GET/PATCH` | `/api/editor/drafts/{draft_id}` | Read or update declared values and resource selections |
+| `POST` | `/api/editor/drafts/{draft_id}/preview` | Compile the API graph and return dependency preflight data |
+| `POST` | `/api/editor/inputs` | Upload a reference image to ComfyUI input storage |
+
+Preview responses keep node and resource failures separate:
+
+```json
+{
+  "workflow": { "1": { "class_type": "CheckpointLoaderSimple", "inputs": {} } },
+  "dependencies": {
+    "runtime_online": true,
+    "missing_nodes": [],
+    "missing_resources": [],
+    "compatibility_issues": [],
+    "ready": true
+  }
+}
+```
+
+### Runs, output, and Remix
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/editor/drafts/{draft_id}/run` | Revalidate and queue the compiled graph; returns `409` when dependencies are unresolved |
+| `GET` | `/api/editor/runs` | List recent durable runs |
+| `GET` | `/api/editor/runs/{run_id}` | Refresh remote state and import completed outputs |
+| `POST` | `/api/editor/runs/{run_id}/cancel` | Cancel a pending/running prompt |
+| `POST` | `/api/editor/remix` | Create a manual draft from `asset_id`; does not queue it |
+| `GET` | `/api/editor/assets/{asset_id}/workflow` | Compare an embedded API/UI workflow with installed node types |
+
+Imported output metadata records the template/draft/run/prompt identity and the executed API
+workflow. If a draft originated from Remix, the new asset also references its source asset.
 
 ---
 

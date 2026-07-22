@@ -172,14 +172,22 @@ class RemixService:
             try:
                 meta_data = json.loads(meta_json)
                 if isinstance(meta_data, dict):
+                    prompt_parameters = meta_data.get("prompt_parameters")
+                    if not isinstance(prompt_parameters, dict):
+                        prompt_parameters = {}
                     pos_prompt = (
-                        meta_data.get("prompt")
+                        prompt_parameters.get("positive_prompt")
+                        or prompt_parameters.get("prompt")
+                        or prompt_parameters.get("positive")
+                        or meta_data.get("prompt")
                         or meta_data.get("positive_prompt")
                         or meta_data.get("positive")
                         or ""
                     )
                     neg_prompt = (
-                        meta_data.get("negative_prompt")
+                        prompt_parameters.get("negative_prompt")
+                        or prompt_parameters.get("negative")
+                        or meta_data.get("negative_prompt")
                         or meta_data.get("negative")
                         or ""
                     )

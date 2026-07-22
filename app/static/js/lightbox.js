@@ -631,6 +631,25 @@ export function downloadImage() {
     document.body.removeChild(a);
 }
 
+async function remixCurrentAsset() {
+    const img = getDetailForLightbox();
+    if (!img?.id || dom.lbRemix?.disabled) return;
+    dom.lbRemix.disabled = true;
+    try {
+        const response = await fetch('/api/editor/remix', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asset_id: img.id }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Could not create a remix draft');
+        window.location.assign(payload.editor_url);
+    } catch (error) {
+        showToast(error.message || String(error));
+        dom.lbRemix.disabled = false;
+    }
+}
+
 async function removeCurrentLightboxAsset(removeAsset) {
     if (fileDeleteInProgress) return false;
     const currentIndex = lightboxIndex;
@@ -710,6 +729,7 @@ export function initLightboxEvents() {
     // Download
     dom.lbViewOriginal?.addEventListener('click', viewOriginal);
     dom.lbDownload?.addEventListener('click', downloadImage);
+    dom.lbRemix?.addEventListener('click', remixCurrentAsset);
 
     dom.lbDelete?.addEventListener('click', deleteCurrentLightboxAsset);
 

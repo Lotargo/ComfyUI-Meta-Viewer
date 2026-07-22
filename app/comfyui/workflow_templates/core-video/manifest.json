@@ -1,0 +1,33 @@
+{
+  "schema_version": "1",
+  "id": "core-video",
+  "name": "Core Hunyuan video",
+  "version": "1.0.0",
+  "category": "video",
+  "media_type": "video",
+  "workflow": "workflow.json",
+  "description": "A manifest-driven native video graph with explicit model, text encoder, and VAE slots.",
+  "required_nodes": ["UNETLoader", "DualCLIPLoader", "CLIPTextEncode", "EmptyHunyuanLatentVideo", "VAELoader", "KSampler", "VAEDecode", "CreateVideo", "SaveVideo"],
+  "resource_slots": {
+    "diffusion_model": {"label": "Diffusion model", "accepts": ["diffusion_model"], "required": true, "binding": {"kind": "node_input", "node_id": "1", "input": "unet_name"}},
+    "text_encoder_1": {"label": "Text encoder 1", "accepts": ["text_encoder"], "required": true, "binding": {"kind": "node_input", "node_id": "2", "input": "clip_name1"}},
+    "text_encoder_2": {"label": "Text encoder 2", "accepts": ["text_encoder"], "required": true, "binding": {"kind": "node_input", "node_id": "2", "input": "clip_name2"}},
+    "vae": {"label": "Video VAE", "accepts": ["vae"], "required": true, "binding": {"kind": "node_input", "node_id": "6", "input": "vae_name"}}
+  },
+  "fields": [
+    {"id": "positive_prompt", "label": "Positive prompt", "kind": "textarea", "section": "Prompt", "default": "A slow cinematic camera move through a misty mountain valley", "required": true, "bindings": [{"node_id": "3", "input": "text"}]},
+    {"id": "negative_prompt", "label": "Negative prompt", "kind": "textarea", "section": "Prompt", "default": "flicker, jitter, low quality, artifacts", "bindings": [{"node_id": "4", "input": "text"}]},
+    {"id": "width", "label": "Width", "kind": "number", "section": "Video", "default": 848, "minimum": 64, "maximum": 4096, "step": 16, "bindings": [{"node_id": "5", "input": "width"}]},
+    {"id": "height", "label": "Height", "kind": "number", "section": "Video", "default": 480, "minimum": 64, "maximum": 4096, "step": 16, "bindings": [{"node_id": "5", "input": "height"}]},
+    {"id": "frames", "label": "Frames", "kind": "number", "section": "Video", "default": 25, "minimum": 1, "maximum": 257, "step": 4, "bindings": [{"node_id": "5", "input": "length"}]},
+    {"id": "fps", "label": "Frame rate", "kind": "number", "section": "Video", "default": 24, "minimum": 1, "maximum": 120, "step": 1, "bindings": [{"node_id": "9", "input": "fps"}]},
+    {"id": "seed", "label": "Seed", "kind": "seed", "section": "Sampling", "default": -1, "minimum": -1, "maximum": 1125899906842624, "step": 1, "bindings": [{"node_id": "7", "input": "seed"}]},
+    {"id": "steps", "label": "Steps", "kind": "number", "section": "Sampling", "default": 30, "minimum": 1, "maximum": 200, "step": 1, "bindings": [{"node_id": "7", "input": "steps"}]},
+    {"id": "cfg", "label": "CFG", "kind": "number", "section": "Sampling", "default": 6, "minimum": 0, "maximum": 30, "step": 0.1, "bindings": [{"node_id": "7", "input": "cfg"}]},
+    {"id": "sampler", "label": "Sampler", "kind": "select", "section": "Sampling", "default": "euler", "options": [{"value": "euler", "label": "Euler"}, {"value": "dpmpp_2m", "label": "DPM++ 2M"}], "bindings": [{"node_id": "7", "input": "sampler_name"}]},
+    {"id": "scheduler", "label": "Scheduler", "kind": "select", "section": "Sampling", "default": "normal", "options": [{"value": "normal", "label": "Normal"}, {"value": "karras", "label": "Karras"}, {"value": "sgm_uniform", "label": "SGM uniform"}], "bindings": [{"node_id": "7", "input": "scheduler"}]},
+    {"id": "format", "label": "Container", "kind": "select", "section": "Output", "default": "auto", "advanced": true, "options": [{"value": "auto", "label": "Automatic"}, {"value": "mp4", "label": "MP4"}, {"value": "webm", "label": "WebM"}], "bindings": [{"node_id": "10", "input": "format"}]},
+    {"id": "codec", "label": "Codec", "kind": "select", "section": "Output", "default": "auto", "advanced": true, "options": [{"value": "auto", "label": "Automatic"}, {"value": "h264", "label": "H.264"}, {"value": "h265", "label": "H.265"}, {"value": "vp9", "label": "VP9"}], "bindings": [{"node_id": "10", "input": "codec"}]}
+  ],
+  "output_nodes": ["10"]
+}

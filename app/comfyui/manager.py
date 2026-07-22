@@ -216,9 +216,25 @@ class ComfyUIManager:
             except Exception as exc:
                 self._log(f"[CMV] Error terminating process: {exc}")
 
+        self._stop_monitor_event.set()
+        if proc.stdout:
+            try:
+                proc.stdout.close()
+            except (OSError, ValueError):
+                pass
+
+        reader_thread = self._reader_thread
+        monitor_thread = self._monitor_thread
+        if reader_thread and reader_thread is not threading.current_thread():
+            reader_thread.join(timeout=1.0)
+        if monitor_thread and monitor_thread is not threading.current_thread():
+            monitor_thread.join(timeout=1.0)
+
         with self._lock:
             self._mode = ComfyUIMode.NONE
             self._status = ComfyUIStatus.STOPPED
+            self._reader_thread = None
+            self._monitor_thread = None
             self._log("[CMV] Managed ComfyUI process stopped.")
 
     def restart_managed(

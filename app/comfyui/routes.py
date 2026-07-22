@@ -17,7 +17,7 @@ def _config_store() -> ConfigStore:
 
 @comfyui_blueprint.route("/settings/comfyui")
 def comfyui_settings_page():
-    return render_template("comfyui_settings.html")
+    return render_template("workflow_editor.html")
 
 
 @comfyui_blueprint.route("/api/comfyui/config", methods=["GET", "POST"])

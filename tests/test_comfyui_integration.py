@@ -144,6 +144,31 @@ class ComfyUIClientTest(unittest.TestCase):
         with self.assertRaises(ComfyUIClientError):
             client.check_health()
 
+    def test_job_history_fallback_preserves_executed_workflow(self) -> None:
+        client = ComfyUIClient(host="127.0.0.1", port=8188)
+        workflow = {
+            "1": {"class_type": "SaveImage", "inputs": {"images": ["0", 0]}},
+        }
+        history = {
+            "prompt-1": {
+                "prompt": [7, "prompt-1", workflow, {}, ["1"]],
+                "outputs": {"1": {"images": [{"filename": "result.png"}]}},
+                "status": {"status_str": "success"},
+            }
+        }
+        with patch.object(
+            client,
+            "_request_json",
+            side_effect=[
+                ComfyUIClientError("not found", status=404),
+                history,
+            ],
+        ):
+            job = client.get_job("prompt-1")
+
+        self.assertEqual(job["status"], "completed")
+        self.assertEqual(job["workflow"]["prompt"], workflow)
+
 
 class ComfyUIManagerTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -209,7 +234,8 @@ class ComfyUIRoutesTest(unittest.TestCase):
     def test_settings_page_route(self) -> None:
         resp = self.client.get("/settings/comfyui")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b"ComfyUI Integration", resp.data)
+        self.assertIn(b"Workflow editor workspace", resp.data)
+        self.assertIn(b"ComfyUI runtime", resp.data)
 
     def test_config_api(self) -> None:
         resp = self.client.get("/api/comfyui/config")

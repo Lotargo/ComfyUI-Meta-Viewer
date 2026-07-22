@@ -10,6 +10,7 @@ ComfyUI Meta Viewer is a local-first metadata browser for AI-generated images. I
 
 - [Metadata Extraction](#metadata-extraction)
 - [ComfyUI Workflow Inspection](#comfyui-workflow-inspection)
+- [Create Workspace and Workflow Templates](#create-workspace-and-workflow-templates)
 - [Source Monitoring](#source-monitoring)
 - [SQLite Persistence](#sqlite-persistence)
 - [Media Library](#media-library)
@@ -70,6 +71,33 @@ The Workflow tab renders parsed ComfyUI nodes as an SVG graph and groups known n
 - Pan/zoom navigation.
 - Node selection and parameter inspection.
 - Support for both ComfyUI API-style prompt JSON and UI workflow JSON where available.
+
+---
+
+## Create Workspace and Workflow Templates
+
+**Main files:** `app/comfyui/workflow_*.py`, `app/templates/workflow_editor.html`, `app/static/js/features/workflow-editor.js`
+
+`/editor` is the generation workspace. It uses the same dark application shell as Viewer and
+Library, with contextual controls on the left and queue/results on the right. ComfyUI connection,
+process control, health, hardware, and logs live in an integrated drawer instead of a separate
+settings surface; the legacy `/settings/comfyui` URL opens this workspace for compatibility.
+
+The built-in registry covers text-to-image, reference/img2img, native video, and explicit
+two-stage refinement. Each template stores an API workflow separately from a validated manifest.
+The manifest declares fields, required node types, semantic model slots, bindings, result media
+type, and output nodes. JSON bundles and ZIP archives can add user templates without frontend
+changes.
+
+Key behavior:
+
+- Form controls are generated from the selected manifest; advanced and irrelevant fields stay hidden.
+- Model options come from the connected ComfyUI API, with a filesystem inventory fallback while offline.
+- Standard checkpoint bindings and multi-LoRA graph chains are compiled generically.
+- Preflight reports missing node types and missing model resources separately and rechecks compatibility before every run.
+- Drafts, runs, errors, queue state, output references, and imported asset IDs persist in SQLite.
+- Completed image/video output is downloaded from ComfyUI, returned to the local Library, and stored with executed workflow/provenance metadata.
+- Remix copies a source asset prompt into a supported draft, uploads a reference when possible, records lineage, opens Create, and waits for manual generation.
 
 ### Node Categories
 

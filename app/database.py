@@ -284,6 +284,39 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS workflow_drafts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                template_id TEXT NOT NULL,
+                template_version TEXT NOT NULL,
+                values_json TEXT NOT NULL DEFAULT '{}',
+                resource_selections_json TEXT NOT NULL DEFAULT '{}',
+                source_asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
+                ai_prompt_draft_id INTEGER REFERENCES ai_prompt_drafts(id) ON DELETE SET NULL,
+                status TEXT NOT NULL DEFAULT 'editing'
+                    CHECK (status IN ('editing', 'queued', 'completed', 'failed', 'cancelled')),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS workflow_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                draft_id INTEGER NOT NULL REFERENCES workflow_drafts(id) ON DELETE CASCADE,
+                prompt_id TEXT NOT NULL UNIQUE,
+                client_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'queued'
+                    CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+                progress REAL,
+                queue_position INTEGER,
+                current_node TEXT,
+                error_json TEXT,
+                output_refs_json TEXT NOT NULL DEFAULT '[]',
+                output_asset_ids_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                started_at TEXT,
+                completed_at TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS ai_ratings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
@@ -317,6 +350,10 @@ def init_db() -> None:
                 ON ai_prompt_translations(target_language);
             CREATE INDEX IF NOT EXISTS idx_model_resources_hash ON model_resources(content_hash);
             CREATE INDEX IF NOT EXISTS idx_model_resources_arch ON model_resources(architecture);
+            CREATE INDEX IF NOT EXISTS idx_workflow_drafts_template ON workflow_drafts(template_id, id);
+            CREATE INDEX IF NOT EXISTS idx_workflow_drafts_source ON workflow_drafts(source_asset_id);
+            CREATE INDEX IF NOT EXISTS idx_workflow_runs_draft ON workflow_runs(draft_id, id);
+            CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status);
             CREATE INDEX IF NOT EXISTS idx_ai_ratings_image ON ai_ratings(image_id);
             CREATE INDEX IF NOT EXISTS idx_ai_ratings_rank ON ai_ratings(rank);
         """)

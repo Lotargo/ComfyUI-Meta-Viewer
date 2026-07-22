@@ -40,6 +40,9 @@ ComfyUI Meta Viewer is a local web application for viewing, organizing, and anal
 - **Media Library** — virtual albums, favorites, ratings, tags, notes, and bulk selection without moving source files
 - **Unified image and video assets** — shared sources, albums, favorites, previews, and technical metadata
 - **Unified media browsing** — folders, albums, the central gallery, and the Media sidebar can show images and videos together or filter either type independently
+- **Create workspace** — manifest-driven image, reference, video, and two-stage workflow templates with dynamic local model selection
+- **ComfyUI execution** — integrated runtime setup, dependency preflight, queue state, cancellation, result import, and workflow provenance
+- **Remix drafts** — carry an asset prompt and lineage into a supported reference workflow without starting generation automatically
 - **BYOK provider profiles** — OpenAI-compatible endpoints with OS-keyring or environment-variable credentials, plus detected OpenCode, Claude Code, and Antigravity CLI adapters
 - **Model-aware prompt compiler** — layered family, operation, scenario, modifier, and output-contract instructions with strict structured results
 - **Keyboard-first** workflow with 14 shortcuts
@@ -296,6 +299,8 @@ The app will be available at **http://localhost:7860**
 5. **Search** — Ctrl+F to fuzzy search across all metadata
 6. **Cutout** — Select an image and generate a transparent PNG
 7. **Configure AI** — open the AI page, add an endpoint or import a detected local CLI, choose exact model IDs, and test text or image support
+8. **Create** — connect ComfyUI from the Create header, select a template and local resources, preview dependencies, then generate into the Library
+9. **Remix** — use the lightbox Remix action to open a manually reviewed reference draft with source lineage
 
 ---
 
@@ -331,6 +336,7 @@ The app will be available at **http://localhost:7860**
 | [Prompt intent benchmarks](docs/ai-intent-benchmark.md) | Targeted raw-intent generation and model-judge evaluation |
 | [OpenCode smoke testing](docs/ai-opencode-smoke-testing.md) | Managed CLI execution, profiles, scenarios, and reports |
 | [AI prompt architecture](docs/ai-prompt-architecture.md) | Canonical profiles, compilation, execution routing, persistence, and skill export |
+| [Workflow editor API](docs/api.md#comfyui-runtime-and-workflow-editor) | Runtime control, templates, drafts, preflight, execution, results, and Remix |
 
 ---
 
@@ -356,6 +362,10 @@ The app will be available at **http://localhost:7860**
 | `GET` | `/api/diagnostics` | System statistics |
 | `GET/POST` | `/api/ai/profiles` | List or create masked AI provider profiles |
 | `GET` | `/api/ai/cli-integrations` | Detect supported authenticated local CLIs |
+| `GET` | `/api/editor/bootstrap` | Load workflow manifests and runtime inventory |
+| `POST` | `/api/editor/drafts/{id}/preview` | Compile a draft and validate nodes/models |
+| `POST` | `/api/editor/drafts/{id}/run` | Queue a validated workflow in ComfyUI |
+| `POST` | `/api/editor/remix` | Create a manual workflow draft from a library asset |
 
 Full API documentation: [docs/api.md](docs/api.md)
 

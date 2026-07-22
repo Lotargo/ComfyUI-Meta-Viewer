@@ -24,6 +24,11 @@ class ResourceType(str, Enum):
     DORA = "dora"
     VAE = "vae"
     EMBEDDING = "embedding"
+    DIFFUSION_MODEL = "diffusion_model"
+    TEXT_ENCODER = "text_encoder"
+    CLIP_VISION = "clip_vision"
+    CONTROLNET = "controlnet"
+    UPSCALE_MODEL = "upscale_model"
     UNKNOWN = "unknown"
 
 

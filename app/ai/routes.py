@@ -144,6 +144,33 @@ def ai_job(job_id: int):
     return jsonify(snapshot.model_dump(mode="json"))
 
 
+@ai_blueprint.route("/api/ai/jobs/<int:job_id>/review", methods=["POST"])
+def ai_job_review(job_id: int):
+    payload = request.get_json(silent=True)
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        raise AIJobStoreError("A JSON object is required.")
+    unexpected = set(payload) - {"draft_id"}
+    if unexpected:
+        raise AIJobStoreError(
+            "Unsupported review fields: " + ", ".join(sorted(unexpected))
+        )
+    draft_id = payload.get("draft_id")
+    if draft_id is not None and (
+        isinstance(draft_id, bool) or not isinstance(draft_id, int)
+    ):
+        raise AIJobStoreError("draft_id must be an integer.")
+    snapshot = _job_store().accept_draft(job_id, draft_id=draft_id)
+    return jsonify(snapshot.model_dump(mode="json"))
+
+
+@ai_blueprint.route("/api/ai/jobs/<int:job_id>/cancel", methods=["POST"])
+def ai_job_cancel(job_id: int):
+    job = _job_store().cancel(job_id)
+    return jsonify({"job": job.model_dump(mode="json")})
+
+
 @ai_blueprint.route("/api/ai/prompt-drafts/<int:draft_id>", methods=["GET", "PATCH"])
 def ai_prompt_draft(draft_id: int):
     store = _job_store()

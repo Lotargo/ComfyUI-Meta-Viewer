@@ -11,7 +11,7 @@ from app.ai.execution import (
     ExecutionMode,
     ExecutionRouter,
 )
-from app.ai.job_store import AIJobStore
+from app.ai.job_store import AIJobStatus, AIJobStore
 from app.ai.prompting import (
     PromptFamily,
     PromptOperation,
@@ -114,6 +114,7 @@ class PromptTranslationTest(unittest.TestCase):
         self.assertEqual(reloaded, outcome.translation)
         snapshot = AIJobStore().get(outcome.execution.job_id)
         self.assertEqual(snapshot.job.task.operation, PromptOperation.TRANSLATE)
+        self.assertEqual(snapshot.job.status, AIJobStatus.COMPLETED)
         self.assertEqual(snapshot.result, outcome.execution.result)
 
     def test_adaptation_cannot_be_silently_executed_as_translation(self) -> None:

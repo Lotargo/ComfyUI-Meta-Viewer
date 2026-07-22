@@ -207,7 +207,10 @@ def init_db() -> None:
                 model_id TEXT,
                 user_input TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL DEFAULT 'queued'
-                    CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+                    CHECK (status IN (
+                        'queued', 'running', 'waiting_for_review',
+                        'completed', 'failed', 'cancelled'
+                    )),
                 bundle_metadata_json TEXT,
                 technical_error TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -269,6 +272,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_ai_prompt_translations_language
                 ON ai_prompt_translations(target_language);
         """)
+        _migrate_ai_job_review_status(conn)
         migrations = (
             "ALTER TABLE images ADD COLUMN original_data BLOB",
             "ALTER TABLE folders ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'",
@@ -330,10 +334,77 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_images_favorite ON images(is_favorite);
             CREATE INDEX IF NOT EXISTS idx_images_fingerprint ON images(content_fingerprint);
             CREATE INDEX IF NOT EXISTS idx_images_media_type ON images(media_type);
+            CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
+            CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
         """)
         conn.commit()
     finally:
         conn.close()
+
+
+def _migrate_ai_job_review_status(conn: sqlite3.Connection) -> None:
+    """Extend the original SQLite CHECK constraint without losing job artifacts."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='ai_jobs'"
+    ).fetchone()
+    if row is None or "waiting_for_review" in str(row["sql"]):
+        return
+
+    columns = (
+        "id, asset_id, family, operation, scenario, modifiers_json, "
+        "checkpoint_profile, output_contract, execution_backend, "
+        "provider_profile_id, model_id, user_input, status, "
+        "bundle_metadata_json, technical_error, created_at, updated_at, "
+        "started_at, completed_at"
+    )
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys=OFF")
+    try:
+        conn.executescript(f"""
+            BEGIN IMMEDIATE;
+            CREATE TABLE ai_jobs__review_migration (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
+                family TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                scenario TEXT NOT NULL,
+                modifiers_json TEXT NOT NULL DEFAULT '[]',
+                checkpoint_profile TEXT,
+                output_contract TEXT NOT NULL,
+                execution_backend TEXT NOT NULL,
+                provider_profile_id TEXT,
+                model_id TEXT,
+                user_input TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'queued'
+                    CHECK (status IN (
+                        'queued', 'running', 'waiting_for_review',
+                        'completed', 'failed', 'cancelled'
+                    )),
+                bundle_metadata_json TEXT,
+                technical_error TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                started_at TEXT,
+                completed_at TEXT
+            );
+            INSERT INTO ai_jobs__review_migration ({columns})
+                SELECT {columns} FROM ai_jobs;
+            DROP TABLE ai_jobs;
+            ALTER TABLE ai_jobs__review_migration RENAME TO ai_jobs;
+            COMMIT;
+        """)
+    except Exception:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys=ON")
+
+    violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+    if violations:
+        raise sqlite3.IntegrityError(
+            "AI job status migration produced foreign key violations."
+        )
 
 
 def upsert_folder(path: str) -> int:

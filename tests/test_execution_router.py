@@ -121,7 +121,8 @@ class ExecutionRouterTest(unittest.TestCase):
         self.assertEqual(self.host.prepared.image_path, Path("portrait.png"))
 
         snapshot = self.store.get(outcome.job_id)
-        self.assertEqual(snapshot.job.status, AIJobStatus.COMPLETED)
+        self.assertEqual(snapshot.job.status, AIJobStatus.WAITING_FOR_REVIEW)
+        self.assertIsNone(snapshot.job.completed_at)
         self.assertEqual(snapshot.job.execution_backend, "host-test")
         self.assertEqual(snapshot.job.provider_profile_id, "profile-1")
         self.assertEqual(snapshot.job.model_id, "host/model")

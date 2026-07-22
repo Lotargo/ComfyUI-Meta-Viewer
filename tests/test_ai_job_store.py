@@ -190,6 +190,53 @@ class AIJobStoreTest(unittest.TestCase):
                 result=PromptResult(positive_prompt="must not be saved"),
             )
 
+    def test_generated_draft_waits_for_review_and_accepts_an_edited_revision(self) -> None:
+        job = self.store.create(task=self.task, execution_backend="opencode")
+        bundle = PromptCompiler().compile(self.task)
+        self.store.mark_running(job.id, bundle)
+        generated = self.store.save_draft(
+            job.id,
+            PromptDraft(
+                positive_prompt="generated bottle prompt",
+                negative_prompt="generated defects",
+                versions=bundle.versions,
+            ),
+        )
+        waiting = self.store.wait_for_review(
+            job.id,
+            result=PromptResult(
+                positive_prompt=generated.draft.positive_prompt,
+                negative_prompt=generated.draft.negative_prompt,
+            ),
+            execution_metadata={"transport": "opencode"},
+            bundle=bundle,
+        )
+        self.assertEqual(waiting.job.status, AIJobStatus.WAITING_FOR_REVIEW)
+        self.assertIsNone(waiting.job.completed_at)
+
+        edited = self.store.revise_draft(
+            generated.id,
+            positive_prompt="reviewed bottle prompt",
+        )
+        accepted = self.store.accept_draft(job.id, draft_id=edited.id)
+        self.assertEqual(accepted.job.status, AIJobStatus.COMPLETED)
+        self.assertEqual(accepted.result.positive_prompt, "reviewed bottle prompt")
+        self.assertEqual(accepted.result.negative_prompt, "generated defects")
+        self.assertEqual(accepted.execution_metadata, {"transport": "opencode"})
+        self.assertIsNotNone(accepted.job.completed_at)
+
+    def test_waiting_job_can_be_cancelled_but_not_completed_afterwards(self) -> None:
+        job = self.store.create(task=self.task, execution_backend="opencode")
+        self.store.save_draft(job.id, PromptDraft(positive_prompt="draft"))
+        self.store.wait_for_review(
+            job.id,
+            result=PromptResult(positive_prompt="draft"),
+        )
+        cancelled = self.store.cancel(job.id)
+        self.assertEqual(cancelled.status, AIJobStatus.CANCELLED)
+        with self.assertRaisesRegex(AIJobStoreError, "cancelled.*completed"):
+            self.store.accept_draft(job.id)
+
     def test_database_foreign_keys_and_reset_semantics_are_preserved(self) -> None:
         with self.assertRaisesRegex(AIJobStoreError, "FOREIGN KEY"):
             self.store.create(
@@ -257,6 +304,53 @@ class AIJobStoreTest(unittest.TestCase):
         self.assertEqual(migrated.draft.source_payload, {})
         self.assertEqual(migrated.draft.versions, {"family": "1"})
         self.assertEqual(migrated.updated_at, migrated.created_at)
+
+    def test_legacy_ai_job_status_constraint_is_migrated_with_children(self) -> None:
+        job = self.store.create(task=self.task, execution_backend="opencode")
+        self.store.save_scene_spec(job.id, SceneSpec(uncertain_details=("label",)))
+        self.store.save_draft(job.id, PromptDraft(positive_prompt="preserved"))
+        conn = database.get_conn()
+        try:
+            current_sql = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='ai_jobs'"
+            ).fetchone()["sql"]
+            legacy_sql = current_sql.replace(
+                "CREATE TABLE ai_jobs", "CREATE TABLE ai_jobs_legacy", 1
+            ).replace(", 'waiting_for_review'", "", 1)
+            columns = (
+                "id, asset_id, family, operation, scenario, modifiers_json, "
+                "checkpoint_profile, output_contract, execution_backend, "
+                "provider_profile_id, model_id, user_input, status, "
+                "bundle_metadata_json, technical_error, created_at, updated_at, "
+                "started_at, completed_at"
+            )
+            conn.commit()
+            conn.execute("PRAGMA foreign_keys=OFF")
+            conn.executescript(f"""
+                BEGIN IMMEDIATE;
+                {legacy_sql};
+                INSERT INTO ai_jobs_legacy ({columns}) SELECT {columns} FROM ai_jobs;
+                DROP TABLE ai_jobs;
+                ALTER TABLE ai_jobs_legacy RENAME TO ai_jobs;
+                COMMIT;
+            """)
+            conn.execute("PRAGMA foreign_keys=ON")
+        finally:
+            conn.close()
+
+        database.init_db()
+        migrated = AIJobStore()
+        snapshot = migrated.get(job.id)
+        self.assertEqual(snapshot.scene_spec.uncertain_details, ("label",))
+        self.assertEqual(snapshot.drafts[0].draft.positive_prompt, "preserved")
+        migrated.wait_for_review(
+            job.id,
+            result=PromptResult(positive_prompt="preserved"),
+        )
+        self.assertEqual(
+            migrated.get(job.id).job.status,
+            AIJobStatus.WAITING_FOR_REVIEW,
+        )
 
 
 if __name__ == "__main__":

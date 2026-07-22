@@ -11,6 +11,7 @@ from app.ai.prompting import (
     PromptOperation,
     PromptScenario,
     PromptTask,
+    PromptResult,
 )
 from app.main import app
 
@@ -93,6 +94,39 @@ class PromptDraftRoutesTest(unittest.TestCase):
 
         missing = self.client.get("/api/ai/prompt-drafts/999999")
         self.assertEqual(missing.status_code, 404)
+
+    def test_review_accepts_latest_edit_as_final_result(self) -> None:
+        self.store.wait_for_review(
+            self.job.id,
+            result=PromptResult(positive_prompt="studio portrait"),
+            execution_metadata={"latency_ms": 25},
+        )
+        edit_response = self.client.patch(
+            f"/api/ai/prompt-drafts/{self.draft.id}",
+            json={"positive_prompt": "reviewed cinematic portrait"},
+        )
+        edited_id = edit_response.get_json()["draft"]["id"]
+        review = self.client.post(
+            f"/api/ai/jobs/{self.job.id}/review",
+            json={"draft_id": edited_id},
+        )
+        self.assertEqual(review.status_code, 200)
+        payload = review.get_json()
+        self.assertEqual(payload["job"]["status"], "completed")
+        self.assertEqual(
+            payload["result"]["positive_prompt"],
+            "reviewed cinematic portrait",
+        )
+        self.assertEqual(payload["execution_metadata"], {"latency_ms": 25})
+
+    def test_waiting_job_can_be_cancelled_through_api(self) -> None:
+        self.store.wait_for_review(
+            self.job.id,
+            result=PromptResult(positive_prompt="studio portrait"),
+        )
+        response = self.client.post(f"/api/ai/jobs/{self.job.id}/cancel")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["job"]["status"], "cancelled")
 
 
 if __name__ == "__main__":

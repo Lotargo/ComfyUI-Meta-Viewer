@@ -19,6 +19,7 @@ class AIJobStoreError(RuntimeError):
 class AIJobStatus(str, Enum):
     QUEUED = "queued"
     RUNNING = "running"
+    WAITING_FOR_REVIEW = "waiting_for_review"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -294,9 +295,81 @@ class AIJobStore:
         execution_metadata: dict[str, Any] | None = None,
         bundle: InstructionBundle | None = None,
     ) -> AIJobSnapshot:
+        return self._persist_result(
+            job_id,
+            target=AIJobStatus.COMPLETED,
+            allowed={
+                AIJobStatus.QUEUED,
+                AIJobStatus.RUNNING,
+                AIJobStatus.WAITING_FOR_REVIEW,
+            },
+            result=result,
+            execution_metadata=execution_metadata,
+            bundle=bundle,
+        )
+
+    def wait_for_review(
+        self,
+        job_id: int,
+        *,
+        result: PromptResult,
+        execution_metadata: dict[str, Any] | None = None,
+        bundle: InstructionBundle | None = None,
+    ) -> AIJobSnapshot:
+        return self._persist_result(
+            job_id,
+            target=AIJobStatus.WAITING_FOR_REVIEW,
+            allowed={AIJobStatus.QUEUED, AIJobStatus.RUNNING},
+            result=result,
+            execution_metadata=execution_metadata,
+            bundle=bundle,
+        )
+
+    def accept_draft(
+        self,
+        job_id: int,
+        *,
+        draft_id: int | None = None,
+    ) -> AIJobSnapshot:
+        snapshot = self.get(job_id)
+        if snapshot.job.status is not AIJobStatus.WAITING_FOR_REVIEW:
+            self._raise_transition(snapshot.job.status, AIJobStatus.COMPLETED)
+        if not snapshot.drafts:
+            raise AIJobStoreError(f"AI job {job_id} has no prompt draft to accept.")
+        if draft_id is None:
+            selected = snapshot.drafts[-1]
+        else:
+            selected = next(
+                (draft for draft in snapshot.drafts if draft.id == draft_id),
+                None,
+            )
+            if selected is None:
+                raise AIJobStoreError(
+                    f"Prompt draft {draft_id} does not belong to AI job {job_id}."
+                )
+        return self.complete(
+            job_id,
+            result=PromptResult(
+                schema_version=selected.draft.schema_version,
+                positive_prompt=selected.draft.positive_prompt,
+                negative_prompt=selected.draft.negative_prompt,
+            ),
+            execution_metadata=snapshot.execution_metadata,
+        )
+
+    def _persist_result(
+        self,
+        job_id: int,
+        *,
+        target: AIJobStatus,
+        allowed: set[AIJobStatus],
+        result: PromptResult,
+        execution_metadata: dict[str, Any] | None,
+        bundle: InstructionBundle | None,
+    ) -> AIJobSnapshot:
         current = self._require_job(job_id)
-        if current.status not in {AIJobStatus.QUEUED, AIJobStatus.RUNNING}:
-            self._raise_transition(current.status, AIJobStatus.COMPLETED)
+        if current.status not in allowed:
+            self._raise_transition(current.status, target)
         metadata_json = self._json(execution_metadata or {})
         bundle_json = self._json(bundle.metadata()) if bundle is not None else None
 
@@ -322,17 +395,31 @@ class AIJobStore:
                     metadata_json,
                 ),
             )
-            conn.execute(
+            cursor = conn.execute(
                 """UPDATE ai_jobs SET
-                    status='completed',
+                    status=?,
                     bundle_metadata_json=COALESCE(?, bundle_metadata_json),
                     technical_error=NULL,
                     started_at=COALESCE(started_at, datetime('now')),
-                    completed_at=datetime('now'),
+                    completed_at=CASE
+                        WHEN ?='completed' THEN datetime('now')
+                        ELSE NULL
+                    END,
                     updated_at=datetime('now')
-                WHERE id=?""",
-                (bundle_json, job_id),
+                WHERE id=? AND status=?""",
+                (
+                    target.value,
+                    bundle_json,
+                    target.value,
+                    job_id,
+                    current.status.value,
+                ),
             )
+            if cursor.rowcount != 1:
+                conn.rollback()
+                raise AIJobStoreError(
+                    f"AI job {job_id} changed concurrently; reload it before retrying."
+                )
             conn.commit()
         except Exception:
             conn.rollback()
@@ -346,7 +433,11 @@ class AIJobStore:
         return self._transition(
             job_id,
             target=AIJobStatus.FAILED,
-            allowed={AIJobStatus.QUEUED, AIJobStatus.RUNNING},
+            allowed={
+                AIJobStatus.QUEUED,
+                AIJobStatus.RUNNING,
+                AIJobStatus.WAITING_FOR_REVIEW,
+            },
             technical_error=error,
         )
 
@@ -354,7 +445,11 @@ class AIJobStore:
         return self._transition(
             job_id,
             target=AIJobStatus.CANCELLED,
-            allowed={AIJobStatus.QUEUED, AIJobStatus.RUNNING},
+            allowed={
+                AIJobStatus.QUEUED,
+                AIJobStatus.RUNNING,
+                AIJobStatus.WAITING_FOR_REVIEW,
+            },
         )
 
     def get(self, job_id: int) -> AIJobSnapshot:

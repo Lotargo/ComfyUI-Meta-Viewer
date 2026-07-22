@@ -76,6 +76,11 @@ Job transitions are checked and terminal states cannot silently become successfu
 a job cascades to its intermediate artifacts; deleting a media asset keeps the job and clears its
 optional asset link.
 
+Translation jobs complete as soon as their separate source/result record is durable. Generate,
+adapt, and reconstruct jobs instead enter `waiting_for_review` after the model result is stored.
+Accepting a draft promotes the selected revision to the final normalized result; cancellation is
+also allowed while a draft is waiting for review.
+
 Each generated draft records whether it came from user text, an asset, translation, adaptation,
 or a reviewed `SceneSpec`. Editing creates a child revision instead of overwriting the model
 output. The draft API joins that immutable revision with its job context, so family, checkpoint,

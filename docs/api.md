@@ -748,6 +748,10 @@ all prompt draft revisions, the normalized result, and execution metadata.
 `PATCH /api/ai/prompt-drafts/<draft_id>` accepts `positive_prompt` and/or `negative_prompt`.
 It creates and returns an append-only manual revision; the original AI output is not overwritten.
 
+`POST /api/ai/jobs/<job_id>/review` promotes the latest draft to the final result. Pass an optional
+`draft_id` to accept a specific revision. `POST /api/ai/jobs/<job_id>/cancel` cancels a queued,
+running, or review-waiting job.
+
 ```json
 {
   "positive_prompt": "edited prompt",

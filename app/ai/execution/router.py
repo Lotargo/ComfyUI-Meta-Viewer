@@ -9,7 +9,13 @@ from ..job_store import (
     PromptDraft,
     PromptDraftSource,
 )
-from ..prompting import PromptCompiler, PromptCompilerError, PromptTask, SceneSpec
+from ..prompting import (
+    PromptCompiler,
+    PromptCompilerError,
+    PromptOperation,
+    PromptTask,
+    SceneSpec,
+)
 from .adapters import DirectOpenAICompatibleAdapter, OpenCodeAgentHostAdapter
 from .base import (
     AdapterExecutionError,
@@ -170,7 +176,12 @@ class ExecutionRouter:
                     versions=executed.bundle.versions,
                 ),
             )
-            snapshot = self.job_store.complete(
+            persist_result = (
+                self.job_store.complete
+                if task.operation is PromptOperation.TRANSLATE
+                else self.job_store.wait_for_review
+            )
+            snapshot = persist_result(
                 job.id,
                 result=executed.result,
                 execution_metadata=executed.metadata,
@@ -246,8 +257,6 @@ class ExecutionRouter:
         asset_id: int | None,
         scene_spec: SceneSpec | None,
     ) -> PromptDraftSource:
-        from ..prompting import PromptOperation
-
         if scene_spec is not None:
             return PromptDraftSource.SCENE_SPEC
         if task.operation is PromptOperation.TRANSLATE:

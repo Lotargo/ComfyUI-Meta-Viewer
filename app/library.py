@@ -587,6 +587,7 @@ def get_assets(
     tag: str | None = None,
     asset_id: int | None = None,
     rating: int | None = None,
+    ai_rank: str | None = None,
     model_family: str | None = None,
     orientation: str | None = None,
     node_type: str | None = None,
@@ -606,6 +607,12 @@ def get_assets(
     if rating is not None:
         conditions.append("i.rating = ?")
         params.append(rating)
+
+    if ai_rank and ai_rank.strip():
+        conditions.append(
+            "EXISTS (SELECT 1 FROM ai_ratings filter_ar WHERE filter_ar.image_id = i.id AND COALESCE(filter_ar.rank_override, filter_ar.rank) = ?)"
+        )
+        params.append(ai_rank.strip().upper())
 
     if model_family:
         model_condition, model_params = _model_family_condition(
@@ -716,10 +723,13 @@ def get_assets(
                 i.height, i.duration, i.frame_rate, i.codec, i.error,
                 i.metadata_json, i.ai_annotations_json, i.preview_status,
                 i.preview_error, i.is_favorite, i.rating, i.note, i.indexed_at,
+                i.derived_from_asset_id,
                 i.original_data IS NOT NULL AS has_original_data,
                 f.name AS source_name, f.path AS source_path, f.enabled AS source_enabled,
-                f.source_status
-            FROM images i JOIN folders f ON f.id = i.folder_id{where}
+                f.source_status,
+                r.rank AS ai_rank, r.rank_override AS ai_rank_override, r.status AS ai_rank_status
+            FROM images i JOIN folders f ON f.id = i.folder_id
+            LEFT JOIN ai_ratings r ON r.image_id = i.id{where}
             ORDER BY {sort_column} {direction}, i.id {direction}
             LIMIT ? OFFSET ?""",
             [*params, per_page, offset],
@@ -795,6 +805,9 @@ def get_assets(
                 asset["has_ai_annotations"] = bool(json.loads(ai_annotations_json))
             except (TypeError, ValueError):
                 pass
+        ai_rank_val = asset.pop("ai_rank", None)
+        ai_override_val = asset.pop("ai_rank_override", None)
+        asset["ai_rank"] = ai_override_val if ai_override_val is not None else ai_rank_val
         asset["thumbnail_url"] = f"/api/thumbnail/{image_id}"
         asset["original_url"] = f"/api/original/{image_id}"
 

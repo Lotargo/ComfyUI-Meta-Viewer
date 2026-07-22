@@ -4,6 +4,7 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
+from .adaptation import PromptAdaptationService
 from .cli import (
     CLI_SPECS,
     CLIIntegrationError,
@@ -12,10 +13,17 @@ from .cli import (
     list_cli_models,
     probe_cli,
 )
+from .execution import ExecutionRouter
 from .job_store import AIJobStore, AIJobStoreError
 from .profiles import AIProfileStore, AIProfileStoreError
+from .prompting import PromptFamily, PromptOperation, PromptScenario, PromptTask, SceneSpec
+from .ranking import AIRank, AIRankingError, AIRankingService, AIRatingStore
+from .reconstruction import PromptReconstructionService
+from .remix import RemixPromptSource, RemixRequest, RemixService
+from .resources import CapabilityResolver, ModelResource, ModelResourceCatalog, ResourceType
 from .secrets import SecretStoreError
 from .transport import AIProviderRequestError, test_profile
+from .translation import PromptText, PromptTranslationService
 
 
 ai_blueprint = Blueprint("ai", __name__)
@@ -65,6 +73,12 @@ def cli_error(error: CLIIntegrationError):
 def ai_job_error(error: AIJobStoreError):
     status = 404 if "does not exist" in str(error) else 422
     return jsonify({"error": str(error), "code": "ai_job_store_error"}), status
+
+
+@ai_blueprint.errorhandler(AIRankingError)
+def ai_ranking_error(error: AIRankingError):
+    status = 404 if "not found" in str(error) else 422
+    return jsonify({"error": str(error), "code": "ai_ranking_error"}), status
 
 
 @ai_blueprint.route("/settings/ai")
@@ -193,3 +207,163 @@ def ai_prompt_draft(draft_id: int):
         "draft": draft.model_dump(mode="json"),
         "context": store.draft_context(draft, job).model_dump(mode="json"),
     })
+
+
+@ai_blueprint.route("/api/ai/translate", methods=["POST"])
+def ai_translate():
+    payload = _json_object()
+    profile = payload.get("profile")
+    if not isinstance(profile, dict):
+        raise AIProfileStoreError("profile dictionary is required.")
+    task_data = payload.get("task") or {}
+    task = PromptTask.model_validate({**task_data, "operation": "translate"})
+    source_data = payload.get("source") or {}
+    source = PromptText.model_validate(source_data)
+
+    target_lang = payload.get("target_language") or "en"
+    source_lang = payload.get("source_language")
+
+    service = PromptTranslationService()
+    outcome = service.translate(
+        profile=profile,
+        task=task,
+        source=source,
+        target_language=target_lang,
+        source_language=source_lang,
+        asset_id=payload.get("asset_id"),
+    )
+    return jsonify(outcome.model_dump(mode="json"))
+
+
+@ai_blueprint.route("/api/ai/adapt", methods=["POST"])
+def ai_adapt():
+    payload = _json_object()
+    profile = payload.get("profile")
+    if not isinstance(profile, dict):
+        raise AIProfileStoreError("profile dictionary is required.")
+    task_data = payload.get("task") or {}
+    task = PromptTask.model_validate({**task_data, "operation": "adapt"})
+    source_data = payload.get("source") or {}
+    source = PromptText.model_validate(source_data)
+
+    target_family = payload.get("target_family", PromptFamily.FLUX)
+    checkpoint_profile = payload.get("checkpoint_profile")
+
+    service = PromptAdaptationService()
+    outcome = service.adapt(
+        profile=profile,
+        task=task,
+        source=source,
+        target_family=target_family,
+        checkpoint_profile=checkpoint_profile,
+        asset_id=payload.get("asset_id"),
+    )
+    return jsonify(outcome.model_dump(mode="json"))
+
+
+@ai_blueprint.route("/api/ai/reconstruct", methods=["POST"])
+def ai_reconstruct():
+    payload = _json_object()
+    profile = payload.get("profile")
+    if not isinstance(profile, dict):
+        raise AIProfileStoreError("profile dictionary is required.")
+    task_data = payload.get("task") or {}
+    task = PromptTask.model_validate({**task_data, "operation": "reconstruct"})
+
+    scene_spec_data = payload.get("scene_spec")
+    service = PromptReconstructionService()
+    if scene_spec_data:
+        scene_spec = SceneSpec.model_validate(scene_spec_data)
+        outcome = service.render_from_scene_spec(
+            profile=profile,
+            task=task,
+            scene_spec=scene_spec,
+            asset_id=payload.get("asset_id"),
+        )
+    else:
+        router = ExecutionRouter()
+        outcome = router.execute(
+            profile=profile,
+            task=task,
+            user_input=payload.get("user_input", "Reconstruct prompt from asset"),
+            asset_id=payload.get("asset_id"),
+        )
+    return jsonify(outcome.model_dump(mode="json"))
+
+
+@ai_blueprint.route("/api/ai/remix", methods=["POST"])
+def ai_remix():
+    payload = _json_object()
+    request_data = RemixRequest.model_validate(payload)
+    service = RemixService()
+    outcome = service.create_remix_draft(
+        request=request_data,
+        execution_backend=payload.get("execution_backend", "direct"),
+        provider_profile_id=payload.get("provider_profile_id"),
+        model_id=payload.get("model_id"),
+    )
+    return jsonify(outcome.model_dump(mode="json")), 201
+
+
+@ai_blueprint.route("/api/ai/resources", methods=["GET", "POST"])
+def ai_resources():
+    catalog = ModelResourceCatalog()
+    if request.method == "POST":
+        payload = _json_object()
+        resource = ModelResource.model_validate(payload)
+        saved = catalog.register(resource)
+        return jsonify({"resource": saved.model_dump(mode="json")}), 201
+
+    rt_arg = request.args.get("resource_type")
+    arch_arg = request.args.get("architecture")
+    resources = catalog.list_resources(
+        resource_type=rt_arg,
+        architecture=arch_arg,
+    )
+    return jsonify({"resources": [r.model_dump(mode="json") for r in resources]})
+
+
+@ai_blueprint.route("/api/ai/resources/resolve", methods=["POST"])
+def ai_resources_resolve():
+    payload = _json_object()
+    ckpt_arch = payload.get("checkpoint_architecture", "sdxl")
+    raw_resources = payload.get("resources") or []
+    resources = [ModelResource.model_validate(r) for r in raw_resources]
+    evaluations = CapabilityResolver.resolve_selection(
+        checkpoint_architecture=ckpt_arch,
+        resources=resources,
+    )
+    return jsonify({"evaluations": [e.model_dump(mode="json") for e in evaluations]})
+
+
+@ai_blueprint.route("/api/ai/evaluate", methods=["POST"])
+def ai_evaluate():
+    payload = _json_object()
+    profile = payload.get("profile")
+    if not isinstance(profile, dict):
+        raise AIProfileStoreError("profile dictionary is required.")
+    image_id = payload.get("image_id")
+    if not isinstance(image_id, int):
+        raise AIRankingError("image_id integer is required.")
+
+    service = AIRankingService()
+    rating = service.evaluate_asset(
+        profile=profile,
+        image_id=image_id,
+        prompt_text=payload.get("prompt_text", ""),
+        enabled=payload.get("enabled", True),
+    )
+    return jsonify({"rating": rating.model_dump(mode="json")})
+
+
+@ai_blueprint.route("/api/ai/ratings/<int:image_id>", methods=["GET", "PATCH"])
+def ai_rating(image_id: int):
+    store = AIRatingStore()
+    if request.method == "GET":
+        rating = store.get_by_image_id(image_id)
+    else:
+        payload = _json_object()
+        rank_override = payload.get("rank_override")
+        rating = store.set_manual_override(image_id, rank_override)
+    return jsonify({"rating": rating.model_dump(mode="json")})
+

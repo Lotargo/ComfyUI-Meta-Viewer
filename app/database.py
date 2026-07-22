@@ -262,6 +262,50 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS model_resources (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_hash TEXT UNIQUE NOT NULL,
+                file_path TEXT NOT NULL,
+                resource_type TEXT NOT NULL,
+                architecture TEXT NOT NULL,
+                prompt_family TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                version TEXT NOT NULL DEFAULT '',
+                preview_url TEXT,
+                metadata_source TEXT NOT NULL DEFAULT 'local',
+                trigger_words_json TEXT NOT NULL DEFAULT '[]',
+                default_strength REAL NOT NULL DEFAULT 1.0,
+                min_strength REAL NOT NULL DEFAULT 0.0,
+                max_strength REAL NOT NULL DEFAULT 2.0,
+                technical_status TEXT NOT NULL DEFAULT 'supported',
+                restriction_reason TEXT,
+                is_available INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS ai_ratings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                job_id INTEGER REFERENCES ai_jobs(id) ON DELETE SET NULL,
+                rank TEXT NOT NULL,
+                rank_override TEXT,
+                status TEXT NOT NULL DEFAULT 'rated',
+                technical_quality REAL,
+                composition REAL,
+                prompt_adherence REAL,
+                defects_json TEXT NOT NULL DEFAULT '[]',
+                explanation TEXT NOT NULL DEFAULT '',
+                execution_backend TEXT NOT NULL DEFAULT '',
+                provider_profile_id TEXT,
+                model_id TEXT,
+                evaluation_version TEXT NOT NULL DEFAULT '1',
+                schema_version TEXT NOT NULL DEFAULT '1',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(image_id)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
             CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
             CREATE INDEX IF NOT EXISTS idx_album_images_image ON album_images(image_id);
@@ -271,6 +315,10 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_ai_prompt_drafts_job ON ai_prompt_drafts(job_id, id);
             CREATE INDEX IF NOT EXISTS idx_ai_prompt_translations_language
                 ON ai_prompt_translations(target_language);
+            CREATE INDEX IF NOT EXISTS idx_model_resources_hash ON model_resources(content_hash);
+            CREATE INDEX IF NOT EXISTS idx_model_resources_arch ON model_resources(architecture);
+            CREATE INDEX IF NOT EXISTS idx_ai_ratings_image ON ai_ratings(image_id);
+            CREATE INDEX IF NOT EXISTS idx_ai_ratings_rank ON ai_ratings(rank);
         """)
         _migrate_ai_job_review_status(conn)
         migrations = (
@@ -298,6 +346,7 @@ def init_db() -> None:
             "ALTER TABLE ai_prompt_drafts ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'user_text'",
             "ALTER TABLE ai_prompt_drafts ADD COLUMN source_payload_json TEXT NOT NULL DEFAULT '{}'",
             "ALTER TABLE ai_prompt_drafts ADD COLUMN updated_at TEXT",
+            "ALTER TABLE images ADD COLUMN derived_from_asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL",
         )
         for migration in migrations:
             try:
@@ -334,6 +383,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_images_favorite ON images(is_favorite);
             CREATE INDEX IF NOT EXISTS idx_images_fingerprint ON images(content_fingerprint);
             CREATE INDEX IF NOT EXISTS idx_images_media_type ON images(media_type);
+            CREATE INDEX IF NOT EXISTS idx_images_derived_from ON images(derived_from_asset_id);
             CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
             CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
         """)

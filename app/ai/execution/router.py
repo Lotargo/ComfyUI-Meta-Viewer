@@ -81,14 +81,22 @@ class ExecutionRouter:
                 stage="route",
             )
 
-        job = self.job_store.create(
-            task=task,
-            execution_backend=adapter.adapter_id,
-            provider_profile_id=self._profile_text(profile, "id"),
-            model_id=self._profile_text(profile, "model"),
-            asset_id=asset_id,
-            user_input=user_input,
-        )
+        try:
+            job = self.job_store.create(
+                task=task,
+                execution_backend=adapter.adapter_id,
+                provider_profile_id=self._profile_text(profile, "id"),
+                model_id=self._profile_text(profile, "model"),
+                asset_id=asset_id,
+                user_input=user_input,
+            )
+        except AIJobStoreError as exc:
+            raise ExecutionRouterError(
+                "The AI job could not be created.",
+                code="persistence_error",
+                stage="persistence",
+                technical_error=str(exc),
+            ) from exc
         try:
             bundle = self.compiler.compile(task)
             self.job_store.mark_running(job.id, bundle)

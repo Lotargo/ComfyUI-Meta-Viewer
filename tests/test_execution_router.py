@@ -195,6 +195,20 @@ class ExecutionRouterTest(unittest.TestCase):
             ambiguous.capabilities_for({"kind": "openai_compatible"})
         self.assertEqual(caught.exception.code, "ambiguous_backend")
 
+    def test_job_creation_failure_is_normalized_before_adapter_execution(self) -> None:
+        with self.assertRaises(ExecutionRouterError) as caught:
+            self.router.execute(
+                profile={"kind": "openai_compatible"},
+                task=self.task,
+                user_input="Create a portrait.",
+                asset_id=999,
+            )
+        self.assertEqual(caught.exception.code, "persistence_error")
+        self.assertEqual(caught.exception.stage, "persistence")
+        self.assertIsNone(caught.exception.job_id)
+        self.assertIn("FOREIGN KEY", caught.exception.technical_error)
+        self.assertIsNone(self.direct.prepared)
+
 
 if __name__ == "__main__":
     unittest.main()

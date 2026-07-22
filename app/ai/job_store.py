@@ -91,6 +91,8 @@ class AIJobStore:
         normalized_model = self._optional_text(model_id, "model_id", 500)
         if not isinstance(user_input, str):
             raise AIJobStoreError("user_input must be text.")
+        if len(user_input) > 100_000:
+            raise AIJobStoreError("user_input exceeds 100000 characters.")
 
         conn = database.get_conn()
         try:

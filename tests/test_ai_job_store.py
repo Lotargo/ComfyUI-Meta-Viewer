@@ -147,6 +147,14 @@ class AIJobStoreTest(unittest.TestCase):
             conn.close()
         self.assertEqual(counts, {name: 0 for name in counts})
 
+    def test_rejects_unbounded_user_input_before_writing(self) -> None:
+        with self.assertRaisesRegex(AIJobStoreError, "exceeds 100000"):
+            self.store.create(
+                task=self.task,
+                execution_backend="openai_compatible",
+                user_input="x" * 100_001,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

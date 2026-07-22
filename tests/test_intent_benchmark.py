@@ -445,6 +445,100 @@ class LandscapeEnvironmentIntentHeuristicTest(unittest.TestCase):
         self.assertIn("majestic", metrics["requested_intent_coverage"].detail)
 
 
+class IllustrationArtIntentHeuristicTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.benchmark = BENCHMARKS["flux-illustration-art-intent-basic"]
+
+    def _metrics(self, result: PromptResult):
+        return {
+            metric.metric_id: metric
+            for metric in evaluate_intent_heuristics(self.benchmark, result)
+        }
+
+    def test_shallow_illustration_paraphrase_scores_low(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A cozy whimsical magical storybook illustration of a teapot-shaped house "
+                "in an autumn forest."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertLess(sum(metric.points for metric in metrics.values()), 65)
+        self.assertEqual(metrics["non_trivial_expansion"].status, "fail")
+        self.assertEqual(metrics["coherent_medium"].status, "fail")
+        self.assertEqual(metrics["narrative_environment"].status, "fail")
+
+    def test_coherent_storybook_art_direction_scores_high(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A whimsical children's storybook illustration of a small teapot-shaped house in an autumn forest. "
+                "The rounded house forms a clear centered silhouette, with its curved spout as a chimney, a broad "
+                "handle, and a lid-shaped roof; a winding path through foreground mushrooms and fallen leaves leads "
+                "to the tiny wooden door while dark tree trunks frame the background. Opaque gouache with visible "
+                "brushstrokes and grainy paper texture gives the simplified shapes soft edges. A warm autumn palette "
+                "of ochre, rust orange, and deep red surrounds a glowing amber window, creating cozy value contrast "
+                "and an inviting pool of light. Curling chimney smoke and a few enchanted fireflies add subtle "
+                "magical narrative detail without distracting from the charming focal house."
+            ),
+            negative_prompt="",
+        )
+        metrics = evaluate_intent_heuristics(self.benchmark, result)
+        self.assertEqual(sum(metric.points for metric in metrics), 100)
+        self.assertTrue(all(metric.status == "pass" for metric in metrics))
+
+    def test_generic_magic_does_not_replace_visual_storytelling(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A beautiful magical fantasy scene, cozy and whimsical, with stunning art, "
+                "cinematic atmosphere, and ultra detailed enchanted scenery."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["core_intent"].status, "fail")
+        self.assertEqual(metrics["coherent_medium"].status, "fail")
+        self.assertEqual(metrics["shape_language"].status, "fail")
+        self.assertEqual(metrics["anti_buzzword"].status, "fail")
+
+    def test_real_mimo_result_separates_strong_art_direction_from_missing_whimsy(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A cozy fairy-tale book illustration of a small round teapot house nestled in an autumn forest "
+                "clearing. The house has a bulbous ceramic body with a curved spout serving as the front door, an "
+                "arched handle forming a trellis over the roof, and a small chimney releasing a wisp of curling "
+                "smoke. Warm golden light spills from round windows, illuminating scattered fallen leaves in amber, "
+                "burnt orange, and deep crimson across the mossy forest floor. Tall birch and oak trees with thinning "
+                "golden canopies frame the scene, their slender trunks receding into a soft misty background. Soft "
+                "gouache washes on textured cream paper, delicate ink outlines, muted earth-tone palette with pops "
+                "of warm window light, shallow depth of field keeping the teapot house as the clear focal point."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["core_intent"].status, "pass")
+        self.assertEqual(metrics["requested_intent_coverage"].status, "warn")
+        self.assertIn("whimsical", metrics["requested_intent_coverage"].detail)
+        self.assertEqual(sum(metric.points for metric in metrics.values()), 92)
+
+    def test_real_mimo_result_recognizes_leaf_strewn_path_as_story_detail(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A fairy-tale book illustration of a small, whimsical house shaped like a teapot nestled in an "
+                "autumn forest. The house has a spout as the entrance and a curved handle as a balcony, surrounded "
+                "by trees with vibrant fall foliage in shades of amber, crimson, and gold. Warm, soft light filters "
+                "through the canopy, casting gentle shadows and creating a cozy, magical atmosphere. The teapot "
+                "house sits in the foreground with a winding leaf-strewn path leading to it, and the misty forest "
+                "recedes into the background, rendered in loose watercolor washes on textured paper for an "
+                "enchanting illustrative style."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["narrative_environment"].status, "pass")
+        self.assertEqual(sum(metric.points for metric in metrics.values()), 100)
+
+
 class ProductIntentHeuristicTest(unittest.TestCase):
     def setUp(self) -> None:
         self.benchmark = BENCHMARKS["flux-product-intent-basic"]

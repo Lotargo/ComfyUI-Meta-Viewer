@@ -122,7 +122,7 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
 - [x] Add same-model intent judge with deterministic heuristic checks
 - [x] Add portrait intent benchmark: `flux-portrait-intent-basic`
 - [x] Add product advertising intent benchmark: `flux-product-intent-basic`
-- [x] Add migrated scenario manifests for `portrait`, `single_character`, `product_object`, `architecture_interior`, `landscape_environment`, and `graphic_design_text`
+- [x] Add migrated scenario manifests for `portrait`, `single_character`, `product_object`, `architecture_interior`, `landscape_environment`, `illustration_art`, and `graphic_design_text`
 - [x] Keep benchmarks available as independent, point-in-time calls instead of requiring a global run-all command
 
 ### Next benchmark and prompt work
@@ -130,10 +130,9 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
 - [x] Add intent benchmark for `single_character`: `flux-single-character-intent-basic`
 - [x] Add intent benchmark for `architecture_interior`: `flux-architecture-interior-intent-basic`
 - [x] Add intent benchmark for `landscape_environment`: `flux-landscape-environment-intent-basic`
-- [ ] Add intent benchmarks for `illustration_art`
+- [x] Add intent benchmark for `illustration_art`: `flux-illustration-art-intent-basic`
 - [ ] Add intent benchmarks for `graphic_design_text`
 - [ ] Add `multi_character` benchmarks after tested checkpoint capability profiles exist
-- [ ] Migrate the remaining scenario manifests before using them in executable benchmark tasks
 - [ ] Add operation-focused benchmarks for `reconstruct`, `adapt`, and `translate`
 - [ ] Add image-conditioned and multimodal prompt tests where the selected provider supports vision
 - [ ] Validate the same scenarios on SDXL and Pony instead of treating FLUX results as universal
@@ -165,6 +164,10 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
   --debug
 
 .venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-landscape-environment-intent-basic `
+  --profile "OpenCode" `
+  --debug
+
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-illustration-art-intent-basic `
   --profile "OpenCode" `
   --debug
 ```

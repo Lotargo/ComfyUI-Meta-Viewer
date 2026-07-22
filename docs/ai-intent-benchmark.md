@@ -130,6 +130,32 @@ Landscape-specific deterministic checks include:
 - distance progression and environmental scale;
 - depth, colour, and landscape medium.
 
+### `flux-illustration-art-intent-basic`
+
+Raw user request:
+
+```text
+Нарисуй сказочную книжную иллюстрацию маленького домика в форме чайника в осеннем лесу. Настроение должно быть уютным, причудливым и немного волшебным.
+```
+
+This benchmark checks visual storytelling and art direction rather than generic fantasy praise. The input fixes a storybook format, focal object, setting, and atmosphere but leaves composition, silhouette, shape language, medium, mark-making, palette, lighting, and supporting narrative detail to the generator.
+
+Required intent dimensions:
+
+- `cozy`;
+- `whimsical`;
+- `magical`.
+
+Illustration-specific deterministic checks include:
+
+- a storybook illustration of a teapot-shaped house in an autumn forest;
+- focal hierarchy, silhouette, and layered composition;
+- one coherent illustration medium with compatible mark-making;
+- stylised shape language or legible teapot construction;
+- palette, value structure, and motivated illustration lighting;
+- forest or habitation details that support a readable story moment;
+- depth, colour, and illustration medium.
+
 ### `flux-product-intent-basic`
 
 Raw user request:
@@ -242,6 +268,15 @@ Run the landscape-environment benchmark:
 .venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-landscape-environment-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-landscape-environment-intent.json" `
+  --debug
+```
+
+Run the illustration-art benchmark:
+
+```powershell
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-illustration-art-intent-basic `
+  --profile "OpenCode" `
+  --json-out ".\reports\flux-illustration-art-intent.json" `
   --debug
 ```
 

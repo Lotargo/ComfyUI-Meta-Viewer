@@ -110,16 +110,23 @@ class PromptCompilerTest(unittest.TestCase):
                 checkpoint_profile="z-image-unverified",
             ))
 
-    def test_unmigrated_supported_scenario_fails_explicitly(self) -> None:
-        with self.assertRaisesRegex(
-            PromptCompilerError,
-            "has not been migrated yet",
+    def test_all_supported_base_scenarios_have_migrated_manifests(self) -> None:
+        for scenario in (
+            PromptScenario.PORTRAIT,
+            PromptScenario.SINGLE_CHARACTER,
+            PromptScenario.PRODUCT_OBJECT,
+            PromptScenario.ARCHITECTURE_INTERIOR,
+            PromptScenario.LANDSCAPE_ENVIRONMENT,
+            PromptScenario.ILLUSTRATION_ART,
+            PromptScenario.GRAPHIC_DESIGN_TEXT,
         ):
-            self.compiler.compile(PromptTask(
-                family=PromptFamily.FLUX,
-                operation=PromptOperation.GENERATE,
-                scenario=PromptScenario.ILLUSTRATION_ART,
-            ))
+            with self.subTest(scenario=scenario.value):
+                bundle = self.compiler.compile(PromptTask(
+                    family=PromptFamily.FLUX,
+                    operation=PromptOperation.GENERATE,
+                    scenario=scenario,
+                ))
+                self.assertEqual(bundle.versions["scenario"], "1")
 
     def test_safe_and_adult_only_are_mutually_exclusive(self) -> None:
         with self.assertRaises(ValidationError):

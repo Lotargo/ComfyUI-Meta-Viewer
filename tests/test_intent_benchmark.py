@@ -539,6 +539,94 @@ class IllustrationArtIntentHeuristicTest(unittest.TestCase):
         self.assertEqual(sum(metric.points for metric in metrics.values()), 100)
 
 
+class GraphicDesignTextIntentHeuristicTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.benchmark = BENCHMARKS["flux-graphic-design-text-intent-basic"]
+
+    def _metrics(self, result: PromptResult):
+        return {
+            metric.metric_id: metric
+            for metric in evaluate_intent_heuristics(self.benchmark, result)
+        }
+
+    def test_shallow_poster_paraphrase_scores_low(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A modern rhythmic nocturnal vertical jazz concert poster with the text "
+                '"NORTH JAZZ" and "24 OCTOBER".'
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertLess(sum(metric.points for metric in metrics.values()), 65)
+        self.assertEqual(metrics["non_trivial_expansion"].status, "fail")
+        self.assertEqual(metrics["letter_treatment"].status, "fail")
+        self.assertEqual(metrics["text_readability"].status, "fail")
+
+    def test_coherent_typographic_art_direction_scores_high(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A vertical modern jazz concert poster with a deep navy flat graphic background and a bold "
+                'uppercase geometric sans-serif headline, exact text "NORTH JAZZ", centered in the upper third. '
+                'Place the exact secondary text "24 OCTOBER" directly below in smaller widely tracked lettering, '
+                "creating a clear typographic hierarchy and top-to-bottom reading order on a strict modular grid. "
+                "Leave generous negative space and strong cream-on-navy contrast around both text blocks for crisp "
+                "legibility, with no other text. Rhythmic cyan and warm brass lines form an abstract saxophone and "
+                "syncopated repeating bars through the lower half, using subtle screen-print paper grain and a "
+                "contemporary late-night jazz-club atmosphere."
+            ),
+            negative_prompt="",
+        )
+        metrics = evaluate_intent_heuristics(self.benchmark, result)
+        self.assertEqual(sum(metric.points for metric in metrics), 100)
+        self.assertTrue(all(metric.status == "pass" for metric in metrics))
+
+    def test_generic_night_poster_does_not_replace_exact_copy_or_layout(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A stunning 8k night music poster with beautiful typography, neon light, "
+                "a musician on stage, and an award-winning modern design."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["core_intent"].status, "fail")
+        self.assertEqual(metrics["text_placement"].status, "fail")
+        self.assertEqual(metrics["jazz_visual_language"].status, "fail")
+        self.assertEqual(metrics["anti_buzzword"].status, "fail")
+
+    def test_missing_exact_date_reduces_core_intent(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                'A vertical jazz concert poster with the headline "NORTH JAZZ" in bold sans-serif lettering. '
+                "A smaller date sits below on a clean dark background with rhythmic saxophone lines and a modern "
+                "night atmosphere."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["core_intent"].status, "warn")
+        self.assertIn("4/5 core groups", metrics["core_intent"].detail)
+
+    def test_real_mimo_result_recognizes_visible_letter_treatment_and_deep_blue_palette(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A vertical poster for an evening jazz concert with a modern and rhythmic design. "
+                'The exact headline "NORTH JAZZ" appears in large, bold, white or light-colored letters across '
+                "the upper half, with clean negative space behind it. Below it, the date "
+                '"24 OCTOBER" is centered in a smaller, elegant font. The background is a deep nocturnal blue '
+                "with subtle abstract patterns suggesting musical rhythm, such as wavy lines or sound waves. "
+                "Soft, ambient lighting creates a moody atmosphere with hints of warm highlights. The overall "
+                "style is contemporary and visually dynamic, using contrast between dark and light elements."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["letter_treatment"].status, "pass")
+        self.assertEqual(metrics["non_trivial_expansion"].status, "pass")
+        self.assertEqual(sum(metric.points for metric in metrics.values()), 100)
+
+
 class ProductIntentHeuristicTest(unittest.TestCase):
     def setUp(self) -> None:
         self.benchmark = BENCHMARKS["flux-product-intent-basic"]

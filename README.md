@@ -131,7 +131,7 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
 - [x] Add intent benchmark for `architecture_interior`: `flux-architecture-interior-intent-basic`
 - [x] Add intent benchmark for `landscape_environment`: `flux-landscape-environment-intent-basic`
 - [x] Add intent benchmark for `illustration_art`: `flux-illustration-art-intent-basic`
-- [ ] Add intent benchmarks for `graphic_design_text`
+- [x] Add intent benchmark for `graphic_design_text`: `flux-graphic-design-text-intent-basic`
 - [ ] Add `multi_character` benchmarks after tested checkpoint capability profiles exist
 - [ ] Add operation-focused benchmarks for `reconstruct`, `adapt`, and `translate`
 - [ ] Add image-conditioned and multimodal prompt tests where the selected provider supports vision
@@ -168,6 +168,10 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
   --debug
 
 .venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-illustration-art-intent-basic `
+  --profile "OpenCode" `
+  --debug
+
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-graphic-design-text-intent-basic `
   --profile "OpenCode" `
   --debug
 ```

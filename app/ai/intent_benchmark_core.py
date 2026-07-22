@@ -1195,6 +1195,85 @@ _MAGICAL_INTENT = (
     "сказочн",
 )
 
+_GRAPHIC_DESIGN_CORE = {
+    "poster": ("poster", "concert poster", "event poster", "афиша", "постер"),
+    "jazz_event": (
+        "jazz concert", "jazz event", "jazz night", "jazz performance",
+        "джазовый концерт", "джазовый вечер", "джаз",
+    ),
+    "exact_headline": ("north jazz",),
+    "exact_date": ("24 october",),
+    "vertical_format": (
+        "vertical", "portrait orientation", "portrait-format", "portrait format",
+        "вертикальн",
+    ),
+}
+
+_GRAPHIC_TYPOGRAPHIC_HIERARCHY = (
+    "typographic hierarchy", "type hierarchy", "visual hierarchy", "headline",
+    "primary text", "secondary text", "dominant text", "large title", "smaller date",
+    "reading order", "иерархия", "заголовок", "основной текст",
+    "дата меньшего размера", "порядок чтения",
+)
+
+_GRAPHIC_TEXT_PLACEMENT = (
+    "top", "upper third", "upper half", "center", "centered", "bottom",
+    "lower third", "below", "beneath", "left-aligned", "right-aligned",
+    "center-aligned", "aligned", "grid", "margin", "margins", "вверху",
+    "по центру", "внизу", "под заголовком", "выравнивание", "сетка", "поля",
+)
+
+_GRAPHIC_LETTER_TREATMENT = (
+    "sans-serif", "sans serif", "serif", "condensed", "geometric", "grotesk",
+    "display type", "display lettering", "lettering", "letterforms", "uppercase",
+    "all caps", "wide tracking", "tight tracking", "letter spacing", "italic",
+    "bold type", "bold letters", "bold", "font", "typeface", "полужирн",
+    "гротеск", "антиква", "прописн", "кернинг",
+    "межбуквен",
+)
+
+_GRAPHIC_READABILITY = (
+    "negative space", "clear space", "empty space", "uncluttered",
+    "simple background", "clean background", "solid background", "high contrast",
+    "strong contrast", "readable", "legible", "clean area", "no other text",
+    "без другого текста", "негативное пространство", "свободное пространство",
+    "чистый фон", "высокий контраст", "читаем",
+)
+
+_GRAPHIC_JAZZ_LANGUAGE = (
+    "saxophone", "trumpet", "double bass", "upright bass", "brass instrument",
+    "musical note", "sound wave", "syncopated", "off-beat", "diagonal rhythm",
+    "repeating bars", "rhythmic lines", "abstract rhythm", "club stage", "jazz club",
+    "саксофон", "труба", "контрабас", "ноты", "звуковая волна", "синкоп",
+    "ритмичные линии", "джазовый клуб",
+)
+
+_GRAPHIC_COLOUR_MEDIUM = (
+    "midnight blue", "deep navy", "dark navy", "deep blue", "indigo", "black background",
+    "electric blue", "neon", "cyan", "magenta", "violet", "warm brass",
+    "gold accent", "screen print", "screen-print", "risograph", "print texture",
+    "paper grain", "flat graphic", "vector", "полуночный синий", "тёмно-синий",
+    "индиго", "неон", "циан", "маджента", "золотой акцент", "шелкография",
+    "ризография", "бумажная текстура",
+)
+
+_MODERN_GRAPHIC_INTENT = (
+    "modern", "contemporary", "geometric", "minimal", "minimalist", "clean",
+    "modernist", "современн", "геометрич", "минимал", "лаконич",
+)
+
+_RHYTHMIC_GRAPHIC_INTENT = (
+    "rhythmic", "visual rhythm", "syncopated", "dynamic cadence", "repeating",
+    "alternating", "staggered", "ритмич", "визуальный ритм", "синкоп", "повторяющ",
+)
+
+_NOCTURNAL_GRAPHIC_INTENT = (
+    "nocturnal", "night", "nighttime", "midnight", "after-dark", "after dark",
+    "late-night", "late night", "dark atmosphere", "dark backdrop", "ночн",
+    "полуноч", "после заката", "тёмная атмосфера",
+)
+
+
 _PRODUCT_CORE = {
     "perfume_bottle": (
         "perfume bottle",
@@ -1642,6 +1721,73 @@ BENCHMARKS: dict[str, IntentBenchmark] = {
             "cozy": _COZY_INTENT,
             "whimsical": _WHIMSICAL_INTENT,
             "magical": _MAGICAL_INTENT,
+        },
+    ),
+    "flux-graphic-design-text-intent-basic": IntentBenchmark(
+        benchmark_id="flux-graphic-design-text-intent-basic",
+        title="Short human jazz poster intent",
+        description=(
+            "Measures whether the model can turn a short Russian poster request into "
+            "a coherent, visually specific FLUX graphic-design prompt while preserving "
+            "exact visible text."
+        ),
+        task=PromptTask(
+            family=PromptFamily.FLUX,
+            operation=PromptOperation.GENERATE,
+            scenario=PromptScenario.GRAPHIC_DESIGN_TEXT,
+            modifiers=(PromptModifier.SAFE,),
+            checkpoint_profile="flux-intent-benchmark-v3-graphic-design-text",
+        ),
+        input_text=(
+            "Создай вертикальную афишу вечернего джазового концерта. "
+            "Главный текст — «NORTH JAZZ», ниже укажи «24 OCTOBER». "
+            "Дизайн должен быть современным, ритмичным и немного ночным."
+        ),
+        core_groups=_GRAPHIC_DESIGN_CORE,
+        coverage_rules=(
+            _rule(
+                "typographic_hierarchy",
+                "Headline/date hierarchy or reading order",
+                _GRAPHIC_TYPOGRAPHIC_HIERARCHY,
+                8,
+            ),
+            _rule(
+                "text_placement",
+                "Text placement, alignment, grid, or margins",
+                _GRAPHIC_TEXT_PLACEMENT,
+                8,
+            ),
+            _rule(
+                "letter_treatment",
+                "Font category or visible letter treatment",
+                _GRAPHIC_LETTER_TREATMENT,
+                8,
+            ),
+            _rule(
+                "text_readability",
+                "Clean text space, contrast, or legibility",
+                _GRAPHIC_READABILITY,
+                8,
+            ),
+            _rule(
+                "jazz_visual_language",
+                "Jazz-specific visual rhythm or imagery",
+                _GRAPHIC_JAZZ_LANGUAGE,
+                6,
+            ),
+        ),
+        expansion_groups={
+            "hierarchy": _GRAPHIC_TYPOGRAPHIC_HIERARCHY,
+            "placement_grid": _GRAPHIC_TEXT_PLACEMENT,
+            "letter_treatment": _GRAPHIC_LETTER_TREATMENT,
+            "readability": _GRAPHIC_READABILITY,
+            "jazz_visual_language": _GRAPHIC_JAZZ_LANGUAGE,
+            "colour_medium": _GRAPHIC_COLOUR_MEDIUM,
+        },
+        required_intents={
+            "modern": _MODERN_GRAPHIC_INTENT,
+            "rhythmic": _RHYTHMIC_GRAPHIC_INTENT,
+            "nocturnal": _NOCTURNAL_GRAPHIC_INTENT,
         },
     ),
     "flux-product-intent-basic": IntentBenchmark(

@@ -182,6 +182,32 @@ Product-specific deterministic checks include:
 - bottle placement, label readability, and negative space;
 - depth, colour, and commercial photographic medium.
 
+### `flux-graphic-design-text-intent-basic`
+
+Raw user request:
+
+```text
+Создай вертикальную афишу вечернего джазового концерта. Главный текст — «NORTH JAZZ», ниже укажи «24 OCTOBER». Дизайн должен быть современным, ритмичным и немного ночным.
+```
+
+This benchmark checks graphic-design reasoning and exact-copy preservation rather than generic poster styling. The input fixes the format, event, headline, date, and broad art direction but leaves hierarchy, grid, placement, letter treatment, contrast, visual rhythm, palette, and print medium to the generator.
+
+Required intent dimensions:
+
+- `modern`;
+- `rhythmic`;
+- `nocturnal`.
+
+Graphic-design-specific deterministic checks include:
+
+- a vertical jazz concert poster preserving exact `NORTH JAZZ` and `24 OCTOBER` text;
+- headline/date hierarchy and reading order;
+- placement, alignment, grid, or margins;
+- font category or visible letter treatment;
+- clean text space, contrast, or explicit legibility;
+- jazz-specific imagery or visual rhythm;
+- colour and graphic/print medium decisions.
+
 ## Shared deterministic rubric
 
 Every benchmark has a 100-point deterministic rubric:
@@ -277,6 +303,15 @@ Run the illustration-art benchmark:
 .venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-illustration-art-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-illustration-art-intent.json" `
+  --debug
+```
+
+Run the graphic-design-text benchmark:
+
+```powershell
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-graphic-design-text-intent-basic `
+  --profile "OpenCode" `
+  --json-out ".\reports\flux-graphic-design-text-intent.json" `
   --debug
 ```
 

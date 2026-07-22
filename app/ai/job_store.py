@@ -232,6 +232,8 @@ class AIJobStore:
             conn.close()
         return self.get_draft(draft_id, job=job)
 
+    add_draft = save_draft
+
     def get_draft(
         self,
         draft_id: int,

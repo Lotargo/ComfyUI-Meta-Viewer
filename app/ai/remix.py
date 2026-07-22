@@ -9,7 +9,7 @@ from pydantic import Field
 
 from .. import database
 from .job_store import AIJob, AIJobStatus, AIJobStore, PromptDraft, PromptDraftSource, StoredPromptDraft
-from .prompting import PromptFamily, PromptOperation, PromptScenario, PromptTask
+from .prompting import PromptFamily, PromptOperation, PromptResult, PromptScenario, PromptTask
 from .prompting.models import StrictModel
 
 
@@ -110,7 +110,11 @@ class RemixService:
         stored_draft = self.job_store.add_draft(job.id, draft_content)
 
         # Update job status to WAITING_FOR_REVIEW
-        self.job_store.update_status(job.id, AIJobStatus.WAITING_FOR_REVIEW)
+        prompt_result = PromptResult(
+            positive_prompt=draft_content.positive_prompt,
+            negative_prompt=draft_content.negative_prompt,
+        )
+        self.job_store.wait_for_review(job.id, result=prompt_result)
 
         updated_job = self.job_store.get(job.id).job
 

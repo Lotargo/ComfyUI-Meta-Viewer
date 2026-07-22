@@ -271,9 +271,9 @@ class AIRankingService:
                 image_id=image_id,
                 result=rating_result,
                 job_id=outcome.job_id,
-                execution_backend=outcome.execution_backend,
-                provider_profile_id=outcome.provider_profile_id,
-                model_id=outcome.model_id,
+                execution_backend=outcome.adapter_id,
+                provider_profile_id=profile.get("id"),
+                model_id=profile.get("model"),
             )
         except Exception as exc:
             err_msg = str(exc).lower()

@@ -52,7 +52,7 @@ class PromptCompilerTest(unittest.TestCase):
                 "output_contract",
             ],
         )
-        self.assertEqual(first.versions["family"], "legacy-1")
+        self.assertEqual(first.versions["family"], "1")
         self.assertEqual(first.versions["operation"], "1")
         self.assertEqual(first.versions["scenario"], "1")
         self.assertEqual(first.versions["modifier:safe"], "1")
@@ -62,6 +62,10 @@ class PromptCompilerTest(unittest.TestCase):
         self.assertEqual(
             first.metadata()["sections"][0]["content_sha256"],
             first.sections[0].content_sha256,
+        )
+        self.assertEqual(
+            first.sections[0].source,
+            "app/ai/prompting/content/profiles/flux/base.md",
         )
         self.assertIn("INSTRUCTION PRECEDENCE", first.render())
         self.assertIn("Output contract and hard content boundaries", first.render())

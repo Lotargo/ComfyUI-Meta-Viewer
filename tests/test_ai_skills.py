@@ -2,8 +2,16 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from app.ai.skills import load_skill
+from app.ai.prompting import (
+    PromptCompiler,
+    PromptFamily,
+    PromptOperation,
+    PromptScenario,
+    PromptTask,
+)
 
 
 class AISkillsTest(unittest.TestCase):
@@ -87,6 +95,16 @@ class AISkillsTest(unittest.TestCase):
     def test_invalid_family(self) -> None:
         with self.assertRaises(FileNotFoundError):
             load_skill("nonexistent_family")
+
+    def test_compatibility_loader_uses_the_canonical_family_base(self) -> None:
+        bundle = PromptCompiler().compile(PromptTask(
+            family=PromptFamily.FLUX,
+            operation=PromptOperation.GENERATE,
+            scenario=PromptScenario.PORTRAIT,
+        ))
+        self.assertEqual(load_skill("flux").strip(), bundle.sections[0].content)
+        legacy_directory = Path(__file__).parents[1] / "app" / "ai" / "skills"
+        self.assertEqual(list(legacy_directory.glob("*.txt")), [])
 
 
 if __name__ == "__main__":

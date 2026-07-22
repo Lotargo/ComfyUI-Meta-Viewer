@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from ..skills import load_skill
 from .models import (
     CapabilityStatus,
     InstructionBundle,
@@ -29,10 +28,9 @@ class PromptCompilerError(RuntimeError):
 class PromptCompiler:
     """Compile researched prompt knowledge into a deterministic instruction bundle.
 
-    The first migration slice keeps the existing ``app/ai/skills/*.txt`` files as
-    the family-base source. Operation, scenario, modifier, and output layers are
-    loaded from the new canonical prompting directory. This preserves
-    ``load_skill()`` compatibility while the family bases are migrated gradually.
+    Every section is loaded from the canonical prompting content directory.
+    The legacy ``load_skill()`` API resolves the same family-base files so old
+    consumers remain compatible without keeping a second copy of prompt knowledge.
     """
 
     def compile(self, task: PromptTask) -> InstructionBundle:
@@ -49,10 +47,10 @@ class PromptCompiler:
             raise PromptCompilerError(str(exc)) from exc
 
         try:
-            family_content = load_skill(family_profile.legacy_skill_name)
+            family_content = family_profile.path.read_text(encoding="utf-8")
         except OSError as exc:
             raise PromptCompilerError(
-                f"Cannot read family base '{family_profile.legacy_skill_name}'."
+                f"Cannot read family base '{family_profile.path}'."
             ) from exc
 
         sections = [
@@ -60,7 +58,7 @@ class PromptCompiler:
                 section_id=task.family.value,
                 kind="family_base",
                 version=family_profile.version,
-                source=f"app/ai/skills/{family_profile.legacy_skill_name}.txt",
+                source=self._display_path(family_profile.path),
                 content=family_content,
             ),
             self._load_manifest(operation, kind="operation"),

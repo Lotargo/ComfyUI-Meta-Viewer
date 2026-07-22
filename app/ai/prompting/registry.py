@@ -35,6 +35,7 @@ class ManifestDefinition:
 class FamilyProfile:
     family: PromptFamily
     version: str
+    path: Path
     legacy_skill_name: str
     capabilities: dict[PromptScenario, CapabilityStatus]
 
@@ -48,7 +49,8 @@ _ALL_FAMILIES = frozenset(PromptFamily)
 FAMILY_PROFILES: dict[PromptFamily, FamilyProfile] = {
     PromptFamily.FLUX: FamilyProfile(
         family=PromptFamily.FLUX,
-        version="legacy-1",
+        version="1",
+        path=CONTENT_DIR / "profiles" / "flux" / "base.md",
         legacy_skill_name="flux",
         capabilities={
             PromptScenario.PORTRAIT: CapabilityStatus.SUPPORTED,
@@ -63,7 +65,8 @@ FAMILY_PROFILES: dict[PromptFamily, FamilyProfile] = {
     ),
     PromptFamily.SDXL: FamilyProfile(
         family=PromptFamily.SDXL,
-        version="legacy-1",
+        version="1",
+        path=CONTENT_DIR / "profiles" / "sdxl" / "base.md",
         legacy_skill_name="sdxl",
         capabilities={
             PromptScenario.PORTRAIT: CapabilityStatus.SUPPORTED,
@@ -78,7 +81,8 @@ FAMILY_PROFILES: dict[PromptFamily, FamilyProfile] = {
     ),
     PromptFamily.PONY: FamilyProfile(
         family=PromptFamily.PONY,
-        version="legacy-1",
+        version="1",
+        path=CONTENT_DIR / "profiles" / "pony" / "base.md",
         legacy_skill_name="pony",
         capabilities={
             PromptScenario.PORTRAIT: CapabilityStatus.SUPPORTED,

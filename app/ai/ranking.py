@@ -246,7 +246,7 @@ class AIRankingService:
             family=PromptFamily.FLUX,
             operation=PromptOperation.RECONSTRUCT,
             scenario=PromptScenario.SINGLE_CHARACTER,
-            output_contract="ai_ranking",
+            output_contract="prompt_result",
         )
 
         user_input = (

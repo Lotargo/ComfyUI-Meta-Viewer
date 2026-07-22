@@ -117,6 +117,10 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
 - [x] Add strict JSON output parsing and normalized execution errors
 - [x] Add direct OpenAI-compatible prompt execution
 - [x] Add isolated OpenCode execution with tool-denied agents
+- [x] Route direct and agent-host execution through capability-based adapters
+- [x] Persist AI jobs, editable scene specs, prompt drafts, results, and errors in SQLite
+- [x] Move family bases into the canonical prompt registry while preserving `load_skill()`
+- [x] Export shared native skill packages for OpenCode, Claude Code, Antigravity, and Codex
 - [x] Add five-minute managed CLI timeout and Windows descendant-process cleanup
 - [x] Add transport smoke tests and detailed prompt-quality benchmarks
 - [x] Add same-model intent judge with deterministic heuristic checks
@@ -195,7 +199,7 @@ chmod +x benchmark.sh
 ./benchmark.sh list
 ```
 
-See [Prompt intent benchmarks](docs/ai-intent-benchmark.md) and [OpenCode smoke testing](docs/ai-opencode-smoke-testing.md) for the current execution model.
+See [AI prompt architecture](docs/ai-prompt-architecture.md), [Prompt intent benchmarks](docs/ai-intent-benchmark.md), and [OpenCode smoke testing](docs/ai-opencode-smoke-testing.md) for the current execution model.
 
 ---
 
@@ -326,6 +330,7 @@ The app will be available at **http://localhost:7860**
 | [CSS Architecture](docs/css-architecture.md) | Styling system and custom properties |
 | [Prompt intent benchmarks](docs/ai-intent-benchmark.md) | Targeted raw-intent generation and model-judge evaluation |
 | [OpenCode smoke testing](docs/ai-opencode-smoke-testing.md) | Managed CLI execution, profiles, scenarios, and reports |
+| [AI prompt architecture](docs/ai-prompt-architecture.md) | Canonical profiles, compilation, execution routing, persistence, and skill export |
 
 ---
 

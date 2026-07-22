@@ -327,27 +327,27 @@ The base Pony skill should provide a safe default, while task 07 may later apply
 
 ---
 
-## 5. Audit of the current skill files
+## 5. Audit of the original skill files
 
 The source research exposes several statements that need correction before task 06 can be considered fully complete.
 
-### `app/ai/skills/flux.txt`
+### `app/ai/prompting/content/profiles/flux/base.md`
 
-- It groups Z-Image with FLUX and says the entire group does not use negative prompts.
+- The original draft grouped Z-Image with FLUX and said the entire group did not use negative prompts.
 - Official Z-Image guidance contradicts that rule for the full model.
 - Numeric claims about first-word attention and ideal prompt length should be labeled as project heuristics, not documented model limits.
 
-### `app/ai/skills/sdxl.txt`
+### `app/ai/prompting/content/profiles/sdxl/base.md`
 
 - “Two text encoders” is correct.
 - “Processes text in two stages: layout first, then fine details” is not supported by the SDXL paper or current Diffusers documentation.
 - The 5–15-token negative-prompt limit should be labeled as a project default, not a universal architecture rule.
 
-### `app/ai/skills/pony.txt`
+### `app/ai/prompting/content/profiles/pony/base.md`
 
-- The current file describes strict tag-only syntax, while the model card explicitly supports natural language and tags.
-- The current required prefix stops at `score_6_up`; the author-recommended V6 XL prefix continues with `score_5_up, score_4_up`.
-- The current file requires a negative prompt, while the model author says the model usually does not need one.
+- The original draft described strict tag-only syntax, while the model card explicitly supports natural language and tags.
+- Its required prefix stopped at `score_6_up`; the author-recommended V6 XL prefix continues with `score_5_up, score_4_up`.
+- It required a negative prompt, while the model author says the model usually does not need one.
 - Score, source, and rating controls are strong defaults, but source and rating tags should not be described as mandatory architecture sections without practical evidence.
 
 These are content corrections inside task 06, not runtime integration work from task 07.

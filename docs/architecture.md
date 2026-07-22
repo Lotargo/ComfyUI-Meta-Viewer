@@ -228,6 +228,29 @@ CLI adapters execute argument arrays without a shell and never parse credential 
 supports file attachment for the image connection test; Claude and Antigravity remain text-only
 until their documented non-interactive image inputs are stable.
 
+### AI prompt compilation and execution
+
+Prompt knowledge has one canonical source under `app/ai/prompting/content/`. A task selects one
+family base, operation, scenario, optional modifiers, and output contract. `PromptCompiler`
+validates the family capability matrix and produces a deterministic, versioned
+`InstructionBundle`; it does not call a model. The compatibility `load_skill()` API reads the
+same canonical family-base files.
+
+`ExecutionRouter` selects a registered adapter through its declared capabilities. The direct
+adapter sends the compiled bundle through an OpenAI-compatible profile. The managed OpenCode
+adapter supplies the same bundle to an isolated, tool-denied agent task. Both return the same
+strict `PromptResult` and normalized error categories.
+
+Every routed execution has durable state in `ai_jobs`, `ai_scene_specs`, `ai_prompt_drafts`, and
+`ai_results`. SQLite therefore remains the source of truth for the selected profile versions,
+editable intermediate scene analysis, draft history, final output, backend metadata, and
+technical failures.
+
+`PromptSkillExporter` generates host-specific native packages for OpenCode, Claude Code,
+Antigravity, and Codex. Their `SKILL.md` wrappers differ, but all reference files are byte-exact
+exports from the same registry and carry SHA-256 hashes. No host adapter owns a private copy of
+family or scenario rules.
+
 ### 4. Thumbnail, Preview, and Original Image Serving
 
 ```

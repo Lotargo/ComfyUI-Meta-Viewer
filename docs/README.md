@@ -24,6 +24,7 @@ This folder contains the public documentation for the project: architecture, API
 | [Development](development.md) | Local setup, project structure, contribution workflow, and testing checklist |
 | [JavaScript Architecture](js-architecture.md) | Frontend ES module structure, state, API client, and feature modules |
 | [CSS Architecture](css-architecture.md) | Styling structure, custom properties, naming rules, and extension guidelines |
+| [AI Prompt Architecture](ai-prompt-architecture.md) | Prompt profiles, compilation, backend routing, durable jobs, and agent-host exports |
 
 ---
 

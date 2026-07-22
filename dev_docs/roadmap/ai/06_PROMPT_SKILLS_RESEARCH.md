@@ -79,11 +79,11 @@ Skills необходимо проверить минимум на:
 
 ## Результат исследования
 
-Текущие `app/ai/skills/flux.txt`, `sdxl.txt` и `pony.txt` фиксируют исследованную базу семейства и остаются compatibility layer для существующего `load_skill()`.
+Канонические `app/ai/prompting/content/profiles/{flux,sdxl,pony}/base.md` фиксируют исследованную базу семейства. Существующий `load_skill()` остаётся compatibility API и читает те же файлы без отдельной копии prompt knowledge.
 
 Подробные источники, даты, доказанные факты, проектные эвристики и аудит файлов сохранены в `research_notes.md`.
 
-Эти монолитные файлы не являются окончательной runtime-архитектурой. Последующее разделение на family base, operation manifests, scenario manifests, modifiers и output contracts описано в [06A. Prompt profile and agent execution architecture](06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md).
+Family bases дополнены отдельными operation manifests, scenario manifests, modifiers и output contracts согласно [06A. Prompt profile and agent execution architecture](06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md).
 
 ## Расширение
 

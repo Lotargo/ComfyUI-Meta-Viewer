@@ -8,6 +8,16 @@ from .direct import (
     DirectPromptExecutionResult,
     DirectPromptExecutor,
 )
+from .adapters import DirectOpenAICompatibleAdapter, OpenCodeAgentHostAdapter
+from .base import (
+    AdapterExecutionError,
+    AdapterExecutionResult,
+    ExecutionCapabilities,
+    ExecutionMode,
+    PreparedPromptExecution,
+    PromptExecutionAdapter,
+    PromptExecutionOutcome,
+)
 from .intent_judge_policy import install_intent_judge_policy
 from .opencode import (
     OpenCodePromptExecutionError,
@@ -19,6 +29,7 @@ from .opencode_judge import (
     OpenCodeIntentJudgeExecutionResult,
     OpenCodeIntentJudgeExecutor,
 )
+from .router import ExecutionRouter, ExecutionRouterError
 
 # OpenCode npm shims may leave descendant Node processes alive after their parent
 # exits. Bind both managed adapters to the Job Object aware runner at package load.
@@ -30,13 +41,24 @@ _opencode_judge_module.run_command = run_managed_command
 install_intent_judge_policy(OpenCodeIntentJudgeExecutor)
 
 __all__ = [
+    "AdapterExecutionError",
+    "AdapterExecutionResult",
     "DirectPromptExecutionError",
     "DirectPromptExecutionResult",
     "DirectPromptExecutor",
+    "DirectOpenAICompatibleAdapter",
+    "ExecutionCapabilities",
+    "ExecutionMode",
+    "ExecutionRouter",
+    "ExecutionRouterError",
     "OpenCodePromptExecutionError",
     "OpenCodePromptExecutionResult",
     "OpenCodePromptExecutor",
+    "OpenCodeAgentHostAdapter",
     "OpenCodeIntentJudgeExecutionError",
     "OpenCodeIntentJudgeExecutionResult",
     "OpenCodeIntentJudgeExecutor",
+    "PreparedPromptExecution",
+    "PromptExecutionAdapter",
+    "PromptExecutionOutcome",
 ]

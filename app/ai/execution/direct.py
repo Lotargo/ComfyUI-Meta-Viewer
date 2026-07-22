@@ -80,6 +80,7 @@ class DirectPromptExecutor:
         task: PromptTask,
         user_input: str,
         image_data_url: str | None = None,
+        bundle: InstructionBundle | None = None,
     ) -> DirectPromptExecutionResult:
         if profile.get("kind", "openai_compatible") != "openai_compatible":
             raise DirectPromptExecutionError(
@@ -96,15 +97,22 @@ class DirectPromptExecutor:
                 stage="input",
             )
 
-        try:
-            bundle = self.compiler.compile(task)
-        except PromptCompilerError as exc:
+        if bundle is None:
+            try:
+                bundle = self.compiler.compile(task)
+            except PromptCompilerError as exc:
+                raise DirectPromptExecutionError(
+                    str(exc),
+                    code="prompt_compile_error",
+                    stage="compile",
+                    technical_error=str(exc),
+                ) from exc
+        elif bundle.task != task:
             raise DirectPromptExecutionError(
-                str(exc),
-                code="prompt_compile_error",
+                "The prepared instruction bundle does not match the prompt task.",
+                code="bundle_task_mismatch",
                 stage="compile",
-                technical_error=str(exc),
-            ) from exc
+            )
 
         user_text = "USER TASK INPUT\n" + cleaned_input
         if cleaned_image is None:

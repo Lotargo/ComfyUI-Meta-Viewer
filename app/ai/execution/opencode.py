@@ -90,6 +90,7 @@ class OpenCodePromptExecutor:
         task: PromptTask,
         user_input: str,
         image_path: str | Path | None = None,
+        bundle: InstructionBundle | None = None,
     ) -> OpenCodePromptExecutionResult:
         self._validate_profile(profile)
         timeout_seconds = self._resolve_timeout(profile)
@@ -102,15 +103,22 @@ class OpenCodePromptExecutor:
                 stage="input",
             )
 
-        try:
-            bundle = self.compiler.compile(task)
-        except PromptCompilerError as exc:
+        if bundle is None:
+            try:
+                bundle = self.compiler.compile(task)
+            except PromptCompilerError as exc:
+                raise OpenCodePromptExecutionError(
+                    str(exc),
+                    code="prompt_compile_error",
+                    stage="compile",
+                    technical_error=str(exc),
+                ) from exc
+        elif bundle.task != task:
             raise OpenCodePromptExecutionError(
-                str(exc),
-                code="prompt_compile_error",
+                "The prepared instruction bundle does not match the prompt task.",
+                code="bundle_task_mismatch",
                 stage="compile",
-                technical_error=str(exc),
-            ) from exc
+            )
 
         executable = find_executable("opencode", profile.get("executable"))
         if executable is None:

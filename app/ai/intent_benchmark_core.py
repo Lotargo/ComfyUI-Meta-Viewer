@@ -26,6 +26,7 @@ from .execution import (
 from .opencode_smoke import resolve_opencode_profile
 from .profiles import AIProfileStore, AIProfileStoreError
 from .prompting import (
+    CapabilityStatus,
     PromptFamily,
     PromptModifier,
     PromptOperation,
@@ -33,6 +34,7 @@ from .prompting import (
     PromptScenario,
     PromptTask,
 )
+from .prompting.registry import get_family_profile
 from .secrets import SecretStoreError
 from .smoke import SmokeRunnerError
 
@@ -191,6 +193,14 @@ class IntentBenchmarkReport:
                 "judge": self.judge.metadata(),
             },
         }
+
+
+@dataclass(frozen=True)
+class InteractiveRunSelection:
+    benchmark_id: str
+    generator_profile: str
+    judge_profile: str | None
+    json_out: str | None
 
 
 _CAMERA_MARKERS = (
@@ -1847,6 +1857,74 @@ BENCHMARKS: dict[str, IntentBenchmark] = {
 }
 
 
+_FAMILY_LABELS = {
+    PromptFamily.FLUX: "Flux-like",
+    PromptFamily.SDXL: "SDXL",
+    PromptFamily.PONY: "Pony",
+}
+_SAME_AS_GENERATOR = object()
+
+
+def _adapt_benchmark_family(
+    source: IntentBenchmark,
+    family: PromptFamily,
+) -> IntentBenchmark:
+    """Create one independently runnable family adaptation of a scenario benchmark."""
+
+    source_family = source.task.family.value
+    benchmark_id = source.benchmark_id.replace(
+        f"{source_family}-",
+        f"{family.value}-",
+        1,
+    )
+    checkpoint_profile = source.task.checkpoint_profile
+    if checkpoint_profile:
+        checkpoint_profile = checkpoint_profile.replace(
+            f"{source_family}-",
+            f"{family.value}-",
+            1,
+        )
+    source_label = _FAMILY_LABELS[source.task.family]
+    target_label = _FAMILY_LABELS[family]
+    return IntentBenchmark(
+        benchmark_id=benchmark_id,
+        title=f"{target_label} · {source.title}",
+        description=source.description.replace(source_label, target_label).replace(
+            source.task.family.value.upper(),
+            target_label,
+        ),
+        task=source.task.model_copy(
+            update={
+                "family": family,
+                "checkpoint_profile": checkpoint_profile,
+            }
+        ),
+        input_text=source.input_text,
+        core_groups=source.core_groups,
+        coverage_rules=source.coverage_rules,
+        expansion_groups=source.expansion_groups,
+        required_intents=source.required_intents,
+    )
+
+
+def _register_family_adaptations() -> None:
+    base_benchmarks = tuple(BENCHMARKS.values())
+    for family in (PromptFamily.SDXL, PromptFamily.PONY):
+        for source in base_benchmarks:
+            status = get_family_profile(family).capability_for(source.task.scenario)
+            if status not in {
+                CapabilityStatus.SUPPORTED,
+                CapabilityStatus.LIMITED,
+                CapabilityStatus.EXPERIMENTAL,
+            }:
+                continue
+            adapted = _adapt_benchmark_family(source, family)
+            BENCHMARKS[adapted.benchmark_id] = adapted
+
+
+_register_family_adaptations()
+
+
 def _public_profile(profile: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": profile.get("id"),
@@ -2023,12 +2101,46 @@ def evaluate_intent_heuristics(
             if negative_ok
             else "FLUX benchmark expects an empty negative_prompt."
         )
+    elif benchmark.task.family == PromptFamily.PONY:
+        lowered_prompt = prompt.casefold()
+        required_score_tokens = (
+            "score_9",
+            "score_8_up",
+            "score_7_up",
+            "score_6_up",
+            "score_5_up",
+            "score_4_up",
+        )
+        missing_score_tokens = tuple(
+            token for token in required_score_tokens if token not in lowered_prompt
+        )
+        source_ok = any(
+            token in lowered_prompt
+            for token in (
+                "source_anime",
+                "source_cartoon",
+                "source_furry",
+                "source_pony",
+            )
+        )
+        rating_ok = "rating_safe" in lowered_prompt
+        negative_ok = not missing_score_tokens and source_ok and rating_ok
+        missing_controls = list(missing_score_tokens)
+        if not source_ok:
+            missing_controls.append("source_*")
+        if not rating_ok:
+            missing_controls.append("rating_safe")
+        negative_detail = (
+            "Pony score prefix, source tag, and rating_safe are present."
+            if negative_ok
+            else "Pony family controls are missing: " + ", ".join(missing_controls)
+        )
     else:
         negative_ok = True
-        negative_detail = "No family-specific negative prompt policy is enforced."
+        negative_detail = "SDXL has no mandatory fixed prompt tokens."
     metrics.append(
         IntentHeuristicMetric(
-            "family_negative_policy",
+            "family_prompt_policy",
             "pass" if negative_ok else "fail",
             3 if negative_ok else 0,
             3,
@@ -2059,7 +2171,7 @@ def intent_status(
         metric.metric_id
         for metric in report.heuristic_metrics
         if metric.status == "fail"
-        and metric.metric_id in {"core_intent", "family_negative_policy"}
+        and metric.metric_id in {"core_intent", "family_prompt_policy"}
     }
     if hard_failures:
         return "fail"
@@ -2110,7 +2222,9 @@ def _print_benchmarks(console: Console) -> None:
     table = Table(title="Prompt intent benchmarks")
     table.add_column("ID", style="bold cyan")
     table.add_column("Family")
+    table.add_column("Operation")
     table.add_column("Scenario")
+    table.add_column("Capability")
     table.add_column("Input language")
     table.add_column("Required intents")
     table.add_column("Purpose")
@@ -2118,12 +2232,177 @@ def _print_benchmarks(console: Console) -> None:
         table.add_row(
             benchmark.benchmark_id,
             benchmark.task.family.value,
+            benchmark.task.operation.value,
             benchmark.task.scenario.value,
+            get_family_profile(benchmark.task.family)
+            .capability_for(benchmark.task.scenario)
+            .value,
             "Russian",
             ", ".join(benchmark.required_intents),
             benchmark.description,
         )
     console.print(table)
+
+
+def _menu_choice(
+    console: Console,
+    *,
+    title: str,
+    options: tuple[tuple[str, Any], ...],
+    default_index: int = 0,
+) -> Any | None:
+    if not options:
+        raise SmokeRunnerError(
+            f"No options are available for {title.lower()}.",
+            code="interactive_options_unavailable",
+        )
+    console.print(f"\n[bold cyan]{title}[/bold cyan]")
+    for index, (label, _) in enumerate(options, start=1):
+        marker = " [dim](default)[/dim]" if index - 1 == default_index else ""
+        console.print(f"  [bold]{index}.[/bold] {label}{marker}")
+    console.print("  [bold]q.[/bold] Cancel")
+
+    while True:
+        raw = console.input(f"Select (default {default_index + 1}): ").strip()
+        if not raw:
+            return options[default_index][1]
+        if raw.casefold() in {"q", "quit", "exit", "cancel"}:
+            return None
+        try:
+            selected = int(raw) - 1
+        except ValueError:
+            selected = -1
+        if 0 <= selected < len(options):
+            return options[selected][1]
+        console.print("[yellow]Enter one of the listed numbers or q.[/yellow]")
+
+
+def _interactive_selection(
+    console: Console,
+    store: AIProfileStore,
+    *,
+    json_out_override: str | None = None,
+    disable_json: bool = False,
+) -> InteractiveRunSelection | None:
+    family_counts = {
+        family: sum(
+            benchmark.task.family is family for benchmark in BENCHMARKS.values()
+        )
+        for family in PromptFamily
+    }
+    family = _menu_choice(
+        console,
+        title="Prompt family",
+        options=tuple(
+            (
+                f"{_FAMILY_LABELS[item]} ({family_counts[item]} benchmarks)",
+                item,
+            )
+            for item in PromptFamily
+            if family_counts[item]
+        ),
+    )
+    if family is None:
+        return None
+
+    family_benchmarks = tuple(
+        benchmark
+        for benchmark in BENCHMARKS.values()
+        if benchmark.task.family is family
+    )
+    operations = tuple(
+        dict.fromkeys(benchmark.task.operation for benchmark in family_benchmarks)
+    )
+    operation = _menu_choice(
+        console,
+        title="Operation",
+        options=tuple((item.value, item) for item in operations),
+    )
+    if operation is None:
+        return None
+
+    operation_benchmarks = tuple(
+        benchmark
+        for benchmark in family_benchmarks
+        if benchmark.task.operation is operation
+    )
+    benchmark = _menu_choice(
+        console,
+        title="Scenario benchmark",
+        options=tuple(
+            (
+                f"{item.task.scenario.value} · {item.title}",
+                item,
+            )
+            for item in operation_benchmarks
+        ),
+    )
+    if benchmark is None:
+        return None
+
+    listing = store.list()
+    profiles = tuple(
+        profile
+        for profile in listing["profiles"]
+        if profile.get("kind") == "cli" and profile.get("cli_type") == "opencode"
+    )
+    if not profiles:
+        raise SmokeRunnerError(
+            "No OpenCode CLI profiles are configured.",
+            code="profile_not_found",
+        )
+    default_profile_id = listing["defaults"].get("text_profile_id")
+    default_index = next(
+        (
+            index
+            for index, profile in enumerate(profiles)
+            if profile["id"] == default_profile_id
+        ),
+        0,
+    )
+    generator = _menu_choice(
+        console,
+        title="Generator profile",
+        options=tuple(
+            (f"{profile['name']} · {profile['model']}", profile)
+            for profile in profiles
+        ),
+        default_index=default_index,
+    )
+    if generator is None:
+        return None
+
+    judge = _menu_choice(
+        console,
+        title="Judge profile",
+        options=(("Same as generator", _SAME_AS_GENERATOR),)
+        + tuple(
+            (f"{profile['name']} · {profile['model']}", profile)
+            for profile in profiles
+        ),
+    )
+    if judge is None:
+        return None
+
+    if disable_json:
+        json_out = None
+    elif json_out_override:
+        json_out = json_out_override
+    else:
+        default_report = f"reports/{benchmark.benchmark_id}.json"
+        raw_path = console.input(
+            f"JSON report [{default_report}; '-' disables]: "
+        ).strip()
+        json_out = None if raw_path == "-" else raw_path or default_report
+
+    return InteractiveRunSelection(
+        benchmark_id=benchmark.benchmark_id,
+        generator_profile=generator["id"],
+        judge_profile=(
+            None if judge is _SAME_AS_GENERATOR else judge["id"]
+        ),
+        json_out=json_out,
+    )
 
 
 def _print_report(
@@ -2265,8 +2544,27 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--no-color", action="store_true")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("list", help="List intent benchmarks.")
+
+    interactive = subparsers.add_parser(
+        "interactive",
+        help="Choose and run one benchmark through an interactive menu.",
+    )
+    interactive.add_argument("--config", help="Override the application config.json path.")
+    interactive.add_argument("--minimum-score", type=int, default=80)
+    interactive.add_argument("--timeout", type=int)
+    interactive.add_argument("--show-bundle", action="store_true")
+    interactive.add_argument(
+        "--json-out",
+        help="Use this report path without asking for one.",
+    )
+    interactive.add_argument(
+        "--no-json",
+        action="store_true",
+        help="Do not write a JSON report.",
+    )
+    interactive.add_argument("--debug", action="store_true")
 
     run = subparsers.add_parser("run", help="Run one intent benchmark through OpenCode.")
     run.add_argument("benchmark", choices=tuple(BENCHMARKS))
@@ -2287,6 +2585,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     console = Console(no_color=args.no_color)
+    if args.command is None:
+        args.command = "interactive"
+        args.config = None
+        args.minimum_score = 80
+        args.timeout = None
+        args.show_bundle = False
+        args.json_out = None
+        args.no_json = False
+        args.debug = False
     if args.command == "list":
         _print_benchmarks(console)
         return 0
@@ -2301,6 +2608,20 @@ def main(argv: list[str] | None = None) -> int:
             normalize_path(args.config) if args.config else build_runtime_paths().config
         )
         store = AIProfileStore(config_path)
+        if args.command == "interactive":
+            selection = _interactive_selection(
+                console,
+                store,
+                json_out_override=args.json_out,
+                disable_json=args.no_json,
+            )
+            if selection is None:
+                console.print("[yellow]Interactive benchmark cancelled.[/yellow]")
+                return 0
+            args.benchmark = selection.benchmark_id
+            args.profile = selection.generator_profile
+            args.judge_profile = selection.judge_profile
+            args.json_out = selection.json_out
         generator_resolved = resolve_opencode_profile(
             store,
             selector=args.profile,
@@ -2327,11 +2648,17 @@ def main(argv: list[str] | None = None) -> int:
             judge_profile["timeout_seconds"] = args.timeout
 
         benchmark = BENCHMARKS[args.benchmark]
+        capability = get_family_profile(benchmark.task.family).capability_for(
+            benchmark.task.scenario
+        )
         header = Table(show_header=False, box=None)
         header.add_column(style="bold cyan")
         header.add_column()
         header.add_row("Benchmark", f"{benchmark.benchmark_id} · {benchmark.title}")
+        header.add_row("Family", _FAMILY_LABELS[benchmark.task.family])
+        header.add_row("Operation", benchmark.task.operation.value)
         header.add_row("Scenario", benchmark.task.scenario.value)
+        header.add_row("Capability", capability.value)
         header.add_row(
             "Generator", f"{generator_profile['name']} · {generator_profile['model']}"
         )

@@ -19,11 +19,11 @@ def strict_intent_status(
 
     metrics = {metric.metric_id: metric for metric in report.heuristic_metrics}
     core = metrics.get("core_intent")
-    negative_policy = metrics.get("family_negative_policy")
+    family_policy = metrics.get("family_prompt_policy")
 
     if core is not None and core.status == "fail":
         return "fail"
-    if negative_policy is not None and negative_policy.status == "fail":
+    if family_policy is not None and family_policy.status == "fail":
         return "fail"
 
     coverage_ids = {rule.metric_id for rule in report.benchmark.coverage_rules}

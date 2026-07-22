@@ -4,6 +4,18 @@ The intent benchmark measures whether an AI can turn a short, ordinary user requ
 
 It is separate from `quality_benchmark.py`, which measures preservation and organisation of a detailed brief.
 
+## Independent family adaptations
+
+The catalog contains independently runnable Flux-like, SDXL, and Pony adaptations. They are not a comparative leaderboard, paired sample, or mandatory matrix run. Selecting an adaptation compiles that family profile, runs only the chosen scenario, and evaluates the result using the scenario rubric plus the named family's prompt conventions.
+
+The current catalog exposes:
+
+- 7 Flux-like adaptations;
+- 7 SDXL adaptations, including limited `graphic_design_text` support;
+- 6 Pony adaptations; unsupported `graphic_design_text` is omitted, while limited scenarios remain selectable and compile an explicit warning.
+
+The shared human request and scenario rubric make each family adaptation reproducible, but one result is never used to rank or automatically select another family.
+
 ## Execution model
 
 One benchmark run makes two explicit OpenCode calls:
@@ -217,7 +229,7 @@ Every benchmark has a 100-point deterministic rubric:
 - explicit coverage of requested intent dimensions — 24;
 - non-trivial expansion through independent visual decision groups — 12;
 - coherent structure — 4;
-- family negative prompt policy — 3;
+- family prompt policy — 3 (FLUX negative handling, SDXL conventions, or Pony base controls);
 - absence of generic quality slogans — 3.
 
 The expansion check is language-independent at the input/output boundary. It does not compare Russian input words with English output words. Instead it verifies scenario-specific visual decision groups.
@@ -247,6 +259,16 @@ The normal default timeout is five minutes per generator or judge call unless `-
 
 ## Commands
 
+Open the interactive launcher (also available explicitly as `interactive`):
+
+```powershell
+.venv\Scripts\python.exe -m app.ai.intent_benchmark
+```
+
+The menu asks for one prompt family, operation, scenario benchmark, generator profile, judge profile, and JSON report path. Pressing Enter accepts the displayed default; `q` cancels without making an LLM request. The default report is `reports/<benchmark-id>.json` and entering `-` disables it.
+
+Non-interactive `list` and `run` commands remain available for scripts and repeatable point-in-time calls.
+
 List benchmarks:
 
 ```powershell
@@ -268,6 +290,18 @@ Run the product benchmark:
   --profile "OpenCode" `
   --json-out ".\reports\flux-product-intent.json" `
   --debug
+```
+
+Run independent SDXL and Pony portrait adaptations:
+
+```powershell
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run sdxl-portrait-intent-basic `
+  --profile "OpenCode" `
+  --json-out ".\reports\sdxl-portrait-intent.json"
+
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run pony-portrait-intent-basic `
+  --profile "OpenCode" `
+  --json-out ".\reports\pony-portrait-intent.json"
 ```
 
 Run the single-character benchmark:

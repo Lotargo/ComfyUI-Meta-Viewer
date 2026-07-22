@@ -245,12 +245,28 @@ class OpenCodeIntentJudgeExecutor:
 
     @staticmethod
     def _family_policy(family: str) -> str:
-        if family.casefold() == "flux":
+        normalized = family.casefold()
+        if normalized == "flux":
             return (
                 "- FLUX family rule: an empty negative_prompt is correct and must not be "
                 "penalized or listed as a weakness. Do not request a negative prompt.\n"
                 "- Judge the positive prompt as coherent natural-language scene direction; "
                 "do not require tag-style syntax."
+            )
+        if normalized == "sdxl":
+            return (
+                "- SDXL family rule: accept a coherent natural-language, tag-oriented, "
+                "or hybrid positive prompt. Do not require magic quality tokens.\n"
+                "- A targeted negative prompt is allowed but not mandatory; judge it for "
+                "relevance rather than length."
+            )
+        if normalized == "pony":
+            return (
+                "- Pony base-family project default: expect the complete score_9 through "
+                "score_4_up prefix, one appropriate source_* tag, and the safe modifier's "
+                "rating_safe tag.\n"
+                "- Pony may use tags, concise natural language, or a coherent hybrid. An "
+                "empty negative_prompt is acceptable for the base family."
             )
         return "- Apply the normal conventions of the named model family."
 

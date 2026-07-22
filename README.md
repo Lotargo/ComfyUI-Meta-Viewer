@@ -135,14 +135,18 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
 - [ ] Add `multi_character` benchmarks after tested checkpoint capability profiles exist
 - [ ] Add operation-focused benchmarks for `reconstruct`, `adapt`, and `translate`
 - [ ] Add image-conditioned and multimodal prompt tests where the selected provider supports vision
-- [ ] Validate the same scenarios on SDXL and Pony instead of treating FLUX results as universal
+- [x] Register independently selectable Flux-like, SDXL, and Pony family adaptations without comparative aggregation
+- [ ] Run and tune selected SDXL and Pony adaptations as independent quality checks
 - [ ] Add checkpoint-specific capability profiles and regression cases
 - [ ] Add repeat-run statistics for model reliability when useful, without making repeated runs mandatory
-- [ ] Add an interactive CLI menu for choosing benchmark family, scenario, operation, profile, and output path
+- [x] Add an interactive CLI menu for choosing benchmark family, scenario, operation, profile, and output path
 
 ### Current targeted commands
 
 ```powershell
+# Open the interactive family → operation → scenario menu
+.venv\Scripts\python.exe -m app.ai.intent_benchmark
+
 # List available intent benchmarks
 .venv\Scripts\python.exe -m app.ai.intent_benchmark list
 
@@ -174,6 +178,13 @@ The AI subsystem is being developed as a model-aware prompt compiler rather than
 .venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-graphic-design-text-intent-basic `
   --profile "OpenCode" `
   --debug
+
+# Run independent SDXL or Pony adaptations directly
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run sdxl-portrait-intent-basic `
+  --profile "OpenCode"
+
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run pony-portrait-intent-basic `
+  --profile "OpenCode"
 ```
 
 See [Prompt intent benchmarks](docs/ai-intent-benchmark.md) and [OpenCode smoke testing](docs/ai-opencode-smoke-testing.md) for the current execution model.

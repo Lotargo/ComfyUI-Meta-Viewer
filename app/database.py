@@ -193,10 +193,63 @@ def init_db() -> None:
                 PRIMARY KEY (image_id, tag_id)
             );
 
+            CREATE TABLE IF NOT EXISTS ai_jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
+                family TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                scenario TEXT NOT NULL,
+                modifiers_json TEXT NOT NULL DEFAULT '[]',
+                checkpoint_profile TEXT,
+                output_contract TEXT NOT NULL,
+                execution_backend TEXT NOT NULL,
+                provider_profile_id TEXT,
+                model_id TEXT,
+                user_input TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'queued'
+                    CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+                bundle_metadata_json TEXT,
+                technical_error TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                started_at TEXT,
+                completed_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS ai_scene_specs (
+                job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+                schema_version TEXT NOT NULL,
+                scene_spec_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS ai_prompt_drafts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER NOT NULL REFERENCES ai_jobs(id) ON DELETE CASCADE,
+                schema_version TEXT NOT NULL,
+                positive_prompt TEXT NOT NULL DEFAULT '',
+                negative_prompt TEXT NOT NULL DEFAULT '',
+                versions_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS ai_results (
+                job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+                schema_version TEXT NOT NULL,
+                positive_prompt TEXT NOT NULL,
+                negative_prompt TEXT NOT NULL DEFAULT '',
+                execution_metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
             CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
             CREATE INDEX IF NOT EXISTS idx_album_images_image ON album_images(image_id);
             CREATE INDEX IF NOT EXISTS idx_image_tags_tag ON image_tags(tag_id);
+            CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
+            CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
+            CREATE INDEX IF NOT EXISTS idx_ai_prompt_drafts_job ON ai_prompt_drafts(job_id, id);
         """)
         migrations = (
             "ALTER TABLE images ADD COLUMN original_data BLOB",

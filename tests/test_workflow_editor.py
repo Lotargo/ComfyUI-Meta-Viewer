@@ -166,6 +166,18 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         app.config["CONFIG_STORE"] = self.old_config_store
         self.temp_dir.cleanup()
 
+    def test_editor_page_uses_beginner_path_and_separate_advanced_settings(self) -> None:
+        response = self.client.get("/editor")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("What will you create?", html)
+        self.assertIn("Describe your idea in everyday language", html)
+        self.assertIn('id="advanced-settings-dialog"', html)
+        self.assertIn('id="advanced-fields"', html)
+        self.assertIn("Check dependencies and preview graph", html)
+        self.assertNotIn("Manifest controls", html)
+
     @patch("app.comfyui.editor_routes._inventory")
     def test_manifest_driven_draft_preview_round_trip(self, inventory_mock) -> None:
         inventory_mock.return_value = self.inventory
@@ -215,6 +227,38 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertEqual(payload["code"], "workflow_dependencies_missing")
         self.assertTrue(payload["dependencies"]["missing_nodes"])
         self.assertTrue(payload["dependencies"]["missing_resources"])
+
+    def test_run_results_exclude_assets_deleted_from_library(self) -> None:
+        store = WorkflowStore()
+        draft = store.create_draft(
+            template_id="core-image",
+            template_version="1.0.0",
+            values=default_field_values(self.template),
+            resource_selections={"checkpoint": "models/base-xl.safetensors"},
+        )
+        run = store.create_run(
+            draft_id=draft.id,
+            prompt_id="prompt-deleted-output",
+            client_id="editor-test",
+        )
+        asset_id, _ = database.insert_upload_asset(
+            "temporary-result.png",
+            PNG_1X1,
+            media_type="image",
+            has_generation_metadata=True,
+        )
+        store.update_run(
+            run.id,
+            status="completed",
+            output_asset_ids=[asset_id],
+        )
+
+        self.assertTrue(database.delete_image(asset_id))
+        response = self.client.get("/api/editor/runs")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["runs"][0]["output_asset_ids"], [])
+        self.assertEqual(store.get_run(run.id).output_asset_ids, [asset_id])
 
     @patch("app.comfyui.editor_routes.client_from_store")
     def test_remix_creates_manual_reference_draft_without_running(self, client_mock) -> None:

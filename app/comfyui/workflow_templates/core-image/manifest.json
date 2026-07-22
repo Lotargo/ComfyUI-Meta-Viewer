@@ -13,7 +13,7 @@
       "label": "Checkpoint",
       "accepts": ["checkpoint"],
       "required": true,
-      "description": "The base model used by the generation graph.",
+      "description": "Choose the local model that will create your image.",
       "binding": {"kind": "node_input", "node_id": "1", "input": "ckpt_name"}
     },
     "loras": {
@@ -27,15 +27,15 @@
   },
   "fields": [
     {"id": "positive_prompt", "label": "Positive prompt", "kind": "textarea", "section": "Prompt", "default": "A cinematic landscape, dramatic natural light, highly detailed", "required": true, "bindings": [{"node_id": "2", "input": "text"}]},
-    {"id": "negative_prompt", "label": "Negative prompt", "kind": "textarea", "section": "Prompt", "default": "low quality, blurry, artifacts", "bindings": [{"node_id": "3", "input": "text"}]},
-    {"id": "width", "label": "Width", "kind": "number", "section": "Image", "default": 1024, "minimum": 64, "maximum": 8192, "step": 8, "bindings": [{"node_id": "4", "input": "width"}]},
-    {"id": "height", "label": "Height", "kind": "number", "section": "Image", "default": 1024, "minimum": 64, "maximum": 8192, "step": 8, "bindings": [{"node_id": "4", "input": "height"}]},
+    {"id": "negative_prompt", "label": "What to avoid", "kind": "textarea", "section": "Prompt", "default": "low quality, blurry, artifacts", "advanced": true, "bindings": [{"node_id": "3", "input": "text"}]},
+    {"id": "width", "label": "Width", "kind": "number", "section": "Image", "default": 1024, "minimum": 64, "maximum": 8192, "step": 8, "advanced": true, "bindings": [{"node_id": "4", "input": "width"}]},
+    {"id": "height", "label": "Height", "kind": "number", "section": "Image", "default": 1024, "minimum": 64, "maximum": 8192, "step": 8, "advanced": true, "bindings": [{"node_id": "4", "input": "height"}]},
     {"id": "batch_size", "label": "Batch size", "kind": "number", "section": "Image", "default": 1, "minimum": 1, "maximum": 16, "step": 1, "advanced": true, "bindings": [{"node_id": "4", "input": "batch_size"}]},
-    {"id": "seed", "label": "Seed", "kind": "seed", "section": "Sampling", "default": -1, "minimum": -1, "maximum": 1125899906842624, "step": 1, "bindings": [{"node_id": "5", "input": "seed"}]},
-    {"id": "steps", "label": "Steps", "kind": "number", "section": "Sampling", "default": 28, "minimum": 1, "maximum": 200, "step": 1, "bindings": [{"node_id": "5", "input": "steps"}]},
-    {"id": "cfg", "label": "CFG", "kind": "number", "section": "Sampling", "default": 7, "minimum": 0, "maximum": 30, "step": 0.1, "bindings": [{"node_id": "5", "input": "cfg"}]},
-    {"id": "sampler", "label": "Sampler", "kind": "select", "section": "Sampling", "default": "dpmpp_2m", "options": [{"value": "euler", "label": "Euler"}, {"value": "euler_ancestral", "label": "Euler ancestral"}, {"value": "dpmpp_2m", "label": "DPM++ 2M"}, {"value": "dpmpp_2m_sde", "label": "DPM++ 2M SDE"}], "bindings": [{"node_id": "5", "input": "sampler_name"}]},
-    {"id": "scheduler", "label": "Scheduler", "kind": "select", "section": "Sampling", "default": "karras", "options": [{"value": "normal", "label": "Normal"}, {"value": "karras", "label": "Karras"}, {"value": "exponential", "label": "Exponential"}, {"value": "sgm_uniform", "label": "SGM uniform"}], "bindings": [{"node_id": "5", "input": "scheduler"}]},
+    {"id": "seed", "label": "Seed", "kind": "seed", "section": "Sampling", "default": -1, "minimum": -1, "maximum": 1125899906842624, "step": 1, "advanced": true, "bindings": [{"node_id": "5", "input": "seed"}]},
+    {"id": "steps", "label": "Quality steps", "kind": "number", "section": "Sampling", "default": 28, "minimum": 1, "maximum": 200, "step": 1, "advanced": true, "bindings": [{"node_id": "5", "input": "steps"}]},
+    {"id": "cfg", "label": "Prompt strength (CFG)", "kind": "number", "section": "Sampling", "default": 7, "minimum": 0, "maximum": 30, "step": 0.1, "advanced": true, "bindings": [{"node_id": "5", "input": "cfg"}]},
+    {"id": "sampler", "label": "Sampling method", "kind": "select", "section": "Sampling", "default": "dpmpp_2m", "advanced": true, "options": [{"value": "euler", "label": "Euler"}, {"value": "euler_ancestral", "label": "Euler ancestral"}, {"value": "dpmpp_2m", "label": "DPM++ 2M"}, {"value": "dpmpp_2m_sde", "label": "DPM++ 2M SDE"}], "bindings": [{"node_id": "5", "input": "sampler_name"}]},
+    {"id": "scheduler", "label": "Sampling schedule", "kind": "select", "section": "Sampling", "default": "karras", "advanced": true, "options": [{"value": "normal", "label": "Normal"}, {"value": "karras", "label": "Karras"}, {"value": "exponential", "label": "Exponential"}, {"value": "sgm_uniform", "label": "SGM uniform"}], "bindings": [{"node_id": "5", "input": "scheduler"}]},
     {"id": "filename_prefix", "label": "Filename prefix", "kind": "text", "section": "Output", "default": "CMV/Create", "advanced": true, "bindings": [{"node_id": "7", "input": "filename_prefix"}]}
   ],
   "output_nodes": ["7"]

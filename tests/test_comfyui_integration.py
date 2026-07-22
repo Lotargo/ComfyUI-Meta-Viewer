@@ -235,7 +235,7 @@ class ComfyUIRoutesTest(unittest.TestCase):
         resp = self.client.get("/settings/comfyui")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"Workflow editor workspace", resp.data)
-        self.assertIn(b"ComfyUI runtime", resp.data)
+        self.assertIn(b"Connect ComfyUI", resp.data)
 
     def test_config_api(self) -> None:
         resp = self.client.get("/api/comfyui/config")

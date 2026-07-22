@@ -299,7 +299,7 @@ The app will be available at **http://localhost:7860**
 5. **Search** — Ctrl+F to fuzzy search across all metadata
 6. **Cutout** — Select an image and generate a transparent PNG
 7. **Configure AI** — open the AI page, add an endpoint or import a detected local CLI, choose exact model IDs, and test text or image support
-8. **Create** — connect ComfyUI from the Create header, select a template and local resources, preview dependencies, then generate into the Library
+8. **Create** — choose Image, Reference, Video, or High detail; describe the result, select a local model, and press Create. Dependency checks run automatically, while technical controls stay under More settings
 9. **Remix** — use the lightbox Remix action to open a manually reviewed reference draft with source lineage
 
 ---

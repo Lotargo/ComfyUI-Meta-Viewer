@@ -49,32 +49,19 @@
             <div class="controls-scroll">
                 <div class="controls-heading">
                     <div>
-                        <p class="workspace-kicker">Manifest controls</p>
-                        <h1 id="controls-title">Create</h1>
+                        <p class="workspace-kicker">Simple creation</p>
+                        <h1 id="controls-title">What will you create?</h1>
+                        <p class="controls-intro">Describe your idea in everyday language. The technical settings already have sensible defaults.</p>
                     </div>
                     <span id="draft-status" class="draft-state">New draft</span>
                 </div>
 
                 <div id="template-category-tabs" class="template-category-tabs" role="tablist" aria-label="Workflow category">
-                    <button type="button" class="template-tab active" data-category="simple" role="tab" aria-selected="true">Text to image</button>
-                    <button type="button" class="template-tab" data-category="reference" role="tab" aria-selected="false">Reference</button>
-                    <button type="button" class="template-tab" data-category="video" role="tab" aria-selected="false">Video</button>
-                    <button type="button" class="template-tab" data-category="advanced" role="tab" aria-selected="false">Advanced</button>
+                    <button type="button" class="template-tab active" data-category="simple" role="tab" aria-selected="true"><strong>Image</strong><span>From a description</span></button>
+                    <button type="button" class="template-tab" data-category="reference" role="tab" aria-selected="false"><strong>Reference</strong><span>Transform an image</span></button>
+                    <button type="button" class="template-tab" data-category="video" role="tab" aria-selected="false"><strong>Video</strong><span>Create a short clip</span></button>
+                    <button type="button" class="template-tab" data-category="advanced" role="tab" aria-selected="false"><strong>High detail</strong><span>Refined in two steps</span></button>
                 </div>
-
-                <section class="template-selector" aria-labelledby="template-heading">
-                    <label id="template-heading" for="template-select">Workflow template</label>
-                    <select id="template-select" aria-describedby="template-description">
-                        <option value="">Loading templates…</option>
-                    </select>
-                    <div class="template-summary">
-                        <div>
-                            <strong id="template-name">Preparing workspace</strong>
-                            <span id="template-meta">Manifest v1</span>
-                        </div>
-                        <p id="template-description">Controls appear only when the selected workflow declares them.</p>
-                    </div>
-                </section>
 
                 <div id="source-draft-banner" class="source-draft-banner" hidden>
                     <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM13 13h7v7h-7z"></path><path d="m11 8 5 5"></path></svg>
@@ -93,36 +80,34 @@
                     <section id="resource-section" class="control-section resource-section" aria-labelledby="resource-heading">
                         <div class="control-section-heading">
                             <div>
-                                <span class="control-section-index">02</span>
-                                <h2 id="resource-heading">Model resources</h2>
+                                <span class="control-section-index">Next</span>
+                                <h2 id="resource-heading">Choose a model</h2>
                             </div>
-                            <span id="resource-count" class="control-section-note">Resolving</span>
+                            <span id="resource-count" class="control-section-note">Required</span>
                         </div>
                         <div id="resource-slots" class="resource-slots"></div>
                     </section>
 
-                    <details id="advanced-controls" class="advanced-controls">
-                        <summary>
-                            <span>Advanced settings</span>
-                            <small id="advanced-count">0 controls</small>
-                        </summary>
-                        <div id="advanced-fields" class="advanced-fields"></div>
-                    </details>
+                    <button id="advanced-settings-open" class="advanced-settings-button" type="button">
+                        <span class="advanced-settings-icon" aria-hidden="true">⚙</span>
+                        <span><strong>More settings</strong><small>Size, quality, seed and optional add-ons</small></span>
+                        <span id="advanced-count" class="advanced-settings-count">0</span>
+                    </button>
                 </form>
             </div>
 
             <div class="editor-actions">
                 <div id="validation-summary" class="validation-summary" role="status">
                     <span class="validation-dot neutral"></span>
-                    <span>Select resources to validate</span>
+                    <span>Connect ComfyUI when you are ready</span>
                 </div>
                 <div class="editor-action-row">
-                    <button id="preview-workflow" class="btn btn-secondary" type="button">Preview graph</button>
                     <button id="generate-workflow" class="generate-button" type="button" disabled>
                         <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 11 7-11 7z"></path></svg>
-                        <span>Generate</span>
+                        <span id="generate-label">Create image</span>
                     </button>
                 </div>
+                <p id="generate-help" class="generate-help">Your result will be saved to Library automatically.</p>
             </div>
         </aside>
 
@@ -164,10 +149,10 @@
                 <div id="runtime-offline-banner" class="runtime-offline-banner" hidden>
                     <div class="offline-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
                     <div>
-                        <strong>Connect ComfyUI to make this workspace live</strong>
-                        <p>Templates and drafts stay editable offline. Runtime validation and generation become available after the local API is ready.</p>
+                        <strong>One quick setup before your first creation</strong>
+                        <p>Point the app to your ComfyUI folder. After that, starting it and checking the required models happens here.</p>
                     </div>
-                    <button id="runtime-connect-cta" class="btn btn-primary" type="button">Set up runtime</button>
+                    <button id="runtime-connect-cta" class="btn btn-primary" type="button">Connect ComfyUI</button>
                 </div>
 
                 <div id="result-grid" class="result-grid" aria-live="polite"></div>
@@ -177,22 +162,66 @@
                         <span></span><span></span><span></span>
                         <svg viewBox="0 0 24 24" width="29" height="29" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"></path></svg>
                     </div>
-                    <p class="workspace-kicker">Your generation canvas</p>
-                    <h3>Shape the workflow on the left.<br>Results land here.</h3>
-                    <p>Choose a supported template, resolve its local models, preview the graph, then start generation when everything is ready.</p>
+                    <p class="workspace-kicker">Your results</p>
+                    <h3>Your creations will appear here.</h3>
+                    <p>Choose what you want to make, describe it, select a model and press Create. Every result is also saved to Library.</p>
                 </div>
             </div>
         </section>
     </main>
+
+    <dialog id="advanced-settings-dialog" class="editor-dialog advanced-settings-dialog">
+        <form method="dialog">
+            <div class="dialog-heading">
+                <div>
+                    <p class="workspace-kicker">Optional controls</p>
+                    <h2>More settings</h2>
+                    <p>The defaults work well for a first generation. Change these only when you need more control.</p>
+                </div>
+                <button id="advanced-settings-close" class="workspace-icon-button" value="cancel" aria-label="Close more settings"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="m6 6 12 12M18 6 6 18"></path></svg></button>
+            </div>
+
+            <div class="advanced-settings-scroll">
+                <div id="advanced-fields" class="advanced-fields"></div>
+
+                <section id="advanced-resource-section" class="advanced-resource-section" hidden>
+                    <div class="advanced-section-heading"><h3>Style add-ons</h3><p>Optional LoRA and other adapters.</p></div>
+                    <div id="advanced-resource-slots" class="resource-slots"></div>
+                </section>
+
+                <details class="technical-settings">
+                    <summary>Workflow details</summary>
+                    <div class="technical-settings-body">
+                        <section class="template-selector" aria-labelledby="template-heading">
+                            <label id="template-heading" for="template-select">Workflow template</label>
+                            <select id="template-select" aria-describedby="template-description">
+                                <option value="">Loading templates…</option>
+                            </select>
+                            <div class="template-summary">
+                                <div>
+                                    <strong id="template-name">Preparing workspace</strong>
+                                    <span id="template-meta">Manifest v1</span>
+                                </div>
+                                <p id="template-description">The app chooses the controls declared by this workflow.</p>
+                            </div>
+                        </section>
+                        <button id="preview-workflow" class="btn btn-secondary" type="button">Check dependencies and preview graph</button>
+                    </div>
+                </details>
+            </div>
+
+            <div class="dialog-footer"><button class="btn btn-primary" value="cancel">Done</button></div>
+        </form>
+    </dialog>
 
     <div id="runtime-drawer-layer" class="drawer-layer" hidden>
         <button id="runtime-drawer-backdrop" class="drawer-backdrop" type="button" aria-label="Close runtime panel"></button>
         <aside id="runtime-drawer" class="runtime-drawer" role="dialog" aria-modal="true" aria-labelledby="runtime-drawer-title">
             <div class="runtime-drawer-header">
                 <div>
-                    <p class="workspace-kicker">Create participant</p>
-                    <h2 id="runtime-drawer-title">ComfyUI runtime</h2>
-                    <p>Connection, process control, health and logs stay beside the editor.</p>
+                    <p class="workspace-kicker">One-time setup</p>
+                    <h2 id="runtime-drawer-title">Connect ComfyUI</h2>
+                    <p>Choose your ComfyUI folder and the app can start it for you whenever you want to create.</p>
                 </div>
                 <button id="runtime-close" class="workspace-icon-button" type="button" aria-label="Close runtime panel">
                     <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg>
@@ -205,7 +234,7 @@
                         <span class="runtime-state-dot"></span>
                         <div><strong id="runtime-drawer-status">Stopped</strong><small id="runtime-drawer-detail">No process running</small></div>
                     </div>
-                    <div class="runtime-metrics">
+                    <div class="runtime-metrics" aria-label="Technical runtime details">
                         <div><span>Mode</span><strong id="stat-mode">None</strong></div>
                         <div><span>PID</span><strong id="stat-pid">—</strong></div>
                         <div><span>Queue</span><strong id="stat-queue">Offline</strong></div>
@@ -214,9 +243,14 @@
                     </div>
                     <div class="runtime-actions">
                         <button id="btn-start" class="btn btn-primary" type="button">Start ComfyUI</button>
-                        <button id="btn-stop" class="btn btn-danger" type="button" disabled>Stop</button>
-                        <button id="btn-restart" class="btn btn-secondary" type="button">Restart</button>
-                        <button id="btn-interrupt" class="btn btn-secondary" type="button">Interrupt generation</button>
+                        <details class="runtime-process-controls">
+                            <summary>Process controls</summary>
+                            <div>
+                                <button id="btn-stop" class="btn btn-danger" type="button" disabled>Stop</button>
+                                <button id="btn-restart" class="btn btn-secondary" type="button">Restart</button>
+                                <button id="btn-interrupt" class="btn btn-secondary" type="button">Interrupt generation</button>
+                            </div>
+                        </details>
                     </div>
                 </section>
 
@@ -227,15 +261,13 @@
                     </div>
                     <form id="comfyui-config-form" class="runtime-config-form" onsubmit="return false;">
                         <label class="runtime-field runtime-field-wide" for="install-path">
-                            <span>Installation path</span>
+                            <span>ComfyUI folder</span>
                             <div class="runtime-input-action">
                                 <input type="text" id="install-path" placeholder="F:\ComfyUI_windows_portable or /home/user/ComfyUI" autocomplete="off">
-                                <button id="btn-detect-path" class="btn btn-secondary" type="button">Detect</button>
+                                <button id="btn-detect-path" class="btn btn-secondary" type="button">Check folder</button>
                             </div>
-                            <small>Choose the root installation or its nested ComfyUI directory.</small>
+                            <small>Use the portable package folder or the folder that contains ComfyUI's main.py.</small>
                         </label>
-                        <label class="runtime-field" for="host-input"><span>Host</span><input type="text" id="host-input" value="127.0.0.1"></label>
-                        <label class="runtime-field" for="port-input"><span>Port</span><input type="number" id="port-input" value="8188" min="1" max="65535"></label>
 
                         <div id="detection-result-card" class="runtime-detection" hidden>
                             <div><span id="detection-badge" class="badge">Not checked</span><strong id="detection-summary">Installation not checked</strong></div>
@@ -243,7 +275,9 @@
                         </div>
 
                         <details class="runtime-advanced">
-                            <summary>Launch options</summary>
+                            <summary>Technical connection options</summary>
+                            <label class="runtime-field" for="host-input"><span>Host</span><input type="text" id="host-input" value="127.0.0.1"></label>
+                            <label class="runtime-field" for="port-input"><span>Port</span><input type="number" id="port-input" value="8188" min="1" max="65535"></label>
                             <label class="runtime-field runtime-field-wide" for="extra-args-input"><span>Extra arguments</span><input type="text" id="extra-args-input" placeholder="--lowvram --preview-method auto"><small>Passed to main.py after validated host and port arguments.</small></label>
                             <label class="runtime-field runtime-field-wide" for="custom-python-input"><span>Custom Python interpreter</span><input type="text" id="custom-python-input" placeholder="Automatic detection"><small>Leave empty for Windows Portable or virtual-environment discovery.</small></label>
                             <button id="btn-gen-script" class="btn btn-secondary" type="button">Generate launcher script</button>

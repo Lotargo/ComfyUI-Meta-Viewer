@@ -24,7 +24,7 @@ from .workflow_compiler import (
 )
 from .workflow_execution import WorkflowExecutionError, WorkflowExecutionService
 from .workflow_inventory import client_from_store, collect_runtime_inventory
-from .workflow_models import RuntimeInventory, WorkflowTemplate
+from .workflow_models import RuntimeInventory, WorkflowRun, WorkflowTemplate
 from .workflow_registry import (
     MAX_TEMPLATE_BUNDLE_BYTES,
     WorkflowTemplateError,
@@ -42,6 +42,23 @@ def _config_store() -> ConfigStore:
 
 def _workflow_store() -> WorkflowStore:
     return WorkflowStore()
+
+
+def _run_payloads(runs: list[WorkflowRun]) -> list[dict[str, Any]]:
+    """Serialize runs while exposing only outputs that still exist in Library."""
+    live_asset_ids = database.get_existing_asset_ids(
+        asset_id
+        for run in runs
+        for asset_id in run.output_asset_ids
+    )
+    payloads: list[dict[str, Any]] = []
+    for run in runs:
+        payload = run.model_dump(mode="json")
+        payload["output_asset_ids"] = [
+            asset_id for asset_id in run.output_asset_ids if asset_id in live_asset_ids
+        ]
+        payloads.append(payload)
+    return payloads
 
 
 def _registry() -> WorkflowTemplateRegistry:
@@ -290,7 +307,7 @@ def editor_runs():
             code="invalid_editor_request",
         ) from exc
     runs = _workflow_store().list_runs(limit=limit)
-    return jsonify({"runs": [run.model_dump(mode="json") for run in runs]})
+    return jsonify({"runs": _run_payloads(runs)})
 
 
 @editor_blueprint.route("/api/editor/runs/<int:run_id>", methods=["GET"])
@@ -300,7 +317,7 @@ def editor_run_status(run_id: int):
         client=client_from_store(_config_store(), timeout=10.0),
     )
     run = service.refresh(run_id)
-    return jsonify({"run": run.model_dump(mode="json")})
+    return jsonify({"run": _run_payloads([run])[0]})
 
 
 @editor_blueprint.route("/api/editor/runs/<int:run_id>/cancel", methods=["POST"])
@@ -310,7 +327,7 @@ def editor_cancel_run(run_id: int):
         client=client_from_store(_config_store(), timeout=10.0),
     )
     run = service.cancel(run_id)
-    return jsonify({"run": run.model_dump(mode="json")})
+    return jsonify({"run": _run_payloads([run])[0]})
 
 
 @editor_blueprint.route("/api/editor/inputs", methods=["POST"])

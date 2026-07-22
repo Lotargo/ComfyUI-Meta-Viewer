@@ -91,11 +91,14 @@ changes.
 
 Key behavior:
 
-- Form controls are generated from the selected manifest; advanced and irrelevant fields stay hidden.
+- The default path asks only for the creation type, a natural-language description, required input, and local model; dependency preflight runs automatically when the user presses Create.
+- Negative prompts, dimensions, seed, sampling, optional adapters, template selection, and raw graph preview live in a separate More settings dialog.
+- Form controls are generated from the selected manifest; advanced and irrelevant fields stay out of the primary workflow.
 - Model options come from the connected ComfyUI API, with a filesystem inventory fallback while offline.
 - Standard checkpoint bindings and multi-LoRA graph chains are compiled generically.
 - Preflight reports missing node types and missing model resources separately and rechecks compatibility before every run.
 - Drafts, runs, errors, queue state, output references, and imported asset IDs persist in SQLite.
+- Result cards are reconciled with the Library, so deleting an asset also removes it from Create while preserving the historical run record.
 - Completed image/video output is downloaded from ComfyUI, returned to the local Library, and stored with executed workflow/provenance metadata.
 - Remix copies a source asset prompt into a supported draft, uploads a reference when possible, records lineage, opens Create, and waits for manual generation.
 

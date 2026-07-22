@@ -10,13 +10,19 @@ const elements = {
     fields: byId('editor-fields'),
     advancedFields: byId('advanced-fields'),
     advancedCount: byId('advanced-count'),
+    advancedOpen: byId('advanced-settings-open'),
+    advancedDialog: byId('advanced-settings-dialog'),
     resourceSection: byId('resource-section'),
     resourceSlots: byId('resource-slots'),
     resourceCount: byId('resource-count'),
+    advancedResourceSection: byId('advanced-resource-section'),
+    advancedResourceSlots: byId('advanced-resource-slots'),
     draftStatus: byId('draft-status'),
     validationSummary: byId('validation-summary'),
     previewButton: byId('preview-workflow'),
     generateButton: byId('generate-workflow'),
+    generateLabel: byId('generate-label'),
+    generateHelp: byId('generate-help'),
     generateFromPreview: byId('generate-from-preview'),
     previewDialog: byId('workflow-preview-dialog'),
     dependencyReport: byId('dependency-report'),
@@ -104,6 +110,12 @@ const state = {
     loadingTemplate: false,
 };
 
+const ADVANCED_FIELD_IDS = new Set([
+    'negative_prompt', 'width', 'height', 'batch_size', 'seed', 'steps', 'cfg',
+    'sampler', 'scheduler', 'filename_prefix', 'denoise', 'frames', 'fps',
+    'base_steps', 'refiner_steps', 'refiner_denoise', 'format', 'codec',
+]);
+
 function escapeHtml(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -155,9 +167,8 @@ function setDraftStatus(label, mode = '') {
 
 function markDirty() {
     state.previewReady = false;
-    elements.generateButton.disabled = true;
     elements.generateFromPreview.disabled = true;
-    elements.validationSummary.innerHTML = '<span class="validation-dot neutral"></span><span>Changes need validation</span>';
+    updateValidation(null);
     setDraftStatus('Unsaved changes');
     window.clearTimeout(state.saveTimer);
     state.saveTimer = window.setTimeout(() => {
@@ -244,17 +255,18 @@ function renderTemplateNavigation() {
     elements.templateName.textContent = manifest.name;
     elements.templateMeta.textContent = `${manifest.media_type} · v${manifest.version} · ${state.selected.source}`;
     elements.templateDescription.textContent = manifest.description;
+    updateGenerateAvailability();
 }
 
 function renderFields() {
     const fields = currentManifest().fields || [];
-    const regular = fields.filter((field) => !field.advanced);
-    const advanced = fields.filter((field) => field.advanced);
+    const regular = fields.filter((field) => !field.advanced && !ADVANCED_FIELD_IDS.has(field.id));
+    const advanced = fields.filter((field) => field.advanced || ADVANCED_FIELD_IDS.has(field.id));
     elements.fields.innerHTML = renderFieldSections(regular, 1);
     elements.advancedFields.innerHTML = renderFieldSections(advanced, 0, true);
-    elements.advancedCount.textContent = `${advanced.length} control${advanced.length === 1 ? '' : 's'}`;
     bindFieldEvents(elements.fields);
     bindFieldEvents(elements.advancedFields);
+    updateAdvancedCount(advanced.length);
 }
 
 function renderFieldSections(fields, indexStart = 1, compact = false) {
@@ -265,10 +277,38 @@ function renderFieldSections(fields, indexStart = 1, compact = false) {
     }
     return [...sections.entries()].map(([section, items], index) => `
         <section class="control-section">
-            ${compact ? '' : `<div class="control-section-heading"><div><span class="control-section-index">${String(index + indexStart).padStart(2, '0')}</span><h2>${escapeHtml(section)}</h2></div><span class="control-section-note">${items.length} controls</span></div>`}
+            ${compact
+        ? `<div class="advanced-section-heading"><h3>${escapeHtml(section)}</h3></div>`
+        : `<div class="control-section-heading"><div><span class="control-section-index">${index === 0 ? 'Start here' : String(index + indexStart).padStart(2, '0')}</span><h2>${escapeHtml(friendlySectionName(section))}</h2></div></div>`}
             <div class="control-grid">${items.map(renderField).join('')}</div>
         </section>
     `).join('');
+}
+
+function friendlySectionName(section) {
+    const names = {
+        Prompt: 'Describe your idea',
+        Reference: 'Add a reference image',
+    };
+    return names[section] || section;
+}
+
+function friendlyFieldLabel(field) {
+    const labels = {
+        positive_prompt: currentManifest()?.media_type === 'video' ? 'What should happen in the video?' : 'What should the image look like?',
+        negative_prompt: 'What should be avoided?',
+        checkpoint: 'Model',
+    };
+    return labels[field.id] || field.label;
+}
+
+function friendlyResourceName(name) {
+    const baseName = String(name || '').split(/[\\/]/).pop() || String(name || '');
+    return baseName
+        .replace(/\.(safetensors|ckpt|pt|pth|bin)$/i, '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 function renderField(field) {
@@ -286,7 +326,8 @@ function renderField(field) {
     ].filter(Boolean).join(' ');
 
     if (field.kind === 'textarea') {
-        control = `<textarea id="field-${escapeHtml(field.id)}" ${attributes}>${escapeHtml(value)}</textarea>`;
+        const placeholder = field.id === 'positive_prompt' ? 'For example: a quiet cabin beside a frozen lake at sunrise…' : '';
+        control = `<textarea id="field-${escapeHtml(field.id)}" placeholder="${escapeHtml(placeholder)}" ${attributes}>${escapeHtml(value)}</textarea>`;
     } else if (field.kind === 'select') {
         control = `<select id="field-${escapeHtml(field.id)}" ${attributes}>${field.options.map((option) => `<option value="${escapeHtml(option.value)}"${String(value) === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select>`;
     } else if (field.kind === 'seed') {
@@ -298,7 +339,10 @@ function renderField(field) {
         const type = field.kind === 'number' ? 'number' : 'text';
         control = `<input id="field-${escapeHtml(field.id)}" type="${type}" value="${escapeHtml(value)}" ${attributes}>`;
     }
-    return `<label class="${classNames.join(' ')}"><span class="field-label">${escapeHtml(field.label)}${field.required ? ' *' : ''}</span>${control}${field.description ? `<small class="field-help">${escapeHtml(field.description)}</small>` : ''}</label>`;
+    const help = field.id === 'positive_prompt'
+        ? 'Use natural language. Mention the subject, mood, lighting or style you want.'
+        : field.description;
+    return `<label class="${classNames.join(' ')}"><span class="field-label">${escapeHtml(friendlyFieldLabel(field))}${field.required ? ' *' : ''}</span>${control}${help ? `<small class="field-help">${escapeHtml(help)}</small>` : ''}</label>`;
 }
 
 function bindFieldEvents(container) {
@@ -348,47 +392,65 @@ async function uploadReference(input) {
 
 function renderResources() {
     const slots = Object.entries(currentManifest().resource_slots || {});
-    elements.resourceSection.hidden = slots.length === 0;
-    elements.resourceCount.textContent = `${slots.length} slot${slots.length === 1 ? '' : 's'}`;
-    elements.resourceSlots.innerHTML = slots.map(([slotId, slot]) => renderResourceSlot(slotId, slot)).join('');
-    bindResourceEvents();
+    const requiredSlots = slots.filter(([, slot]) => slot.required);
+    const optionalSlots = slots.filter(([, slot]) => !slot.required);
+    elements.resourceSection.hidden = requiredSlots.length === 0;
+    elements.resourceCount.textContent = requiredSlots.length > 1 ? `${requiredSlots.length} required files` : 'Required';
+    elements.resourceSlots.innerHTML = requiredSlots.map(([slotId, slot]) => renderResourceSlot(slotId, slot)).join('');
+    elements.advancedResourceSection.hidden = optionalSlots.length === 0;
+    elements.advancedResourceSlots.innerHTML = optionalSlots.map(([slotId, slot]) => renderResourceSlot(slotId, slot)).join('');
+    bindResourceEvents(elements.resourceSlots);
+    bindResourceEvents(elements.advancedResourceSlots);
+    const advancedFields = (currentManifest().fields || []).filter((field) => field.advanced || ADVANCED_FIELD_IDS.has(field.id));
+    updateAdvancedCount(advancedFields.length, optionalSlots.length);
+    updateGenerateAvailability();
+}
+
+function updateAdvancedCount(fieldCount, resourceCount = null) {
+    const optionalResources = resourceCount ?? Object.values(currentManifest()?.resource_slots || {}).filter((slot) => !slot.required).length;
+    const total = fieldCount + optionalResources;
+    elements.advancedCount.textContent = String(total);
 }
 
 function renderResourceSlot(slotId, slot) {
     const options = state.selected.resource_options?.[slotId] || [];
     const kind = slot.multiple ? 'adapter' : 'model';
-    const head = `<div class="resource-card-head"><div><span class="resource-kind-icon">${iconSvg(kind)}</span><div><strong>${escapeHtml(slot.label)}</strong><small>${escapeHtml(slot.description || slot.accepts.join(', '))}</small></div></div>${slot.required ? '<span class="resource-required">Required</span>' : ''}</div>`;
+    const label = slotId.includes('checkpoint') && !slotId.includes('refiner') ? 'Model' : slot.label;
+    const description = slot.required
+        ? (slot.description || 'This local model powers the generation.')
+        : (slot.description || 'Optional style add-on.');
+    const head = `<div class="resource-card-head"><div><span class="resource-kind-icon">${iconSvg(kind)}</span><div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(description)}</small></div></div></div>`;
     if (!options.length) {
-        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="resource-card-empty">No matching resources were found in the configured installation.</div></div>`;
+        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="resource-card-empty">No compatible model was found. Open the ComfyUI connection panel to check this installation.</div></div>`;
     }
     if (slot.multiple) {
         const selections = Array.isArray(state.resources[slotId]) ? state.resources[slotId] : [];
-        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="lora-add-row"><select data-lora-option="${escapeHtml(slotId)}"><option value="">Choose an adapter…</option>${options.map((option) => `<option value="${escapeHtml(option.name)}">${escapeHtml(option.name)}</option>`).join('')}</select><button class="btn btn-secondary btn-sm" type="button" data-lora-add="${escapeHtml(slotId)}">Add</button></div><div class="lora-list">${selections.map((selection, index) => renderLora(slotId, selection, index)).join('')}</div></div>`;
+        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="lora-add-row"><select data-lora-option="${escapeHtml(slotId)}"><option value="">Choose an add-on…</option>${options.map((option) => `<option value="${escapeHtml(option.name)}">${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select><button class="btn btn-secondary btn-sm" type="button" data-lora-add="${escapeHtml(slotId)}">Add</button></div><div class="lora-list">${selections.map((selection, index) => renderLora(slotId, selection, index)).join('')}</div></div>`;
     }
     const selected = typeof state.resources[slotId] === 'string'
         ? state.resources[slotId]
         : state.resources[slotId]?.name || '';
-    return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<select data-resource-slot="${escapeHtml(slotId)}"><option value="">${slot.required ? 'Select a resource…' : 'None'}</option>${options.map((option) => `<option value="${escapeHtml(option.name)}"${selected === option.name ? ' selected' : ''}>${escapeHtml(option.name)}</option>`).join('')}</select></div>`;
+    return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<select data-resource-slot="${escapeHtml(slotId)}"><option value="">${slot.required ? 'Choose a model…' : 'None'}</option>${options.map((option) => `<option value="${escapeHtml(option.name)}"${selected === option.name ? ' selected' : ''}>${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select></div>`;
 }
 
 function renderLora(slotId, selection, index) {
     const normalized = typeof selection === 'string'
         ? { name: selection, strength_model: 1, strength_clip: 1 }
         : selection;
-    return `<div class="lora-card"><span class="lora-card-name" title="${escapeHtml(normalized.name)}">${escapeHtml(normalized.name)}</span><input type="number" min="-5" max="5" step="0.05" value="${escapeHtml(normalized.strength_model ?? 1)}" data-lora-strength="${escapeHtml(slotId)}" data-lora-index="${index}" title="Model and CLIP strength"><button class="lora-remove" type="button" data-lora-remove="${escapeHtml(slotId)}" data-lora-index="${index}" aria-label="Remove adapter">×</button></div>`;
+    return `<div class="lora-card"><span class="lora-card-name" title="${escapeHtml(normalized.name)}">${escapeHtml(friendlyResourceName(normalized.name))}</span><input type="number" min="-5" max="5" step="0.05" value="${escapeHtml(normalized.strength_model ?? 1)}" data-lora-strength="${escapeHtml(slotId)}" data-lora-index="${index}" title="Style strength"><button class="lora-remove" type="button" data-lora-remove="${escapeHtml(slotId)}" data-lora-index="${index}" aria-label="Remove add-on">×</button></div>`;
 }
 
-function bindResourceEvents() {
-    elements.resourceSlots.querySelectorAll('[data-resource-slot]').forEach((select) => {
+function bindResourceEvents(container) {
+    container.querySelectorAll('[data-resource-slot]').forEach((select) => {
         select.addEventListener('change', () => {
             state.resources[select.dataset.resourceSlot] = select.value;
             markDirty();
         });
     });
-    elements.resourceSlots.querySelectorAll('[data-lora-add]').forEach((button) => {
+    container.querySelectorAll('[data-lora-add]').forEach((button) => {
         button.addEventListener('click', () => {
             const slotId = button.dataset.loraAdd;
-            const select = elements.resourceSlots.querySelector(`[data-lora-option="${CSS.escape(slotId)}"]`);
+            const select = container.querySelector(`[data-lora-option="${CSS.escape(slotId)}"]`);
             if (!select.value) return;
             const selections = Array.isArray(state.resources[slotId]) ? [...state.resources[slotId]] : [];
             if (selections.some((item) => (typeof item === 'string' ? item : item.name) === select.value)) {
@@ -401,7 +463,7 @@ function bindResourceEvents() {
             markDirty();
         });
     });
-    elements.resourceSlots.querySelectorAll('[data-lora-remove]').forEach((button) => {
+    container.querySelectorAll('[data-lora-remove]').forEach((button) => {
         button.addEventListener('click', () => {
             const selections = [...(state.resources[button.dataset.loraRemove] || [])];
             selections.splice(Number(button.dataset.loraIndex), 1);
@@ -410,7 +472,7 @@ function bindResourceEvents() {
             markDirty();
         });
     });
-    elements.resourceSlots.querySelectorAll('[data-lora-strength]').forEach((input) => {
+    container.querySelectorAll('[data-lora-strength]').forEach((input) => {
         input.addEventListener('change', () => {
             const selections = [...(state.resources[input.dataset.loraStrength] || [])];
             const index = Number(input.dataset.loraIndex);
@@ -485,21 +547,53 @@ async function previewWorkflow({ openDialog = true } = {}) {
 
 function updateValidation(report, explicitError = '') {
     let mode = 'neutral';
-    let text = state.inventory.online ? 'Select resources to validate' : 'Runtime offline · drafts remain available';
+    const missing = requiredConfigurationIssues();
+    let text = state.inventory.online
+        ? (missing.length ? missing[0] : 'Ready to create')
+        : 'Connect ComfyUI to create';
     if (report?.ready) {
         mode = 'ready';
-        text = 'Workflow ready for ComfyUI';
+        text = 'Ready to create';
     } else if (report) {
         mode = 'error';
         const total = (report.missing_nodes?.length || 0) + (report.missing_resources?.length || 0);
-        text = total ? `${total} dependencies need attention` : (report.runtime_error || 'Runtime validation failed');
+        text = total ? 'Some required ComfyUI files are missing' : (report.runtime_error || 'ComfyUI could not validate this creation');
     } else if (explicitError) {
         mode = 'error';
         text = explicitError;
+    } else if (state.inventory.online && !missing.length) {
+        mode = 'ready';
     }
     elements.validationSummary.innerHTML = `<span class="validation-dot ${mode}"></span><span>${escapeHtml(text)}</span>`;
-    elements.generateButton.disabled = !state.previewReady;
     elements.generateFromPreview.disabled = !state.previewReady;
+    updateGenerateAvailability();
+}
+
+function requiredConfigurationIssues() {
+    if (!currentManifest()) return ['Choose what you want to create'];
+    for (const field of currentManifest().fields || []) {
+        if (field.required && (state.values[field.id] === '' || state.values[field.id] === null || state.values[field.id] === undefined)) {
+            return [`Complete “${friendlyFieldLabel(field)}”`];
+        }
+    }
+    for (const [slotId, slot] of Object.entries(currentManifest().resource_slots || {})) {
+        const value = state.resources[slotId];
+        if (slot.required && (!value || (Array.isArray(value) && !value.length))) {
+            return [`Choose ${slot.label.toLowerCase()} to continue`];
+        }
+    }
+    return [];
+}
+
+function updateGenerateAvailability() {
+    if (!elements.generateButton) return;
+    const media = currentManifest()?.media_type === 'video' ? 'video' : 'image';
+    const running = state.currentRun && ['queued', 'running'].includes(state.currentRun.status);
+    elements.generateLabel.textContent = state.inventory.online ? `Create ${media}` : 'Connect ComfyUI';
+    elements.generateHelp.textContent = state.inventory.online
+        ? `Your ${media} will be saved to Library automatically.`
+        : 'Connect your local ComfyUI once, then create from this page.';
+    elements.generateButton.disabled = !state.selected || Boolean(running);
 }
 
 function dependencyCards(report) {
@@ -517,6 +611,19 @@ function dependencyCards(report) {
 }
 
 async function generateWorkflow() {
+    if (!state.inventory.online) {
+        openRuntimeDrawer();
+        showToast('Connect or start ComfyUI first.', 'info');
+        return;
+    }
+    const missing = requiredConfigurationIssues();
+    if (missing.length) {
+        updateValidation(null, missing[0]);
+        showToast(missing[0], 'info');
+        const firstMissing = elements.fields.querySelector(':invalid') || elements.resourceSlots.querySelector('select');
+        firstMissing?.focus();
+        return;
+    }
     if (!state.previewReady) {
         const preview = await previewWorkflow({ openDialog: false });
         if (!preview?.dependencies.ready) return;
@@ -526,7 +633,7 @@ async function generateWorkflow() {
     try {
         const payload = await requestJson(`/api/editor/drafts/${state.draft.id}/run`, { method: 'POST' });
         state.currentRun = payload.run;
-        elements.previewDialog.close();
+        if (elements.previewDialog.open) elements.previewDialog.close();
         renderRunRibbon(state.currentRun);
         await loadRuns();
         startRunPolling();
@@ -534,8 +641,8 @@ async function generateWorkflow() {
     } catch (error) {
         if (error.data?.dependencies) updateValidation(error.data.dependencies);
         showToast(error.message, 'error');
-        elements.generateButton.disabled = !state.previewReady;
         elements.generateFromPreview.disabled = !state.previewReady;
+        updateGenerateAvailability();
     }
 }
 
@@ -581,9 +688,9 @@ function renderRunRibbon(run) {
     elements.cancelRun.hidden = ['completed', 'failed', 'cancelled'].includes(run.status);
     elements.queueSummary.innerHTML = `<span></span> ${['queued', 'running'].includes(run.status) ? labels[run.status] : 'Queue idle'}`;
     if (['completed', 'failed', 'cancelled'].includes(run.status)) {
-        elements.generateButton.disabled = !state.previewReady;
         elements.generateFromPreview.disabled = !state.previewReady;
     }
+    updateGenerateAvailability();
 }
 
 async function cancelCurrentRun() {
@@ -627,6 +734,12 @@ function renderResults() {
     cards.push(...nonOutputRuns.slice(0, 4).map(runHistoryCard));
     elements.resultGrid.innerHTML = cards.join('');
     elements.resultsEmpty.hidden = cards.length > 0;
+    elements.resultGrid.querySelectorAll('img, video').forEach((media) => {
+        media.addEventListener('error', () => {
+            media.closest('.result-card')?.remove();
+            elements.resultsEmpty.hidden = Boolean(elements.resultGrid.children.length);
+        }, { once: true });
+    });
 }
 
 function resultCard(run, assetId) {
@@ -638,7 +751,7 @@ function resultCard(run, assetId) {
     const media = isVideo
         ? `<video src="/api/original/${assetId}" preload="metadata" controls></video>`
         : `<img src="/api/preview/${assetId}" alt="Generated result ${assetId}" loading="lazy">`;
-    return `<article class="result-card"><div class="result-media">${media}</div><div class="result-card-meta"><div><strong>Generation #${run.id}</strong><span>Asset ${assetId} · ${escapeHtml(run.completed_at || run.updated_at)}</span></div><div class="result-card-actions"><a href="/library" title="Open library">${iconSvg('open')}</a><a href="/api/original/${assetId}" download title="Download original">${iconSvg('download')}</a></div></div></article>`;
+    return `<article class="result-card"><div class="result-media">${media}</div><div class="result-card-meta"><div><strong>Creation #${run.id}</strong><span>Saved in Library</span></div><div class="result-card-actions"><a href="/library" title="Open in Library">${iconSvg('open')}</a><a href="/api/original/${assetId}" download title="Download original">${iconSvg('download')}</a></div></div></article>`;
 }
 
 function runHistoryCard(run) {
@@ -649,6 +762,7 @@ function runHistoryCard(run) {
 function updateRuntimePresence(online) {
     state.inventory.online = Boolean(online);
     elements.offlineBanner.hidden = Boolean(online);
+    updateValidation(null);
 }
 
 function openRuntimeDrawer() {
@@ -901,6 +1015,7 @@ function bindEvents() {
         if (template) selectTemplate(template);
     });
     elements.previewButton.addEventListener('click', () => previewWorkflow());
+    elements.advancedOpen.addEventListener('click', () => elements.advancedDialog.showModal());
     elements.generateButton.addEventListener('click', generateWorkflow);
     elements.generateFromPreview.addEventListener('click', generateWorkflow);
     elements.cancelRun.addEventListener('click', cancelCurrentRun);
@@ -930,6 +1045,10 @@ function bindEvents() {
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && !elements.runtimeLayer.hidden) closeRuntimeDrawer();
     });
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') loadRuns();
+    });
+    window.addEventListener('focus', loadRuns);
     window.addEventListener('beforeunload', () => {
         window.clearTimeout(state.pollTimer);
         window.clearInterval(state.statusTimer);

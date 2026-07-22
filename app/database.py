@@ -7,7 +7,7 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from .paths import build_runtime_paths, normalize_path, portable_filename
 from .schemas import (
@@ -1526,6 +1526,28 @@ def get_asset_detail(asset_id: int) -> ImageDetail | None:
             user_metadata=user_metadata,
             ai_annotations=ai_annotations,
         )
+    finally:
+        conn.close()
+
+
+def get_existing_asset_ids(asset_ids: Iterable[int]) -> set[int]:
+    """Return the subset of asset IDs that still exists in the library."""
+    normalized = sorted({int(asset_id) for asset_id in asset_ids if int(asset_id) > 0})
+    if not normalized:
+        return set()
+
+    conn = get_conn()
+    try:
+        existing: set[int] = set()
+        for start in range(0, len(normalized), 500):
+            chunk = normalized[start:start + 500]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = conn.execute(
+                f"SELECT id FROM images WHERE id IN ({placeholders})",
+                chunk,
+            ).fetchall()
+            existing.update(int(row["id"]) for row in rows)
+        return existing
     finally:
         conn.close()
 

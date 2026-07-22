@@ -64,9 +64,14 @@ class IntentJudgeContractTest(unittest.TestCase):
 
 
 class BenchmarkDefinitionTest(unittest.TestCase):
-    def test_portrait_and_product_benchmarks_are_registered(self) -> None:
+    def test_migrated_scenario_benchmarks_are_registered(self) -> None:
         self.assertIn("flux-portrait-intent-basic", BENCHMARKS)
+        self.assertIn("flux-single-character-intent-basic", BENCHMARKS)
         self.assertIn("flux-product-intent-basic", BENCHMARKS)
+        self.assertEqual(
+            BENCHMARKS["flux-single-character-intent-basic"].task.scenario,
+            PromptScenario.SINGLE_CHARACTER,
+        )
         self.assertEqual(
             BENCHMARKS["flux-product-intent-basic"].task.scenario,
             PromptScenario.PRODUCT_OBJECT,
@@ -91,6 +96,17 @@ class BenchmarkDefinitionTest(unittest.TestCase):
                     "and a narrow rim create controlled reflections through transparent glass, pale gold liquid, and a "
                     "brushed metal cap. The bottle stands on a travertine pedestal against a seamless warm beige gradient "
                     "background, with a grounded shadow and polished minimal art direction."
+                ),
+                negative_prompt="",
+            ),
+            "flux-single-character-intent-basic": PromptResult(
+                positive_prompt=(
+                    "A single adult woman ranger stands alone in a full-body eye-level view on a narrow forest trail, "
+                    "her confident stance and steady gaze reading clearly against the mist. Practical layered clothing, "
+                    "a weathered wool cloak, leather boots, utility belt, map case, and field gear form a coherent "
+                    "travel-worn silhouette. Soft side light filters through the canopy and catches the woven fabric "
+                    "while her feet stay grounded among moss, roots, and fallen leaves with a contact shadow. Muted "
+                    "earth tones, background fog, and subtle shadowed mystery create a purposeful concept-art scene."
                 ),
                 negative_prompt="",
             ),
@@ -157,6 +173,79 @@ class PortraitIntentHeuristicTest(unittest.TestCase):
         self.assertNotIn("lexical novelty", metrics["non_trivial_expansion"].detail)
         self.assertEqual(metrics["requested_intent_coverage"].status, "warn")
         self.assertIn("premium_refined", metrics["requested_intent_coverage"].detail)
+
+
+class SingleCharacterIntentHeuristicTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.benchmark = BENCHMARKS["flux-single-character-intent-basic"]
+
+    def _metrics(self, result: PromptResult):
+        return {
+            metric.metric_id: metric
+            for metric in evaluate_intent_heuristics(self.benchmark, result)
+        }
+
+    def test_shallow_character_paraphrase_scores_low(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A single adult woman ranger shown full body on a forest trail, "
+                "practical, confident, and mysterious."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertLess(sum(metric.points for metric in metrics.values()), 65)
+        self.assertEqual(metrics["non_trivial_expansion"].status, "fail")
+        self.assertEqual(metrics["invented_lighting"].status, "fail")
+        self.assertEqual(metrics["coherent_costume"].status, "fail")
+
+    def test_coherent_full_body_character_direction_scores_high(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A single adult woman ranger pauses alone in a full-body eye-level shot on a narrow forest trail. "
+                "Her confident stance, steady gaze, and one hand holding a map create a purposeful silhouette. "
+                "Practical layered clothing, a weathered wool cloak, sturdy leather boots, a utility belt, map case, "
+                "and compact field gear show functional travel-worn design. Soft side light filters through the canopy, "
+                "drawing a restrained rim across woven fabric while her planted feet meet moss, roots, fallen leaves, "
+                "and a grounded contact shadow. Muted earth tones, shallow background fog, and shadowed tree trunks "
+                "give the photographic scene an enigmatic, quietly mysterious atmosphere."
+            ),
+            negative_prompt="",
+        )
+        metrics = evaluate_intent_heuristics(self.benchmark, result)
+        self.assertEqual(sum(metric.points for metric in metrics), 100)
+        self.assertTrue(all(metric.status == "pass" for metric in metrics))
+
+    def test_portrait_detail_does_not_replace_character_design(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A close-up portrait of an adult woman ranger in a forest, with natural skin texture, "
+                "a confident gaze, soft window light, and a mysterious expression."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["coherent_costume"].status, "fail")
+        self.assertEqual(metrics["environment_relationship"].status, "fail")
+        self.assertEqual(metrics["character_action"].status, "fail")
+
+    def test_real_mimo_result_recognizes_costume_and_visual_mystery(self) -> None:
+        result = PromptResult(
+            positive_prompt=(
+                "A full-body view of an adult female ranger standing confidently on a narrow forest trail, her "
+                "posture relaxed yet alert with one hand resting on a sheathed dagger. She wears practical leather "
+                "armor over a sturdy tunic, a hooded cloak draped over her shoulders, and weathered boots, all in "
+                "muted earth tones that blend with the environment. Dappled sunlight filters through the dense "
+                "canopy, casting soft, shifting shadows on the mossy ground and highlighting the texture of her gear "
+                "and the quiet determination in her gaze. The trail winds behind her into misty woodland depths, "
+                "framing her solitary presence against layers of ferns, tree trunks, and distant foliage."
+            ),
+            negative_prompt="",
+        )
+        metrics = self._metrics(result)
+        self.assertEqual(metrics["coherent_costume"].status, "pass")
+        self.assertEqual(metrics["requested_intent_coverage"].status, "pass")
+        self.assertEqual(sum(metric.points for metric in metrics.values()), 100)
 
 
 class ProductIntentHeuristicTest(unittest.TestCase):

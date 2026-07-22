@@ -52,6 +52,32 @@ Portrait-specific deterministic checks include:
 - subject pose, gaze, or action;
 - depth, colour, and photographic medium.
 
+### `flux-single-character-intent-basic`
+
+Raw user request:
+
+```text
+Нарисуй одного персонажа — взрослую девушку-следопыта в полный рост на лесной тропе. Образ должен быть практичным, уверенным и немного загадочным.
+```
+
+This benchmark checks full-character design rather than portrait detail. The input fixes one character, role, crop, location, and broad intent but leaves costume construction, equipment, stance, camera, lighting, terrain contact, and medium to the generator.
+
+Required intent dimensions:
+
+- `practical`;
+- `confident`;
+- `mysterious`.
+
+Single-character-specific deterministic checks include:
+
+- one adult woman ranger on a forest trail;
+- explicit single-subject intent and full-body framing;
+- motivated lighting;
+- coherent functional clothing, equipment, and materials;
+- stance, action, or gesture;
+- physical grounding in the forest environment;
+- depth, colour, and medium.
+
 ### `flux-product-intent-basic`
 
 Raw user request:
@@ -137,6 +163,15 @@ Run the product benchmark:
 .venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-product-intent-basic `
   --profile "OpenCode" `
   --json-out ".\reports\flux-product-intent.json" `
+  --debug
+```
+
+Run the single-character benchmark:
+
+```powershell
+.venv\Scripts\python.exe -m app.ai.intent_benchmark run flux-single-character-intent-basic `
+  --profile "OpenCode" `
+  --json-out ".\reports\flux-single-character-intent.json" `
   --debug
 ```
 

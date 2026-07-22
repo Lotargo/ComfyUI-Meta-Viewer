@@ -350,6 +350,180 @@ _PORTRAIT_DIRECTION = (
     "работает",
 )
 
+_SINGLE_CHARACTER_CORE = {
+    "adult": (
+        "adult",
+        "grown woman",
+        "woman in her twenties",
+        "woman in her thirties",
+        "взрослая",
+        "взрослой",
+    ),
+    "female": ("woman", "female", "young woman", "девушка", "женщина"),
+    "ranger": (
+        "ranger",
+        "tracker",
+        "scout",
+        "pathfinder",
+        "следопыт",
+        "разведчица",
+    ),
+    "single_subject": (
+        "single character",
+        "one character",
+        "solo",
+        "alone",
+        "solitary",
+        "одна героиня",
+        "один персонаж",
+        "в одиночестве",
+    ),
+    "forest_trail": (
+        "forest trail",
+        "woodland trail",
+        "forest path",
+        "woodland path",
+        "лесная тропа",
+        "лесной тропе",
+    ),
+}
+
+_SINGLE_CHARACTER_FRAMING = _CAMERA_MARKERS + (
+    "full-body",
+    "full body",
+    "head-to-toe",
+    "head to toe",
+    "wide shot",
+    "long shot",
+    "three-quarter body",
+    "entire silhouette",
+    "полный рост",
+    "в полный рост",
+    "ростовой кадр",
+)
+
+_SINGLE_CHARACTER_COSTUME = (
+    "layered clothing",
+    "leather armor",
+    "leather armour",
+    "sturdy tunic",
+    "weathered cloak",
+    "wool cloak",
+    "hooded cloak",
+    "leather boots",
+    "sturdy boots",
+    "weathered boots",
+    "utility belt",
+    "belt pouches",
+    "satchel",
+    "backpack",
+    "bracers",
+    "gloves",
+    "map case",
+    "field gear",
+    "practical clothing",
+    "worn leather",
+    "woven fabric",
+    "многослойная одежда",
+    "плащ",
+    "кожаные сапоги",
+    "прочные ботинки",
+    "поясные сумки",
+    "рюкзак",
+    "полевое снаряжение",
+)
+
+_SINGLE_CHARACTER_ACTION = (
+    "walking",
+    "striding",
+    "standing",
+    "pausing",
+    "scanning",
+    "studying tracks",
+    "reading tracks",
+    "holding a map",
+    "hand on",
+    "weight shifted",
+    "feet planted",
+    "confident stance",
+    "purposeful stance",
+    "идёт",
+    "шагает",
+    "стоит",
+    "изучает следы",
+    "держит карту",
+    "уверенная поза",
+)
+
+_SINGLE_CHARACTER_ENVIRONMENT = (
+    "moss",
+    "fern",
+    "ferns",
+    "roots",
+    "fallen leaves",
+    "mud",
+    "mist",
+    "fog",
+    "tree trunks",
+    "canopy",
+    "footprints",
+    "contact shadow",
+    "ground contact",
+    "dappled light",
+    "мох",
+    "папоротник",
+    "корни",
+    "опавшие листья",
+    "грязь",
+    "туман",
+    "стволы деревьев",
+    "следы",
+    "контактная тень",
+)
+
+_PRACTICAL_INTENT = (
+    "practical",
+    "functional",
+    "utilitarian",
+    "weather-ready",
+    "travel-worn",
+    "field-ready",
+    "sturdy",
+    "purpose-built",
+    "практич",
+    "функциональ",
+    "утилитар",
+    "походн",
+)
+
+_CONFIDENT_INTENT = (
+    "confident",
+    "self-assured",
+    "assured",
+    "steady",
+    "composed",
+    "purposeful",
+    "decisive",
+    "уверен",
+    "собран",
+    "решительн",
+)
+
+_MYSTERIOUS_INTENT = (
+    "mysterious",
+    "enigmatic",
+    "secretive",
+    "elusive",
+    "subtle mystery",
+    "veiled",
+    "shadowed",
+    "misty",
+    "fog-shrouded",
+    "partly obscured",
+    "таинствен",
+    "загадочн",
+)
+
 _PRODUCT_CORE = {
     "perfume_bottle": (
         "perfume bottle",
@@ -542,6 +716,66 @@ BENCHMARKS: dict[str, IntentBenchmark] = {
                 "тепл",
                 "камерн",
             ),
+        },
+    ),
+    "flux-single-character-intent-basic": IntentBenchmark(
+        benchmark_id="flux-single-character-intent-basic",
+        title="Short human single-character intent",
+        description=(
+            "Measures whether the model can turn a short Russian character request into "
+            "a coherent, visually specific FLUX full-body character prompt."
+        ),
+        task=PromptTask(
+            family=PromptFamily.FLUX,
+            operation=PromptOperation.GENERATE,
+            scenario=PromptScenario.SINGLE_CHARACTER,
+            modifiers=(PromptModifier.SAFE,),
+            checkpoint_profile="flux-intent-benchmark-v3-single-character",
+        ),
+        input_text=(
+            "Нарисуй одного персонажа — взрослую девушку-следопыта в полный рост "
+            "на лесной тропе. Образ должен быть практичным, уверенным и немного загадочным."
+        ),
+        core_groups=_SINGLE_CHARACTER_CORE,
+        coverage_rules=(
+            _rule(
+                "character_framing",
+                "Full-body framing or camera language",
+                _SINGLE_CHARACTER_FRAMING,
+                8,
+            ),
+            _rule("invented_lighting", "Motivated lighting", _LIGHTING_MARKERS, 8),
+            _rule(
+                "coherent_costume",
+                "Functional clothing, equipment, or material detail",
+                _SINGLE_CHARACTER_COSTUME,
+                8,
+            ),
+            _rule(
+                "character_action",
+                "Character stance, action, or gesture",
+                _SINGLE_CHARACTER_ACTION,
+                8,
+            ),
+            _rule(
+                "environment_relationship",
+                "Physical relationship to the forest environment",
+                _SINGLE_CHARACTER_ENVIRONMENT,
+                6,
+            ),
+        ),
+        expansion_groups={
+            "framing": _SINGLE_CHARACTER_FRAMING,
+            "lighting": _LIGHTING_MARKERS,
+            "costume_equipment": _SINGLE_CHARACTER_COSTUME,
+            "pose_action": _SINGLE_CHARACTER_ACTION,
+            "environment_relationship": _SINGLE_CHARACTER_ENVIRONMENT,
+            "depth_colour_medium": _DEPTH_COLOUR_MEDIUM_MARKERS,
+        },
+        required_intents={
+            "practical": _PRACTICAL_INTENT,
+            "confident": _CONFIDENT_INTENT,
+            "mysterious": _MYSTERIOUS_INTENT,
         },
     ),
     "flux-product-intent-basic": IntentBenchmark(

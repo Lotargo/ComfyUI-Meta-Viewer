@@ -118,7 +118,7 @@ class PromptCompilerTest(unittest.TestCase):
             self.compiler.compile(PromptTask(
                 family=PromptFamily.FLUX,
                 operation=PromptOperation.GENERATE,
-                scenario=PromptScenario.SINGLE_CHARACTER,
+                scenario=PromptScenario.ARCHITECTURE_INTERIOR,
             ))
 
     def test_safe_and_adult_only_are_mutually_exclusive(self) -> None:

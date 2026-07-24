@@ -738,24 +738,6 @@
     border-top: 1px solid var(--border-subtle);
 }
 
-.control-skeleton {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.control-skeleton span {
-    height: 54px;
-    border-radius: var(--radius);
-    background: linear-gradient(90deg, var(--surface), var(--surface2), var(--surface));
-    background-size: 200% 100%;
-    animation: control-shimmer 1.4s linear infinite;
-}
-
-@keyframes control-shimmer {
-    to { background-position: -200% 0; }
-}
-
 .editor-actions {
     padding: 11px 14px 13px;
     border-top: 1px solid var(--border-subtle);
@@ -2995,8 +2977,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .runtime-state-dot,
-    .run-state-icon,
-    .control-skeleton span {
+    .run-state-icon {
         animation: none !important;
     }
 

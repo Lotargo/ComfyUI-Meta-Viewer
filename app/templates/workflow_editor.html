@@ -162,7 +162,12 @@
                 <div id="validation-summary" class="validation-summary" role="status"><span class="validation-dot neutral"></span><span>Подключите ComfyUI, когда будете готовы</span></div>
                 <div class="prompt-composer">
                     <span class="prompt-spark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg></span>
-                    <div id="editor-fields" class="editor-fields" aria-live="polite"><div class="control-skeleton"><span></span><span></span></div></div>
+                    <div id="editor-fields" class="editor-fields" aria-live="polite" aria-busy="true">
+                        <label class="editor-field field-textarea field-positive">
+                            <span class="field-label">Опишите изображение *</span>
+                            <textarea id="field-positive_prompt" placeholder="Шедевр, высокое качество, кинематографичный свет, детальная сцена…" data-field-id="positive_prompt" required readonly></textarea>
+                        </label>
+                    </div>
                     <button id="generate-workflow" class="generate-button" type="button" disabled><span id="generate-label">Создать</span></button>
                 </div>
                 <p id="generate-help" class="generate-help">Результат автоматически сохранится в библиотеке.</p>

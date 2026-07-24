@@ -226,6 +226,7 @@ async function bootstrap() {
         updateRuntimePresence(state.inventory.online);
         await loadRuns();
     } catch (error) {
+        elements.fields.removeAttribute('aria-busy');
         elements.fields.innerHTML = `<div class="resource-card-empty">${escapeHtml(error.message)}</div>`;
         showToast(error.message, 'error');
     }
@@ -297,6 +298,7 @@ function renderFields() {
     const promptFields = regular.filter((field) => field.id === 'positive_prompt');
     const contextFields = regular.filter((field) => field.id !== 'positive_prompt');
     elements.fields.innerHTML = promptFields.map(renderField).join('');
+    elements.fields.removeAttribute('aria-busy');
     elements.contextFields.innerHTML = contextFields.length ? renderFieldSections(contextFields, 1) : '';
     elements.advancedFields.innerHTML = renderFieldSections(advanced, 0, true);
     bindFieldEvents(elements.fields);

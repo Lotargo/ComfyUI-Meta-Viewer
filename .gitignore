@@ -14,3 +14,4 @@ cache/previews
 .playwright-mcp
 .pytest_cache
 reports
+dev_docs/screen_editor_example

@@ -8,6 +8,7 @@ const elements = {
     templateDescription: byId('template-description'),
     sourceBanner: byId('source-draft-banner'),
     fields: byId('editor-fields'),
+    contextFields: byId('context-fields'),
     advancedFields: byId('advanced-fields'),
     advancedCount: byId('advanced-count'),
     advancedOpen: byId('advanced-settings-open'),
@@ -62,6 +63,15 @@ const elements = {
     sourceReport: byId('source-workflow-report'),
     sourceJson: byId('source-workflow-json'),
     toastContainer: byId('toast-container'),
+    resetEditor: byId('reset-editor'),
+    saveNote: byId('save-note'),
+    collapseControls: byId('collapse-controls'),
+    resultsSearch: byId('results-search'),
+    batchPrompt: byId('batch-prompt'),
+    batchSizeMeta: byId('batch-size-meta'),
+    sizeSummary: byId('size-summary'),
+    aspectQuickControl: byId('aspect-quick-control'),
+    batchQuickControl: byId('batch-quick-control'),
 };
 
 const runtimeElements = {
@@ -170,6 +180,7 @@ function markDirty() {
     elements.generateFromPreview.disabled = true;
     updateValidation(null);
     setDraftStatus('Unsaved changes');
+    updateWorkspaceSummary();
     window.clearTimeout(state.saveTimer);
     state.saveTimer = window.setTimeout(() => {
         saveDraft().catch(() => {});
@@ -233,6 +244,7 @@ function selectTemplate(template, { preserveDraft = false } = {}) {
     renderTemplateNavigation();
     renderFields();
     renderResources();
+    syncQuickControls();
     renderSourceBanner();
     updateValidation(null);
     setDraftStatus(state.draft ? `Draft #${state.draft.id}` : 'New draft');
@@ -248,25 +260,51 @@ function renderTemplateNavigation() {
         tab.setAttribute('aria-selected', active ? 'true' : 'false');
         tab.hidden = !categories.includes(tab.dataset.category);
     });
-    const sameCategory = state.templates.filter((item) => item.manifest.category === manifest.category);
-    elements.templateSelect.innerHTML = sameCategory
-        .map((item) => `<option value="${escapeHtml(item.manifest.id)}"${item.manifest.id === manifest.id ? ' selected' : ''}>${escapeHtml(item.manifest.name)}</option>`)
+    elements.templateSelect.innerHTML = state.templates
+        .map((item) => `<option value="${escapeHtml(item.manifest.id)}"${item.manifest.id === manifest.id ? ' selected' : ''}>${escapeHtml(friendlyTemplateName(item.manifest))}</option>`)
         .join('');
-    elements.templateName.textContent = manifest.name;
+    elements.templateName.textContent = friendlyTemplateName(manifest);
     elements.templateMeta.textContent = `${manifest.media_type} · v${manifest.version} · ${state.selected.source}`;
-    elements.templateDescription.textContent = manifest.description;
+    elements.templateDescription.textContent = friendlyTemplateDescription(manifest);
+    byId('controls-title').textContent = manifest.media_type === 'video' ? 'Видео' : manifest.category === 'reference' ? 'Ремикс' : 'Изображение';
     updateGenerateAvailability();
+}
+
+function friendlyTemplateName(manifest) {
+    const names = {
+        'core-image': 'Базовое изображение',
+        'core-reference': 'Ремикс по изображению',
+        'core-video': 'Видео Hunyuan',
+        'core-two-stage': 'Двухэтапная детализация',
+    };
+    return names[manifest.id] || manifest.name;
+}
+
+function friendlyTemplateDescription(manifest) {
+    const descriptions = {
+        'core-image': 'Универсальный text-to-image workflow на стандартных узлах ComfyUI.',
+        'core-reference': 'Переосмысление загруженного изображения с управляемой силой изменений.',
+        'core-video': 'Локальная генерация короткого видео через Hunyuan Video.',
+        'core-two-stage': 'Базовая генерация и отдельный проход рефайнера для высокой детализации.',
+    };
+    return descriptions[manifest.id] || manifest.description;
 }
 
 function renderFields() {
     const fields = currentManifest().fields || [];
     const regular = fields.filter((field) => !field.advanced && !ADVANCED_FIELD_IDS.has(field.id));
     const advanced = fields.filter((field) => field.advanced || ADVANCED_FIELD_IDS.has(field.id));
-    elements.fields.innerHTML = renderFieldSections(regular, 1);
+    const promptFields = regular.filter((field) => field.id === 'positive_prompt');
+    const contextFields = regular.filter((field) => field.id !== 'positive_prompt');
+    elements.fields.innerHTML = promptFields.map(renderField).join('');
+    elements.contextFields.innerHTML = contextFields.length ? renderFieldSections(contextFields, 1) : '';
     elements.advancedFields.innerHTML = renderFieldSections(advanced, 0, true);
     bindFieldEvents(elements.fields);
+    bindFieldEvents(elements.contextFields);
     bindFieldEvents(elements.advancedFields);
     updateAdvancedCount(advanced.length);
+    syncQuickControls();
+    updateWorkspaceSummary();
 }
 
 function renderFieldSections(fields, indexStart = 1, compact = false) {
@@ -295,9 +333,18 @@ function friendlySectionName(section) {
 
 function friendlyFieldLabel(field) {
     const labels = {
-        positive_prompt: currentManifest()?.media_type === 'video' ? 'What should happen in the video?' : 'What should the image look like?',
-        negative_prompt: 'What should be avoided?',
-        checkpoint: 'Model',
+        positive_prompt: currentManifest()?.media_type === 'video' ? 'Что должно происходить в видео?' : 'Опишите изображение',
+        negative_prompt: 'Негативный промпт',
+        reference_image: 'Исходное изображение',
+        width: 'Ширина',
+        height: 'Высота',
+        batch_size: 'Количество изображений',
+        seed: 'Фиксированное зерно',
+        steps: 'Шаги сэмплирования',
+        cfg: 'Сила промпта (CFG)',
+        sampler: 'Сэмплер',
+        scheduler: 'Диспетчер',
+        filename_prefix: 'Префикс файла',
     };
     return labels[field.id] || field.label;
 }
@@ -326,7 +373,7 @@ function renderField(field) {
     ].filter(Boolean).join(' ');
 
     if (field.kind === 'textarea') {
-        const placeholder = field.id === 'positive_prompt' ? 'For example: a quiet cabin beside a frozen lake at sunrise…' : '';
+        const placeholder = field.id === 'positive_prompt' ? 'Шедевр, высокое качество, кинематографичный свет, детальная сцена…' : 'low quality, blurry, artifacts…';
         control = `<textarea id="field-${escapeHtml(field.id)}" placeholder="${escapeHtml(placeholder)}" ${attributes}>${escapeHtml(value)}</textarea>`;
     } else if (field.kind === 'select') {
         control = `<select id="field-${escapeHtml(field.id)}" ${attributes}>${field.options.map((option) => `<option value="${escapeHtml(option.value)}"${String(value) === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select>`;
@@ -339,9 +386,7 @@ function renderField(field) {
         const type = field.kind === 'number' ? 'number' : 'text';
         control = `<input id="field-${escapeHtml(field.id)}" type="${type}" value="${escapeHtml(value)}" ${attributes}>`;
     }
-    const help = field.id === 'positive_prompt'
-        ? 'Use natural language. Mention the subject, mood, lighting or style you want.'
-        : field.description;
+    const help = field.id === 'positive_prompt' ? '' : field.description;
     return `<label class="${classNames.join(' ')}"><span class="field-label">${escapeHtml(friendlyFieldLabel(field))}${field.required ? ' *' : ''}</span>${control}${help ? `<small class="field-help">${escapeHtml(help)}</small>` : ''}</label>`;
 }
 
@@ -352,6 +397,7 @@ function bindFieldEvents(container) {
             state.values[input.dataset.fieldId] = field?.kind === 'number' || field?.kind === 'seed'
                 ? (input.value === '' ? null : Number(input.value))
                 : input.value;
+            syncQuickControls();
             markDirty();
         });
     });
@@ -395,7 +441,7 @@ function renderResources() {
     const requiredSlots = slots.filter(([, slot]) => slot.required);
     const optionalSlots = slots.filter(([, slot]) => !slot.required);
     elements.resourceSection.hidden = requiredSlots.length === 0;
-    elements.resourceCount.textContent = requiredSlots.length > 1 ? `${requiredSlots.length} required files` : 'Required';
+    elements.resourceCount.textContent = requiredSlots.length > 1 ? `${requiredSlots.length} модели` : 'Обязательно';
     elements.resourceSlots.innerHTML = requiredSlots.map(([slotId, slot]) => renderResourceSlot(slotId, slot)).join('');
     elements.advancedResourceSection.hidden = optionalSlots.length === 0;
     elements.advancedResourceSlots.innerHTML = optionalSlots.map(([slotId, slot]) => renderResourceSlot(slotId, slot)).join('');
@@ -412,25 +458,119 @@ function updateAdvancedCount(fieldCount, resourceCount = null) {
     elements.advancedCount.textContent = String(total);
 }
 
+function updateWorkspaceSummary() {
+    const prompt = String(state.values.positive_prompt || '').trim();
+    if (elements.batchPrompt) elements.batchPrompt.textContent = prompt || 'Новые результаты появятся здесь после генерации';
+    const width = state.values.width;
+    const height = state.values.height;
+    const size = width && height ? `${width} × ${height}` : currentManifest()?.media_type === 'video' ? 'Видео' : 'Размер workflow';
+    if (elements.sizeSummary) elements.sizeSummary.textContent = size;
+    if (elements.batchSizeMeta) elements.batchSizeMeta.textContent = width && height ? `${size} px` : size;
+}
+
+function syncQuickControls() {
+    if (!currentManifest()) return;
+    const fieldIds = new Set((currentManifest().fields || []).map((field) => field.id));
+    const hasSize = fieldIds.has('width') && fieldIds.has('height');
+    const hasBatch = fieldIds.has('batch_size');
+    if (elements.aspectQuickControl) elements.aspectQuickControl.hidden = !hasSize;
+    if (elements.batchQuickControl) elements.batchQuickControl.hidden = !hasBatch;
+    document.querySelectorAll('[data-aspect-grid] [data-width]').forEach((button) => {
+        button.classList.toggle('active', Number(button.dataset.width) === Number(state.values.width) && Number(button.dataset.height) === Number(state.values.height));
+    });
+    document.querySelectorAll('[data-batch-grid] [data-batch]').forEach((button) => {
+        button.classList.toggle('active', Number(button.dataset.batch) === Number(state.values.batch_size));
+    });
+    const defaultSteps = Number(state.selected?.defaults?.steps ?? 28);
+    document.querySelectorAll('[data-quick-mode] [data-mode]').forEach((button) => {
+        const quality = Number(state.values.steps) > defaultSteps;
+        button.classList.toggle('active', button.dataset.mode === (quality ? 'quality' : 'standard'));
+    });
+    updateWorkspaceSummary();
+}
+
+function resetEditor() {
+    if (!state.selected) return;
+    state.values = { ...state.selected.defaults };
+    state.resources = defaultResourceSelections(state.selected);
+    renderFields();
+    renderResources();
+    markDirty();
+    showToast('Настройки возвращены к значениям workflow.', 'info');
+}
+
+function accordionPanel(details) {
+    return details.id === 'additional-settings'
+        ? details.querySelector(':scope > .advanced-resource-section')
+        : details.querySelector(':scope > .advanced-settings-scroll');
+}
+
+function positionAccordionFlyout(details) {
+    if (!details?.open) return;
+    const panel = accordionPanel(details);
+    if (!panel || panel.hidden) return;
+    const rect = details.getBoundingClientRect();
+    const gutter = 8;
+    panel.style.left = `${Math.round(rect.left)}px`;
+    panel.style.width = `${Math.round(rect.width)}px`;
+    panel.style.top = 'auto';
+    panel.style.bottom = 'auto';
+    if (details.id === 'advanced-settings-dialog') {
+        panel.style.bottom = `${Math.round(window.innerHeight - rect.top + gutter)}px`;
+        panel.style.maxHeight = `${Math.max(220, Math.round(rect.top - gutter * 2))}px`;
+    } else {
+        const spaceBelow = window.innerHeight - rect.bottom - gutter * 2;
+        if (spaceBelow >= 260) {
+            panel.style.top = `${Math.round(rect.bottom + gutter)}px`;
+            panel.style.maxHeight = `${Math.round(spaceBelow)}px`;
+        } else {
+            panel.style.bottom = `${Math.round(window.innerHeight - rect.top + gutter)}px`;
+            panel.style.maxHeight = `${Math.max(180, Math.round(rect.top - gutter * 2))}px`;
+        }
+    }
+}
+
+function bindAccordionFlyouts() {
+    const accordions = [...document.querySelectorAll('.editor-controls > .controls-scroll .sidebar-accordion')];
+    const reposition = () => accordions.filter((details) => details.open).forEach(positionAccordionFlyout);
+    accordions.forEach((details) => {
+        details.addEventListener('toggle', () => {
+            if (!details.open) return;
+            accordions.forEach((other) => {
+                if (other !== details) other.open = false;
+            });
+            window.requestAnimationFrame(() => positionAccordionFlyout(details));
+        });
+    });
+    document.addEventListener('pointerdown', (event) => {
+        accordions.forEach((details) => {
+            if (details.open && !details.contains(event.target)) details.open = false;
+        });
+    });
+    window.addEventListener('resize', reposition);
+    document.querySelector('.controls-scroll')?.addEventListener('scroll', reposition, { passive: true });
+    reposition();
+}
+
 function renderResourceSlot(slotId, slot) {
     const options = state.selected.resource_options?.[slotId] || [];
     const kind = slot.multiple ? 'adapter' : 'model';
-    const label = slotId.includes('checkpoint') && !slotId.includes('refiner') ? 'Model' : slot.label;
+    const label = slotId.includes('checkpoint') && !slotId.includes('refiner') ? 'Модель' : slot.label;
     const description = slot.required
-        ? (slot.description || 'This local model powers the generation.')
-        : (slot.description || 'Optional style add-on.');
+        ? (slot.description || 'Локальная модель для генерации.')
+        : (slot.description || 'Дополнительный стилевой адаптер.');
     const head = `<div class="resource-card-head"><div><span class="resource-kind-icon">${iconSvg(kind)}</span><div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(description)}</small></div></div></div>`;
     if (!options.length) {
-        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="resource-card-empty">No compatible model was found. Open the ComfyUI connection panel to check this installation.</div></div>`;
+        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="resource-card-empty">Совместимые модели не найдены. Проверьте подключение и папку ComfyUI.</div></div>`;
     }
     if (slot.multiple) {
         const selections = Array.isArray(state.resources[slotId]) ? state.resources[slotId] : [];
-        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="lora-add-row"><select data-lora-option="${escapeHtml(slotId)}"><option value="">Choose an add-on…</option>${options.map((option) => `<option value="${escapeHtml(option.name)}">${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select><button class="btn btn-secondary btn-sm" type="button" data-lora-add="${escapeHtml(slotId)}">Add</button></div><div class="lora-list">${selections.map((selection, index) => renderLora(slotId, selection, index)).join('')}</div></div>`;
+        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="lora-add-row"><select data-lora-option="${escapeHtml(slotId)}"><option value="">Выберите LoRA…</option>${options.map((option) => `<option value="${escapeHtml(option.name)}">${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select><button class="btn btn-secondary btn-sm" type="button" data-lora-add="${escapeHtml(slotId)}">Добавить</button></div><div class="lora-list">${selections.map((selection, index) => renderLora(slotId, selection, index)).join('')}</div></div>`;
     }
     const selected = typeof state.resources[slotId] === 'string'
         ? state.resources[slotId]
         : state.resources[slotId]?.name || '';
-    return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<select data-resource-slot="${escapeHtml(slotId)}"><option value="">${slot.required ? 'Choose a model…' : 'None'}</option>${options.map((option) => `<option value="${escapeHtml(option.name)}"${selected === option.name ? ' selected' : ''}>${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select></div>`;
+    return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<select data-resource-slot="${escapeHtml(slotId)}"><option value="">${slot.required ? 'Выберите модель…' : 'Нет'}</option>${options.map((option) => `<option value="${escapeHtml(option.name)}"${selected === option.name ? ' selected' : ''}>${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select></div>`;
 }
 
 function renderLora(slotId, selection, index) {
@@ -549,15 +689,15 @@ function updateValidation(report, explicitError = '') {
     let mode = 'neutral';
     const missing = requiredConfigurationIssues();
     let text = state.inventory.online
-        ? (missing.length ? missing[0] : 'Ready to create')
-        : 'Connect ComfyUI to create';
+        ? (missing.length ? missing[0] : 'Готово к генерации')
+        : 'Подключите ComfyUI для генерации';
     if (report?.ready) {
         mode = 'ready';
-        text = 'Ready to create';
+        text = 'Готово к генерации';
     } else if (report) {
         mode = 'error';
         const total = (report.missing_nodes?.length || 0) + (report.missing_resources?.length || 0);
-        text = total ? 'Some required ComfyUI files are missing' : (report.runtime_error || 'ComfyUI could not validate this creation');
+        text = total ? 'Не хватает обязательных файлов ComfyUI' : (report.runtime_error || 'ComfyUI не смогла проверить workflow');
     } else if (explicitError) {
         mode = 'error';
         text = explicitError;
@@ -570,16 +710,17 @@ function updateValidation(report, explicitError = '') {
 }
 
 function requiredConfigurationIssues() {
-    if (!currentManifest()) return ['Choose what you want to create'];
+    if (!currentManifest()) return ['Выберите тип генерации'];
     for (const field of currentManifest().fields || []) {
         if (field.required && (state.values[field.id] === '' || state.values[field.id] === null || state.values[field.id] === undefined)) {
-            return [`Complete “${friendlyFieldLabel(field)}”`];
+            return [`Заполните «${friendlyFieldLabel(field)}»`];
         }
     }
     for (const [slotId, slot] of Object.entries(currentManifest().resource_slots || {})) {
         const value = state.resources[slotId];
         if (slot.required && (!value || (Array.isArray(value) && !value.length))) {
-            return [`Choose ${slot.label.toLowerCase()} to continue`];
+            const label = slotId.includes('checkpoint') ? 'модель' : slot.label.toLowerCase();
+            return [`Выберите ${label}, чтобы продолжить`];
         }
     }
     return [];
@@ -589,10 +730,10 @@ function updateGenerateAvailability() {
     if (!elements.generateButton) return;
     const media = currentManifest()?.media_type === 'video' ? 'video' : 'image';
     const running = state.currentRun && ['queued', 'running'].includes(state.currentRun.status);
-    elements.generateLabel.textContent = state.inventory.online ? `Create ${media}` : 'Connect ComfyUI';
+    elements.generateLabel.textContent = state.inventory.online ? (media === 'video' ? 'Создать видео' : 'Создать') : 'Подключить';
     elements.generateHelp.textContent = state.inventory.online
-        ? `Your ${media} will be saved to Library automatically.`
-        : 'Connect your local ComfyUI once, then create from this page.';
+        ? 'Результат автоматически сохранится в библиотеке.'
+        : 'Подключите локальную ComfyUI, чтобы запустить генерацию.';
     elements.generateButton.disabled = !state.selected || Boolean(running);
 }
 
@@ -751,7 +892,7 @@ function resultCard(run, assetId) {
     const media = isVideo
         ? `<video src="/api/original/${assetId}" preload="metadata" controls></video>`
         : `<img src="/api/preview/${assetId}" alt="Generated result ${assetId}" loading="lazy">`;
-    return `<article class="result-card"><div class="result-media">${media}</div><div class="result-card-meta"><div><strong>Creation #${run.id}</strong><span>Saved in Library</span></div><div class="result-card-actions"><a href="/library" title="Open in Library">${iconSvg('open')}</a><a href="/api/original/${assetId}" download title="Download original">${iconSvg('download')}</a></div></div></article>`;
+    return `<article class="result-card" data-result-search="generation ${run.id}"><div class="result-media">${media}<span class="result-status" title="Сохранено в библиотеке">✓</span><div class="result-card-actions"><a href="/api/original/${assetId}" download title="Скачать">${iconSvg('download')}</a><a href="/library" title="Открыть в библиотеке">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Генерация #${run.id}</strong><span>В библиотеке</span></div></article>`;
 }
 
 function runHistoryCard(run) {
@@ -870,7 +1011,7 @@ function renderRuntimeStatus(data) {
         : data.mode === 'external'
             ? 'External ComfyUI API connected'
             : (data.last_error || 'No process running');
-    elements.runtimeHeaderStatus.textContent = data.online ? 'ComfyUI connected' : title;
+    elements.runtimeHeaderStatus.textContent = 'ComfyUI';
     elements.runtimeHeaderDetail.textContent = data.online ? detail : 'Open runtime setup';
     elements.runtimeDrawerStatus.textContent = title;
     elements.runtimeDrawerDetail.textContent = detail;
@@ -1004,6 +1145,7 @@ async function inspectSourceWorkflow() {
 }
 
 function bindEvents() {
+    bindAccordionFlyouts();
     elements.categoryTabs.addEventListener('click', (event) => {
         const button = event.target.closest('[data-category]');
         if (!button || button.dataset.category === currentManifest()?.category) return;
@@ -1015,7 +1157,6 @@ function bindEvents() {
         if (template) selectTemplate(template);
     });
     elements.previewButton.addEventListener('click', () => previewWorkflow());
-    elements.advancedOpen.addEventListener('click', () => elements.advancedDialog.showModal());
     elements.generateButton.addEventListener('click', generateWorkflow);
     elements.generateFromPreview.addEventListener('click', generateWorkflow);
     elements.cancelRun.addEventListener('click', cancelCurrentRun);
@@ -1032,6 +1173,57 @@ function bindEvents() {
     });
     elements.importForm.addEventListener('submit', importTemplate);
     elements.sourceInspect.addEventListener('click', inspectSourceWorkflow);
+    elements.resetEditor.addEventListener('click', resetEditor);
+    elements.saveNote.addEventListener('click', async () => {
+        try {
+            await saveDraft();
+            showToast('Черновик сохранён.', 'success');
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    });
+    elements.collapseControls.addEventListener('click', () => {
+        const collapsed = document.body.classList.toggle('controls-collapsed');
+        elements.collapseControls.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
+    document.querySelectorAll('[data-ui-choice]').forEach((group) => group.addEventListener('click', (event) => {
+        const button = event.target.closest('button');
+        if (!button) return;
+        group.querySelectorAll('button').forEach((item) => item.classList.toggle('active', item === button));
+    }));
+    document.querySelector('[data-aspect-grid]')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-width]');
+        if (!button) return;
+        state.values.width = Number(button.dataset.width);
+        state.values.height = Number(button.dataset.height);
+        renderFields();
+        markDirty();
+    });
+    document.querySelector('[data-batch-grid]')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-batch]');
+        if (!button) return;
+        state.values.batch_size = Number(button.dataset.batch);
+        renderFields();
+        markDirty();
+    });
+    document.querySelector('[data-quick-mode]')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-mode]');
+        if (!button || !currentManifest()?.fields?.some((field) => field.id === 'steps')) return;
+        const defaultSteps = Number(state.selected?.defaults?.steps ?? 28);
+        state.values.steps = button.dataset.mode === 'quality' ? Math.max(defaultSteps + 12, 40) : defaultSteps;
+        renderFields();
+        markDirty();
+    });
+    document.querySelector('[data-open-advanced]')?.addEventListener('click', () => {
+        elements.advancedDialog.open = true;
+        elements.advancedDialog.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    elements.resultsSearch.addEventListener('input', () => {
+        const query = elements.resultsSearch.value.trim().toLowerCase();
+        elements.resultGrid.querySelectorAll('[data-result-search]').forEach((card) => {
+            card.hidden = query && !card.dataset.resultSearch.includes(query);
+        });
+    });
     runtimeElements.save.addEventListener('click', saveRuntimeConfig);
     runtimeElements.detect.addEventListener('click', () => detectRuntime());
     runtimeElements.refresh.addEventListener('click', () => updateRuntimeStatus(true));

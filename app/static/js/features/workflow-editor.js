@@ -132,6 +132,8 @@ const state = {
     customResolutionOpen: false,
     aspectRatioLocked: true,
     lockedAspectRatio: 1,
+    samplingMode: 'recommended',
+    advancedFieldMemory: {},
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -147,6 +149,11 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+function helpIcon(text) {
+    const label = escapeHtml(text);
+    return `<span class="help-icon" role="img" tabindex="0" aria-label="${label}" data-tooltip="${label}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.25 9.1a2.9 2.9 0 1 1 5.55 1.2c-.45 1.25-1.65 1.6-2.35 2.35-.35.38-.45.78-.45 1.35"/><path d="M12 17.25h.01"/></svg></span>`;
 }
 
 async function requestJson(url, options = {}) {
@@ -258,6 +265,11 @@ function selectTemplate(template, { preserveDraft = false } = {}) {
     if (Number(state.values.width) > 0 && Number(state.values.height) > 0) {
         state.lockedAspectRatio = Number(state.values.width) / Number(state.values.height);
     }
+    state.samplingMode = 'recommended';
+    state.advancedFieldMemory = {
+        negative_prompt: state.values.negative_prompt || template.defaults.negative_prompt || '',
+        seed: Number(state.values.seed) >= 0 ? Number(state.values.seed) : 0,
+    };
     state.previewReady = false;
     renderTemplateNavigation();
     renderFields();
@@ -317,10 +329,11 @@ function renderFields() {
     elements.fields.innerHTML = promptFields.map(renderField).join('');
     elements.fields.removeAttribute('aria-busy');
     elements.contextFields.innerHTML = contextFields.length ? renderFieldSections(contextFields, 1) : '';
-    elements.advancedFields.innerHTML = renderFieldSections(advanced, 0, true);
+    elements.advancedFields.innerHTML = renderAdvancedConfiguration(advanced);
     bindFieldEvents(elements.fields);
     bindFieldEvents(elements.contextFields);
     bindFieldEvents(elements.advancedFields);
+    bindAdvancedConfigurationEvents(elements.advancedFields);
     updateAdvancedCount(advanced.length);
     syncQuickControls();
     updateWorkspaceSummary();
@@ -340,6 +353,133 @@ function renderFieldSections(fields, indexStart = 1, compact = false) {
             <div class="control-grid">${items.map(renderField).join('')}</div>
         </section>
     `).join('');
+}
+
+function samplingPresetLabel(sampler, scheduler) {
+    const suffix = scheduler.value === 'normal' ? '' : ` ${scheduler.label}`;
+    return `${sampler.label}${suffix}`;
+}
+
+function availableSamplingPresets(samplerField, schedulerField) {
+    if (!samplerField || !schedulerField) return [];
+    const samplers = new Map((samplerField.options || []).map((option) => [option.value, option]));
+    const schedulers = new Map((schedulerField.options || []).map((option) => [option.value, option]));
+    const preferredPairs = [
+        ['dpmpp_2m', 'karras'],
+        ['dpmpp_2m_sde', 'karras'],
+        ['dpmpp_2m', 'normal'],
+        ['dpmpp_2m_sde', 'normal'],
+        ['euler', 'normal'],
+        ['euler_ancestral', 'normal'],
+        ['euler', 'karras'],
+    ];
+    const currentPair = [String(state.values.sampler || ''), String(state.values.scheduler || '')];
+    const pairs = [currentPair, ...preferredPairs];
+    for (const sampler of samplers.keys()) {
+        pairs.push([sampler, schedulers.has('karras') ? 'karras' : schedulers.keys().next().value]);
+    }
+
+    const seen = new Set();
+    return pairs.flatMap(([samplerId, schedulerId]) => {
+        const sampler = samplers.get(samplerId);
+        const scheduler = schedulers.get(schedulerId);
+        const value = `${samplerId}::${schedulerId}`;
+        if (!sampler || !scheduler || seen.has(value)) return [];
+        seen.add(value);
+        return [{
+            value,
+            sampler: samplerId,
+            scheduler: schedulerId,
+            label: samplingPresetLabel(sampler, scheduler),
+        }];
+    });
+}
+
+function renderAdvancedRange(field) {
+    const value = state.values[field.id] ?? field.default ?? field.minimum ?? 0;
+    const attributes = [
+        `min="${escapeHtml(field.minimum ?? 0)}"`,
+        `max="${escapeHtml(field.maximum ?? 100)}"`,
+        `step="${escapeHtml(field.step ?? 1)}"`,
+        `value="${escapeHtml(value)}"`,
+        `data-field-id="${escapeHtml(field.id)}"`,
+    ].join(' ');
+    return `
+        <div class="advanced-range-control">
+            <span class="advanced-control-label">${escapeHtml(friendlyFieldLabel(field))}${helpIcon('Количество итераций обработки. Больше шагов обычно повышает детализацию, но увеличивает время генерации.')}</span>
+            <div class="advanced-range-row">
+                <input class="advanced-range" type="range" aria-label="${escapeHtml(friendlyFieldLabel(field))}" ${attributes}>
+                <input class="advanced-range-value" type="number" aria-label="${escapeHtml(friendlyFieldLabel(field))}, точное значение" ${attributes}>
+            </div>
+        </div>
+    `;
+}
+
+function renderAdvancedToggle(field, title, help) {
+    const enabled = field.id === 'seed'
+        ? Number(state.values[field.id]) >= 0
+        : Boolean(String(state.values[field.id] || '').trim());
+    return `
+        <div class="advanced-toggle-control${enabled ? ' is-enabled' : ''}">
+            <label class="advanced-switch-row">
+                <span class="advanced-control-label">${escapeHtml(title)}${helpIcon(help)}</span>
+                <input type="checkbox" data-advanced-toggle="${escapeHtml(field.id)}"${enabled ? ' checked' : ''}>
+                <span class="advanced-switch" aria-hidden="true"></span>
+            </label>
+            ${enabled ? `<div class="advanced-toggle-detail">${renderField(field)}</div>` : ''}
+        </div>
+    `;
+}
+
+function renderAdvancedConfiguration(fields) {
+    const byFieldId = new Map(fields.map((field) => [field.id, field]));
+    const samplerField = byFieldId.get('sampler');
+    const schedulerField = byFieldId.get('scheduler');
+    const stepsField = byFieldId.get('steps');
+    const negativeField = byFieldId.get('negative_prompt');
+    const seedField = byFieldId.get('seed');
+    const presets = availableSamplingPresets(samplerField, schedulerField);
+    const currentPreset = `${state.values.sampler || ''}::${state.values.scheduler || ''}`;
+    const selectedPreset = presets.some((preset) => preset.value === currentPreset)
+        ? currentPreset
+        : presets[0]?.value;
+    const customMode = state.samplingMode === 'custom';
+    const mirroredFields = new Set([
+        'width', 'height', 'batch_size', 'sampler', 'scheduler', 'steps', 'negative_prompt', 'seed',
+    ]);
+    const extraFields = fields.filter((field) => !mirroredFields.has(field.id));
+
+    return `
+        <div class="advanced-config-card">
+            ${samplerField && schedulerField ? `
+                <div class="advanced-sampling-control">
+                    <span class="advanced-control-label">Метод сэмплирования${helpIcon('Выберите готовую связку сэмплера и расписания либо настройте оба параметра вручную.')}</span>
+                    <div class="advanced-mode-switch" role="group" aria-label="Режим настройки семплера">
+                        <button type="button" data-sampling-mode="recommended"${customMode ? '' : ' class="active"'}>Рекомендуемые</button>
+                        <button type="button" data-sampling-mode="custom"${customMode ? ' class="active"' : ''}>Настройка</button>
+                    </div>
+                    <div class="advanced-recommended-sampling"${customMode ? ' hidden' : ''}>
+                        <select data-sampling-preset aria-label="Рекомендуемый метод сэмплирования">
+                            ${presets.map((preset) => `<option value="${escapeHtml(preset.value)}"${preset.value === selectedPreset ? ' selected' : ''}>${escapeHtml(preset.label)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="advanced-custom-sampling"${customMode ? '' : ' hidden'}>
+                        <label><span>Сэмплер</span>${renderFieldControl(samplerField)}</label>
+                        <label><span>Диспетчер</span>${renderFieldControl(schedulerField)}</label>
+                    </div>
+                </div>
+            ` : ''}
+            ${stepsField ? renderAdvancedRange(stepsField) : ''}
+            ${negativeField ? renderAdvancedToggle(negativeField, 'Негативная метка', 'Опишите элементы и дефекты, которых не должно быть в результате.') : ''}
+            ${seedField ? renderAdvancedToggle(seedField, 'Фиксированное зерно', 'Сохраняет конкретный seed, чтобы генерацию можно было воспроизвести повторно.') : ''}
+            ${extraFields.length ? `
+                <details class="advanced-extra-fields">
+                    <summary>Дополнительные параметры<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg></summary>
+                    <div class="advanced-extra-grid">${extraFields.map(renderField).join('')}</div>
+                </details>
+            ` : ''}
+        </div>
+    `;
 }
 
 function friendlySectionName(section) {
@@ -377,11 +517,8 @@ function friendlyResourceName(name) {
         .trim();
 }
 
-function renderField(field) {
+function renderFieldControl(field) {
     const value = state.values[field.id] ?? '';
-    const classNames = ['editor-field', `field-${field.kind}`];
-    if (field.id === 'positive_prompt') classNames.push('field-positive');
-    if (field.id === 'negative_prompt') classNames.push('field-negative');
     let control;
     const attributes = [
         `data-field-id="${escapeHtml(field.id)}"`,
@@ -405,6 +542,14 @@ function renderField(field) {
         const type = field.kind === 'number' ? 'number' : 'text';
         control = `<input id="field-${escapeHtml(field.id)}" type="${type}" value="${escapeHtml(value)}" ${attributes}>`;
     }
+    return control;
+}
+
+function renderField(field) {
+    const classNames = ['editor-field', `field-${field.kind}`];
+    if (field.id === 'positive_prompt') classNames.push('field-positive');
+    if (field.id === 'negative_prompt') classNames.push('field-negative');
+    const control = renderFieldControl(field);
     const help = field.id === 'positive_prompt' ? '' : field.description;
     return `<label class="${classNames.join(' ')}"><span class="field-label">${escapeHtml(friendlyFieldLabel(field))}${field.required ? ' *' : ''}</span>${control}${help ? `<small class="field-help">${escapeHtml(help)}</small>` : ''}</label>`;
 }
@@ -416,6 +561,15 @@ function bindFieldEvents(container) {
             state.values[input.dataset.fieldId] = field?.kind === 'number' || field?.kind === 'seed'
                 ? (input.value === '' ? null : Number(input.value))
                 : input.value;
+            container.querySelectorAll(`[data-field-id="${CSS.escape(input.dataset.fieldId)}"]`).forEach((peer) => {
+                if (peer !== input) peer.value = input.value;
+            });
+            if (input.dataset.fieldId === 'negative_prompt' && String(input.value).trim()) {
+                state.advancedFieldMemory.negative_prompt = input.value;
+            }
+            if (input.dataset.fieldId === 'seed' && Number(input.value) >= 0) {
+                state.advancedFieldMemory.seed = Number(input.value);
+            }
             syncQuickControls();
             markDirty();
         });
@@ -423,14 +577,63 @@ function bindFieldEvents(container) {
     container.querySelectorAll('[data-randomize]').forEach((button) => {
         button.addEventListener('click', () => {
             const id = button.dataset.randomize;
-            state.values[id] = -1;
+            const fixedSeedControl = id === 'seed' && button.closest('.advanced-toggle-detail');
+            state.values[id] = fixedSeedControl
+                ? Math.floor(Math.random() * 2147483647)
+                : -1;
+            if (fixedSeedControl) state.advancedFieldMemory.seed = state.values[id];
             const input = byId(`field-${id}`);
-            if (input) input.value = '-1';
+            if (input) input.value = String(state.values[id]);
             markDirty();
         });
     });
     container.querySelectorAll('[data-image-field]').forEach((input) => {
         input.addEventListener('change', () => uploadReference(input));
+    });
+}
+
+function bindAdvancedConfigurationEvents(container) {
+    container.querySelectorAll('[data-sampling-mode]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const nextMode = button.dataset.samplingMode;
+            if (state.samplingMode === nextMode) return;
+            state.samplingMode = nextMode;
+            renderFields();
+        });
+    });
+    container.querySelector('[data-sampling-preset]')?.addEventListener('change', (event) => {
+        const [sampler, scheduler] = event.target.value.split('::');
+        if (!sampler || !scheduler) return;
+        state.values.sampler = sampler;
+        state.values.scheduler = scheduler;
+        renderFields();
+        markDirty();
+    });
+    container.querySelectorAll('[data-advanced-toggle]').forEach((toggle) => {
+        toggle.addEventListener('change', () => {
+            const id = toggle.dataset.advancedToggle;
+            if (id === 'negative_prompt') {
+                if (toggle.checked) {
+                    const field = currentManifest().fields.find((item) => item.id === id);
+                    state.values[id] = state.advancedFieldMemory[id] || field?.default || '';
+                } else {
+                    if (String(state.values[id] || '').trim()) state.advancedFieldMemory[id] = state.values[id];
+                    state.values[id] = '';
+                }
+            }
+            if (id === 'seed') {
+                if (toggle.checked) {
+                    state.values[id] = Number(state.advancedFieldMemory[id]) >= 0
+                        ? Number(state.advancedFieldMemory[id])
+                        : 0;
+                } else {
+                    if (Number(state.values[id]) >= 0) state.advancedFieldMemory[id] = Number(state.values[id]);
+                    state.values[id] = -1;
+                }
+            }
+            renderFields();
+            markDirty();
+        });
     });
 }
 
@@ -693,6 +896,11 @@ function resetEditor() {
     if (Number(state.values.width) > 0 && Number(state.values.height) > 0) {
         state.lockedAspectRatio = Number(state.values.width) / Number(state.values.height);
     }
+    state.samplingMode = 'recommended';
+    state.advancedFieldMemory = {
+        negative_prompt: state.values.negative_prompt || '',
+        seed: Number(state.values.seed) >= 0 ? Number(state.values.seed) : 0,
+    };
     renderFields();
     renderResources();
     markDirty();
@@ -732,18 +940,19 @@ function positionAccordionFlyout(details) {
 
 function bindAccordionFlyouts() {
     const accordions = [...document.querySelectorAll('.editor-controls > .controls-scroll .sidebar-accordion')];
-    const reposition = () => accordions.filter((details) => details.open).forEach(positionAccordionFlyout);
-    accordions.forEach((details) => {
+    const flyouts = accordions.filter((details) => details.id !== 'advanced-settings-dialog');
+    const reposition = () => flyouts.filter((details) => details.open).forEach(positionAccordionFlyout);
+    flyouts.forEach((details) => {
         details.addEventListener('toggle', () => {
             if (!details.open) return;
-            accordions.forEach((other) => {
+            flyouts.forEach((other) => {
                 if (other !== details) other.open = false;
             });
             window.requestAnimationFrame(() => positionAccordionFlyout(details));
         });
     });
     document.addEventListener('pointerdown', (event) => {
-        accordions.forEach((details) => {
+        flyouts.forEach((details) => {
             if (details.open && !details.contains(event.target)) details.open = false;
         });
     });

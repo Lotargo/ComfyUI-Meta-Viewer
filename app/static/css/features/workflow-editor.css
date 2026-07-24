@@ -2473,19 +2473,14 @@
 .quick-control { display: flex; flex-direction: column; gap: 9px; }
 .quick-label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .quick-label-row > span:last-child { color: var(--sea-muted); font-size: 10px; }
-.quick-label { color: var(--text); font-size: 13px; font-weight: 650; }
-.quick-label i {
-    width: 14px;
-    height: 14px;
-    margin-left: 4px;
-    display: inline-grid;
-    place-items: center;
-    border: 1px solid #62646d;
-    border-radius: 50%;
-    color: #94969e;
-    font-size: 9px;
-    font-style: normal;
-    cursor: help;
+.quick-label {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 650;
 }
 
 .segmented-control {
@@ -4275,4 +4270,454 @@
     border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
     background: color-mix(in srgb, var(--bg) 86%, var(--surface));
     box-shadow: none !important;
+}
+
+/* Advanced configuration: inline accordion with compact generation controls. */
+.advanced-settings-dialog {
+    overflow: hidden;
+    border: 1px solid #2d2e33;
+    border-radius: 13px;
+    background: #1b1b1e;
+}
+
+.advanced-settings-dialog[open] > summary {
+    border-radius: 12px 12px 0 0;
+}
+
+.advanced-settings-dialog > summary .advanced-settings-count {
+    display: none;
+}
+
+.advanced-settings-dialog[open] > .advanced-settings-scroll {
+    position: static;
+    z-index: auto;
+    width: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0;
+    padding: 0 16px 16px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+    overscroll-behavior: auto;
+}
+
+.advanced-settings-dialog[open] > .advanced-settings-scroll::before {
+    display: none;
+}
+
+.advanced-fields {
+    display: block;
+}
+
+.advanced-config-card {
+    padding-top: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 21px;
+}
+
+.advanced-control-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: #f0f0f2;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.35;
+}
+
+.help-icon {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 18px;
+    color: #8f9299;
+    cursor: help;
+}
+
+.help-icon svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.55;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.help-icon::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    z-index: 80;
+    width: max-content;
+    max-width: 230px;
+    padding: 8px 10px;
+    border: 1px solid #3a3b40;
+    border-radius: 8px;
+    background: #121215;
+    color: #d8d9dd;
+    font-size: 10.5px;
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translate(-50%, -3px);
+    transition: opacity .14s ease, transform .14s ease, visibility .14s ease;
+}
+
+.help-icon:hover::after,
+.help-icon:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 0);
+}
+
+.help-icon:focus-visible {
+    border-radius: 50%;
+    outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    outline-offset: 2px;
+}
+
+.advanced-sampling-control {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.advanced-mode-switch {
+    min-height: 38px;
+    padding: 3px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    border-radius: 10px;
+    background: #202023;
+}
+
+.advanced-mode-switch button {
+    min-width: 0;
+    min-height: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #c9cbd0;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.advanced-mode-switch button:hover {
+    color: #fff;
+    background: #29292d;
+}
+
+.advanced-mode-switch button.active {
+    color: #fff;
+    background: #3a3a3e;
+}
+
+.advanced-recommended-sampling select,
+.advanced-custom-sampling select {
+    width: 100%;
+    height: 38px;
+    padding-left: 12px !important;
+    padding-right: 38px !important;
+    font-size: 12px;
+    font-weight: 600;
+    text-indent: 0;
+}
+
+.advanced-recommended-sampling select option,
+.advanced-custom-sampling select option {
+    padding: 8px 12px;
+}
+
+.advanced-custom-sampling {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.advanced-custom-sampling[hidden],
+.advanced-recommended-sampling[hidden] {
+    display: none;
+}
+
+.advanced-custom-sampling label {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.advanced-custom-sampling label > span {
+    color: #7f8289;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.advanced-range-control {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.advanced-range-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 62px;
+    align-items: center;
+    gap: 14px;
+}
+
+.advanced-range {
+    width: 100%;
+    height: 18px;
+    margin: 0;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.advanced-range::-webkit-slider-runnable-track {
+    height: 7px;
+    border-radius: 999px;
+    background: #2a2a2e;
+}
+
+.advanced-range::-webkit-slider-thumb {
+    width: 14px;
+    height: 14px;
+    margin-top: -3.5px;
+    appearance: none;
+    border: 0;
+    border-radius: 50%;
+    background: #f4f4f5;
+    box-shadow: none;
+}
+
+.advanced-range::-moz-range-track {
+    height: 7px;
+    border: 0;
+    border-radius: 999px;
+    background: #2a2a2e;
+}
+
+.advanced-range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: 0;
+    border-radius: 50%;
+    background: #f4f4f5;
+    box-shadow: none;
+}
+
+.advanced-range-value {
+    width: 62px;
+    height: 36px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    outline: 0;
+    background: #232326;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    text-align: center;
+    box-shadow: none;
+}
+
+.advanced-range-value:focus {
+    border-color: #505158;
+}
+
+.advanced-switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    cursor: pointer;
+}
+
+.advanced-switch-row input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.advanced-switch {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    flex: 0 0 38px;
+    border-radius: 999px;
+    background: #55575d;
+    transition: background .15s ease;
+}
+
+.advanced-switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #f5f5f6;
+    transition: transform .15s ease;
+}
+
+.advanced-switch-row input:checked + .advanced-switch {
+    background: color-mix(in srgb, var(--accent) 72%, #303238);
+}
+
+.advanced-switch-row input:checked + .advanced-switch::after {
+    transform: translateX(16px);
+}
+
+.advanced-switch-row input:focus-visible + .advanced-switch {
+    outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
+    outline-offset: 2px;
+}
+
+.advanced-toggle-detail {
+    margin-top: 10px;
+}
+
+.advanced-toggle-detail .field-label,
+.advanced-toggle-detail .field-help {
+    display: none;
+}
+
+.advanced-toggle-detail .editor-field textarea {
+    min-height: 66px;
+    border-color: #35363b;
+    background: #202023;
+    font-size: 11px;
+    box-shadow: none;
+}
+
+.advanced-toggle-detail .seed-control input {
+    border-color: #35363b;
+    background: #202023;
+    box-shadow: none;
+}
+
+.advanced-extra-fields {
+    border-top: 1px solid #2e2f33;
+}
+
+.advanced-extra-fields > summary {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #a5a7ad;
+    font-size: 11px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.advanced-extra-fields > summary::marker {
+    display: none;
+}
+
+.advanced-extra-fields > summary svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    transition: transform .15s ease;
+}
+
+.advanced-extra-fields[open] > summary svg {
+    transform: rotate(180deg);
+}
+
+.advanced-extra-grid {
+    padding: 4px 0 2px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.advanced-extra-grid .field-textarea {
+    grid-column: 1 / -1;
+}
+
+.advanced-settings-scroll > .technical-settings {
+    width: 100%;
+    margin-top: 12px;
+    margin-inline: auto;
+    border-color: #2e2f33;
+    background: transparent;
+}
+
+.advanced-settings-scroll > .technical-settings > summary {
+    position: relative;
+    min-height: 50px;
+    padding: 0 42px;
+    justify-content: center;
+    text-align: center;
+}
+
+.advanced-settings-scroll > .technical-settings > summary::marker,
+.advanced-settings-scroll > .technical-settings > summary::-webkit-details-marker {
+    display: none;
+}
+
+.technical-settings-title {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+}
+
+.technical-settings-chevron {
+    position: absolute;
+    right: 14px;
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform .15s ease;
+}
+
+.technical-settings[open] > summary .technical-settings-chevron {
+    transform: rotate(180deg);
+}
+
+.advanced-settings-scroll > .technical-settings > .technical-settings-body {
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.advanced-settings-scroll > .technical-settings > .technical-settings-body .btn {
+    width: min(100%, 282px);
+    min-height: 36px;
+    margin: 0 auto;
+    padding-inline: 14px;
+    line-height: 1.3;
+    text-align: center;
+    white-space: normal;
 }

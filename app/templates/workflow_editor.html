@@ -92,11 +92,11 @@
                     <section id="quick-settings" class="quick-settings" aria-labelledby="basic-settings-title">
                         <div class="settings-section-title"><h2 id="basic-settings-title">Базовые настройки</h2><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></div>
                         <div class="quick-control">
-                            <span class="quick-label">Режим генерации <i title="Меняет количество шагов семплирования">?</i></span>
+                            <span class="quick-label">Режим генерации <span class="help-icon" role="img" tabindex="0" aria-label="Меняет количество шагов семплирования" data-tooltip="Меняет количество шагов семплирования."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.25 9.1a2.9 2.9 0 1 1 5.55 1.2c-.45 1.25-1.65 1.6-2.35 2.35-.35.38-.45.78-.45 1.35"/><path d="M12 17.25h.01"/></svg></span></span>
                             <div class="segmented-control" data-quick-mode><button type="button" data-mode="standard" class="active">Стандарт</button><button type="button" data-mode="quality">Качество</button></div>
                         </div>
                         <div class="quick-control">
-                            <span class="quick-label">Магия подсказок <i title="Визуальный режим подготовки промпта">?</i></span>
+                            <span class="quick-label">Магия подсказок <span class="help-icon" role="img" tabindex="0" aria-label="Визуальный режим подготовки промпта" data-tooltip="Определяет, как редактор помогает уточнять и дополнять промпт."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.25 9.1a2.9 2.9 0 1 1 5.55 1.2c-.45 1.25-1.65 1.6-2.35 2.35-.35.38-.45.78-.45 1.35"/><path d="M12 17.25h.01"/></svg></span></span>
                             <div class="segmented-control three" data-ui-choice><button type="button" class="active">Авто</button><button type="button">Открыть</button><button type="button">Закрыть</button></div>
                         </div>
                         <div id="aspect-quick-control" class="quick-control">
@@ -167,7 +167,10 @@
                         <div class="advanced-settings-scroll">
                             <div id="advanced-fields" class="advanced-fields"></div>
                             <details class="technical-settings">
-                                <summary>Workflow и зависимости</summary>
+                                <summary>
+                                    <span class="technical-settings-title">Workflow и зависимости <span class="help-icon" role="img" tabindex="0" aria-label="Проверка workflow и зависимостей" data-tooltip="Проверяет доступность моделей и узлов ComfyUI, затем показывает итоговый граф перед запуском."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.25 9.1a2.9 2.9 0 1 1 5.55 1.2c-.45 1.25-1.65 1.6-2.35 2.35-.35.38-.45.78-.45 1.35"/><path d="M12 17.25h.01"/></svg></span></span>
+                                    <svg class="technical-settings-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg>
+                                </summary>
                                 <div class="technical-settings-body"><button id="preview-workflow" class="btn btn-secondary" type="button">Check dependencies and preview graph</button></div>
                             </details>
                         </div>

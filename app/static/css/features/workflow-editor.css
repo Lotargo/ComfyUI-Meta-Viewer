@@ -1278,8 +1278,8 @@
     width: 100%;
     height: 100%;
     border: 0;
-    background: rgba(3, 6, 8, 0.66);
-    backdrop-filter: blur(3px);
+    background: rgba(3, 6, 8, 0.72);
+    backdrop-filter: blur(6px);
     cursor: default;
 }
 
@@ -1289,9 +1289,14 @@
     width: min(520px, calc(100vw - 28px));
     display: flex;
     flex-direction: column;
-    border-left: 1px solid var(--border);
-    background: var(--bg-elevated);
-    box-shadow: -24px 0 60px rgba(0, 0, 0, 0.42);
+    border-left: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+    background:
+        radial-gradient(circle at 100% -8%, rgba(255, 255, 255, 0.045), transparent 31%),
+        linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 94%, transparent), color-mix(in srgb, var(--bg) 94%, var(--surface)));
+    box-shadow:
+        -28px 0 64px rgba(0, 0, 0, 0.46),
+        inset 1px 0 0 rgba(255, 255, 255, 0.025);
+    backdrop-filter: blur(22px) saturate(112%);
     animation: runtime-drawer-in var(--transition) both;
 }
 
@@ -1309,38 +1314,56 @@
     gap: 16px;
     border-bottom: 1px solid var(--border-subtle);
     background:
-        linear-gradient(135deg, var(--accent-dim), transparent 48%),
-        color-mix(in srgb, var(--bg-elevated) 96%, black);
+        radial-gradient(circle at 18% -90%, rgba(255, 255, 255, 0.08), transparent 48%),
+        linear-gradient(180deg, color-mix(in srgb, var(--surface) 54%, transparent), color-mix(in srgb, var(--bg-elevated) 88%, transparent));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 10px 26px rgba(0, 0, 0, 0.14);
 }
 
 .runtime-drawer-header h2 {
     margin: 0;
     font-family: var(--font-title);
-    font-size: 18px;
+    font-size: 20px;
     letter-spacing: -0.02em;
+}
+
+.runtime-drawer .workspace-kicker {
+    margin-bottom: 6px;
+    font-size: 9px;
 }
 
 .runtime-drawer-header p:last-child {
     max-width: 390px;
     margin: 5px 0 0;
     color: var(--text-muted);
-    font-size: 9px;
-    line-height: 1.45;
+    font-size: 11px;
+    line-height: 1.5;
 }
 
 .runtime-drawer-scroll {
     min-height: 0;
-    padding: 14px;
+    padding: 16px;
     overflow-y: auto;
     overscroll-behavior: contain;
 }
 
 .runtime-overview,
 .runtime-section {
-    padding: 14px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
+    position: relative;
+    isolation: isolate;
+    padding: 15px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 12px;
+    background:
+        radial-gradient(circle at 12% -70%, rgba(255, 255, 255, 0.065), transparent 42%),
+        linear-gradient(180deg, color-mix(in srgb, var(--surface2) 54%, transparent), color-mix(in srgb, var(--surface) 88%, var(--bg)));
+    box-shadow:
+        0 14px 30px rgba(0, 0, 0, 0.18),
+        0 3px 8px rgba(0, 0, 0, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.045),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.26);
 }
 
 .runtime-section {
@@ -1353,9 +1376,12 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius);
-    background: var(--bg-elevated);
+    border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.035),
+        0 6px 14px rgba(0, 0, 0, 0.12);
 }
 
 .runtime-status-card > div {
@@ -1365,8 +1391,8 @@
     gap: 2px;
 }
 
-.runtime-status-card strong { font-size: 11px; }
-.runtime-status-card small { color: var(--text-muted); font-size: 8.5px; }
+.runtime-status-card strong { font-size: 14px; }
+.runtime-status-card small { color: var(--text-muted); font-size: 11px; }
 
 .runtime-metrics {
     margin-top: 8px;
@@ -1381,14 +1407,15 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
     border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--bg) 68%, var(--surface));
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
 .runtime-metrics span {
     color: var(--text-muted);
-    font-size: 7.5px;
+    font-size: 9px;
     font-weight: 750;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -1397,7 +1424,7 @@
 .runtime-metrics strong {
     overflow: hidden;
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 9px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1420,7 +1447,7 @@
 .runtime-section-heading span,
 .runtime-logs-section > summary span {
     color: var(--accent-hover);
-    font-size: 7.5px;
+    font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -1429,7 +1456,7 @@
 .runtime-section-heading h3 {
     margin: 2px 0 0;
     font-family: var(--font-title);
-    font-size: 12px;
+    font-size: 13px;
     letter-spacing: 0;
 }
 
@@ -1454,8 +1481,8 @@
 
 .runtime-field small {
     color: var(--text-muted);
-    font-size: 8px;
-    line-height: 1.4;
+    font-size: 10px;
+    line-height: 1.5;
 }
 
 .runtime-input-action {
@@ -1465,10 +1492,13 @@
 }
 
 .runtime-detection {
-    padding: 10px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    background: var(--bg-elevated);
+    padding: 11px;
+    border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.03),
+        0 6px 14px rgba(0, 0, 0, 0.1);
 }
 
 .runtime-detection > div {
@@ -1478,7 +1508,7 @@
 }
 
 .runtime-detection strong {
-    font-size: 9px;
+    font-size: 10.5px;
 }
 
 .runtime-detection pre {
@@ -1486,14 +1516,16 @@
     overflow: auto;
     color: var(--text-muted);
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 8px;
-    line-height: 1.45;
+    font-size: 9.5px;
+    line-height: 1.55;
     white-space: pre-wrap;
 }
 
 .runtime-advanced {
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
+    border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--bg) 36%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
 .runtime-advanced > summary {
@@ -1503,7 +1535,7 @@
     align-items: center;
     justify-content: space-between;
     color: var(--text-dim);
-    font-size: 9px;
+    font-size: 10.5px;
     font-weight: 700;
 }
 
@@ -1520,8 +1552,8 @@
 .system-stats-panel {
     min-height: 55px;
     color: var(--text-dim);
-    font-size: 9px;
-    line-height: 1.5;
+    font-size: 10.5px;
+    line-height: 1.55;
 }
 
 .system-stat-grid {
@@ -1532,16 +1564,17 @@
 
 .system-stat {
     padding: 8px;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
     border-radius: var(--radius-sm);
-    background: var(--bg-elevated);
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
 .system-stat span,
 .device-stat span {
     display: block;
     color: var(--text-muted);
-    font-size: 7.5px;
+    font-size: 9px;
 }
 
 .system-stat strong,
@@ -1549,7 +1582,7 @@
     display: block;
     margin-top: 2px;
     overflow: hidden;
-    font-size: 9px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1580,8 +1613,8 @@
     gap: 2px;
 }
 
-.runtime-logs-section > summary strong { font-size: 10.5px; }
-.runtime-logs-section > summary small { color: var(--text-muted); font-size: 8px; }
+.runtime-logs-section > summary strong { font-size: 11.5px; }
+.runtime-logs-section > summary small { color: var(--text-muted); font-size: 9.5px; }
 
 .runtime-logs-section[open] > summary {
     padding-bottom: 10px;
@@ -1602,7 +1635,7 @@
     align-items: center;
     gap: 5px;
     color: var(--text-muted);
-    font-size: 8.5px;
+    font-size: 10px;
     cursor: pointer;
 }
 
@@ -1612,17 +1645,18 @@
     height: 240px;
     padding: 9px;
     overflow: auto;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    background: hsl(210, 17%, 6%);
+    border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--bg) 88%, black);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
 .logs-console {
     margin: 0;
     color: color-mix(in srgb, var(--green) 68%, white);
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 8px;
-    line-height: 1.5;
+    font-size: 10px;
+    line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
 }
@@ -3924,4 +3958,36 @@
         width: min(500px, 100%);
         margin-bottom: 20px;
     }
+}
+
+/* Runtime drawer: neutral glass surfaces without accent glow. */
+.runtime-drawer .btn {
+    font-size: 12px;
+}
+
+.runtime-drawer .btn-sm {
+    font-size: 11px;
+}
+
+.runtime-drawer .badge {
+    font-size: 10.5px;
+}
+
+.runtime-drawer .btn,
+.runtime-drawer .btn:hover,
+.runtime-drawer .btn:focus-visible,
+.runtime-drawer .workspace-icon-button,
+.runtime-drawer .workspace-icon-button:hover,
+.runtime-drawer .badge,
+.runtime-drawer .runtime-state-dot {
+    filter: none !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+}
+
+.runtime-drawer .runtime-field input:focus,
+.runtime-drawer .runtime-field input:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
+    background: color-mix(in srgb, var(--bg) 86%, var(--surface));
+    box-shadow: none !important;
 }

@@ -71,6 +71,17 @@ const elements = {
     batchSizeMeta: byId('batch-size-meta'),
     sizeSummary: byId('size-summary'),
     aspectQuickControl: byId('aspect-quick-control'),
+    aspectMore: byId('aspect-more'),
+    aspectPopover: byId('aspect-popover'),
+    aspectPopoverClose: byId('aspect-popover-close'),
+    aspectCustomToggle: byId('aspect-custom-toggle'),
+    customResolution: byId('custom-resolution'),
+    customWidth: byId('custom-width'),
+    customHeight: byId('custom-height'),
+    customWidthRange: byId('custom-width-range'),
+    customHeightRange: byId('custom-height-range'),
+    customAspectRatio: byId('custom-aspect-ratio'),
+    aspectRatioLock: byId('aspect-ratio-lock'),
     batchQuickControl: byId('batch-quick-control'),
 };
 
@@ -118,6 +129,9 @@ const state = {
     pollTimer: null,
     statusTimer: null,
     loadingTemplate: false,
+    customResolutionOpen: false,
+    aspectRatioLocked: true,
+    lockedAspectRatio: 1,
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -240,6 +254,9 @@ function selectTemplate(template, { preserveDraft = false } = {}) {
         state.values = { ...template.defaults };
         state.resources = defaultResourceSelections(template);
         history.replaceState({}, '', '/editor');
+    }
+    if (Number(state.values.width) > 0 && Number(state.values.height) > 0) {
+        state.lockedAspectRatio = Number(state.values.width) / Number(state.values.height);
     }
     state.previewReady = false;
     renderTemplateNavigation();
@@ -470,6 +487,121 @@ function updateWorkspaceSummary() {
     if (elements.batchSizeMeta) elements.batchSizeMeta.textContent = width && height ? `${size} px` : size;
 }
 
+function dimensionLimits(id) {
+    const field = currentManifest()?.fields?.find((item) => item.id === id);
+    return {
+        min: Number(field?.minimum ?? 64),
+        max: Number(field?.maximum ?? 8192),
+        step: Number(field?.step ?? 8),
+    };
+}
+
+function normalizeDimension(id, rawValue) {
+    const limits = dimensionLimits(id);
+    const numeric = Number(rawValue);
+    const fallback = Number(state.values[id] ?? limits.min);
+    const value = Number.isFinite(numeric) ? numeric : fallback;
+    const snapped = limits.min + Math.round((value - limits.min) / limits.step) * limits.step;
+    return Math.min(limits.max, Math.max(limits.min, snapped));
+}
+
+function greatestCommonDivisor(left, right) {
+    let a = Math.abs(Math.round(left));
+    let b = Math.abs(Math.round(right));
+    while (b) [a, b] = [b, a % b];
+    return a || 1;
+}
+
+function formatAspectRatio(ratio, width, height) {
+    const common = [
+        [1 / 2, '1:2'], [9 / 16, '9:16'], [2 / 3, '2:3'], [3 / 4, '3:4'], [4 / 5, '4:5'],
+        [1, '1:1'], [5 / 4, '5:4'], [4 / 3, '4:3'], [3 / 2, '3:2'], [16 / 9, '16:9'], [2, '2:1'],
+    ];
+    const known = common.find(([value]) => Math.abs(ratio - value) / value < 0.015);
+    if (known) return known[1];
+    const divisor = greatestCommonDivisor(width, height);
+    return `${Math.round(width / divisor)}:${Math.round(height / divisor)}`;
+}
+
+function currentAspectRatio() {
+    const selectedPreset = document.querySelector(
+        '[data-aspect-grid] [data-width].active, [data-aspect-popover] [data-width].active',
+    );
+    const presetWidth = Number(selectedPreset?.dataset.width);
+    const presetHeight = Number(selectedPreset?.dataset.height);
+    if (presetWidth > 0 && presetHeight > 0) return presetWidth / presetHeight;
+
+    const width = Number(state.values.width);
+    const height = Number(state.values.height);
+    return width > 0 && height > 0 ? width / height : 1;
+}
+
+function captureLockedAspectRatio() {
+    if (!state.aspectRatioLocked) return;
+    state.lockedAspectRatio = currentAspectRatio();
+}
+
+function updateCustomResolutionControls() {
+    const width = Number(state.values.width);
+    const height = Number(state.values.height);
+    if (!elements.customResolution || !Number.isFinite(width) || !Number.isFinite(height)) return;
+    elements.customResolution.hidden = !state.customResolutionOpen;
+    elements.aspectCustomToggle?.setAttribute('aria-expanded', state.customResolutionOpen ? 'true' : 'false');
+
+    const controls = [
+        [elements.customWidth, 'width', width],
+        [elements.customWidthRange, 'width', width],
+        [elements.customHeight, 'height', height],
+        [elements.customHeightRange, 'height', height],
+    ];
+    controls.forEach(([control, id, value]) => {
+        if (!control) return;
+        const limits = dimensionLimits(id);
+        control.min = String(limits.min);
+        control.max = String(limits.max);
+        control.step = String(limits.step);
+        control.value = String(value);
+    });
+
+    elements.aspectRatioLock?.classList.toggle('active', state.aspectRatioLocked);
+    elements.aspectRatioLock?.setAttribute('aria-pressed', state.aspectRatioLocked ? 'true' : 'false');
+    elements.aspectRatioLock?.setAttribute(
+        'aria-label',
+        state.aspectRatioLocked ? 'Разблокировать соотношение сторон' : 'Зафиксировать соотношение сторон',
+    );
+    const displayedRatio = state.aspectRatioLocked ? state.lockedAspectRatio : width / height;
+    if (elements.customAspectRatio) {
+        elements.customAspectRatio.value = formatAspectRatio(displayedRatio, width, height);
+    }
+}
+
+function updateDimensionValues(width, height, { dirty = true } = {}) {
+    state.values.width = normalizeDimension('width', width);
+    state.values.height = normalizeDimension('height', height);
+    const advancedWidth = byId('field-width');
+    const advancedHeight = byId('field-height');
+    if (advancedWidth) advancedWidth.value = String(state.values.width);
+    if (advancedHeight) advancedHeight.value = String(state.values.height);
+    syncQuickControls();
+    if (dirty) markDirty();
+}
+
+function applyCustomDimension(id, rawValue) {
+    const ratio = Number(state.lockedAspectRatio) > 0
+        ? Number(state.lockedAspectRatio)
+        : Number(state.values.width) / Number(state.values.height);
+    let width = Number(state.values.width);
+    let height = Number(state.values.height);
+    if (id === 'width') {
+        width = normalizeDimension('width', rawValue);
+        if (state.aspectRatioLocked) height = normalizeDimension('height', width / ratio);
+    } else {
+        height = normalizeDimension('height', rawValue);
+        if (state.aspectRatioLocked) width = normalizeDimension('width', height * ratio);
+    }
+    updateDimensionValues(width, height);
+}
+
 function syncQuickControls() {
     if (!currentManifest()) return;
     const fieldIds = new Set((currentManifest().fields || []).map((field) => field.id));
@@ -477,9 +609,24 @@ function syncQuickControls() {
     const hasBatch = fieldIds.has('batch_size');
     if (elements.aspectQuickControl) elements.aspectQuickControl.hidden = !hasSize;
     if (elements.batchQuickControl) elements.batchQuickControl.hidden = !hasBatch;
+    let quickAspectMatch = false;
     document.querySelectorAll('[data-aspect-grid] [data-width]').forEach((button) => {
-        button.classList.toggle('active', Number(button.dataset.width) === Number(state.values.width) && Number(button.dataset.height) === Number(state.values.height));
+        const active = Number(button.dataset.width) === Number(state.values.width)
+            && Number(button.dataset.height) === Number(state.values.height);
+        button.classList.toggle('active', active);
+        quickAspectMatch ||= active;
     });
+    document.querySelectorAll('[data-aspect-popover] [data-width]').forEach((button) => {
+        const active = Number(button.dataset.width) === Number(state.values.width)
+            && Number(button.dataset.height) === Number(state.values.height);
+        button.classList.toggle('active', active);
+    });
+    elements.aspectMore?.classList.toggle('active', hasSize && !quickAspectMatch);
+    if (!hasSize) {
+        closeAspectPopover();
+        state.customResolutionOpen = false;
+    }
+    updateCustomResolutionControls();
     document.querySelectorAll('[data-batch-grid] [data-batch]').forEach((button) => {
         button.classList.toggle('active', Number(button.dataset.batch) === Number(state.values.batch_size));
     });
@@ -491,10 +638,61 @@ function syncQuickControls() {
     updateWorkspaceSummary();
 }
 
+function applyAspectSize(button) {
+    if (!button || !currentManifest()) return;
+    const width = normalizeDimension('width', button.dataset.width);
+    const height = normalizeDimension('height', button.dataset.height);
+    state.lockedAspectRatio = width / height;
+    updateDimensionValues(width, height);
+}
+
+function positionAspectPopover() {
+    if (!elements.aspectPopover || elements.aspectPopover.hidden || !elements.aspectMore) return;
+    const anchor = elements.aspectMore.getBoundingClientRect();
+    const popover = elements.aspectPopover;
+    const gutter = 10;
+    const edge = 12;
+    const width = Math.min(304, window.innerWidth - edge * 2);
+    popover.style.width = `${width}px`;
+    const measured = popover.getBoundingClientRect();
+    const preferredLeft = anchor.right + gutter;
+    const left = preferredLeft + width <= window.innerWidth - edge
+        ? preferredLeft
+        : Math.max(edge, anchor.left - width - gutter);
+    const top = Math.min(
+        Math.max(edge, anchor.top - 52),
+        Math.max(edge, window.innerHeight - measured.height - edge),
+    );
+    popover.style.left = `${Math.round(left)}px`;
+    popover.style.top = `${Math.round(top)}px`;
+}
+
+function openAspectPopover() {
+    if (!elements.aspectPopover || !elements.aspectMore) return;
+    elements.aspectPopover.hidden = false;
+    elements.aspectMore.setAttribute('aria-expanded', 'true');
+    window.requestAnimationFrame(positionAspectPopover);
+}
+
+function closeAspectPopover() {
+    if (!elements.aspectPopover || !elements.aspectMore || elements.aspectPopover.hidden) return;
+    elements.aspectPopover.hidden = true;
+    elements.aspectMore.setAttribute('aria-expanded', 'false');
+}
+
+function toggleCustomResolution() {
+    state.customResolutionOpen = !state.customResolutionOpen;
+    if (state.customResolutionOpen) captureLockedAspectRatio();
+    updateCustomResolutionControls();
+}
+
 function resetEditor() {
     if (!state.selected) return;
     state.values = { ...state.selected.defaults };
     state.resources = defaultResourceSelections(state.selected);
+    if (Number(state.values.width) > 0 && Number(state.values.height) > 0) {
+        state.lockedAspectRatio = Number(state.values.width) / Number(state.values.height);
+    }
     renderFields();
     renderResources();
     markDirty();
@@ -1196,10 +1394,48 @@ function bindEvents() {
     document.querySelector('[data-aspect-grid]')?.addEventListener('click', (event) => {
         const button = event.target.closest('[data-width]');
         if (!button) return;
-        state.values.width = Number(button.dataset.width);
-        state.values.height = Number(button.dataset.height);
-        renderFields();
-        markDirty();
+        applyAspectSize(button);
+    });
+    elements.aspectMore?.addEventListener('click', () => {
+        if (elements.aspectPopover.hidden) openAspectPopover();
+        else closeAspectPopover();
+    });
+    elements.aspectPopoverClose?.addEventListener('click', closeAspectPopover);
+    elements.aspectPopover?.addEventListener('click', (event) => {
+        const sizeButton = event.target.closest('[data-width]');
+        if (sizeButton) {
+            applyAspectSize(sizeButton);
+            return;
+        }
+        if (event.target.closest('[data-aspect-custom]')) toggleCustomResolution();
+    });
+    elements.aspectRatioLock?.addEventListener('click', () => {
+        state.aspectRatioLocked = !state.aspectRatioLocked;
+        if (state.aspectRatioLocked && Number(state.values.width) > 0 && Number(state.values.height) > 0) {
+            state.lockedAspectRatio = Number(state.values.width) / Number(state.values.height);
+        }
+        updateCustomResolutionControls();
+    });
+    [
+        [elements.customWidthRange, 'width'],
+        [elements.customHeightRange, 'height'],
+    ].forEach(([input, id]) => {
+        input?.addEventListener('pointerdown', captureLockedAspectRatio);
+        input?.addEventListener('focus', captureLockedAspectRatio);
+        input?.addEventListener('input', () => applyCustomDimension(id, input.value));
+    });
+    [
+        [elements.customWidth, 'width'],
+        [elements.customHeight, 'height'],
+    ].forEach(([input, id]) => {
+        input?.addEventListener('focus', captureLockedAspectRatio);
+        input?.addEventListener('change', () => applyCustomDimension(id, input.value));
+        input?.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            applyCustomDimension(id, input.value);
+            input.blur();
+        });
     });
     document.querySelector('[data-batch-grid]')?.addEventListener('click', (event) => {
         const button = event.target.closest('[data-batch]');
@@ -1216,10 +1452,13 @@ function bindEvents() {
         renderFields();
         markDirty();
     });
-    document.querySelector('[data-open-advanced]')?.addEventListener('click', () => {
-        elements.advancedDialog.open = true;
-        elements.advancedDialog.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    document.addEventListener('pointerdown', (event) => {
+        if (elements.aspectPopover?.hidden) return;
+        if (elements.aspectPopover.contains(event.target) || elements.aspectMore?.contains(event.target)) return;
+        closeAspectPopover();
     });
+    window.addEventListener('resize', positionAspectPopover);
+    document.querySelector('.controls-scroll')?.addEventListener('scroll', positionAspectPopover, { passive: true });
     elements.resultsSearch.addEventListener('input', () => {
         const query = elements.resultsSearch.value.trim().toLowerCase();
         elements.resultGrid.querySelectorAll('[data-result-search]').forEach((card) => {
@@ -1237,6 +1476,11 @@ function bindEvents() {
     runtimeElements.clearLogs.addEventListener('click', () => { runtimeElements.logs.innerHTML = '<code>[CMV] Console logs cleared.</code>'; });
     runtimeElements.refreshLogs.addEventListener('click', fetchRuntimeLogs);
     document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !elements.aspectPopover?.hidden) {
+            closeAspectPopover();
+            elements.aspectMore?.focus();
+            return;
+        }
         if (event.key === 'Escape' && !elements.runtimeLayer.hidden) closeRuntimeDrawer();
     });
     document.addEventListener('visibilitychange', () => {

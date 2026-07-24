@@ -106,7 +106,54 @@
                                 <button type="button" data-width="1024" data-height="1024"><i style="--w:13px;--h:13px"></i><span>1:1</span></button>
                                 <button type="button" data-width="576" data-height="1024"><i style="--w:9px;--h:16px"></i><span>9:16</span></button>
                                 <button type="button" data-width="1024" data-height="768"><i style="--w:16px;--h:12px"></i><span>4:3</span></button>
-                                <button type="button" data-open-advanced><i class="aspect-more">✎</i><span>Больше</span></button>
+                                <button id="aspect-more" type="button" data-open-aspect aria-haspopup="dialog" aria-controls="aspect-popover" aria-expanded="false"><i class="aspect-more">✎</i><span>Больше</span></button>
+                            </div>
+                            <div id="custom-resolution" class="custom-resolution" hidden>
+                                <div class="custom-resolution-inputs">
+                                    <label>
+                                        <span>Ширина</span>
+                                        <input id="custom-width" type="number" inputmode="numeric" aria-label="Ширина изображения">
+                                        <small>px</small>
+                                    </label>
+                                    <button id="aspect-ratio-lock" class="aspect-ratio-lock active" type="button" aria-label="Разблокировать соотношение сторон" aria-pressed="true">
+                                        <svg class="lock-closed" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                                        <svg class="lock-open" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/></svg>
+                                    </button>
+                                    <label>
+                                        <span>Высота</span>
+                                        <input id="custom-height" type="number" inputmode="numeric" aria-label="Высота изображения">
+                                        <small>px</small>
+                                    </label>
+                                </div>
+                                <div class="custom-resolution-sliders">
+                                    <input id="custom-width-range" type="range" aria-label="Настроить ширину">
+                                    <output id="custom-aspect-ratio">1:1</output>
+                                    <input id="custom-height-range" type="range" aria-label="Настроить высоту">
+                                </div>
+                            </div>
+                            <div id="aspect-popover" class="aspect-popover" data-aspect-popover role="dialog" aria-modal="false" aria-labelledby="aspect-popover-title" hidden>
+                                <header class="aspect-popover-header">
+                                    <h3 id="aspect-popover-title">Настройки изображения</h3>
+                                    <button id="aspect-popover-close" class="aspect-popover-close" type="button" aria-label="Закрыть настройки изображения"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+                                </header>
+                                <div class="aspect-orientation-guide" aria-hidden="true">
+                                    <div><i class="portrait"></i><span>вертикально</span></div>
+                                    <div><i class="landscape"></i><span>горизонтально</span></div>
+                                </div>
+                                <div class="aspect-popover-grid">
+                                    <button type="button" data-width="512" data-height="1024">1:2</button>
+                                    <button type="button" data-width="1024" data-height="512">2:1</button>
+                                    <button type="button" data-width="768" data-height="1152">2:3</button>
+                                    <button type="button" data-width="1152" data-height="768">3:2</button>
+                                    <button type="button" data-width="768" data-height="1024">3:4</button>
+                                    <button type="button" data-width="1024" data-height="768">4:3</button>
+                                    <button type="button" data-width="832" data-height="1040">4:5</button>
+                                    <button type="button" data-width="1040" data-height="832">5:4</button>
+                                    <button type="button" data-width="576" data-height="1024">9:16</button>
+                                    <button type="button" data-width="1024" data-height="576">16:9</button>
+                                </div>
+                                <button class="aspect-popover-wide" type="button" data-width="1024" data-height="1024">1:1</button>
+                                <button id="aspect-custom-toggle" class="aspect-popover-custom" type="button" data-aspect-custom aria-controls="custom-resolution" aria-expanded="false">Настройка</button>
                             </div>
                         </div>
                         <div id="batch-quick-control" class="quick-control">

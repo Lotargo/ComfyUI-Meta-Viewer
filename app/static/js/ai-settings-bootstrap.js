@@ -74,8 +74,19 @@ function waitForTwoFrames() {
     });
 }
 
+function relocateCredentialStatus() {
+    const status = document.getElementById('secret-store-status');
+    const keySource = document.getElementById('profile-key-source');
+    const field = keySource?.closest('.field');
+    if (!status || !field) return;
+
+    status.classList.add('secret-store-warning');
+    field.append(status);
+}
+
 async function bootstrap() {
     window.fetch = (...args) => trackRequest(originalFetch.apply(window, args));
+    relocateCredentialStatus();
 
     try {
         if (!mainModuleUrl) throw new Error('AI settings module URL is missing.');

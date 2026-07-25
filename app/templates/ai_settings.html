@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI providers — ComfyUI Meta Viewer</title>
     <link rel="preload" href="/static/fonts/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/fonts/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yw.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/static/css/fonts.css">
     <link rel="stylesheet" href="/static/css/base/variables.css">
     <link rel="stylesheet" href="/static/css/base/reset.css">
@@ -14,8 +15,9 @@
     <link rel="stylesheet" href="/static/css/components/toast.css">
     <link rel="stylesheet" href="/static/css/features/ai-settings.css?v={{ static_version('css/features/ai-settings.css') }}">
     <link rel="stylesheet" href="/static/css/base/studio-theme.css?v={{ static_version('css/base/studio-theme.css') }}">
+    <link rel="stylesheet" href="/static/css/features/ai-settings-boot.css?v={{ static_version('css/features/ai-settings-boot.css') }}">
 </head>
-<body class="ai-settings-body studio-theme">
+<body class="ai-settings-body studio-theme ui-booting">
     <header class="global-header ai-settings-header">
         <div class="global-header-left">
             <a class="header-icon-button" href="/" title="Open media browser" aria-label="Open media browser"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></a>
@@ -236,6 +238,10 @@
         </form>
     </dialog>
 
-    <script type="module" src="/static/js/ai-settings.js?v={{ static_version('js/ai-settings.js') }}"></script>
+    <script
+        type="module"
+        src="/static/js/ai-settings-bootstrap.js?v={{ static_version('js/ai-settings-bootstrap.js') }}"
+        data-ai-settings-main="/static/js/ai-settings.js?v={{ static_version('js/ai-settings.js') }}"
+    ></script>
 </body>
 </html>

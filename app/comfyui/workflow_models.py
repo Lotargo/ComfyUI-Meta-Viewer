@@ -275,6 +275,14 @@ class WorkflowTemplate(StrictModel):
     source: Literal["builtin", "user"] = "builtin"
 
 
+class WorkflowRegistryValidation(StrictModel):
+    status: Literal["ready", "warning", "invalid", "expert", "partially_mapped"]
+    reason: str = Field(default="", max_length=1000)
+    last_validated_at: str | None = None
+    inventory_fingerprint: str | None = Field(default=None, max_length=64)
+    runtime_source: Literal["api", "filesystem", "none"] = "none"
+
+
 class ResourceSelection(StrictModel):
     name: str = Field(min_length=1, max_length=1000)
     strength_model: float = Field(default=1.0, ge=-5.0, le=5.0)
@@ -380,6 +388,7 @@ __all__ = [
     "WorkflowDraft",
     "WorkflowMediaType",
     "WorkflowRun",
+    "WorkflowRegistryValidation",
     "WorkflowTemplate",
     "WorkflowTemplateManifest",
     "migrate_workflow_manifest",

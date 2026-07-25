@@ -32,6 +32,10 @@ from .workflow_registry import (
     WorkflowTemplateError,
     WorkflowTemplateRegistry,
 )
+from .workflow_registry_status import (
+    WorkflowRegistryStatusStore,
+    validate_registry_template,
+)
 from .workflow_store import WorkflowStore, WorkflowStoreError
 
 
@@ -66,6 +70,12 @@ def _run_payloads(runs: list[WorkflowRun]) -> list[dict[str, Any]]:
 def _registry() -> WorkflowTemplateRegistry:
     return WorkflowTemplateRegistry(
         user_root=Path(current_app.config["UPLOAD_FOLDER"]) / "workflow_templates",
+    )
+
+
+def _registry_status_store() -> WorkflowRegistryStatusStore:
+    return WorkflowRegistryStatusStore(
+        Path(current_app.config["UPLOAD_FOLDER"]) / "workflow_templates",
     )
 
 
@@ -210,10 +220,67 @@ def editor_templates():
     })
 
 
-@editor_blueprint.route("/api/editor/templates/<template_id>", methods=["GET"])
+@editor_blueprint.route("/api/editor/templates/<template_id>", methods=["GET", "PATCH", "DELETE"])
 def editor_template(template_id: str):
+    registry = _registry()
+    if request.method == "PATCH":
+        payload = _json_object()
+        unexpected = set(payload) - {"name", "description"}
+        if unexpected:
+            raise WorkflowTemplateError(
+                "Unsupported workflow metadata fields: " + ", ".join(sorted(unexpected)),
+                code="invalid_template_update",
+            )
+        template = registry.update_user_template(
+            template_id,
+            name=payload.get("name") if "name" in payload else None,
+            description=payload.get("description") if "description" in payload else None,
+        )
+        return jsonify(_template_payload(template, _inventory()))
+    if request.method == "DELETE":
+        registry.delete_user_template(template_id)
+        _registry_status_store().delete(template_id)
+        return jsonify({"deleted": True, "template_id": template_id})
     inventory = _inventory()
-    return jsonify(_template_payload(_registry().get(template_id), inventory))
+    return jsonify(_template_payload(registry.get(template_id), inventory))
+
+
+@editor_blueprint.route("/api/editor/workflows", methods=["GET"])
+def editor_workflow_registry():
+    return jsonify({
+        "workflows": _registry().list_management_entries(_registry_status_store()),
+    })
+
+
+@editor_blueprint.route("/api/editor/workflows/revalidate", methods=["POST"])
+def editor_workflow_revalidate_all():
+    registry = _registry()
+    inventory = _inventory()
+    status_store = _registry_status_store()
+    for template in registry.list_templates():
+        status_store.set(
+            template.manifest.id,
+            validate_registry_template(template, inventory),
+        )
+    return jsonify({
+        "workflows": registry.list_management_entries(status_store),
+        "inventory": inventory.model_dump(mode="json"),
+    })
+
+
+@editor_blueprint.route("/api/editor/workflows/<template_id>/revalidate", methods=["POST"])
+def editor_workflow_revalidate(template_id: str):
+    registry = _registry()
+    inventory = _inventory()
+    validation = _registry_status_store().set(
+        template_id,
+        validate_registry_template(registry.get(template_id), inventory),
+    )
+    return jsonify({
+        "template_id": template_id,
+        "validation": validation.model_dump(mode="json"),
+        "inventory": inventory.model_dump(mode="json"),
+    })
 
 
 @editor_blueprint.route("/api/editor/templates/import", methods=["POST"])

@@ -25,6 +25,11 @@ from app.comfyui.workflow_compiler import (
 from app.comfyui.workflow_execution import WorkflowExecutionService
 from app.comfyui.workflow_models import RuntimeInventory, WorkflowTemplateManifest
 from app.comfyui.workflow_registry import WorkflowTemplateError, WorkflowTemplateRegistry
+from app.comfyui.workflow_registry_status import (
+    WorkflowRegistryStatusStore,
+    inventory_fingerprint,
+    validate_registry_template,
+)
 from app.comfyui.sampling_options import CORE_SAMPLER_OPTIONS, CORE_SCHEDULER_OPTIONS
 from app.comfyui.workflow_store import WorkflowStore
 from app.config_store import ConfigStore
@@ -341,6 +346,87 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
             registry.analyze_import("ui-workflow.json", data)
 
         self.assertEqual(caught.exception.code, "ui_workflow_requires_api_format")
+
+    def test_invalid_user_template_is_listed_without_breaking_valid_templates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            invalid_dir = root / "broken-template"
+            invalid_dir.mkdir()
+            (invalid_dir / "manifest.json").write_text("{not-json", encoding="utf-8")
+            registry = WorkflowTemplateRegistry(user_root=root)
+
+            templates = registry.list_templates()
+            entries = registry.list_management_entries(WorkflowRegistryStatusStore(root))
+
+            self.assertTrue(any(item.manifest.id == "core-image" for item in templates))
+            broken = next(item for item in entries if item["id"] == "broken-template")
+            self.assertEqual(broken["source"], "user")
+            self.assertEqual(broken["validation"]["status"], "invalid")
+            self.assertIn("Cannot read workflow manifest", broken["validation"]["reason"])
+
+    def test_registry_validation_status_is_persisted_by_inventory_fingerprint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry = WorkflowTemplateRegistry()
+            template = registry.get("core-image")
+            inventory = ready_inventory(template)
+            status = validate_registry_template(template, inventory)
+            store = WorkflowRegistryStatusStore(temp_dir)
+
+            store.set(template.manifest.id, status)
+            restored = store.get(template.manifest.id)
+
+            self.assertEqual(status.status, "ready")
+            self.assertEqual(restored.inventory_fingerprint, inventory_fingerprint(inventory))
+            self.assertIsNotNone(restored.last_validated_at)
+
+    def test_registry_validation_distinguishes_warning_expert_and_partial(self) -> None:
+        source = WorkflowTemplateRegistry().get("core-image")
+        offline = validate_registry_template(
+            source,
+            RuntimeInventory(online=False, error="runtime offline"),
+        )
+        expert_manifest = WorkflowTemplateManifest.model_validate({
+            **source.manifest.model_dump(mode="json"),
+            "id": "expert-template",
+            "loader_family": "custom",
+        })
+        partial_manifest = WorkflowTemplateManifest.model_validate({
+            **expert_manifest.model_dump(mode="json"),
+            "id": "partial-template",
+            "fields": [],
+        })
+        expert = validate_registry_template(
+            source.model_copy(update={"manifest": expert_manifest}),
+            ready_inventory(source),
+        )
+        partial = validate_registry_template(
+            source.model_copy(update={"manifest": partial_manifest}),
+            ready_inventory(source),
+        )
+
+        self.assertEqual(offline.status, "warning")
+        self.assertEqual(expert.status, "expert")
+        self.assertEqual(partial.status, "partially_mapped")
+
+    def test_delete_user_template_does_not_touch_sibling_model_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry = WorkflowTemplateRegistry(user_root=root)
+            source = registry.get("core-image")
+            manifest = source.manifest.model_dump(mode="json")
+            manifest.update({"id": "delete-me", "name": "Delete me"})
+            registry.import_bundle(
+                "delete-me.json",
+                json.dumps({"manifest": manifest, "workflow": source.workflow}).encode("utf-8"),
+            )
+            model_file = root / "models" / "keep.safetensors"
+            model_file.parent.mkdir()
+            model_file.write_bytes(b"model")
+
+            registry.delete_user_template("delete-me")
+
+            self.assertFalse((root / "delete-me").exists())
+            self.assertEqual(model_file.read_bytes(), b"model")
 
     def test_v1_bundle_is_migrated_and_persisted_as_schema_v2(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -682,6 +768,8 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertIn('id="advanced-fields"', html)
         self.assertIn('id="template-import-mapping"', html)
         self.assertIn('id="template-manifest-preview"', html)
+        self.assertIn('id="workflow-management-dialog"', html)
+        self.assertIn('id="workflow-management-body"', html)
         self.assertIn("Check dependencies and preview graph", html)
         self.assertNotIn("Manifest controls", html)
 
@@ -802,6 +890,64 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         manifest = imported.get_json()["manifest"]
         self.assertEqual(manifest["resource_slots"]["diffusion_model"]["binding"]["node_id"], "1")
         self.assertTrue(next(field for field in manifest["fields"] if field["id"] == "steps")["hidden"])
+
+    @patch("app.comfyui.editor_routes._inventory")
+    def test_workflow_management_lists_revalidates_edits_and_deletes_import(self, inventory_mock) -> None:
+        inventory_mock.return_value = self.inventory
+        registry = WorkflowTemplateRegistry(
+            user_root=Path(app.config["UPLOAD_FOLDER"]) / "workflow_templates",
+        )
+        manifest = self.template.manifest.model_dump(mode="json")
+        manifest.update({"id": "managed-workflow", "name": "Managed workflow"})
+        registry.import_bundle(
+            "managed.json",
+            json.dumps({"manifest": manifest, "workflow": self.template.workflow}).encode("utf-8"),
+        )
+
+        listed = self.client.get("/api/editor/workflows")
+        self.assertEqual(listed.status_code, 200)
+        managed = next(
+            item for item in listed.get_json()["workflows"]
+            if item["id"] == "managed-workflow"
+        )
+        self.assertEqual(managed["source"], "user")
+        self.assertEqual(managed["validation"]["status"], "warning")
+        self.assertIsNone(managed["validation"]["last_validated_at"])
+
+        revalidated = self.client.post("/api/editor/workflows/managed-workflow/revalidate")
+        self.assertEqual(revalidated.status_code, 200)
+        self.assertEqual(revalidated.get_json()["validation"]["status"], "ready")
+        self.assertTrue(revalidated.get_json()["validation"]["inventory_fingerprint"])
+
+        updated = self.client.patch(
+            "/api/editor/templates/managed-workflow",
+            json={"name": "Renamed workflow", "description": "Managed from the registry."},
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.get_json()["manifest"]["name"], "Renamed workflow")
+
+        deleted = self.client.delete("/api/editor/templates/managed-workflow")
+        self.assertEqual(deleted.status_code, 200)
+        self.assertFalse(
+            (Path(app.config["UPLOAD_FOLDER"]) / "workflow_templates" / "managed-workflow").exists()
+        )
+        remaining_ids = {
+            item["id"]
+            for item in self.client.get("/api/editor/workflows").get_json()["workflows"]
+        }
+        self.assertNotIn("managed-workflow", remaining_ids)
+
+    def test_builtin_workflow_cannot_be_edited_or_deleted(self) -> None:
+        edited = self.client.patch(
+            "/api/editor/templates/core-image",
+            json={"name": "Changed"},
+        )
+        deleted = self.client.delete("/api/editor/templates/core-image")
+
+        self.assertEqual(edited.status_code, 422)
+        self.assertEqual(edited.get_json()["code"], "builtin_template_read_only")
+        self.assertEqual(deleted.status_code, 422)
+        self.assertEqual(deleted.get_json()["code"], "builtin_template_read_only")
 
     @patch("app.comfyui.editor_routes._inventory")
     def test_bootstrap_filters_resources_for_standard_and_gguf_slots(self, inventory_mock) -> None:

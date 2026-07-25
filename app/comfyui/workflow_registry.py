@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import shutil
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -15,6 +16,7 @@ from .workflow_models import (
     WorkflowTemplateManifest,
     migrate_workflow_manifest,
 )
+from .workflow_registry_status import WorkflowRegistryStatusStore
 
 
 BUILTIN_TEMPLATE_ROOT = Path(__file__).resolve().parent / "workflow_templates"
@@ -44,7 +46,12 @@ class WorkflowTemplateRegistry:
             if root is None or not root.is_dir():
                 continue
             for manifest_path in sorted(root.glob("*/manifest.json")):
-                template = self._load_from_manifest(manifest_path, source=source)
+                try:
+                    template = self._load_from_manifest(manifest_path, source=source)
+                except WorkflowTemplateError:
+                    if source == "user":
+                        continue
+                    raise
                 existing = templates.get(template.manifest.id)
                 if existing and source == "user":
                     raise WorkflowTemplateError(
@@ -56,6 +63,137 @@ class WorkflowTemplateRegistry:
             templates.values(),
             key=lambda item: (item.manifest.category.value, item.manifest.name.casefold()),
         )
+
+    def list_management_entries(
+        self,
+        status_store: WorkflowRegistryStatusStore,
+    ) -> list[dict[str, Any]]:
+        entries: list[dict[str, Any]] = []
+        known_ids: set[str] = set()
+        for source, root in (("builtin", self.builtin_root), ("user", self.user_root)):
+            if root is None or not root.is_dir():
+                continue
+            for manifest_path in sorted(root.glob("*/manifest.json")):
+                try:
+                    template = self._load_from_manifest(manifest_path, source=source)
+                    if template.manifest.id in known_ids:
+                        raise WorkflowTemplateError(
+                            f"Template ID '{template.manifest.id}' is already registered.",
+                            code="template_id_conflict",
+                        )
+                    known_ids.add(template.manifest.id)
+                    validation = status_store.get(template.manifest.id)
+                    entries.append({
+                        "id": template.manifest.id,
+                        "name": template.manifest.name,
+                        "description": template.manifest.description,
+                        "category": template.manifest.category.value,
+                        "media_type": template.manifest.media_type.value,
+                        "ecosystems": [item.value for item in template.manifest.supported_ecosystems],
+                        "loader_family": template.manifest.loader_family.value,
+                        "source": template.source,
+                        "manifest_version": template.manifest.schema_version,
+                        "template_version": template.manifest.version,
+                        "validation": validation.model_dump(mode="json"),
+                    })
+                except WorkflowTemplateError as exc:
+                    fallback = self._invalid_entry_payload(manifest_path, source=source)
+                    fallback["validation"] = {
+                        "status": "invalid",
+                        "reason": str(exc),
+                        "last_validated_at": None,
+                        "inventory_fingerprint": None,
+                        "runtime_source": "none",
+                    }
+                    entries.append(fallback)
+        return sorted(entries, key=lambda item: (item["source"], item["name"].casefold()))
+
+    def update_user_template(
+        self,
+        template_id: str,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> WorkflowTemplate:
+        template = self.get(template_id)
+        if template.source != "user":
+            raise WorkflowTemplateError(
+                "Built-in workflow metadata cannot be edited.",
+                code="builtin_template_read_only",
+            )
+        updates: dict[str, str] = {}
+        if name is not None:
+            updates["name"] = str(name).strip()
+        if description is not None:
+            updates["description"] = str(description).strip()
+        manifest = self._validate_manifest({
+            **template.manifest.model_dump(mode="json"),
+            **updates,
+        })
+        template_dir = self._user_template_dir(template_id)
+        self._write_json(template_dir / "manifest.json", manifest.model_dump(mode="json"))
+        return self._load_from_manifest(template_dir / "manifest.json", source="user")
+
+    def delete_user_template(self, template_id: str) -> None:
+        if any(
+            template.manifest.id == template_id
+            for template in WorkflowTemplateRegistry(
+                builtin_root=self.builtin_root,
+                user_root=None,
+            ).list_templates()
+        ):
+            raise WorkflowTemplateError(
+                "Built-in workflows cannot be deleted.",
+                code="builtin_template_read_only",
+            )
+        template_dir = self._user_template_dir(template_id)
+        if not template_dir.is_dir():
+            raise WorkflowTemplateError(
+                f"Workflow template '{template_id}' was not found.",
+                code="template_not_found",
+            )
+        try:
+            shutil.rmtree(template_dir)
+        except OSError as exc:
+            raise WorkflowTemplateError(
+                f"Cannot delete workflow template: {exc}",
+                code="template_storage_error",
+            ) from exc
+
+    def _user_template_dir(self, template_id: str) -> Path:
+        if self.user_root is None:
+            raise WorkflowTemplateError(
+                "User workflow template storage is not configured.",
+                code="template_storage_unavailable",
+            )
+        root = self.user_root.resolve()
+        candidate = (root / str(template_id)).resolve()
+        if candidate.parent != root:
+            raise WorkflowTemplateError(
+                "Workflow template path is invalid.",
+                code="invalid_template_id",
+            )
+        return candidate
+
+    @staticmethod
+    def _invalid_entry_payload(path: Path, *, source: str) -> dict[str, Any]:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        template_id = path.parent.name
+        return {
+            "id": template_id,
+            "name": str(payload.get("name") or template_id),
+            "description": str(payload.get("description") or ""),
+            "category": str(payload.get("category") or "unknown"),
+            "media_type": str(payload.get("media_type") or "unknown"),
+            "ecosystems": payload.get("supported_ecosystems") or [],
+            "loader_family": str(payload.get("loader_family") or "unknown"),
+            "source": "user" if source == "user" else "builtin",
+            "manifest_version": str(payload.get("schema_version") or "unknown"),
+            "template_version": str(payload.get("version") or "unknown"),
+        }
 
     def get(self, template_id: str) -> WorkflowTemplate:
         clean_id = str(template_id).strip()

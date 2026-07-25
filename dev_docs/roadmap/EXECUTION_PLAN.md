@@ -232,36 +232,36 @@
 
 ## 3.3 Registry statuses
 
-- [ ] `ready`.
-- [ ] `warning`.
-- [ ] `invalid`.
-- [ ] `expert` / `partially_mapped`.
-- [ ] Причина текущего статуса.
-- [ ] Дата последней проверки.
-- [ ] Версия ComfyUI или inventory fingerprint последней проверки.
+- [x] `ready`.
+- [x] `warning`.
+- [x] `invalid`.
+- [x] `expert` / `partially_mapped`.
+- [x] Причина текущего статуса.
+- [x] Дата последней проверки.
+- [x] Версия ComfyUI или inventory fingerprint последней проверки.
 
 ## 3.4 Workflow management modal
 
 Добавить отдельную модалку или страницу с таблицей зарегистрированных workflows.
 
-- [ ] Колонка name.
-- [ ] Колонка category.
-- [ ] Колонка family/ecosystem.
-- [ ] Колонка structure/loader strategy.
-- [ ] Колонка source: built-in/imported.
-- [ ] Колонка validation status.
-- [ ] Колонка last validation.
-- [ ] Колонка manifest version.
-- [ ] Поиск и фильтрация.
-- [ ] Открытие workflow в editor.
-- [ ] Переименование и изменение description.
+- [x] Колонка name.
+- [x] Колонка category.
+- [x] Колонка family/ecosystem.
+- [x] Колонка structure/loader strategy.
+- [x] Колонка source: built-in/imported.
+- [x] Колонка validation status.
+- [x] Колонка last validation.
+- [x] Колонка manifest version.
+- [x] Поиск и фильтрация.
+- [x] Открытие workflow в editor.
+- [x] Переименование и изменение description.
 - [ ] Повторное открытие mapping wizard.
-- [ ] Revalidate against current ComfyUI.
+- [x] Revalidate against current ComfyUI.
 - [ ] Duplicate.
 - [ ] Export.
-- [ ] Delete imported template.
+- [x] Delete imported template.
 - [ ] Restore built-in template.
-- [ ] Удаление template не затрагивает models, nodes и ComfyUI files.
+- [x] Удаление template не затрагивает models, nodes и ComfyUI files.
 
 **Gate:** Task 09 не закрывается без удобного управления импортированными templates и повторной проверки после изменений ComfyUI.
 
@@ -640,8 +640,8 @@
 
 - [x] Сохранить imported workflow как registered template.
 - [x] Добавить mapping wizard для неоднозначных bindings.
-- [ ] Добавить workflow management modal/table.
-- [ ] Добавить revalidation against current ComfyUI.
+- [x] Добавить workflow management modal/table.
+- [x] Добавить revalidation against current ComfyUI.
 
 ## Slice C. AI draft integration
 

@@ -1977,6 +1977,81 @@
     .template-mapping-row code { grid-column: 1 / -1; grid-row: 2; }
 }
 
+.workflow-management-dialog {
+    width: min(1180px, calc(100vw - 28px));
+    max-height: min(88vh, 920px);
+}
+
+.workflow-management-toolbar {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 145px 160px auto;
+    gap: 8px;
+}
+
+.workflow-management-table-wrap {
+    max-height: min(58vh, 580px);
+    margin-top: 12px;
+    overflow: auto;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+}
+
+.workflow-management-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5px;
+}
+
+.workflow-management-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 8px 9px;
+    background: var(--bg-elevated);
+    color: var(--text-dim);
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    white-space: nowrap;
+}
+
+.workflow-management-table td {
+    padding: 9px;
+    border-top: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    vertical-align: top;
+}
+
+.workflow-management-table td:first-child { min-width: 160px; }
+.workflow-management-table strong { display: block; color: var(--text); font-size: 9px; }
+.workflow-management-table small { display: block; max-width: 260px; margin-top: 3px; color: var(--text-dim); }
+.workflow-management-actions { display: flex; gap: 4px; white-space: nowrap; }
+
+.workflow-status-badge {
+    display: inline-flex;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    color: var(--accent-hover);
+    font-size: 7.5px;
+    text-transform: uppercase;
+}
+
+.workflow-status-badge.warning,
+.workflow-status-badge.partially_mapped { background: color-mix(in srgb, #d49a36 18%, transparent); color: #e1b45e; }
+.workflow-status-badge.invalid { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+.workflow-status-badge.expert { background: color-mix(in srgb, #9b7be8 18%, transparent); color: #bda8f2; }
+.workflow-status-badge.ready { background: color-mix(in srgb, #54b884 18%, transparent); color: #72c99b; }
+
+.workflow-metadata-dialog { width: min(520px, calc(100vw - 28px)); }
+.workflow-metadata-fields { grid-template-columns: 1fr; }
+.workflow-metadata-fields label:last-child { grid-column: auto; }
+
+@media (max-width: 760px) {
+    .workflow-management-toolbar { grid-template-columns: 1fr 1fr; }
+}
+
 .toast-container {
     position: fixed;
     right: 18px;

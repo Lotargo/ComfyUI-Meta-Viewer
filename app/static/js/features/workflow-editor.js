@@ -80,6 +80,18 @@ const elements = {
     importMappingApply: byId('template-mapping-apply'),
     importManifestPreview: byId('template-manifest-preview'),
     importSubmit: byId('template-import-submit'),
+    workflowManageOpen: byId('manage-workflows-open'),
+    workflowManageDialog: byId('workflow-management-dialog'),
+    workflowManageBody: byId('workflow-management-body'),
+    workflowManageEmpty: byId('workflow-management-empty'),
+    workflowManageSearch: byId('workflow-management-search'),
+    workflowManageSource: byId('workflow-management-source'),
+    workflowManageStatus: byId('workflow-management-status'),
+    workflowRevalidateAll: byId('workflow-revalidate-all'),
+    workflowMetadataDialog: byId('workflow-metadata-dialog'),
+    workflowMetadataForm: byId('workflow-metadata-form'),
+    workflowMetadataName: byId('workflow-metadata-name'),
+    workflowMetadataDescription: byId('workflow-metadata-description'),
     sourceInspect: byId('analyze-source-workflow'),
     sourceDialog: byId('source-workflow-dialog'),
     sourceSummary: byId('source-workflow-summary'),
@@ -160,6 +172,8 @@ const state = {
     advancedFieldMemory: {},
     importPlan: null,
     importMapping: null,
+    workflows: [],
+    editingWorkflowId: null,
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -469,7 +483,9 @@ async function bootstrap() {
         state.inventory = payload.inventory || state.inventory;
         if (!state.templates.length) throw new Error('No workflow templates are available.');
 
-        const draftId = new URLSearchParams(window.location.search).get('draft_id');
+        const urlParams = new URLSearchParams(window.location.search);
+        const draftId = urlParams.get('draft_id');
+        const requestedTemplateId = urlParams.get('template_id');
         if (draftId) {
             const draftPayload = await requestJson(`/api/editor/drafts/${encodeURIComponent(draftId)}`);
             const registered = state.templates.find((item) => item.manifest.id === draftPayload.draft.template_id);
@@ -483,6 +499,8 @@ async function bootstrap() {
             }
         } else {
             const first = state.templates.find(
+                (item) => item.manifest.id === requestedTemplateId,
+            ) || state.templates.find(
                 (item) => item.manifest.id === createWorkspace.active_template_id,
             ) || state.templates.find((item) => item.manifest.id === 'core-image') || state.templates[0];
             selectTemplate(first);
@@ -1846,6 +1864,151 @@ async function refreshTemplates() {
     }
 }
 
+function workflowStatusLabel(status) {
+    return String(status || 'warning').replace(/_/g, ' ');
+}
+
+function formatValidationDate(value) {
+    if (!value) return 'Never';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function renderWorkflowRegistry() {
+    const query = elements.workflowManageSearch.value.trim().toLocaleLowerCase();
+    const source = elements.workflowManageSource.value;
+    const status = elements.workflowManageStatus.value;
+    const workflows = state.workflows.filter((workflow) => {
+        const haystack = `${workflow.name} ${workflow.id} ${workflow.description}`.toLocaleLowerCase();
+        return (!query || haystack.includes(query))
+            && (!source || workflow.source === source)
+            && (!status || workflow.validation.status === status);
+    });
+    elements.workflowManageBody.innerHTML = workflows.map((workflow) => {
+        const validation = workflow.validation || {};
+        const valid = validation.status !== 'invalid';
+        const editable = workflow.source === 'user' && valid;
+        const removable = workflow.source === 'user';
+        return `<tr data-workflow-id="${escapeHtml(workflow.id)}"><td><strong>${escapeHtml(workflow.name)}</strong><small>${escapeHtml(workflow.description || workflow.id)}</small></td><td>${escapeHtml(workflow.category)} · ${escapeHtml(workflow.media_type)}</td><td>${escapeHtml((workflow.ecosystems || []).join(', ') || 'Unknown')}</td><td>${escapeHtml(workflow.loader_family)}</td><td>${escapeHtml(workflow.source === 'user' ? 'Imported' : 'Built-in')}</td><td><span class="workflow-status-badge ${escapeHtml(validation.status)}">${escapeHtml(workflowStatusLabel(validation.status))}</span><small title="${escapeHtml(validation.reason)}">${escapeHtml(validation.reason)}</small></td><td>${escapeHtml(formatValidationDate(validation.last_validated_at))}<small>${validation.inventory_fingerprint ? `Inventory ${escapeHtml(validation.inventory_fingerprint.slice(0, 8))}` : 'No inventory fingerprint'}</small></td><td>Schema ${escapeHtml(workflow.manifest_version)}<small>Template ${escapeHtml(workflow.template_version)}</small></td><td><span class="workflow-management-actions"><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="open"${valid ? '' : ' disabled'}>Open</button><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="revalidate"${valid ? '' : ' disabled'}>Check</button>${editable ? '<button class="btn btn-ghost btn-sm" type="button" data-workflow-action="edit">Edit</button>' : ''}${removable ? '<button class="btn btn-danger btn-sm" type="button" data-workflow-action="delete">Delete</button>' : ''}</span></td></tr>`;
+    }).join('');
+    elements.workflowManageEmpty.hidden = workflows.length > 0;
+}
+
+async function loadWorkflowRegistry({ open = false } = {}) {
+    if (open) elements.workflowManageDialog.showModal();
+    elements.workflowManageBody.innerHTML = '<tr><td colspan="9">Loading workflow registry…</td></tr>';
+    try {
+        const payload = await requestJson('/api/editor/workflows');
+        state.workflows = payload.workflows || [];
+        renderWorkflowRegistry();
+    } catch (error) {
+        elements.workflowManageBody.innerHTML = `<tr><td colspan="9">${escapeHtml(error.message)}</td></tr>`;
+        showToast(error.message, 'error');
+    }
+}
+
+async function revalidateWorkflow(templateId) {
+    const row = elements.workflowManageBody.querySelector(`[data-workflow-id="${CSS.escape(templateId)}"]`);
+    row?.classList.add('is-loading');
+    try {
+        const payload = await requestJson(`/api/editor/workflows/${encodeURIComponent(templateId)}/revalidate`, {
+            method: 'POST',
+        });
+        const workflow = state.workflows.find((item) => item.id === templateId);
+        if (workflow) workflow.validation = payload.validation;
+        renderWorkflowRegistry();
+        showToast(`Validated ${workflow?.name || templateId}.`, payload.validation.status === 'ready' ? 'success' : 'info');
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+async function revalidateAllWorkflows() {
+    elements.workflowRevalidateAll.disabled = true;
+    try {
+        const payload = await requestJson('/api/editor/workflows/revalidate', { method: 'POST' });
+        state.workflows = payload.workflows || [];
+        state.inventory = payload.inventory || state.inventory;
+        renderWorkflowRegistry();
+        showToast('Workflow registry revalidated.', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.workflowRevalidateAll.disabled = false;
+    }
+}
+
+function openWorkflowMetadata(templateId) {
+    const workflow = state.workflows.find((item) => item.id === templateId);
+    if (!workflow || workflow.source !== 'user') return;
+    state.editingWorkflowId = templateId;
+    elements.workflowMetadataName.value = workflow.name;
+    elements.workflowMetadataDescription.value = workflow.description || '';
+    elements.workflowMetadataDialog.showModal();
+}
+
+async function saveWorkflowMetadata(event) {
+    event.preventDefault();
+    if (!state.editingWorkflowId) return;
+    try {
+        const template = await requestJson(`/api/editor/templates/${encodeURIComponent(state.editingWorkflowId)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: elements.workflowMetadataName.value.trim(),
+                description: elements.workflowMetadataDescription.value.trim(),
+            }),
+        });
+        const index = state.templates.findIndex((item) => item.manifest.id === state.editingWorkflowId);
+        if (index >= 0) state.templates[index] = template;
+        if (currentManifest()?.id === state.editingWorkflowId) selectTemplate(template, { preserveDraft: true });
+        elements.workflowMetadataDialog.close();
+        await loadWorkflowRegistry();
+        showToast('Workflow metadata updated.', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+async function deleteManagedWorkflow(templateId) {
+    const workflow = state.workflows.find((item) => item.id === templateId);
+    if (!workflow || workflow.source !== 'user') return;
+    if (!window.confirm(`Delete imported workflow “${workflow.name}”? Models and ComfyUI files will not be changed.`)) return;
+    try {
+        await requestJson(`/api/editor/templates/${encodeURIComponent(templateId)}`, { method: 'DELETE' });
+        const wasSelected = currentManifest()?.id === templateId;
+        await refreshTemplates();
+        if (wasSelected) {
+            const fallback = state.templates.find((item) => item.manifest.id === 'core-image') || state.templates[0];
+            if (fallback) selectTemplate(fallback);
+        }
+        await loadWorkflowRegistry();
+        showToast(`Deleted ${workflow.name}. Models and nodes were not changed.`, 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+function handleWorkflowManagementAction(event) {
+    const button = event.target.closest('[data-workflow-action]');
+    const row = button?.closest('[data-workflow-id]');
+    if (!button || !row) return;
+    const templateId = row.dataset.workflowId;
+    if (button.dataset.workflowAction === 'open') {
+        const template = state.templates.find((item) => item.manifest.id === templateId);
+        if (template) {
+            elements.workflowManageDialog.close();
+            selectTemplate(template);
+        }
+    } else if (button.dataset.workflowAction === 'revalidate') {
+        revalidateWorkflow(templateId);
+    } else if (button.dataset.workflowAction === 'edit') {
+        openWorkflowMetadata(templateId);
+    } else if (button.dataset.workflowAction === 'delete') {
+        deleteManagedWorkflow(templateId);
+    }
+}
+
 async function importTemplate(event) {
     event.preventDefault();
     const file = elements.importFile.files?.[0];
@@ -2087,6 +2250,13 @@ function bindEvents() {
     elements.runtimeClose.addEventListener('click', closeRuntimeDrawer);
     elements.runtimeBackdrop.addEventListener('click', closeRuntimeDrawer);
     elements.importOpen.addEventListener('click', () => elements.importDialog.showModal());
+    elements.workflowManageOpen.addEventListener('click', () => loadWorkflowRegistry({ open: true }));
+    elements.workflowManageSearch.addEventListener('input', renderWorkflowRegistry);
+    elements.workflowManageSource.addEventListener('change', renderWorkflowRegistry);
+    elements.workflowManageStatus.addEventListener('change', renderWorkflowRegistry);
+    elements.workflowManageBody.addEventListener('click', handleWorkflowManagementAction);
+    elements.workflowRevalidateAll.addEventListener('click', revalidateAllWorkflows);
+    elements.workflowMetadataForm.addEventListener('submit', saveWorkflowMetadata);
     elements.importFile.addEventListener('change', () => {
         const file = elements.importFile.files?.[0];
         elements.importName.textContent = file ? `${file.name} · ${(file.size / 1024).toFixed(1)} KB` : 'No file selected';

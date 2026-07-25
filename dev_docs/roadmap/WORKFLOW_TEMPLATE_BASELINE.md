@@ -92,4 +92,14 @@ GGUF loaders намеренно не добавлены в automatic lookup: и�
 - подтверждены все declarative input names, loader type `flux`, sampler `euler` и scheduler `simple`;
 - unit/API regression suite проверяет compiled standard/GGUF graphs, mixed regular/GGUF text encoders и фильтрацию bootstrap resource options по active slot.
 
-Фактическая генерация этими двумя templates остаётся в Phase 9 workflow matrix: текущая установка не содержит подтверждённого полного Flux component set и GGUF diffusion model, поэтому наличие nodes не выдается за end-to-end generation evidence.
+Фактическая генерация этими двумя templates остаётся в Phase 9 workflow matrix: текущая установка не содержит подтверждённого полного Flux component set, а ранее установленные GGUF models были удалены пользователем, поэтому наличие nodes не выдается за end-to-end generation evidence.
+
+### Отложенная GGUF-проверка
+
+После появления совместимого GGUF diffusion model и требуемых text encoders/VAE нужно повторить проверку без изменения уже подтверждённого node contract:
+
+- убедиться, что inventory классифицирует `.gguf` как `diffusion_model_gguf` или `text_encoder_gguf` и показывает файл только в соответствующем slot;
+- создать draft на `core-flux-gguf`, пройти dependency preview/preflight и подтвердить отсутствие unresolved resources;
+- выполнить реальный generation run в ComfyUI и дождаться terminal status;
+- проверить импорт output в Library, сохранение template/draft/run provenance и отсутствие ошибочной checkpoint/separate-components подстановки;
+- только после этого закрыть `GGUF generation` в Phase 9 workflow matrix.

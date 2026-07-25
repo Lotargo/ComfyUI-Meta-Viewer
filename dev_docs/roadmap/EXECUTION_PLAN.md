@@ -565,6 +565,8 @@
 - [ ] Result imported into Library.
 - [ ] Remix lineage preserved.
 
+**Отложенная проверка GGUF (зафиксировано 2026-07-26):** ранее установленные GGUF models удалены пользователем. После установки совместимого test set повторить inventory slot filtering, draft preview/preflight, реальный generation run и импорт результата в Library с проверкой provenance. До получения этого evidence пункт `GGUF generation` остаётся открытым; успешно проверенный `/object_info` node contract повторять без причины не требуется.
+
 ## 9.4 Browser and UX checks
 
 - [ ] Viewer reload without visible layout jumps.

@@ -9,6 +9,7 @@
 | `core-image` | `simple` / image | checkpoint-contained, `CheckpointLoaderSimple` | required `checkpoint`; optional multiple `loras` | `SaveImage` node `7` | Только checkpoint-contained модели с embedded CLIP/VAE |
 | `core-flux` | `simple` / image | separate components, `UNETLoader` + `DualCLIPLoader` + `VAELoader` | required `diffusion_model`, `clip_l`, `t5xxl`, `vae` | `SaveImage` node `10` | Flux-like baseline без LoRA injection; совместимость компонентов требует metadata/preflight |
 | `core-flux-gguf` | `simple` / image | GGUF, `UnetLoaderGGUF` + `DualCLIPLoaderGGUF` + `VAELoader` | required GGUF `diffusion_model`; regular/GGUF `clip_l` и `t5xxl`; required `vae` | `SaveImage` node `10` | Требует ComfyUI-GGUF; совместимость компонентов не выводится только из формата файла |
+| `core-pony-gguf` | `simple` / image | GGUF `UnetLoaderGGUF`; CLIP/VAE из совместимого `CheckpointLoaderSimple` | required GGUF `diffusion_model`; required Pony/SDXL `conditioning_checkpoint` | `SaveImage` node `8` | Checkpoint MODEL намеренно не используется; lineage GGUF и checkpoint должен совпадать |
 | `core-reference` | `reference` / image | checkpoint-contained img2img | required `checkpoint`; optional multiple `loras` | `SaveImage` node `8` | Только базовый `LoadImage` + `VAEEncode`, без inpaint/control |
 | `core-two-stage` | `advanced` / image | два checkpoint-contained pipeline | required `base_checkpoint`, `refiner_checkpoint`; optional `base_loras` | `SaveImage` node `11` | Оба этапа требуют checkpoint loader; это не separate-components refiner |
 | `core-video` | `video` / video | separate diffusion model + dual text encoder + VAE | required `diffusion_model`, `text_encoder_1`, `text_encoder_2`, `vae` | `SaveVideo` node `10` | Зависит от конкретного набора native video nodes; GGUF не заявлен |
@@ -37,9 +38,9 @@ Registry мигрирует schema v1 при чтении: loader family и comp
 | --- | --- | --- |
 | `checkpoint` | `checkpoints` | checkpoint-contained model |
 | `diffusion_model` | `diffusion_models`, `unet` | model file с расширением, отличным от `.gguf` |
-| `diffusion_model_gguf` | `diffusion_models`, `unet` | `.gguf`, регистр расширения не важен |
+| `diffusion_model_gguf` | `unet_gguf`, `diffusion_models`, `unet` | explicit ComfyUI-GGUF virtual folder или `.gguf` в shared folder |
 | `text_encoder` | `text_encoders`, `clip` | encoder file с расширением, отличным от `.gguf` |
-| `text_encoder_gguf` | `text_encoders`, `clip` | `.gguf`, регистр расширения не важен |
+| `text_encoder_gguf` | `clip_gguf`, `text_encoders`, `clip` | explicit ComfyUI-GGUF virtual folder или `.gguf` в shared folder |
 | `vae` | `vae` | VAE |
 | `lora`, `locon`, `dora` | `loras` | adapter role; точный subtype требует metadata, не выводится из папки |
 | `embedding` | `embeddings` | text embedding |
@@ -110,14 +111,16 @@ LoRA повторно оценивается относительно выбра
 - подтверждены все declarative input names, loader type `flux`, sampler `euler` и scheduler `simple`;
 - unit/API regression suite проверяет compiled standard/GGUF graphs, mixed regular/GGUF text encoders и фильтрацию bootstrap resource options по active slot.
 
-Фактическая генерация этими двумя templates остаётся в Phase 9 workflow matrix: текущая установка не содержит подтверждённого полного Flux component set, а ранее установленные GGUF models были удалены пользователем, поэтому наличие nodes не выдается за end-to-end generation evidence.
+Фактическая генерация Flux-like templates остаётся в Phase 9 workflow matrix: текущая установка ещё не содержит подтверждённого полного Flux/Z-Image component set, поэтому наличие nodes не выдается за end-to-end Flux evidence.
 
-### Отложенная GGUF-проверка
+### Pony/SDXL GGUF runtime smoke
 
-После появления совместимого GGUF diffusion model и требуемых text encoders/VAE нужно повторить проверку без изменения уже подтверждённого node contract:
+26 июля 2026 года выполнен end-to-end run на локальном `babesByStableYogi_v65Q4Q8.gguf` с CLIP/VAE из `cyberrealisticPony_v150.safetensors`:
 
-- убедиться, что inventory классифицирует `.gguf` как `diffusion_model_gguf` или `text_encoder_gguf` и показывает файл только в соответствующем slot;
-- создать draft на `core-flux-gguf`, пройти dependency preview/preflight и подтвердить отсутствие unresolved resources;
-- выполнить реальный generation run в ComfyUI и дождаться terminal status;
-- проверить импорт output в Library, сохранение template/draft/run provenance и отсутствие ошибочной checkpoint/separate-components подстановки;
-- только после этого закрыть `GGUF generation` в Phase 9 workflow matrix.
+- добавлен отдельный `core-pony-gguf`, где GGUF является MODEL, а checkpoint отдаёт только CLIP/VAE;
+- runtime inventory распознаёт ComfyUI-GGUF virtual folder `unet_gguf`; preview/preflight вернул `ready=true`, без missing nodes/resources, с честным `experimental` warning для неизвестной по имени архитектуры GGUF;
+- реальная генерация run `5`, prompt `a305b043-3b6e-411a-8c1a-99afeb72af7b` завершилась успешно на smoke-настройках 512×512, 8 steps, seed `26072026`;
+- повторный запуск через полный editor endpoint создал run `6`; output `CMV/Pony-GGUF_00001_.png` импортирован в Library как asset `6258`, сохранены template/draft/run/prompt provenance и полный API graph;
+- metadata extractor сохраняет GGUF diffusion model как основную model identity, не подменяя её conditioning checkpoint.
+
+Flux-подобная GGUF-проверка на Z-Image остаётся отложенной до завершения скачивания совместимого component set. Она должна повторить preview/preflight, generation и Library provenance уже на `core-flux-gguf`; Pony smoke не считается доказательством Flux-совместимости.

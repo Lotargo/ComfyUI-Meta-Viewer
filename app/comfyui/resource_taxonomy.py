@@ -6,8 +6,9 @@ from app.ai.resources import ResourceType
 
 
 # Folder names are the public names exposed by ComfyUI's model inventory API.
-# GGUF is a storage/loader contract rather than a separate folder, so it is
-# classified from the filename after the folder establishes the semantic role.
+# Core ComfyUI exposes the physical folders, while ComfyUI-GGUF also registers
+# virtual ``unet_gguf`` and ``clip_gguf`` folder names for its loader choices.
+# Shared folders still need extension-based classification.
 RESOURCE_MODEL_FOLDERS: dict[ResourceType, tuple[str, ...]] = {
     ResourceType.CHECKPOINT: ("checkpoints",),
     ResourceType.LORA: ("loras",),
@@ -16,9 +17,9 @@ RESOURCE_MODEL_FOLDERS: dict[ResourceType, tuple[str, ...]] = {
     ResourceType.VAE: ("vae",),
     ResourceType.EMBEDDING: ("embeddings",),
     ResourceType.DIFFUSION_MODEL: ("diffusion_models", "unet"),
-    ResourceType.DIFFUSION_MODEL_GGUF: ("diffusion_models", "unet"),
+    ResourceType.DIFFUSION_MODEL_GGUF: ("unet_gguf", "diffusion_models", "unet"),
     ResourceType.TEXT_ENCODER: ("text_encoders", "clip"),
-    ResourceType.TEXT_ENCODER_GGUF: ("text_encoders", "clip"),
+    ResourceType.TEXT_ENCODER_GGUF: ("clip_gguf", "text_encoders", "clip"),
     ResourceType.CLIP_VISION: ("clip_vision",),
     ResourceType.CONTROLNET: ("controlnet",),
     ResourceType.UPSCALE_MODEL: ("upscale_models",),
@@ -32,8 +33,10 @@ FOLDER_RESOURCE_TYPES: dict[str, ResourceType] = {
     "embeddings": ResourceType.EMBEDDING,
     "diffusion_models": ResourceType.DIFFUSION_MODEL,
     "unet": ResourceType.DIFFUSION_MODEL,
+    "unet_gguf": ResourceType.DIFFUSION_MODEL_GGUF,
     "text_encoders": ResourceType.TEXT_ENCODER,
     "clip": ResourceType.TEXT_ENCODER,
+    "clip_gguf": ResourceType.TEXT_ENCODER_GGUF,
     "clip_vision": ResourceType.CLIP_VISION,
     "controlnet": ResourceType.CONTROLNET,
     "upscale_models": ResourceType.UPSCALE_MODEL,

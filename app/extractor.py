@@ -610,6 +610,9 @@ CLASSIFY = {
     "CheckpointLoaderSimple": "Models",
     "CheckpointLoader": "Models",
     "UNETLoader": "Models",
+    "UnetLoader": "Models",
+    "UNETLoaderGGUF": "Models",
+    "UnetLoaderGGUF": "Models",
     "VAELoader": "Models",
     "CLIPLoader": "Models",
     "DualCLIPLoader": "Models",
@@ -944,10 +947,17 @@ def _generate_params_from_api(prompt_json: dict) -> dict[str, Any]:
             if w is not None and h is not None:
                 result["size"] = f"{w}x{h}"
 
-        elif ct in ("CheckpointLoaderSimple", "CheckpointLoader", "UNETLoader"):
-            ckpt = inputs.get("ckpt_name") or inputs.get("unet_name")
+        elif ct in ("CheckpointLoaderSimple", "CheckpointLoader"):
+            ckpt = inputs.get("ckpt_name")
             if ckpt:
-                result["model"] = ckpt
+                # A checkpoint may be present only to supply CLIP/VAE for a
+                # separate diffusion model. Preserve that model when found.
+                result.setdefault("model", ckpt)
+
+        elif ct in ("UNETLoader", "UnetLoader", "UNETLoaderGGUF", "UnetLoaderGGUF"):
+            unet = inputs.get("unet_name") or inputs.get("diffusion_model")
+            if unet:
+                result["model"] = unet
 
         elif ct == "VAELoader":
             vae = inputs.get("vae_name")

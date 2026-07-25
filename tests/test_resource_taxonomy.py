@@ -67,6 +67,16 @@ class ResourceTaxonomyTest(unittest.TestCase):
             ResourceType.TEXT_ENCODER_GGUF,
         )
 
+    def test_comfyui_gguf_virtual_folders_have_explicit_semantic_types(self) -> None:
+        self.assertEqual(
+            classify_inventory_resource("unet_gguf", "pony.Q4_K_M.gguf"),
+            ResourceType.DIFFUSION_MODEL_GGUF,
+        )
+        self.assertEqual(
+            classify_inventory_resource("clip_gguf", "t5xxl.Q5_K_M.gguf"),
+            ResourceType.TEXT_ENCODER_GGUF,
+        )
+
     def test_standard_and_gguf_slots_do_not_accept_each_others_files(self) -> None:
         self.assertTrue(
             inventory_resource_matches(
@@ -86,6 +96,13 @@ class ResourceTaxonomyTest(unittest.TestCase):
             inventory_resource_matches(
                 "diffusion_models",
                 "flux1-dev.Q4_K_M.gguf",
+                ResourceType.DIFFUSION_MODEL_GGUF,
+            )
+        )
+        self.assertTrue(
+            inventory_resource_matches(
+                "unet_gguf",
+                "pony.Q4_K_M.gguf",
                 ResourceType.DIFFUSION_MODEL_GGUF,
             )
         )

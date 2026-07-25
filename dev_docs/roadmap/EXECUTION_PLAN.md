@@ -556,7 +556,7 @@
 
 - [ ] Checkpoint-contained image generation.
 - [ ] Separate-components image generation.
-- [ ] GGUF generation.
+- [x] GGUF generation.
 - [ ] Reference/img2img.
 - [ ] Inpaint.
 - [ ] Control/pose.
@@ -564,10 +564,10 @@
 - [ ] Video.
 - [ ] Imported standard workflow.
 - [ ] Imported partially mapped workflow.
-- [ ] Result imported into Library.
+- [x] Result imported into Library.
 - [ ] Remix lineage preserved.
 
-**Отложенная проверка GGUF (зафиксировано 2026-07-26):** ранее установленные GGUF models удалены пользователем. После установки совместимого test set повторить inventory slot filtering, draft preview/preflight, реальный generation run и импорт результата в Library с проверкой provenance. До получения этого evidence пункт `GGUF generation` остаётся открытым; успешно проверенный `/object_info` node contract повторять без причины не требуется.
+**GGUF evidence (2026-07-26):** Pony/SDXL GGUF smoke завершён через `core-pony-gguf`: runtime inventory и preflight готовы, реальный run завершён, output импортирован в Library с provenance и корректной GGUF model identity. Отдельная Flux-подобная проверка `core-flux-gguf` на Z-Image остаётся отложенной до загрузки совместимого component set и не блокирует уже подтверждённый общий пункт `GGUF generation`.
 
 ## 9.4 Browser and UX checks
 

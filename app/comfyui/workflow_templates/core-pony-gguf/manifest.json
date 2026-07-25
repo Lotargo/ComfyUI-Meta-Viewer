@@ -1,0 +1,62 @@
+{
+  "schema_version": "2",
+  "id": "core-pony-gguf",
+  "name": "Pony/SDXL image (GGUF)",
+  "version": "1.0.0",
+  "category": "simple",
+  "media_type": "image",
+  "supported_ecosystems": ["pony", "sdxl", "illustrious"],
+  "loader_family": "gguf",
+  "component_policy": {"clip": "embedded", "vae": "embedded"},
+  "workflow": "workflow.json",
+  "description": "A Pony/SDXL GGUF diffusion model with CLIP and VAE borrowed from a compatible checkpoint.",
+  "capability_notes": [
+    "Loads the quantized diffusion model through ComfyUI-GGUF.",
+    "Uses a checkpoint only as the compatible SDXL CLIP and VAE source; its MODEL output is intentionally unused.",
+    "Supports positive and negative SDXL/Pony conditioning with standard latent sampling."
+  ],
+  "limitation_notes": [
+    "Requires ComfyUI-GGUF with the UnetLoaderGGUF node.",
+    "The conditioning checkpoint must match the GGUF model's SDXL/Pony lineage.",
+    "This baseline does not inject LoRA adapters because MODEL and CLIP originate from different loader nodes."
+  ],
+  "required_nodes": [
+    "UnetLoaderGGUF",
+    "CheckpointLoaderSimple",
+    "CLIPTextEncode",
+    "EmptyLatentImage",
+    "KSampler",
+    "VAEDecode",
+    "SaveImage"
+  ],
+  "resource_slots": {
+    "diffusion_model": {
+      "label": "Pony/SDXL diffusion model (GGUF)",
+      "accepts": ["diffusion_model_gguf"],
+      "required": true,
+      "description": "A quantized Pony or SDXL diffusion model loaded through ComfyUI-GGUF.",
+      "binding": {"kind": "node_input", "node_id": "1", "input": "unet_name"}
+    },
+    "conditioning_checkpoint": {
+      "label": "Compatible Pony/SDXL checkpoint",
+      "accepts": ["checkpoint"],
+      "required": true,
+      "description": "Supplies CLIP and VAE only. Choose a checkpoint from the same SDXL/Pony family as the GGUF model.",
+      "binding": {"kind": "node_input", "node_id": "2", "input": "ckpt_name"}
+    }
+  },
+  "fields": [
+    {"id": "positive_prompt", "label": "Positive prompt", "kind": "textarea", "section": "Prompt", "default": "score_9, score_8_up, score_7_up, cinematic portrait, detailed eyes, natural light", "required": true, "bindings": [{"node_id": "3", "input": "text"}]},
+    {"id": "negative_prompt", "label": "What to avoid", "kind": "textarea", "section": "Prompt", "default": "score_6, score_5, score_4, low quality, blurry, artifacts", "advanced": true, "bindings": [{"node_id": "4", "input": "text"}]},
+    {"id": "width", "label": "Width", "kind": "number", "section": "Image", "default": 1024, "minimum": 64, "maximum": 8192, "step": 8, "advanced": true, "bindings": [{"node_id": "5", "input": "width"}]},
+    {"id": "height", "label": "Height", "kind": "number", "section": "Image", "default": 1024, "minimum": 64, "maximum": 8192, "step": 8, "advanced": true, "bindings": [{"node_id": "5", "input": "height"}]},
+    {"id": "batch_size", "label": "Batch size", "kind": "number", "section": "Image", "default": 1, "minimum": 1, "maximum": 16, "step": 1, "advanced": true, "bindings": [{"node_id": "5", "input": "batch_size"}]},
+    {"id": "seed", "label": "Seed", "kind": "seed", "section": "Sampling", "default": -1, "minimum": -1, "maximum": 1125899906842624, "step": 1, "advanced": true, "bindings": [{"node_id": "6", "input": "seed"}]},
+    {"id": "steps", "label": "Quality steps", "kind": "number", "section": "Sampling", "default": 28, "minimum": 1, "maximum": 200, "step": 1, "advanced": true, "bindings": [{"node_id": "6", "input": "steps"}]},
+    {"id": "cfg", "label": "Prompt strength (CFG)", "kind": "number", "section": "Sampling", "default": 7, "minimum": 0, "maximum": 30, "step": 0.1, "advanced": true, "bindings": [{"node_id": "6", "input": "cfg"}]},
+    {"id": "sampler", "label": "Sampling method", "kind": "select", "section": "Sampling", "default": "euler_ancestral", "advanced": true, "options": [{"value": "euler_ancestral", "label": "Euler ancestral"}], "bindings": [{"node_id": "6", "input": "sampler_name"}]},
+    {"id": "scheduler", "label": "Sampling schedule", "kind": "select", "section": "Sampling", "default": "normal", "advanced": true, "options": [{"value": "normal", "label": "Normal"}], "bindings": [{"node_id": "6", "input": "scheduler"}]},
+    {"id": "filename_prefix", "label": "Filename prefix", "kind": "text", "section": "Output", "default": "CMV/Pony-GGUF", "advanced": true, "bindings": [{"node_id": "8", "input": "filename_prefix"}]}
+  ],
+  "output_nodes": ["8"]
+}

@@ -89,10 +89,12 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
         checkpoint = registry.get("core-image")
         separate = registry.get("core-flux")
         gguf = registry.get("core-flux-gguf")
+        pony_gguf = registry.get("core-pony-gguf")
 
         self.assertEqual(checkpoint.manifest.loader_family.value, "checkpoint")
         self.assertEqual(separate.manifest.loader_family.value, "separate_components")
         self.assertEqual(gguf.manifest.loader_family.value, "gguf")
+        self.assertEqual(pony_gguf.manifest.loader_family.value, "gguf")
         self.assertEqual(
             [item.value for item in separate.manifest.resource_slots["diffusion_model"].accepts],
             ["diffusion_model"],
@@ -104,6 +106,10 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
         self.assertEqual(
             {item.value for item in gguf.manifest.resource_slots["t5xxl"].accepts},
             {"text_encoder", "text_encoder_gguf"},
+        )
+        self.assertEqual(
+            [item.value for item in pony_gguf.manifest.resource_slots["conditioning_checkpoint"].accepts],
+            ["checkpoint"],
         )
         for template in (separate, gguf):
             field_ids = {field.id for field in template.manifest.fields}
@@ -591,6 +597,24 @@ class WorkflowCompilerTest(unittest.TestCase):
         self.assertEqual(graph["2"]["inputs"]["clip_name1"], "clip_l.safetensors")
         self.assertEqual(graph["2"]["inputs"]["clip_name2"], "t5-v1_1-xxl.Q5_K_M.gguf")
 
+    def test_pony_gguf_compiles_model_with_checkpoint_clip_and_vae(self) -> None:
+        template = WorkflowTemplateRegistry().get("core-pony-gguf")
+
+        graph = WorkflowCompiler().compile(
+            template,
+            values={"positive_prompt": "score_9, portrait", "steps": 12},
+            resource_selections={
+                "diffusion_model": "babesByStableYogi_v65Q4Q8.gguf",
+                "conditioning_checkpoint": "cyberrealisticPony_v150.safetensors",
+            },
+        )
+
+        self.assertEqual(graph["1"]["inputs"]["unet_name"], "babesByStableYogi_v65Q4Q8.gguf")
+        self.assertEqual(graph["2"]["inputs"]["ckpt_name"], "cyberrealisticPony_v150.safetensors")
+        self.assertEqual(graph["3"]["inputs"]["clip"], ["2", 1])
+        self.assertEqual(graph["7"]["inputs"]["vae"], ["2", 2])
+        self.assertEqual(graph["6"]["inputs"]["steps"], 12)
+
     def test_gguf_flux_dependencies_accept_mixed_encoder_inventory(self) -> None:
         template = WorkflowTemplateRegistry().get("core-flux-gguf")
         inventory = RuntimeInventory(
@@ -778,7 +802,7 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         inventory_mock.return_value = self.inventory
         bootstrap = self.client.get("/api/editor/bootstrap")
         self.assertEqual(bootstrap.status_code, 200)
-        self.assertEqual(len(bootstrap.get_json()["templates"]), 6)
+        self.assertEqual(len(bootstrap.get_json()["templates"]), 7)
 
         created = self.client.post(
             "/api/editor/drafts",
@@ -956,6 +980,7 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
             node_types=[],
             models={
                 "diffusion_models": ["flux.safetensors", "flux.Q4_K_M.gguf"],
+                "unet_gguf": ["pony.Q4_K_M.gguf"],
                 "text_encoders": ["clip_l.safetensors", "t5xxl.Q5_K_M.gguf"],
                 "vae": ["ae.safetensors"],
             },
@@ -975,7 +1000,11 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         )
         self.assertEqual(
             [item["name"] for item in templates["core-flux-gguf"]["resource_options"]["diffusion_model"]],
-            ["flux.Q4_K_M.gguf"],
+            ["flux.Q4_K_M.gguf", "pony.Q4_K_M.gguf"],
+        )
+        self.assertEqual(
+            [item["name"] for item in templates["core-pony-gguf"]["resource_options"]["diffusion_model"]],
+            ["flux.Q4_K_M.gguf", "pony.Q4_K_M.gguf"],
         )
         self.assertEqual(
             [item["name"] for item in templates["core-flux-gguf"]["resource_options"]["t5xxl"]],

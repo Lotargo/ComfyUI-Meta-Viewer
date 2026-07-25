@@ -39,6 +39,23 @@ class GenerateParamsFromApiTests(unittest.TestCase):
             ],
         )
 
+    def test_gguf_unet_takes_model_identity_over_conditioning_checkpoint(self) -> None:
+        prompt = {
+            "1": {
+                "class_type": "UnetLoaderGGUF",
+                "inputs": {"unet_name": "pony.Q4_K_M.gguf"},
+            },
+            "2": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": "pony-conditioning.safetensors"},
+            },
+        }
+
+        self.assertEqual(
+            _generate_params_from_api(prompt)["model"],
+            "pony.Q4_K_M.gguf",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

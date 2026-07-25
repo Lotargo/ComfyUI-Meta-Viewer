@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +15,7 @@ from app.ai.resources import (
     ModelResourceError,
     ResourceType,
 )
+from app.comfyui.workflow_inventory import _sync_catalog
 
 
 class ModelResourcesTest(unittest.TestCase):
@@ -112,6 +114,28 @@ class ModelResourcesTest(unittest.TestCase):
         self.assertEqual(len(evaluations), 2)
         self.assertEqual(evaluations[0].status, CompatibilityStatus.INCOMPATIBLE)
         self.assertEqual(evaluations[1].status, CompatibilityStatus.SUPPORTED)
+
+    def test_inventory_sync_preserves_curated_compatibility_status(self) -> None:
+        name = "flux1-dev.safetensors"
+        identity = hashlib.sha256(f"comfyui:checkpoints:{name}".encode("utf-8")).hexdigest()
+        self.catalog.register(ModelResource(
+            content_hash=identity,
+            file_path=name,
+            resource_type=ResourceType.CHECKPOINT,
+            architecture=ModelEcosystem.FLUX_1,
+            display_name="Curated Flux checkpoint",
+            metadata_source="manual",
+            technical_status=CompatibilityStatus.INCOMPATIBLE,
+            restriction_reason="Use a separate-components workflow.",
+        ))
+
+        _sync_catalog(self.catalog, {"checkpoints": [name]})
+        refreshed = self.catalog.get_by_hash(identity)
+
+        self.assertEqual(refreshed.metadata_source, "manual")
+        self.assertEqual(refreshed.technical_status, CompatibilityStatus.INCOMPATIBLE)
+        self.assertEqual(refreshed.restriction_reason, "Use a separate-components workflow.")
+        self.assertEqual(refreshed.display_name, "Curated Flux checkpoint")
 
 
 if __name__ == "__main__":

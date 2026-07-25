@@ -285,16 +285,16 @@
 ## 4.2 Compatibility resolver
 
 - [x] Фильтровать resource list по active template slot.
-- [ ] Не показывать несовместимые resources как обычный selectable option.
+- [x] Не показывать несовместимые resources как обычный selectable option.
 - [ ] Иметь отдельный раздел incompatible/unknown с объяснением.
 - [ ] Различать embedded и external CLIP.
 - [ ] Различать embedded и external VAE.
-- [ ] Различать checkpoint loader и diffusion-model loader.
-- [ ] Различать standard safetensors и GGUF loader requirements.
-- [ ] Повторно валидировать LoRA при смене checkpoint.
-- [ ] Не удалять несовместимый пользовательский выбор молча.
-- [ ] Блокировать запуск только при доказанной incompatibility или unresolved required slot.
-- [ ] Разрешать запуск с предупреждением для состояния `experimental`.
+- [x] Различать checkpoint loader и diffusion-model loader.
+- [x] Различать standard safetensors и GGUF loader requirements.
+- [x] Повторно валидировать LoRA при смене checkpoint.
+- [x] Не удалять несовместимый пользовательский выбор молча.
+- [x] Блокировать запуск только при доказанной incompatibility или unresolved required slot.
+- [x] Разрешать запуск с предупреждением для состояния `experimental`.
 
 ## 4.3 Optional model registration wizard
 
@@ -632,7 +632,7 @@
 - [x] Разделить checkpoint-contained и separate-components templates.
 - [x] Добавить GGUF-aware template contract.
 - [x] Фильтровать model resources по active slot.
-- [ ] Показывать incompatibility reason до запуска.
+- [x] Показывать incompatibility reason до запуска.
 
 ## Slice B. Workflow registry
 

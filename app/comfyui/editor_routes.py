@@ -20,6 +20,7 @@ from .workflow_compiler import (
     WorkflowCompilerError,
     WorkflowDependencyValidator,
     default_field_values,
+    evaluate_template_resource,
 )
 from .resource_taxonomy import RESOURCE_MODEL_FOLDERS, inventory_resource_matches
 from .workflow_execution import WorkflowExecutionError, WorkflowExecutionService
@@ -79,11 +80,29 @@ def _template_payload(template: WorkflowTemplate, inventory: RuntimeInventory) -
         "manifest": template.manifest.model_dump(mode="json"),
         "source": template.source,
         "defaults": default_field_values(template),
-        "resource_options": _resource_options(template, inventory),
+        "resource_options": _resource_options(
+            template,
+            inventory,
+            catalog=ModelResourceCatalog(),
+        ),
     }
 
 
-def _resource_options(template: WorkflowTemplate, inventory: RuntimeInventory) -> dict[str, list[dict[str, str]]]:
+def _resource_options(
+    template: WorkflowTemplate,
+    inventory: RuntimeInventory,
+    *,
+    catalog: ModelResourceCatalog | None = None,
+) -> dict[str, list[dict[str, str]]]:
+    catalog_resources: dict[tuple[str, str], Any] = {}
+    if catalog is not None:
+        try:
+            catalog_resources = {
+                (resource.resource_type.value, resource.file_path): resource
+                for resource in catalog.list_resources(only_available=True)
+            }
+        except Exception:
+            catalog_resources = {}
     output: dict[str, list[dict[str, str]]] = {}
     for slot_id, slot in template.manifest.resource_slots.items():
         options: dict[str, dict[str, str]] = {}
@@ -92,11 +111,27 @@ def _resource_options(template: WorkflowTemplate, inventory: RuntimeInventory) -
                 for name in inventory.models.get(folder, []):
                     if not inventory_resource_matches(folder, name, resource_type):
                         continue
-                    options.setdefault(name, {
+                    option = options.setdefault(name, {
                         "name": name,
                         "resource_type": resource_type.value,
                         "folder": folder,
                     })
+                    resource = catalog_resources.get((resource_type.value, name))
+                    if resource is not None:
+                        issue = evaluate_template_resource(
+                            template,
+                            slot_id=slot_id,
+                            resource=resource,
+                        )
+                        option.update({
+                            "architecture": resource.architecture.value,
+                            "compatibility_status": (
+                                issue.status.value
+                                if issue is not None
+                                else "supported"
+                            ),
+                            "compatibility_reason": issue.reason if issue is not None else "",
+                        })
         output[slot_id] = sorted(options.values(), key=lambda item: item["name"].casefold())
     return output
 

@@ -67,6 +67,21 @@ GGUF loaders намеренно не добавлены в automatic lookup: и�
 
 `lora_chain` поддерживает несколько adapters через добавление стандартных `LoraLoader` nodes и переподключение downstream MODEL/CLIP edges. Он применим только к graph, где выбранный source node действительно отдаёт обе ветви.
 
+## Compatibility diagnostics
+
+Editor использует один template-aware evaluator для bootstrap options, dependency preview и run preflight:
+
+- semantic resource type должен соответствовать active slot;
+- известный model ecosystem сверяется с `supported_ecosystems` template;
+- curated `technical_status` и `restriction_reason` имеют приоритет и сохраняются при следующем inventory sync;
+- доказанный `incompatible` resource исключается из обычного selectable списка и показывается отдельно с причиной;
+- ранее сохранённый несовместимый выбор остаётся видимым в disabled state и не удаляется молча;
+- `limited` и `experimental` остаются selectable и показывают предупреждение;
+- неизвестная архитектура primary model считается `experimental`, а не автоматически несовместимой;
+- preflight блокирует run при `incompatible`, но не при `limited`/`experimental`.
+
+LoRA повторно оценивается относительно выбранного checkpoint при каждом preview/run. Любое изменение resource selection сбрасывает готовность предыдущего preview, поэтому смена checkpoint не может использовать устаревший compatibility result.
+
 ## Editor persistence и imported result
 
 `WorkflowDraft` сохраняет template identity/version, field values, resource selections, optional `source_asset_id` и `ai_prompt_draft_id`, status и timestamps. Смена template создаёт или открывает отдельное workspace state; запуск не является побочным эффектом создания draft.
@@ -82,6 +97,9 @@ GGUF loaders намеренно не добавлены в automatic lookup: и�
 - generic LoRA transformation и declarative field bindings покрыты unit tests;
 - draft → preview → run dependency checks покрыты route/service tests;
 - standard и GGUF resource lists разделяются по active semantic slot;
+- bootstrap и preflight возвращают одинаковые compatibility statuses и причины;
+- curated catalog restriction переживает повторный inventory sync;
+- unknown, ecosystem mismatch и explicit incompatible состояния покрыты отдельными regression cases;
 - legacy taxonomy aliases нормализуются в canonical values.
 
 ## Runtime evidence

@@ -104,6 +104,13 @@ def _filesystem_inventory(store: ConfigStore, folders: list[str]) -> dict[str, l
 
 
 def _sync_catalog(catalog: ModelResourceCatalog, models: dict[str, list[str]]) -> None:
+    try:
+        existing_by_hash = {
+            resource.content_hash: resource
+            for resource in catalog.list_resources(only_available=False)
+        }
+    except Exception:
+        existing_by_hash = {}
     for folder, names in models.items():
         for name in names:
             resource_type = classify_inventory_resource(folder, name)
@@ -112,17 +119,39 @@ def _sync_catalog(catalog: ModelResourceCatalog, models: dict[str, list[str]]) -
             identity = hashlib.sha256(f"comfyui:{folder}:{name}".encode("utf-8")).hexdigest()
             architecture = _infer_architecture(name)
             try:
-                catalog.register(ModelResource(
-                    content_hash=identity,
-                    file_path=name,
-                    resource_type=resource_type,
-                    architecture=architecture,
-                    prompt_family=architecture.value if architecture is not ModelEcosystem.OTHER else "generic",
-                    display_name=Path(name).stem,
-                    metadata_source="comfyui",
-                    technical_status=CompatibilityStatus.SUPPORTED,
-                    is_available=True,
-                ))
+                existing = existing_by_hash.get(identity)
+                if existing is not None:
+                    resolved_architecture = existing.architecture
+                    if (
+                        existing.metadata_source == "comfyui"
+                        and resolved_architecture is ModelEcosystem.OTHER
+                        and architecture is not ModelEcosystem.OTHER
+                    ):
+                        resolved_architecture = architecture
+                    resource = existing.model_copy(update={
+                        "file_path": name,
+                        "resource_type": resource_type,
+                        "architecture": resolved_architecture,
+                        "prompt_family": (
+                            resolved_architecture.value
+                            if resolved_architecture is not ModelEcosystem.OTHER
+                            else existing.prompt_family
+                        ),
+                        "is_available": True,
+                    })
+                else:
+                    resource = ModelResource(
+                        content_hash=identity,
+                        file_path=name,
+                        resource_type=resource_type,
+                        architecture=architecture,
+                        prompt_family=architecture.value if architecture is not ModelEcosystem.OTHER else "generic",
+                        display_name=Path(name).stem,
+                        metadata_source="comfyui",
+                        technical_status=CompatibilityStatus.SUPPORTED,
+                        is_available=True,
+                    )
+                catalog.register(resource)
             except Exception:
                 # Inventory remains usable even if a stale or locked catalog cannot be updated.
                 continue

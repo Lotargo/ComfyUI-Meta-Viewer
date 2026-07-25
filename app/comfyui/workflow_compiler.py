@@ -8,6 +8,7 @@ from typing import Any
 from app.ai.resources import (
     CapabilityResolver,
     CompatibilityStatus,
+    ModelEcosystem,
     ModelResource,
     ModelResourceCatalog,
     ResourceType,
@@ -40,6 +41,109 @@ AUTO_NODE_BINDINGS: dict[ResourceType, tuple[str, str]] = {
     ResourceType.CONTROLNET: ("ControlNetLoader", "control_net_name"),
     ResourceType.UPSCALE_MODEL: ("UpscaleModelLoader", "model_name"),
 }
+
+PRIMARY_MODEL_RESOURCE_TYPES = {
+    ResourceType.CHECKPOINT,
+    ResourceType.DIFFUSION_MODEL,
+    ResourceType.DIFFUSION_MODEL_GGUF,
+}
+
+ADAPTER_RESOURCE_TYPES = {
+    ResourceType.LORA,
+    ResourceType.LOCON,
+    ResourceType.DORA,
+}
+
+
+def evaluate_template_resource(
+    template: WorkflowTemplate,
+    *,
+    slot_id: str,
+    resource: ModelResource,
+) -> CompatibilityIssue | None:
+    """Return a user-facing issue when catalog evidence is not fully supported."""
+    slot = template.manifest.resource_slots.get(slot_id)
+    if slot is None:
+        return CompatibilityIssue(
+            slot=slot_id,
+            resource_name=resource.file_path,
+            status=CompatibilityStatus.INCOMPATIBLE,
+            reason=f"Workflow template does not define resource slot '{slot_id}'.",
+        )
+    if resource.resource_type not in slot.accepts:
+        accepted = ", ".join(item.value for item in slot.accepts)
+        return CompatibilityIssue(
+            slot=slot_id,
+            resource_name=resource.file_path,
+            status=CompatibilityStatus.INCOMPATIBLE,
+            reason=(
+                f"Resource type '{resource.resource_type.value}' cannot be used in "
+                f"'{slot.label}'. Expected: {accepted}."
+            ),
+        )
+
+    if resource.technical_status is CompatibilityStatus.INCOMPATIBLE:
+        return CompatibilityIssue(
+            slot=slot_id,
+            resource_name=resource.file_path,
+            status=CompatibilityStatus.INCOMPATIBLE,
+            reason=resource.restriction_reason or "Catalog marks this resource as incompatible.",
+        )
+
+    is_adapter = resource.resource_type in ADAPTER_RESOURCE_TYPES
+    supported_ecosystems = set(template.manifest.supported_ecosystems)
+    if (
+        not is_adapter
+        and supported_ecosystems != {ModelEcosystem.OTHER}
+        and resource.architecture is not ModelEcosystem.OTHER
+        and resource.architecture not in supported_ecosystems
+    ):
+        supported = ", ".join(item.value for item in template.manifest.supported_ecosystems)
+        return CompatibilityIssue(
+            slot=slot_id,
+            resource_name=resource.file_path,
+            status=CompatibilityStatus.INCOMPATIBLE,
+            reason=(
+                f"Detected ecosystem '{resource.architecture.value}' is not supported by "
+                f"this workflow template. Supported ecosystems: {supported}."
+            ),
+        )
+
+    if resource.technical_status is not CompatibilityStatus.SUPPORTED:
+        return CompatibilityIssue(
+            slot=slot_id,
+            resource_name=resource.file_path,
+            status=resource.technical_status,
+            reason=resource.restriction_reason or (
+                f"Catalog marks this resource as {resource.technical_status.value}."
+            ),
+        )
+
+    if not is_adapter and supported_ecosystems == {ModelEcosystem.OTHER}:
+        return CompatibilityIssue(
+            slot=slot_id,
+            resource_name=resource.file_path,
+            status=CompatibilityStatus.EXPERIMENTAL,
+            reason=(
+                "Workflow template does not declare a specific model ecosystem. "
+                "The resource type matches, but compatibility requires verification."
+            ),
+        )
+
+    if (
+        resource.resource_type in PRIMARY_MODEL_RESOURCE_TYPES
+        and resource.architecture is ModelEcosystem.OTHER
+    ):
+        return CompatibilityIssue(
+            slot=slot_id,
+            resource_name=resource.file_path,
+            status=CompatibilityStatus.EXPERIMENTAL,
+            reason=(
+                "Model architecture is unknown. The file type matches this slot, "
+                "but ecosystem compatibility has not been confirmed."
+            ),
+        )
+    return None
 
 
 def default_field_values(template: WorkflowTemplate) -> dict[str, Any]:
@@ -407,8 +511,27 @@ class WorkflowDependencyValidator:
             by_name[resource.file_path] = resource
             by_name[resource.display_name] = resource
 
+        issues: list[CompatibilityIssue] = []
+        seen: set[tuple[str, str, CompatibilityStatus, str]] = set()
+
+        def add_issue(issue: CompatibilityIssue | None) -> None:
+            if issue is None:
+                return
+            key = (issue.slot, issue.resource_name, issue.status, issue.reason)
+            if key not in seen:
+                seen.add(key)
+                issues.append(issue)
+
         checkpoint: ModelResource | None = None
         for slot_id, slot in template.manifest.resource_slots.items():
+            for selection in selected_by_slot.get(slot_id, []):
+                resource = by_name.get(selection.name)
+                if resource is not None:
+                    add_issue(evaluate_template_resource(
+                        template,
+                        slot_id=slot_id,
+                        resource=resource,
+                    ))
             if ResourceType.CHECKPOINT not in slot.accepts:
                 continue
             selected = selected_by_slot.get(slot_id, [])
@@ -416,11 +539,10 @@ class WorkflowDependencyValidator:
                 checkpoint = by_name[selected[0].name]
                 break
         if checkpoint is None:
-            return []
+            return issues
 
-        issues: list[CompatibilityIssue] = []
         for slot_id, slot in template.manifest.resource_slots.items():
-            if not any(item in {ResourceType.LORA, ResourceType.LOCON, ResourceType.DORA} for item in slot.accepts):
+            if not any(item in ADAPTER_RESOURCE_TYPES for item in slot.accepts):
                 continue
             for selection in selected_by_slot.get(slot_id, []):
                 resource = by_name.get(selection.name)
@@ -431,7 +553,7 @@ class WorkflowDependencyValidator:
                     resource=resource,
                 )
                 if evaluation.status is not CompatibilityStatus.SUPPORTED:
-                    issues.append(CompatibilityIssue(
+                    add_issue(CompatibilityIssue(
                         slot=slot_id,
                         resource_name=selection.name,
                         status=evaluation.status,
@@ -445,6 +567,7 @@ __all__ = [
     "WorkflowCompiler",
     "WorkflowCompilerError",
     "WorkflowDependencyValidator",
+    "evaluate_template_resource",
     "default_field_values",
     "normalize_resource_selections",
 ]

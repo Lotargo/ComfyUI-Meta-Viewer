@@ -1204,6 +1204,45 @@ function bindAccordionFlyouts() {
     reposition();
 }
 
+function resourceCompatibilityStatus(option) {
+    return option?.compatibility_status || 'supported';
+}
+
+function resourceOptionLabel(option) {
+    const labels = {
+        limited: 'Limited',
+        experimental: 'Experimental',
+    };
+    const suffix = labels[resourceCompatibilityStatus(option)];
+    return `${friendlyResourceName(option.name)}${suffix ? ` · ${suffix}` : ''}`;
+}
+
+function renderSelectableResourceOptions(options, selected = '') {
+    const selectable = options.filter((option) => resourceCompatibilityStatus(option) !== 'incompatible');
+    const persistedIncompatible = options.find((option) => (
+        option.name === selected && resourceCompatibilityStatus(option) === 'incompatible'
+    ));
+    return [
+        ...selectable.map((option) => `<option value="${escapeHtml(option.name)}"${selected === option.name ? ' selected' : ''}>${escapeHtml(resourceOptionLabel(option))}</option>`),
+        persistedIncompatible
+            ? `<option value="${escapeHtml(persistedIncompatible.name)}" selected disabled>${escapeHtml(friendlyResourceName(persistedIncompatible.name))} · Incompatible</option>`
+            : '',
+    ].join('');
+}
+
+function renderResourceCompatibility(option) {
+    const status = resourceCompatibilityStatus(option);
+    if (!option || status === 'supported' || !option.compatibility_reason) return '';
+    const label = status === 'incompatible' ? 'Incompatible' : status === 'limited' ? 'Limited support' : 'Needs verification';
+    return `<div class="resource-compatibility ${escapeHtml(status)}"><strong>${label}</strong><span>${escapeHtml(option.compatibility_reason)}</span></div>`;
+}
+
+function renderIncompatibleResources(options) {
+    const incompatible = options.filter((option) => resourceCompatibilityStatus(option) === 'incompatible');
+    if (!incompatible.length) return '';
+    return `<details class="resource-incompatible-list"><summary>${incompatible.length} incompatible ${incompatible.length === 1 ? 'model' : 'models'} hidden</summary><ul>${incompatible.map((option) => `<li><strong>${escapeHtml(friendlyResourceName(option.name))}</strong><span>${escapeHtml(option.compatibility_reason || 'This model is not compatible with the active workflow.')}</span></li>`).join('')}</ul></details>`;
+}
+
 function renderResourceSlot(slotId, slot) {
     const options = state.selected.resource_options?.[slotId] || [];
     const kind = slot.multiple ? 'adapter' : 'model';
@@ -1213,29 +1252,31 @@ function renderResourceSlot(slotId, slot) {
         : (slot.description || 'Optional style adapter.');
     const head = `<div class="resource-card-head"><div><span class="resource-kind-icon">${iconSvg(kind)}</span><div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(description)}</small></div></div></div>`;
     if (!options.length) {
-        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="resource-card-empty">No compatible models found. Check the connection and your ComfyUI folder.</div></div>`;
+        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="resource-card-empty">No models match this resource type. Check the connection and your ComfyUI folder.</div></div>`;
     }
     if (slot.multiple) {
         const selections = Array.isArray(state.resources[slotId]) ? state.resources[slotId] : [];
-        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="lora-add-row"><select data-lora-option="${escapeHtml(slotId)}"><option value="">Select LoRA…</option>${options.map((option) => `<option value="${escapeHtml(option.name)}">${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select><button class="btn btn-secondary btn-sm" type="button" data-lora-add="${escapeHtml(slotId)}">Add</button></div><div class="lora-list">${selections.map((selection, index) => renderLora(slotId, selection, index)).join('')}</div></div>`;
+        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="lora-add-row"><select data-lora-option="${escapeHtml(slotId)}"><option value="">Select LoRA…</option>${renderSelectableResourceOptions(options)}</select><button class="btn btn-secondary btn-sm" type="button" data-lora-add="${escapeHtml(slotId)}">Add</button></div>${renderIncompatibleResources(options)}<div class="lora-list">${selections.map((selection, index) => renderLora(slotId, selection, index, options.find((option) => option.name === (typeof selection === 'string' ? selection : selection.name)))).join('')}</div></div>`;
     }
     const selected = typeof state.resources[slotId] === 'string'
         ? state.resources[slotId]
         : state.resources[slotId]?.name || '';
-    return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<select data-resource-slot="${escapeHtml(slotId)}"><option value="">${slot.required ? 'Select model…' : 'None'}</option>${options.map((option) => `<option value="${escapeHtml(option.name)}"${selected === option.name ? ' selected' : ''}>${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select></div>`;
+    const selectedOption = options.find((option) => option.name === selected);
+    return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<select data-resource-slot="${escapeHtml(slotId)}"><option value="">${slot.required ? 'Select model…' : 'None'}</option>${renderSelectableResourceOptions(options, selected)}</select>${renderResourceCompatibility(selectedOption)}${renderIncompatibleResources(options)}</div>`;
 }
 
-function renderLora(slotId, selection, index) {
+function renderLora(slotId, selection, index, option = null) {
     const normalized = typeof selection === 'string'
         ? { name: selection, strength_model: 1, strength_clip: 1 }
         : selection;
-    return `<div class="lora-card"><span class="lora-card-name" title="${escapeHtml(normalized.name)}">${escapeHtml(friendlyResourceName(normalized.name))}</span><input type="number" min="-5" max="5" step="0.05" value="${escapeHtml(normalized.strength_model ?? 1)}" data-lora-strength="${escapeHtml(slotId)}" data-lora-index="${index}" title="Style strength"><button class="lora-remove" type="button" data-lora-remove="${escapeHtml(slotId)}" data-lora-index="${index}" aria-label="Remove add-on">×</button></div>`;
+    return `<div class="lora-card"><span class="lora-card-name" title="${escapeHtml(normalized.name)}">${escapeHtml(friendlyResourceName(normalized.name))}</span><input type="number" min="-5" max="5" step="0.05" value="${escapeHtml(normalized.strength_model ?? 1)}" data-lora-strength="${escapeHtml(slotId)}" data-lora-index="${index}" title="Style strength"><button class="lora-remove" type="button" data-lora-remove="${escapeHtml(slotId)}" data-lora-index="${index}" aria-label="Remove add-on">×</button>${renderResourceCompatibility(option)}</div>`;
 }
 
 function bindResourceEvents(container) {
     container.querySelectorAll('[data-resource-slot]').forEach((select) => {
         select.addEventListener('change', () => {
             state.resources[select.dataset.resourceSlot] = select.value;
+            renderResources();
             markDirty();
         });
     });

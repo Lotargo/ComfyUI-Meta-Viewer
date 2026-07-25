@@ -8,6 +8,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app import database
+from app.ai.resources import (
+    CompatibilityStatus,
+    ModelEcosystem,
+    ModelResource,
+    ModelResourceCatalog,
+    ResourceType,
+)
 from app.comfyui.workflow_compiler import (
     WorkflowCompiler,
     WorkflowCompilerError,
@@ -346,6 +353,75 @@ class WorkflowCompilerTest(unittest.TestCase):
 
         self.assertTrue(report.ready)
 
+    def test_unknown_primary_model_is_an_experimental_warning(self) -> None:
+        resource = ModelResource(
+            content_hash="unknown-model-123",
+            file_path="models/mystery.safetensors",
+            resource_type=ResourceType.CHECKPOINT,
+            architecture=ModelEcosystem.OTHER,
+            display_name="Mystery model",
+        )
+        catalog = type("Catalog", (), {"list_resources": lambda self, **_kwargs: [resource]})()
+        inventory = ready_inventory(self.template)
+        inventory.models["checkpoints"] = ["models/mystery.safetensors"]
+
+        report = WorkflowDependencyValidator(catalog=catalog).validate(
+            self.template,
+            resource_selections={"checkpoint": "models/mystery.safetensors"},
+            inventory=inventory,
+        )
+
+        self.assertTrue(report.ready)
+        self.assertEqual(report.compatibility_issues[0].status.value, "experimental")
+        self.assertIn("architecture is unknown", report.compatibility_issues[0].reason)
+
+    def test_known_template_ecosystem_mismatch_is_incompatible(self) -> None:
+        resource = ModelResource(
+            content_hash="known-flux-model-123",
+            file_path="models/flux-checkpoint.safetensors",
+            resource_type=ResourceType.CHECKPOINT,
+            architecture=ModelEcosystem.FLUX_1,
+            display_name="Flux checkpoint",
+        )
+        catalog = type("Catalog", (), {"list_resources": lambda self, **_kwargs: [resource]})()
+        inventory = ready_inventory(self.template)
+        inventory.models["checkpoints"] = [resource.file_path]
+
+        report = WorkflowDependencyValidator(catalog=catalog).validate(
+            self.template,
+            resource_selections={"checkpoint": resource.file_path},
+            inventory=inventory,
+        )
+
+        self.assertFalse(report.ready)
+        self.assertEqual(report.compatibility_issues[0].status.value, "incompatible")
+        self.assertIn("not supported by this workflow", report.compatibility_issues[0].reason)
+
+    def test_unspecified_template_ecosystem_warns_without_blocking(self) -> None:
+        template = self.template.model_copy(update={
+            "manifest": self.template.manifest.model_copy(update={
+                "supported_ecosystems": [ModelEcosystem.OTHER],
+            }),
+        })
+        resource = ModelResource(
+            content_hash="known-sdxl-model-123",
+            file_path="models/base-xl.safetensors",
+            resource_type=ResourceType.CHECKPOINT,
+            architecture=ModelEcosystem.SDXL,
+            display_name="SDXL checkpoint",
+        )
+        catalog = type("Catalog", (), {"list_resources": lambda self, **_kwargs: [resource]})()
+
+        report = WorkflowDependencyValidator(catalog=catalog).validate(
+            template,
+            resource_selections={"checkpoint": resource.file_path},
+            inventory=ready_inventory(template),
+        )
+
+        self.assertTrue(report.ready)
+        self.assertEqual(report.compatibility_issues[0].status.value, "experimental")
+        self.assertIn("does not declare", report.compatibility_issues[0].reason)
+
 
 class WorkflowEditorRoutesTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -447,6 +523,47 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertEqual(
             [item["name"] for item in templates["core-flux-gguf"]["resource_options"]["t5xxl"]],
             ["clip_l.safetensors", "t5xxl.Q5_K_M.gguf"],
+        )
+
+    @patch("app.comfyui.editor_routes._inventory")
+    def test_bootstrap_and_preflight_explain_incompatible_model(self, inventory_mock) -> None:
+        inventory_mock.return_value = self.inventory
+        ModelResourceCatalog().register(ModelResource(
+            content_hash="flux-checkpoint-123",
+            file_path="models/base-xl.safetensors",
+            resource_type=ResourceType.CHECKPOINT,
+            architecture=ModelEcosystem.FLUX_1,
+            display_name="Flux checkpoint in checkpoint folder",
+            technical_status=CompatibilityStatus.INCOMPATIBLE,
+            restriction_reason="This checkpoint requires a separate-components Flux workflow.",
+        ))
+
+        bootstrap = self.client.get("/api/editor/bootstrap")
+        templates = {
+            item["manifest"]["id"]: item
+            for item in bootstrap.get_json()["templates"]
+        }
+        option = templates["core-image"]["resource_options"]["checkpoint"][0]
+        self.assertEqual(option["compatibility_status"], "incompatible")
+        self.assertEqual(
+            option["compatibility_reason"],
+            "This checkpoint requires a separate-components Flux workflow.",
+        )
+
+        draft = WorkflowStore().create_draft(
+            template_id="core-image",
+            template_version="1.0.0",
+            values=default_field_values(self.template),
+            resource_selections={"checkpoint": "models/base-xl.safetensors"},
+        )
+        preview = self.client.post(f"/api/editor/drafts/{draft.id}/preview")
+        dependencies = preview.get_json()["dependencies"]
+
+        self.assertFalse(dependencies["ready"])
+        self.assertEqual(dependencies["compatibility_issues"][0]["status"], "incompatible")
+        self.assertEqual(
+            dependencies["compatibility_issues"][0]["reason"],
+            "This checkpoint requires a separate-components Flux workflow.",
         )
 
     @patch("app.comfyui.editor_routes._inventory")

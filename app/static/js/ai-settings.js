@@ -91,12 +91,25 @@ function writeConnectedCliTypes() {
     }
 }
 
+const OPENCODE_PROVIDER_LABELS = {
+    opencode: 'OpenCode Zen (opencode)',
+    'opencode-go': 'OpenCode Go (opencode-go)',
+    zen: 'OpenCode Zen (opencode)',
+    go: 'OpenCode Go (opencode-go)',
+};
+
+function formatOpenCodeProviderLabel(provider) {
+    if (!provider) return '';
+    return OPENCODE_PROVIDER_LABELS[provider.toLowerCase()] || provider;
+}
+
 function readModelCatalogSettings() {
+    const defaultCatalog = { opencode: [], 'opencode-go': [] };
     try {
         const stored = JSON.parse(localStorage.getItem(MODEL_CATALOG_STORAGE_KEY) || '{}');
         const providers = stored?.opencode?.providers;
         const result = Object.create(null);
-        if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return result;
+        if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return defaultCatalog;
         Object.entries(providers)
             .filter(([provider, models]) => (
                 typeof provider === 'string'
@@ -108,9 +121,9 @@ function readModelCatalogSettings() {
                     ...new Set(models.filter(model => typeof model === 'string' && model)),
                 ];
             });
-        return result;
+        return Object.keys(result).length ? result : defaultCatalog;
     } catch {
-        return Object.create(null);
+        return defaultCatalog;
     }
 }
 
@@ -819,7 +832,8 @@ function visibleProviderChoices(currentProvider = '') {
     if (currentProvider && !providers.includes(currentProvider)) providers.push(currentProvider);
     return providers.sort((left, right) => left.localeCompare(right)).map(provider => ({
         value: provider,
-        label: provider,
+        label: formatOpenCodeProviderLabel(provider),
+        detail: provider,
     }));
 }
 
@@ -929,6 +943,8 @@ function ensureCatalogDraftProvider(provider, enabled = false) {
     return catalogDraft.get(provider);
 }
 
+const DEFAULT_OPENCODE_PROVIDERS = ['opencode', 'opencode-go'];
+
 function resetCatalogDraft() {
     catalogDraft = new Map();
     Object.entries(visibleOpenCodeCatalog).forEach(([provider, models]) => {
@@ -937,6 +953,15 @@ function resetCatalogDraft() {
             mode: models.length ? 'selected' : 'all',
             models: new Set(models),
         });
+    });
+    DEFAULT_OPENCODE_PROVIDERS.forEach(provider => {
+        if (!catalogDraft.has(provider)) {
+            catalogDraft.set(provider, {
+                enabled: false,
+                mode: 'all',
+                models: new Set(),
+            });
+        }
     });
     discoveredCatalogModels.forEach((_models, provider) => {
         ensureCatalogDraftProvider(provider);
@@ -982,7 +1007,7 @@ function renderCatalogSettings() {
         checkbox.checked = state.enabled;
         checkbox.dataset.role = 'catalog-provider';
         checkbox.dataset.provider = provider;
-        providerLabel.append(checkbox, createElement('strong', '', provider));
+        providerLabel.append(checkbox, createElement('strong', '', formatOpenCodeProviderLabel(provider)));
         header.append(providerLabel);
         header.append(createElement(
             'span',
@@ -1183,8 +1208,7 @@ function openProfileDialog(profile = null, integration = null, models = []) {
         : 'OpenAI-compatible';
     elements.dialogTitle.textContent = profile ? 'Edit provider profile' : 'Add provider profile';
     elements.saveProfile.textContent = profile ? 'Save changes' : 'Save profile';
-    const detectedCli = integration || cliCatalog.find(item => item.type === cliType);
-    elements.multimodal.disabled = isCli && !(detectedCli?.multimodal ?? profile?.multimodal);
+    elements.multimodal.disabled = false;
 
     if (profile) {
         elements.id.value = profile.id;

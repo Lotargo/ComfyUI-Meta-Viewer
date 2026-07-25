@@ -14,6 +14,8 @@ from ..config_store import ConfigStore
 from .secrets import SecretStore, SecretStoreError, SystemSecretStore
 
 
+from .cli import CLI_SPECS
+
 PROFILE_KINDS = {"openai_compatible", "cli"}
 CLI_TYPES = {"opencode", "claude", "antigravity"}
 API_KEY_SOURCES = {"system", "environment", "none"}
@@ -166,9 +168,10 @@ def _validate_profile(
         cli_type = payload.get("cli_type")
         if cli_type not in CLI_TYPES:
             raise AIProfileStoreError("Unsupported CLI integration.")
-        if profile["multimodal"] and cli_type != "opencode":
+        spec = CLI_SPECS.get(cli_type, {})
+        if profile["multimodal"] and not spec.get("multimodal", False):
             raise AIProfileStoreError(
-                "Only the OpenCode CLI adapter currently supports image input."
+                f"The {spec.get('label', cli_type)} adapter does not currently support image input."
             )
         executable = payload.get("executable")
         if executable is not None:

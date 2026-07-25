@@ -48,7 +48,7 @@ CLI_SPECS: dict[str, dict[str, Any]] = {
         "version_args": ("--help",),
         "auth_args": None,
         "models_args": ("models",),
-        "multimodal": False,
+        "multimodal": True,
         "experimental": True,
         "install": {
             "windows": {
@@ -437,6 +437,12 @@ def list_cli_models(
             or not re.fullmatch(r"[^\s/]+", provider_id)
         ):
             raise CLIIntegrationError("Invalid model provider ID.")
+        provider_aliases = {
+            "zen": "opencode",
+            "opencode-zen": "opencode",
+            "go": "opencode-go",
+        }
+        provider_id = provider_aliases.get(provider_id.lower(), provider_id)
     if model_args is None:
         return {
             "models": [],

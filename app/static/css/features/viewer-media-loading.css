@@ -1,0 +1,40 @@
+.gallery-card {
+    transition-property: border-color, box-shadow, transform;
+}
+
+.gallery-card .card-info {
+    transition-property: opacity, transform;
+}
+
+.gallery-card .img-wrapper,
+.image-item .item-thumb {
+    background: var(--surface2);
+}
+
+.gallery-card .img-wrapper > img,
+.image-item .item-thumb > img {
+    opacity: 0;
+    transition: opacity 120ms ease-out, transform var(--transition);
+}
+
+.gallery-card .img-wrapper > img.media-loaded,
+.image-item .item-thumb > img.media-loaded {
+    opacity: 1;
+}
+
+.gallery-card .img-wrapper > img.media-load-error,
+.image-item .item-thumb > img.media-load-error {
+    opacity: 0;
+}
+
+html:not(.app-ready) .gallery-card .img-wrapper > img,
+html:not(.app-ready) .image-item .item-thumb > img {
+    transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gallery-card .img-wrapper > img,
+    .image-item .item-thumb > img {
+        transition: none;
+    }
+}

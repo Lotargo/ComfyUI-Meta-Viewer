@@ -1,0 +1,78 @@
+{
+  "schema_version": "2",
+  "id": "core-flux-gguf",
+  "name": "Flux image (GGUF)",
+  "version": "1.0.0",
+  "category": "simple",
+  "media_type": "image",
+  "supported_ecosystems": ["flux_1"],
+  "loader_family": "gguf",
+  "component_policy": {"clip": "required", "vae": "required"},
+  "workflow": "workflow.json",
+  "description": "A Flux-like text-to-image graph using the verified ComfyUI-GGUF model and dual text encoder loaders.",
+  "capability_notes": [
+    "Loads a GGUF diffusion model through ComfyUI-GGUF.",
+    "Each text encoder may be a regular tensor file or GGUF because DualCLIPLoaderGGUF supports both formats.",
+    "Exposes Flux guidance separately and keeps sampler CFG fixed at the architecture-appropriate value of 1."
+  ],
+  "limitation_notes": [
+    "Requires ComfyUI-GGUF with UnetLoaderGGUF and DualCLIPLoaderGGUF nodes.",
+    "Requires a mutually compatible Flux diffusion model, CLIP-L, T5XXL, and VAE; file format alone does not prove compatibility.",
+    "This baseline graph does not inject LoRA adapters into separate MODEL and CLIP branches."
+  ],
+  "required_nodes": [
+    "UnetLoaderGGUF",
+    "DualCLIPLoaderGGUF",
+    "CLIPTextEncode",
+    "FluxGuidance",
+    "ConditioningZeroOut",
+    "EmptySD3LatentImage",
+    "KSampler",
+    "VAELoader",
+    "VAEDecode",
+    "SaveImage"
+  ],
+  "resource_slots": {
+    "diffusion_model": {
+      "label": "Flux diffusion model (GGUF)",
+      "accepts": ["diffusion_model_gguf"],
+      "required": true,
+      "description": "A GGUF Flux diffusion model exposed by ComfyUI-GGUF.",
+      "binding": {"kind": "node_input", "node_id": "1", "input": "unet_name"}
+    },
+    "clip_l": {
+      "label": "CLIP-L text encoder",
+      "accepts": ["text_encoder", "text_encoder_gguf"],
+      "required": true,
+      "description": "A regular or GGUF CLIP-L encoder supported by DualCLIPLoaderGGUF.",
+      "binding": {"kind": "node_input", "node_id": "2", "input": "clip_name1"}
+    },
+    "t5xxl": {
+      "label": "T5XXL text encoder",
+      "accepts": ["text_encoder", "text_encoder_gguf"],
+      "required": true,
+      "description": "A regular or GGUF T5XXL encoder supported by DualCLIPLoaderGGUF.",
+      "binding": {"kind": "node_input", "node_id": "2", "input": "clip_name2"}
+    },
+    "vae": {
+      "label": "Flux VAE",
+      "accepts": ["vae"],
+      "required": true,
+      "description": "A VAE compatible with the selected Flux diffusion model.",
+      "binding": {"kind": "node_input", "node_id": "8", "input": "vae_name"}
+    }
+  },
+  "fields": [
+    {"id": "positive_prompt", "label": "Positive prompt", "kind": "textarea", "section": "Prompt", "default": "A cinematic landscape, dramatic natural light, highly detailed", "required": true, "bindings": [{"node_id": "3", "input": "text"}]},
+    {"id": "width", "label": "Width", "kind": "number", "section": "Image", "default": 1024, "minimum": 64, "maximum": 8192, "step": 16, "advanced": true, "bindings": [{"node_id": "6", "input": "width"}]},
+    {"id": "height", "label": "Height", "kind": "number", "section": "Image", "default": 1024, "minimum": 64, "maximum": 8192, "step": 16, "advanced": true, "bindings": [{"node_id": "6", "input": "height"}]},
+    {"id": "batch_size", "label": "Batch size", "kind": "number", "section": "Image", "default": 1, "minimum": 1, "maximum": 16, "step": 1, "advanced": true, "bindings": [{"node_id": "6", "input": "batch_size"}]},
+    {"id": "guidance", "label": "Flux guidance", "kind": "number", "section": "Sampling", "default": 3.5, "minimum": 0, "maximum": 100, "step": 0.1, "advanced": true, "bindings": [{"node_id": "4", "input": "guidance"}]},
+    {"id": "seed", "label": "Seed", "kind": "seed", "section": "Sampling", "default": -1, "minimum": -1, "maximum": 1125899906842624, "step": 1, "advanced": true, "bindings": [{"node_id": "7", "input": "seed"}]},
+    {"id": "steps", "label": "Quality steps", "kind": "number", "section": "Sampling", "default": 28, "minimum": 1, "maximum": 200, "step": 1, "advanced": true, "bindings": [{"node_id": "7", "input": "steps"}]},
+    {"id": "sampler", "label": "Sampling method", "kind": "select", "section": "Sampling", "default": "euler", "advanced": true, "options": [{"value": "euler", "label": "Euler"}], "bindings": [{"node_id": "7", "input": "sampler_name"}]},
+    {"id": "scheduler", "label": "Sampling schedule", "kind": "select", "section": "Sampling", "default": "simple", "advanced": true, "options": [{"value": "simple", "label": "Simple"}], "bindings": [{"node_id": "7", "input": "scheduler"}]},
+    {"id": "filename_prefix", "label": "Filename prefix", "kind": "text", "section": "Output", "default": "CMV/Flux-GGUF", "advanced": true, "bindings": [{"node_id": "10", "input": "filename_prefix"}]}
+  ],
+  "output_nodes": ["10"]
+}

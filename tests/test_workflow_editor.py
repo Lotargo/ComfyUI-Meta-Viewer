@@ -71,6 +71,33 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
                 expected_schedulers,
             )
 
+    def test_builtin_image_templates_cover_distinct_loader_families(self) -> None:
+        registry = WorkflowTemplateRegistry()
+        checkpoint = registry.get("core-image")
+        separate = registry.get("core-flux")
+        gguf = registry.get("core-flux-gguf")
+
+        self.assertEqual(checkpoint.manifest.loader_family.value, "checkpoint")
+        self.assertEqual(separate.manifest.loader_family.value, "separate_components")
+        self.assertEqual(gguf.manifest.loader_family.value, "gguf")
+        self.assertEqual(
+            [item.value for item in separate.manifest.resource_slots["diffusion_model"].accepts],
+            ["diffusion_model"],
+        )
+        self.assertEqual(
+            [item.value for item in gguf.manifest.resource_slots["diffusion_model"].accepts],
+            ["diffusion_model_gguf"],
+        )
+        self.assertEqual(
+            {item.value for item in gguf.manifest.resource_slots["t5xxl"].accepts},
+            {"text_encoder", "text_encoder_gguf"},
+        )
+        for template in (separate, gguf):
+            field_ids = {field.id for field in template.manifest.fields}
+            self.assertIn("guidance", field_ids)
+            self.assertNotIn("cfg", field_ids)
+            self.assertNotIn("clip_skip", field_ids)
+
     def test_json_bundle_import_is_immediately_loadable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             registry = WorkflowTemplateRegistry(user_root=temp_dir)
@@ -206,6 +233,74 @@ class WorkflowCompilerTest(unittest.TestCase):
         self.assertEqual(graph["5"]["inputs"]["sampler_name"], "sa_solver_pece")
         self.assertEqual(graph["5"]["inputs"]["scheduler"], "kl_optimal")
 
+    def test_separate_flux_components_compile_to_distinct_loaders(self) -> None:
+        template = WorkflowTemplateRegistry().get("core-flux")
+
+        graph = WorkflowCompiler().compile(
+            template,
+            values={"positive_prompt": "A glass observatory", "guidance": 4.2},
+            resource_selections={
+                "diffusion_model": "flux1-dev.safetensors",
+                "clip_l": "clip_l.safetensors",
+                "t5xxl": "t5xxl_fp16.safetensors",
+                "vae": "ae.safetensors",
+            },
+        )
+
+        self.assertEqual(graph["1"]["class_type"], "UNETLoader")
+        self.assertEqual(graph["1"]["inputs"]["unet_name"], "flux1-dev.safetensors")
+        self.assertEqual(graph["2"]["class_type"], "DualCLIPLoader")
+        self.assertEqual(graph["2"]["inputs"]["clip_name1"], "clip_l.safetensors")
+        self.assertEqual(graph["2"]["inputs"]["clip_name2"], "t5xxl_fp16.safetensors")
+        self.assertEqual(graph["4"]["inputs"]["guidance"], 4.2)
+        self.assertEqual(graph["7"]["inputs"]["cfg"], 1.0)
+        self.assertEqual(graph["8"]["inputs"]["vae_name"], "ae.safetensors")
+
+    def test_gguf_flux_components_compile_mixed_text_encoder_formats(self) -> None:
+        template = WorkflowTemplateRegistry().get("core-flux-gguf")
+
+        graph = WorkflowCompiler().compile(
+            template,
+            resource_selections={
+                "diffusion_model": "flux1-dev.Q4_K_M.gguf",
+                "clip_l": "clip_l.safetensors",
+                "t5xxl": "t5-v1_1-xxl.Q5_K_M.gguf",
+                "vae": "ae.safetensors",
+            },
+        )
+
+        self.assertEqual(graph["1"]["class_type"], "UnetLoaderGGUF")
+        self.assertEqual(graph["1"]["inputs"]["unet_name"], "flux1-dev.Q4_K_M.gguf")
+        self.assertEqual(graph["2"]["class_type"], "DualCLIPLoaderGGUF")
+        self.assertEqual(graph["2"]["inputs"]["clip_name1"], "clip_l.safetensors")
+        self.assertEqual(graph["2"]["inputs"]["clip_name2"], "t5-v1_1-xxl.Q5_K_M.gguf")
+
+    def test_gguf_flux_dependencies_accept_mixed_encoder_inventory(self) -> None:
+        template = WorkflowTemplateRegistry().get("core-flux-gguf")
+        inventory = RuntimeInventory(
+            online=True,
+            node_types=template.manifest.required_nodes,
+            models={
+                "diffusion_models": ["flux1-dev.safetensors", "flux1-dev.Q4_K_M.gguf"],
+                "text_encoders": ["clip_l.safetensors", "t5-v1_1-xxl.Q5_K_M.gguf"],
+                "vae": ["ae.safetensors"],
+            },
+            source="api",
+        )
+
+        report = WorkflowDependencyValidator().validate(
+            template,
+            resource_selections={
+                "diffusion_model": "flux1-dev.Q4_K_M.gguf",
+                "clip_l": "clip_l.safetensors",
+                "t5xxl": "t5-v1_1-xxl.Q5_K_M.gguf",
+                "vae": "ae.safetensors",
+            },
+            inventory=inventory,
+        )
+
+        self.assertTrue(report.ready)
+
     def test_ambiguous_auto_binding_requires_declarative_binding(self) -> None:
         template = self.template.model_copy(deep=True)
         template.workflow["8"] = {
@@ -294,7 +389,7 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         inventory_mock.return_value = self.inventory
         bootstrap = self.client.get("/api/editor/bootstrap")
         self.assertEqual(bootstrap.status_code, 200)
-        self.assertEqual(len(bootstrap.get_json()["templates"]), 4)
+        self.assertEqual(len(bootstrap.get_json()["templates"]), 6)
 
         created = self.client.post(
             "/api/editor/drafts",
@@ -320,6 +415,39 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         payload = preview.get_json()
         self.assertTrue(payload["dependencies"]["ready"])
         self.assertEqual(payload["workflow"]["5"]["inputs"]["steps"], 36)
+
+    @patch("app.comfyui.editor_routes._inventory")
+    def test_bootstrap_filters_resources_for_standard_and_gguf_slots(self, inventory_mock) -> None:
+        inventory_mock.return_value = RuntimeInventory(
+            online=True,
+            node_types=[],
+            models={
+                "diffusion_models": ["flux.safetensors", "flux.Q4_K_M.gguf"],
+                "text_encoders": ["clip_l.safetensors", "t5xxl.Q5_K_M.gguf"],
+                "vae": ["ae.safetensors"],
+            },
+            source="api",
+        )
+
+        response = self.client.get("/api/editor/bootstrap")
+
+        self.assertEqual(response.status_code, 200)
+        templates = {
+            item["manifest"]["id"]: item
+            for item in response.get_json()["templates"]
+        }
+        self.assertEqual(
+            [item["name"] for item in templates["core-flux"]["resource_options"]["diffusion_model"]],
+            ["flux.safetensors"],
+        )
+        self.assertEqual(
+            [item["name"] for item in templates["core-flux-gguf"]["resource_options"]["diffusion_model"]],
+            ["flux.Q4_K_M.gguf"],
+        )
+        self.assertEqual(
+            [item["name"] for item in templates["core-flux-gguf"]["resource_options"]["t5xxl"]],
+            ["clip_l.safetensors", "t5xxl.Q5_K_M.gguf"],
+        )
 
     @patch("app.comfyui.editor_routes._inventory")
     def test_run_is_blocked_when_runtime_dependencies_are_missing(self, inventory_mock) -> None:

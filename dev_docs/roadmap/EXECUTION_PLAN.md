@@ -164,10 +164,10 @@
 
 ### Basic text-to-image
 
-- [ ] Checkpoint-contained image generation для SDXL/Pony-like моделей.
-- [ ] Separate diffusion model + CLIP + VAE для Flux-like архитектур.
-- [ ] GGUF diffusion model template.
-- [ ] GGUF text encoder support там, где доступен проверенный loader.
+- [x] Checkpoint-contained image generation для SDXL/Pony-like моделей.
+- [x] Separate diffusion model + CLIP + VAE для Flux-like архитектур.
+- [x] GGUF diffusion model template.
+- [x] GGUF text encoder support там, где доступен проверенный loader.
 
 ### Image-conditioned generation
 
@@ -284,7 +284,7 @@
 
 ## 4.2 Compatibility resolver
 
-- [ ] Фильтровать resource list по active template slot.
+- [x] Фильтровать resource list по active template slot.
 - [ ] Не показывать несовместимые resources как обычный selectable option.
 - [ ] Иметь отдельный раздел incompatible/unknown с объяснением.
 - [ ] Различать embedded и external CLIP.
@@ -627,9 +627,9 @@
 - [x] Инвентаризировать текущие built-in templates.
 - [x] Утвердить resource taxonomy.
 - [x] Обновить manifest schema.
-- [ ] Разделить checkpoint-contained и separate-components templates.
+- [x] Разделить checkpoint-contained и separate-components templates.
 - [x] Добавить GGUF-aware template contract.
-- [ ] Фильтровать model resources по active slot.
+- [x] Фильтровать model resources по active slot.
 - [ ] Показывать incompatibility reason до запуска.
 
 ## Slice B. Workflow registry

@@ -111,8 +111,8 @@
 
 - [x] Инвентаризировать существующие workflow templates.
 - [x] Утвердить resource taxonomy.
-- [ ] Разделить checkpoint-contained, separate-components и GGUF templates.
-- [ ] Фильтровать resources по semantic slots.
+- [x] Разделить checkpoint-contained, separate-components и GGUF templates.
+- [x] Фильтровать resources по semantic slots.
 - [ ] Регистрировать imported workflows и сохранять mappings.
 - [ ] Добавить workflow management modal/table.
 - [ ] Связывать ComfyUI errors с конкретными editor fields.

@@ -6,7 +6,9 @@
 
 | Template | Category / result | Loader strategy | Resource slots | Output | Текущее ограничение |
 | --- | --- | --- | --- | --- | --- |
-| `core-image` | `simple` / image | checkpoint-contained, `CheckpointLoaderSimple` | required `checkpoint`; optional multiple `loras` | `SaveImage` node `7` | Нет separate-components и GGUF loader |
+| `core-image` | `simple` / image | checkpoint-contained, `CheckpointLoaderSimple` | required `checkpoint`; optional multiple `loras` | `SaveImage` node `7` | Только checkpoint-contained модели с embedded CLIP/VAE |
+| `core-flux` | `simple` / image | separate components, `UNETLoader` + `DualCLIPLoader` + `VAELoader` | required `diffusion_model`, `clip_l`, `t5xxl`, `vae` | `SaveImage` node `10` | Flux-like baseline без LoRA injection; совместимость компонентов требует metadata/preflight |
+| `core-flux-gguf` | `simple` / image | GGUF, `UnetLoaderGGUF` + `DualCLIPLoaderGGUF` + `VAELoader` | required GGUF `diffusion_model`; regular/GGUF `clip_l` и `t5xxl`; required `vae` | `SaveImage` node `10` | Требует ComfyUI-GGUF; совместимость компонентов не выводится только из формата файла |
 | `core-reference` | `reference` / image | checkpoint-contained img2img | required `checkpoint`; optional multiple `loras` | `SaveImage` node `8` | Только базовый `LoadImage` + `VAEEncode`, без inpaint/control |
 | `core-two-stage` | `advanced` / image | два checkpoint-contained pipeline | required `base_checkpoint`, `refiner_checkpoint`; optional `base_loras` | `SaveImage` node `11` | Оба этапа требуют checkpoint loader; это не separate-components refiner |
 | `core-video` | `video` / video | separate diffusion model + dual text encoder + VAE | required `diffusion_model`, `text_encoder_1`, `text_encoder_2`, `vae` | `SaveVideo` node `10` | Зависит от конкретного набора native video nodes; GGUF не заявлен |
@@ -76,7 +78,18 @@ GGUF loaders намеренно не добавлены в automatic lookup: и�
 ## Регрессионные проверки baseline
 
 - registry загружает четыре категории и проверяет manifest/graph references;
+- basic image matrix содержит отдельные checkpoint, separate-components и GGUF templates;
 - generic LoRA transformation и declarative field bindings покрыты unit tests;
 - draft → preview → run dependency checks покрыты route/service tests;
 - standard и GGUF resource lists разделяются по active semantic slot;
 - legacy taxonomy aliases нормализуются в canonical values.
+
+## Runtime evidence
+
+26 июля 2026 года оба Flux-like manifests сверены с фактически запущенной Windows Portable установкой ComfyUI через `/object_info`:
+
+- присутствуют все 11 используемых core/custom node types, включая `UnetLoaderGGUF` и `DualCLIPLoaderGGUF` из ComfyUI-GGUF 1.1.9;
+- подтверждены все declarative input names, loader type `flux`, sampler `euler` и scheduler `simple`;
+- unit/API regression suite проверяет compiled standard/GGUF graphs, mixed regular/GGUF text encoders и фильтрацию bootstrap resource options по active slot.
+
+Фактическая генерация этими двумя templates остаётся в Phase 9 workflow matrix: текущая установка не содержит подтверждённого полного Flux component set и GGUF diffusion model, поэтому наличие nodes не выдается за end-to-end generation evidence.

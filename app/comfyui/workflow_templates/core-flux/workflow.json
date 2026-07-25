@@ -1,0 +1,12 @@
+{
+  "1": {"class_type": "UNETLoader", "inputs": {"unet_name": "", "weight_dtype": "default"}},
+  "2": {"class_type": "DualCLIPLoader", "inputs": {"clip_name1": "", "clip_name2": "", "type": "flux"}},
+  "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["2", 0]}},
+  "4": {"class_type": "FluxGuidance", "inputs": {"conditioning": ["3", 0], "guidance": 3.5}},
+  "5": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["3", 0]}},
+  "6": {"class_type": "EmptySD3LatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
+  "7": {"class_type": "KSampler", "inputs": {"seed": 0, "steps": 28, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0, "model": ["1", 0], "positive": ["4", 0], "negative": ["5", 0], "latent_image": ["6", 0]}},
+  "8": {"class_type": "VAELoader", "inputs": {"vae_name": ""}},
+  "9": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["8", 0]}},
+  "10": {"class_type": "SaveImage", "inputs": {"filename_prefix": "CMV/Flux", "images": ["9", 0]}}
+}

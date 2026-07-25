@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from .sampling_options import apply_builtin_sampling_options
 from .workflow_models import WorkflowTemplate, WorkflowTemplateManifest
 
 
@@ -116,6 +117,8 @@ class WorkflowTemplateRegistry:
                 f"Cannot read workflow manifest {path}: {exc}",
                 code="invalid_template_manifest",
             ) from exc
+        if source == "builtin":
+            manifest_payload = apply_builtin_sampling_options(manifest_payload)
         manifest = self._validate_manifest(manifest_payload)
         workflow_path = path.parent / manifest.workflow
         try:

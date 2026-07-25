@@ -17,6 +17,7 @@ from app.comfyui.workflow_compiler import (
 from app.comfyui.workflow_execution import WorkflowExecutionService
 from app.comfyui.workflow_models import RuntimeInventory
 from app.comfyui.workflow_registry import WorkflowTemplateRegistry
+from app.comfyui.sampling_options import CORE_SAMPLER_OPTIONS, CORE_SCHEDULER_OPTIONS
 from app.comfyui.workflow_store import WorkflowStore
 from app.config_store import ConfigStore
 from app.main import app
@@ -52,6 +53,21 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
         )
         self.assertTrue(all(item.manifest.resource_slots for item in templates))
         self.assertTrue(all(item.workflow for item in templates))
+
+    def test_builtin_templates_expose_complete_comfyui_sampling_catalog(self) -> None:
+        expected_samplers = [value for value, _label in CORE_SAMPLER_OPTIONS]
+        expected_schedulers = [value for value, _label in CORE_SCHEDULER_OPTIONS]
+
+        for template in WorkflowTemplateRegistry().list_templates():
+            fields = {field.id: field for field in template.manifest.fields}
+            self.assertEqual(
+                [option.value for option in fields["sampler"].options],
+                expected_samplers,
+            )
+            self.assertEqual(
+                [option.value for option in fields["scheduler"].options],
+                expected_schedulers,
+            )
 
     def test_json_bundle_import_is_immediately_loadable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -94,6 +110,19 @@ class WorkflowCompilerTest(unittest.TestCase):
         self.assertEqual(graph["5"]["inputs"]["model"], ["cmv_lora_2", 0])
         self.assertEqual(graph["2"]["inputs"]["clip"], ["cmv_lora_2", 1])
         self.assertEqual(graph["6"]["inputs"]["vae"], ["1", 2])
+
+    def test_extended_sampler_and_scheduler_are_compiled(self) -> None:
+        graph = WorkflowCompiler().compile(
+            self.template,
+            values={
+                "sampler": "sa_solver_pece",
+                "scheduler": "kl_optimal",
+            },
+            resource_selections={"checkpoint": "models/base-xl.safetensors"},
+        )
+
+        self.assertEqual(graph["5"]["inputs"]["sampler_name"], "sa_solver_pece")
+        self.assertEqual(graph["5"]["inputs"]["scheduler"], "kl_optimal")
 
     def test_ambiguous_auto_binding_requires_declarative_binding(self) -> None:
         template = self.template.model_copy(deep=True)

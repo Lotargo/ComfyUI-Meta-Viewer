@@ -1,3 +1,11 @@
+import {
+    closeLightbox,
+    initLightboxEvents,
+    nextLightbox,
+    openLightbox,
+    prevLightbox,
+} from '../lightbox.js';
+
 const byId = (id) => document.getElementById(id);
 
 const elements = {
@@ -88,6 +96,7 @@ const elements = {
     customAspectRatio: byId('custom-aspect-ratio'),
     aspectRatioLock: byId('aspect-ratio-lock'),
     batchQuickControl: byId('batch-quick-control'),
+    lightbox: byId('lightbox'),
 };
 
 const runtimeElements = {
@@ -146,6 +155,99 @@ const ADVANCED_FIELD_IDS = new Set([
     'sampler', 'scheduler', 'filename_prefix', 'denoise', 'frames', 'fps',
     'base_steps', 'refiner_steps', 'refiner_denoise', 'format', 'codec',
 ]);
+
+const CREATE_WORKSPACE_STORAGE_KEY = 'cmv_create_workspace_v1';
+const CREATE_WORKSPACE_VERSION = 1;
+
+function readCreateWorkspace() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(CREATE_WORKSPACE_STORAGE_KEY) || 'null');
+        if (
+            parsed?.version !== CREATE_WORKSPACE_VERSION
+            || !parsed.templates
+            || typeof parsed.templates !== 'object'
+            || Array.isArray(parsed.templates)
+        ) {
+            return { version: CREATE_WORKSPACE_VERSION, active_template_id: null, templates: {} };
+        }
+        return parsed;
+    } catch {
+        return { version: CREATE_WORKSPACE_VERSION, active_template_id: null, templates: {} };
+    }
+}
+
+const createWorkspace = readCreateWorkspace();
+
+function storedTemplateWorkspace(templateId) {
+    const saved = createWorkspace.templates?.[templateId];
+    return saved && typeof saved === 'object' ? saved : null;
+}
+
+function persistCreateWorkspace() {
+    const manifest = currentManifest();
+    if (!manifest || state.loadingTemplate) return;
+    createWorkspace.active_template_id = manifest.id;
+    createWorkspace.templates[manifest.id] = {
+        template_version: manifest.version,
+        draft: state.draft ? { ...state.draft } : null,
+        values: { ...state.values },
+        resources: { ...state.resources },
+        ui: {
+            sampling_mode: state.samplingMode,
+            custom_resolution_open: state.customResolutionOpen,
+            aspect_ratio_locked: state.aspectRatioLocked,
+            locked_aspect_ratio: state.lockedAspectRatio,
+            advanced_field_memory: { ...state.advancedFieldMemory },
+        },
+        updated_at: new Date().toISOString(),
+    };
+    try {
+        localStorage.setItem(CREATE_WORKSPACE_STORAGE_KEY, JSON.stringify(createWorkspace));
+    } catch {
+        // Server-side drafts remain the fallback when local storage is unavailable.
+    }
+}
+
+function restoreTemplateWorkspace(template, saved) {
+    const manifest = template.manifest;
+    const fieldIds = new Set((manifest.fields || []).map((field) => field.id));
+    const slotIds = new Set(Object.keys(manifest.resource_slots || {}));
+    const savedValues = Object.fromEntries(
+        Object.entries(saved?.values || {}).filter(([fieldId]) => fieldIds.has(fieldId)),
+    );
+    const savedResources = Object.fromEntries(
+        Object.entries(saved?.resources || {}).filter(([slotId]) => slotIds.has(slotId)),
+    );
+    state.draft = saved?.draft?.template_id === manifest.id ? { ...saved.draft } : null;
+    state.values = { ...template.defaults, ...savedValues };
+    state.resources = {
+        ...defaultResourceSelections(template),
+        ...savedResources,
+    };
+    state.samplingMode = saved?.ui?.sampling_mode === 'custom' ? 'custom' : 'recommended';
+    state.customResolutionOpen = Boolean(saved?.ui?.custom_resolution_open);
+    state.aspectRatioLocked = saved?.ui?.aspect_ratio_locked !== false;
+    state.lockedAspectRatio = Number(saved?.ui?.locked_aspect_ratio) > 0
+        ? Number(saved.ui.locked_aspect_ratio)
+        : 1;
+    state.advancedFieldMemory = {
+        ...(saved?.ui?.advanced_field_memory || {}),
+        negative_prompt: saved?.ui?.advanced_field_memory?.negative_prompt
+            || state.values.negative_prompt
+            || template.defaults.negative_prompt
+            || '',
+        seed: Number(saved?.ui?.advanced_field_memory?.seed) >= 0
+            ? Number(saved.ui.advanced_field_memory.seed)
+            : (Number(state.values.seed) >= 0 ? Number(state.values.seed) : 0),
+    };
+}
+
+function syncDraftUrl() {
+    const url = state.draft?.id
+        ? `/editor?draft_id=${encodeURIComponent(state.draft.id)}`
+        : '/editor';
+    history.replaceState({}, '', url);
+}
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -308,6 +410,7 @@ function iconSvg(kind) {
         adapter: '<svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="1.8" fill="none"><path d="M8 3v5m8-5v5M6 8h12v5a6 6 0 0 1-12 0zM12 19v2"/></svg>',
         open: '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 3h7v7M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>',
         download: '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 3v12m-5-5 5 5 5-5M5 21h14"/></svg>',
+        view: '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>',
     };
     return icons[kind] || icons.model;
 }
@@ -327,6 +430,7 @@ function markDirty() {
     updateValidation(null);
     setDraftStatus('Unsaved changes');
     updateWorkspaceSummary();
+    persistCreateWorkspace();
     window.clearTimeout(state.saveTimer);
     state.saveTimer = window.setTimeout(() => {
         saveDraft().catch(() => {});
@@ -366,7 +470,9 @@ async function bootstrap() {
                 throw new Error(`Template ${draftPayload.draft.template_id} is no longer installed.`);
             }
         } else {
-            const first = state.templates.find((item) => item.manifest.id === 'core-image') || state.templates[0];
+            const first = state.templates.find(
+                (item) => item.manifest.id === createWorkspace.active_template_id,
+            ) || state.templates.find((item) => item.manifest.id === 'core-image') || state.templates[0];
             selectTemplate(first);
         }
         updateRuntimePresence(state.inventory.online);
@@ -379,21 +485,39 @@ async function bootstrap() {
 }
 
 function selectTemplate(template, { preserveDraft = false } = {}) {
+    if (state.selected && state.selected.manifest.id !== template.manifest.id) {
+        persistCreateWorkspace();
+    }
+    window.clearTimeout(state.saveTimer);
     state.loadingTemplate = true;
     state.selected = template;
     if (!preserveDraft) {
-        state.draft = null;
-        state.values = { ...template.defaults };
-        state.resources = defaultResourceSelections(template);
-        history.replaceState({}, '', '/editor');
+        const saved = storedTemplateWorkspace(template.manifest.id);
+        if (saved) {
+            restoreTemplateWorkspace(template, saved);
+        } else {
+            state.draft = null;
+            state.values = { ...template.defaults };
+            state.resources = defaultResourceSelections(template);
+            state.samplingMode = 'recommended';
+            state.customResolutionOpen = false;
+            state.aspectRatioLocked = true;
+            state.advancedFieldMemory = {};
+        }
     }
     if (Number(state.values.width) > 0 && Number(state.values.height) > 0) {
         state.lockedAspectRatio = Number(state.values.width) / Number(state.values.height);
     }
-    state.samplingMode = 'recommended';
+    state.samplingMode = state.samplingMode === 'custom' ? 'custom' : 'recommended';
     state.advancedFieldMemory = {
-        negative_prompt: state.values.negative_prompt || template.defaults.negative_prompt || '',
-        seed: Number(state.values.seed) >= 0 ? Number(state.values.seed) : 0,
+        ...state.advancedFieldMemory,
+        negative_prompt: state.advancedFieldMemory.negative_prompt
+            || state.values.negative_prompt
+            || template.defaults.negative_prompt
+            || '',
+        seed: Number(state.advancedFieldMemory.seed) >= 0
+            ? Number(state.advancedFieldMemory.seed)
+            : (Number(state.values.seed) >= 0 ? Number(state.values.seed) : 0),
     };
     state.previewReady = false;
     renderTemplateNavigation();
@@ -404,6 +528,8 @@ function selectTemplate(template, { preserveDraft = false } = {}) {
     updateValidation(null);
     setDraftStatus(state.draft ? `Draft #${state.draft.id}` : 'New draft');
     state.loadingTemplate = false;
+    syncDraftUrl();
+    persistCreateWorkspace();
 }
 
 function renderTemplateNavigation() {
@@ -1161,12 +1287,13 @@ async function ensureDraft() {
         }),
     });
     state.draft = payload.draft;
-    history.replaceState({}, '', `/editor?draft_id=${state.draft.id}`);
+    syncDraftUrl();
+    persistCreateWorkspace();
     renderSourceBanner();
     return state.draft;
 }
 
-async function saveDraft() {
+async function saveDraft({ recoverMissing = true } = {}) {
     if (state.loadingTemplate) return;
     setDraftStatus('Saving…', 'saving');
     try {
@@ -1177,8 +1304,15 @@ async function saveDraft() {
             body: JSON.stringify({ values: state.values, resource_selections: state.resources }),
         });
         state.draft = payload.draft;
+        persistCreateWorkspace();
         setDraftStatus(`Saved · #${state.draft.id}`, 'saved');
     } catch (error) {
+        if (recoverMissing && error.code === 'workflow_draft_not_found') {
+            state.draft = null;
+            syncDraftUrl();
+            persistCreateWorkspace();
+            return saveDraft({ recoverMissing: false });
+        }
         setDraftStatus('Save failed', 'error');
         showToast(error.message, 'error');
         throw error;
@@ -1414,16 +1548,35 @@ function renderResults() {
     });
 }
 
-function resultCard(run, assetId) {
-    const isVideo = (run.output_refs || []).some((ref) => {
+function runOutputIsVideo(run) {
+    return (run.output_refs || []).some((ref) => {
         const mediaKey = String(ref.media_key || '').toLowerCase();
         const filename = String(ref.filename || '').toLowerCase();
         return mediaKey.includes('video') || /\.(mp4|webm|mov|m4v|mkv|avi)$/.test(filename);
     });
+}
+
+function resultLightboxAssets() {
+    return state.runs.flatMap((run) => (run.output_asset_ids || []).map((assetId) => ({
+        id: Number(assetId),
+        media_type: runOutputIsVideo(run) ? 'video' : 'image',
+        file_name: `Generation #${run.id}`,
+    })));
+}
+
+async function openResultLightbox(assetId) {
+    const assets = resultLightboxAssets();
+    const index = assets.findIndex((asset) => asset.id === Number(assetId));
+    if (index < 0) return;
+    await openLightbox(index, assets);
+}
+
+function resultCard(run, assetId) {
+    const isVideo = runOutputIsVideo(run);
     const media = isVideo
         ? `<video src="/api/original/${assetId}" preload="metadata" controls></video>`
-        : `<img src="/api/preview/${assetId}" alt="Generated result ${assetId}" loading="lazy">`;
-    return `<article class="result-card" data-result-search="generation ${run.id}"><div class="result-media">${media}<span class="result-status" title="Saved to library">✓</span><div class="result-card-actions"><a href="/api/original/${assetId}" download title="Download">${iconSvg('download')}</a><a href="/library" title="Open in library">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Generation #${run.id}</strong><span>In library</span></div></article>`;
+        : `<img src="/api/preview/${assetId}" alt="Generated result ${assetId}" loading="lazy" data-open-result="${assetId}">`;
+    return `<article class="result-card" data-result-search="generation ${run.id}"><div class="result-media">${media}<span class="result-status" title="Saved to library">✓</span><div class="result-card-actions"><button type="button" data-open-result="${assetId}" title="View result" aria-label="View generation ${run.id}">${iconSvg('view')}</button><a href="/api/original/${assetId}" download title="Download">${iconSvg('download')}</a><a href="/library" title="Open in library">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Generation #${run.id}</strong><span>In library</span></div></article>`;
 }
 
 function runHistoryCard(run) {
@@ -1692,6 +1845,13 @@ function bindEvents() {
     elements.generateFromPreview.addEventListener('click', generateWorkflow);
     elements.cancelRun.addEventListener('click', cancelCurrentRun);
     elements.resultsRefresh.addEventListener('click', loadRuns);
+    elements.resultGrid.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-open-result]');
+        if (!trigger) return;
+        openResultLightbox(trigger.dataset.openResult).catch((error) => {
+            showToast(error.message || String(error), 'error');
+        });
+    });
     elements.runtimeOpen.addEventListener('click', openRuntimeDrawer);
     elements.runtimeConnect.addEventListener('click', openRuntimeDrawer);
     elements.runtimeClose.addEventListener('click', closeRuntimeDrawer);
@@ -1812,6 +1972,14 @@ function bindEvents() {
     runtimeElements.clearLogs.addEventListener('click', () => { runtimeElements.logs.innerHTML = '<code>[CMV] Console logs cleared.</code>'; });
     runtimeElements.refreshLogs.addEventListener('click', fetchRuntimeLogs);
     document.addEventListener('keydown', (event) => {
+        if (elements.lightbox?.classList.contains('open')) {
+            if (event.key === 'Escape') closeLightbox();
+            else if (event.key === 'ArrowLeft') prevLightbox();
+            else if (event.key === 'ArrowRight') nextLightbox();
+            else return;
+            event.preventDefault();
+            return;
+        }
         if (event.key === 'Escape' && !elements.aspectPopover?.hidden) {
             closeAspectPopover();
             elements.aspectMore?.focus();
@@ -1824,6 +1992,7 @@ function bindEvents() {
     });
     window.addEventListener('focus', loadRuns);
     window.addEventListener('beforeunload', () => {
+        persistCreateWorkspace();
         window.clearTimeout(state.pollTimer);
         window.clearInterval(state.statusTimer);
         if (backdropAlignmentFrame !== null) window.cancelAnimationFrame(backdropAlignmentFrame);
@@ -1834,6 +2003,7 @@ function bindEvents() {
 
 async function initialize() {
     bindEvents();
+    initLightboxEvents({ enableContextMenu: false });
     observeDecorativeBackdropWindows();
     loadDecorativeBackdrops();
     await loadRuntimeConfig();

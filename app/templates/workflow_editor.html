@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/static/css/components/inputs.css">
     <link rel="stylesheet" href="/static/css/components/badges.css">
     <link rel="stylesheet" href="/static/css/components/toast.css">
+    <link rel="stylesheet" href="/static/css/features/lightbox.css">
     <link rel="stylesheet" href="/static/css/features/workflow-editor.css?v={{ static_version('css/features/workflow-editor.css') }}">
     <link rel="stylesheet" href="/static/css/base/studio-theme.css?v={{ static_version('css/base/studio-theme.css') }}">
 </head>
@@ -385,6 +386,35 @@
             <div class="dialog-footer"><button class="btn btn-secondary" value="cancel">Close</button></div>
         </form>
     </dialog>
+
+    <div class="lightbox-overlay create-lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Generation preview">
+        <div class="lightbox-top">
+            <span class="lb-title" id="lb-title"></span>
+            <span class="lb-counter" id="lb-counter"></span>
+            <div class="lb-zoom-controls">
+                <button class="lb-btn" id="lb-zoom-out" type="button" title="Zoom out (-)"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+                <span class="lb-zoom-level" id="lb-zoom-level">100%</span>
+                <button class="lb-btn" id="lb-zoom-in" type="button" title="Zoom in (+)"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+                <button class="lb-btn" id="lb-zoom-reset" type="button" title="Reset zoom (0)"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+                <div class="lb-separator"></div>
+                <button class="lb-btn" id="lb-rotate-ccw" type="button" title="Rotate left"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+                <button class="lb-btn" id="lb-rotate-cw" type="button" title="Rotate right"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button>
+            </div>
+            <button class="lb-btn" id="lb-toggle-meta" type="button" title="Toggle metadata panel (M)"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/></svg></button>
+            <button class="lb-btn" id="lb-view-original" type="button" title="View original in a new tab"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M14 3h7v7M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg></button>
+            <button class="lb-btn" id="lb-download" type="button" title="Download media"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M12 3v12m-5-5 5 5 5-5M5 21h14"/></svg></button>
+            <button class="lb-btn" id="lb-close" type="button" title="Close (Esc)"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+        </div>
+        <div class="lightbox-body">
+            <div class="lightbox-image-area">
+                <button class="lb-nav prev" id="lb-prev" type="button" title="Previous media"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+                <img id="lb-img" src="" alt="" draggable="false" decoding="async" title="Drag to pan when zoomed">
+                <video id="lb-video" controls preload="metadata" hidden></video>
+                <button class="lb-nav next" id="lb-next" type="button" title="Next media"><svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+            <div class="lightbox-meta-panel open" id="lb-meta"></div>
+        </div>
+    </div>
 
     <div id="toast-container" class="toast-container" aria-live="polite"></div>
     <script type="module" src="/static/js/features/workflow-editor.js?v={{ static_version('js/features/workflow-editor.js') }}"></script>

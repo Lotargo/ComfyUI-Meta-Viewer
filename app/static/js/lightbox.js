@@ -401,10 +401,12 @@ export function updateLightbox() {
     if (currentImagesArray === sidebarImages) {
         setSidebarActiveImageId(nextImageId);
         import('./features/sidebar.js').then(module => module.renderSidebar());
-    } else if (galleryActive) {
-        import('./gallery.js').then(m => m.updateActiveGalleryCard(lightboxIndex));
-    } else {
-        import('./features/sidebar.js').then(m => m.renderSidebar());
+    } else if (currentImagesArray === images) {
+        if (galleryActive) {
+            import('./gallery.js').then(m => m.updateActiveGalleryCard(lightboxIndex));
+        } else {
+            import('./features/sidebar.js').then(m => m.renderSidebar());
+        }
     }
 
     const fileName = img.file_name || img.file || '';
@@ -706,7 +708,7 @@ export function viewOriginal() {
     window.open(originalUrl(img), '_blank', 'noopener,noreferrer');
 }
 
-export function initLightboxEvents() {
+export function initLightboxEvents({ enableContextMenu = true } = {}) {
     initCutoutEvents({ getActiveImage: getDetailForLightbox });
     imageArea = document.querySelector('.lightbox-image-area');
 
@@ -792,37 +794,39 @@ export function initLightboxEvents() {
     });
     dom.lbImg?.addEventListener('dragstart', e => e.preventDefault());
     dom.lbImg?.addEventListener('load', applyImageTransform);
-    const showCurrentAssetContextMenu = event => {
-        const img = getDetailForLightbox();
-        if (!img?.id) return;
-        const actionSections = [];
-        if (img.media_type !== 'video') {
-            actionSections.push([{
-                label: 'Create transparent PNG',
-                icon: 'cutout',
-                run: openCutoutPanel,
-            }]);
-        }
-        showImageContextMenu(event, {
-            imageId: img.id,
-            fileName: img.file_name || img.file || '',
-            sourceUrl: originalUrl(img),
-            mediaType: img.media_type || 'image',
-            canAccessOriginal: true,
-            hasLocalFile: Boolean(img.id && img.has_local_file),
-            isUploadedAsset: img.has_local_file === false,
-            rating: img.rating,
-            detail: img,
-            onDeleteFile: deleteCurrentLightboxFile,
-            onRemoveFromIndex: removeCurrentLightboxAssetFromIndex,
-            onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
-            onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
-            extraSections: actionSections,
-            notify: showToast,
-        });
-    };
-    dom.lbImg?.addEventListener('contextmenu', showCurrentAssetContextMenu);
-    dom.lbVideo?.addEventListener('contextmenu', showCurrentAssetContextMenu);
+    if (enableContextMenu) {
+        const showCurrentAssetContextMenu = event => {
+            const img = getDetailForLightbox();
+            if (!img?.id) return;
+            const actionSections = [];
+            if (img.media_type !== 'video') {
+                actionSections.push([{
+                    label: 'Create transparent PNG',
+                    icon: 'cutout',
+                    run: openCutoutPanel,
+                }]);
+            }
+            showImageContextMenu(event, {
+                imageId: img.id,
+                fileName: img.file_name || img.file || '',
+                sourceUrl: originalUrl(img),
+                mediaType: img.media_type || 'image',
+                canAccessOriginal: true,
+                hasLocalFile: Boolean(img.id && img.has_local_file),
+                isUploadedAsset: img.has_local_file === false,
+                rating: img.rating,
+                detail: img,
+                onDeleteFile: deleteCurrentLightboxFile,
+                onRemoveFromIndex: removeCurrentLightboxAssetFromIndex,
+                onRenamed: renamed => import('./api.js').then(module => module.applyImageRename(renamed)),
+                onRatingChanged: asset => import('./api.js').then(module => module.applyImageRating(asset)),
+                extraSections: actionSections,
+                notify: showToast,
+            });
+        };
+        dom.lbImg?.addEventListener('contextmenu', showCurrentAssetContextMenu);
+        dom.lbVideo?.addEventListener('contextmenu', showCurrentAssetContextMenu);
+    }
 
     // Keep the image within the viewport after fullscreen/layout changes.
     window.addEventListener('resize', applyImageTransform);

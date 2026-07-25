@@ -58,10 +58,10 @@
 ## 0.1 Текущий функциональный baseline
 
 - [ ] Зафиксировать список доступных страниц и основных пользовательских потоков.
-- [ ] Зафиксировать текущие built-in workflow templates и их реальные manifests.
-- [ ] Зафиксировать текущие resource types, которые возвращает inventory ComfyUI.
-- [ ] Зафиксировать текущие supported node bindings.
-- [ ] Зафиксировать текущий формат editor draft, run и imported result.
+- [x] Зафиксировать текущие built-in workflow templates и их реальные manifests.
+- [x] Зафиксировать текущие resource types, которые возвращает inventory ComfyUI.
+- [x] Зафиксировать текущие supported node bindings.
+- [x] Зафиксировать текущий формат editor draft, run и imported result.
 - [ ] Зафиксировать текущий AI draft/job contract.
 - [ ] Сохранить минимальные воспроизводимые test fixtures для существующих workflows.
 
@@ -128,37 +128,37 @@
 
 ## 2.1 Resource taxonomy
 
-- [ ] Зафиксировать канонические типы `checkpoint`.
-- [ ] Зафиксировать канонические типы `diffusion_model` / `unet`.
-- [ ] Зафиксировать канонические типы `diffusion_model_gguf`.
-- [ ] Зафиксировать канонические типы `clip` / `text_encoder`.
-- [ ] Зафиксировать канонические типы `clip_gguf`, если поддерживается установленными nodes.
-- [ ] Зафиксировать канонические типы `vae`.
-- [ ] Зафиксировать канонические типы `lora`, `locon`, `dora`.
-- [ ] Зафиксировать типы reference/control resources.
-- [ ] Зафиксировать video-specific model resources.
-- [ ] Обеспечить compatibility aliases для существующей схемы.
+- [x] Зафиксировать канонические типы `checkpoint`.
+- [x] Зафиксировать канонические типы `diffusion_model` / `unet`.
+- [x] Зафиксировать канонические типы `diffusion_model_gguf`.
+- [x] Зафиксировать канонические типы `clip` / `text_encoder`.
+- [x] Зафиксировать канонические типы `clip_gguf`, если поддерживается установленными nodes.
+- [x] Зафиксировать канонические типы `vae`.
+- [x] Зафиксировать канонические типы `lora`, `locon`, `dora`.
+- [x] Зафиксировать типы reference/control resources.
+- [x] Зафиксировать video-specific model resources.
+- [x] Обеспечить compatibility aliases для существующей схемы.
 
 ## 2.2 Manifest schema
 
 Каждый template должен декларировать технические возможности, а не закрытый список имён моделей.
 
-- [ ] Добавить manifest version.
-- [ ] Добавить template category.
-- [ ] Добавить result media type.
-- [ ] Добавить supported model ecosystem или список ecosystems.
-- [ ] Добавить required node types.
-- [ ] Добавить semantic resource slots.
-- [ ] Добавить accepted resource types для каждого slot.
-- [ ] Добавить loader family или binding strategy.
-- [ ] Добавить optional/required state для CLIP и VAE.
-- [ ] Добавить editable fields.
-- [ ] Добавить advanced fields.
-- [ ] Добавить field-to-node/input bindings.
-- [ ] Добавить output nodes.
-- [ ] Добавить capability and limitation notes.
-- [ ] Добавить template validation schema.
-- [ ] Добавить миграцию manifests предыдущей версии.
+- [x] Добавить manifest version.
+- [x] Добавить template category.
+- [x] Добавить result media type.
+- [x] Добавить supported model ecosystem или список ecosystems.
+- [x] Добавить required node types.
+- [x] Добавить semantic resource slots.
+- [x] Добавить accepted resource types для каждого slot.
+- [x] Добавить loader family или binding strategy.
+- [x] Добавить optional/required state для CLIP и VAE.
+- [x] Добавить editable fields.
+- [x] Добавить advanced fields.
+- [x] Добавить field-to-node/input bindings.
+- [x] Добавить output nodes.
+- [x] Добавить capability and limitation notes.
+- [x] Добавить template validation schema.
+- [x] Добавить миграцию manifests предыдущей версии.
 
 ## 2.3 Built-in templates: minimum supported set
 
@@ -624,11 +624,11 @@
 
 ## Slice A. Template and compatibility foundation
 
-- [ ] Инвентаризировать текущие built-in templates.
-- [ ] Утвердить resource taxonomy.
-- [ ] Обновить manifest schema.
+- [x] Инвентаризировать текущие built-in templates.
+- [x] Утвердить resource taxonomy.
+- [x] Обновить manifest schema.
 - [ ] Разделить checkpoint-contained и separate-components templates.
-- [ ] Добавить GGUF-aware template contract.
+- [x] Добавить GGUF-aware template contract.
 - [ ] Фильтровать model resources по active slot.
 - [ ] Показывать incompatibility reason до запуска.
 

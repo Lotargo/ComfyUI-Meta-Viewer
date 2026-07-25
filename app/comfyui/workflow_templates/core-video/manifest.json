@@ -1,12 +1,17 @@
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "id": "core-video",
   "name": "Core video",
   "version": "1.0.0",
   "category": "video",
   "media_type": "video",
+  "supported_ecosystems": ["hunyuan_video"],
+  "loader_family": "separate_components",
+  "component_policy": {"clip": "required", "vae": "required"},
   "workflow": "workflow.json",
   "description": "A manifest-driven native video graph with explicit diffusion model, text encoder, and VAE slots.",
+  "capability_notes": ["Native text-to-video graph with explicit diffusion model, dual text encoders, and VAE."],
+  "limitation_notes": ["Requires the declared Hunyuan video node set and does not support GGUF loaders."],
   "required_nodes": ["UNETLoader", "DualCLIPLoader", "CLIPTextEncode", "EmptyHunyuanLatentVideo", "VAELoader", "KSampler", "VAEDecode", "CreateVideo", "SaveVideo"],
   "resource_slots": {
     "diffusion_model": {"label": "Diffusion model", "accepts": ["diffusion_model"], "required": true, "binding": {"kind": "node_input", "node_id": "1", "input": "unet_name"}},

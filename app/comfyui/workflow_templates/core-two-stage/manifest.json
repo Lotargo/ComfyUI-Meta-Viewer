@@ -1,12 +1,17 @@
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "id": "core-two-stage",
   "name": "Core two-stage refine",
   "version": "1.0.0",
   "category": "advanced",
   "media_type": "image",
+  "supported_ecosystems": ["sdxl", "pony", "illustrious"],
+  "loader_family": "checkpoint",
+  "component_policy": {"clip": "embedded", "vae": "embedded"},
   "workflow": "workflow.json",
   "description": "An explicit two-pipeline template for base generation and checkpoint refinement.",
+  "capability_notes": ["Uses independent base and refiner checkpoint slots with explicit second-stage denoise."],
+  "limitation_notes": ["Both checkpoints must be mutually compatible; automatic cross-checkpoint ecosystem validation is not yet available."],
   "required_nodes": ["CheckpointLoaderSimple", "CLIPTextEncode", "EmptyLatentImage", "KSampler", "VAEDecode", "SaveImage"],
   "resource_slots": {
     "base_checkpoint": {"label": "Base checkpoint", "accepts": ["checkpoint"], "required": true, "binding": {"kind": "node_input", "node_id": "1", "input": "ckpt_name"}},

@@ -7,6 +7,7 @@
 ## Основные документы
 
 - [Detailed execution roadmap](EXECUTION_PLAN.md) — текущая последовательность разработки, зависимости, gates и детализированные чеклисты.
+- [Workflow template and resource baseline](WORKFLOW_TEMPLATE_BASELINE.md) — проверенный снимок built-in templates, bindings и канонической resource taxonomy.
 - Документы `00–10` — архитектурные требования и критерии готовности отдельных подсистем.
 
 ## Как теперь отмечается выполнение
@@ -96,8 +97,8 @@
 
 Основной фокус:
 
-- [ ] Инвентаризировать существующие workflow templates.
-- [ ] Утвердить resource taxonomy.
+- [x] Инвентаризировать существующие workflow templates.
+- [x] Утвердить resource taxonomy.
 - [ ] Разделить checkpoint-contained, separate-components и GGUF templates.
 - [ ] Фильтровать resources по semantic slots.
 - [ ] Регистрировать imported workflows и сохранять mappings.

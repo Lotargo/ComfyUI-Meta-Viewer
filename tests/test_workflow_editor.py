@@ -15,7 +15,7 @@ from app.comfyui.workflow_compiler import (
     default_field_values,
 )
 from app.comfyui.workflow_execution import WorkflowExecutionService
-from app.comfyui.workflow_models import RuntimeInventory
+from app.comfyui.workflow_models import RuntimeInventory, WorkflowTemplateManifest
 from app.comfyui.workflow_registry import WorkflowTemplateRegistry
 from app.comfyui.sampling_options import CORE_SAMPLER_OPTIONS, CORE_SCHEDULER_OPTIONS
 from app.comfyui.workflow_store import WorkflowStore
@@ -53,6 +53,8 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
         )
         self.assertTrue(all(item.manifest.resource_slots for item in templates))
         self.assertTrue(all(item.workflow for item in templates))
+        self.assertTrue(all(item.manifest.schema_version == "2" for item in templates))
+        self.assertTrue(all(item.manifest.supported_ecosystems for item in templates))
 
     def test_builtin_templates_expose_complete_comfyui_sampling_catalog(self) -> None:
         expected_samplers = [value for value, _label in CORE_SAMPLER_OPTIONS]
@@ -82,6 +84,86 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
             self.assertEqual(imported.manifest.id, "custom-image")
             self.assertEqual(registry.get("custom-image").source, "user")
             self.assertTrue((Path(temp_dir) / "custom-image" / "manifest.json").is_file())
+
+    def test_v1_bundle_is_migrated_and_persisted_as_schema_v2(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry = WorkflowTemplateRegistry(user_root=temp_dir)
+            source = registry.get("core-image")
+            manifest = source.manifest.model_dump(mode="json")
+            manifest.update({
+                "schema_version": "1",
+                "id": "legacy-v1-image",
+                "name": "Legacy v1 image",
+                "version": "1.0.0",
+            })
+            for key in (
+                "supported_ecosystems",
+                "loader_family",
+                "component_policy",
+                "capability_notes",
+                "limitation_notes",
+            ):
+                manifest.pop(key)
+            bundle = json.dumps({"manifest": manifest, "workflow": source.workflow}).encode("utf-8")
+
+            imported = registry.import_bundle("legacy.json", bundle)
+            stored = json.loads(
+                (Path(temp_dir) / "legacy-v1-image" / "manifest.json").read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(imported.manifest.schema_version, "2")
+            self.assertEqual(imported.manifest.loader_family.value, "checkpoint")
+            self.assertEqual(imported.manifest.component_policy.clip.value, "embedded")
+            self.assertEqual(stored["schema_version"], "2")
+            self.assertIn("ecosystem compatibility", stored["limitation_notes"][0])
+
+    def test_v2_manifest_rejects_component_policy_without_matching_slot(self) -> None:
+        source = WorkflowTemplateRegistry().get("core-image")
+        payload = source.manifest.model_dump(mode="json")
+        payload["component_policy"]["clip"] = "required"
+
+        with self.assertRaisesRegex(ValueError, "required clip policy"):
+            WorkflowTemplateManifest.model_validate(payload)
+
+    def test_resource_options_filter_standard_and_gguf_files_by_slot(self) -> None:
+        from app.comfyui.editor_routes import _resource_options
+
+        source = WorkflowTemplateRegistry().get("core-image")
+        manifest = WorkflowTemplateManifest.model_validate({
+            "id": "taxonomy-filter",
+            "name": "Taxonomy filter",
+            "version": "1.0.0",
+            "category": "simple",
+            "media_type": "image",
+            "supported_ecosystems": ["flux_1"],
+            "loader_family": "custom",
+            "component_policy": {"clip": "embedded", "vae": "embedded"},
+            "resource_slots": {
+                "standard": {"label": "Standard", "accepts": ["diffusion_model"]},
+                "gguf": {"label": "GGUF", "accepts": ["diffusion_model_gguf"]},
+            },
+            "output_nodes": ["7"],
+        })
+        template = source.model_copy(update={"manifest": manifest})
+        inventory = RuntimeInventory(
+            online=True,
+            models={
+                "diffusion_models": ["flux.safetensors", "flux.Q4_K_M.gguf"],
+                "unet": ["legacy.ckpt", "legacy.Q5_K_S.GGUF"],
+            },
+            source="api",
+        )
+
+        options = _resource_options(template, inventory)
+
+        self.assertEqual(
+            [item["name"] for item in options["standard"]],
+            ["flux.safetensors", "legacy.ckpt"],
+        )
+        self.assertEqual(
+            [item["name"] for item in options["gguf"]],
+            ["flux.Q4_K_M.gguf", "legacy.Q5_K_S.GGUF"],
+        )
 
 
 class WorkflowCompilerTest(unittest.TestCase):

@@ -1,12 +1,17 @@
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "id": "core-reference",
   "name": "Core reference remix",
   "version": "1.0.0",
   "category": "reference",
   "media_type": "image",
+  "supported_ecosystems": ["sd15", "sdxl", "pony", "illustrious"],
+  "loader_family": "checkpoint",
+  "component_policy": {"clip": "embedded", "vae": "embedded"},
   "workflow": "workflow.json",
   "description": "Image-to-image generation with a reference image and configurable denoise strength.",
+  "capability_notes": ["Checkpoint-contained image-to-image generation with an editable denoise value."],
+  "limitation_notes": ["This is not an inpainting or ControlNet workflow; the reference is encoded as the initial latent."],
   "required_nodes": ["CheckpointLoaderSimple", "LoadImage", "VAEEncode", "CLIPTextEncode", "KSampler", "VAEDecode", "SaveImage"],
   "resource_slots": {
     "checkpoint": {"label": "Checkpoint", "accepts": ["checkpoint"], "required": true, "binding": {"kind": "node_input", "node_id": "1", "input": "ckpt_name"}},

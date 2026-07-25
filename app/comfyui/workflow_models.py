@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import copy
 from enum import Enum
 from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
 from app.ai.prompting.models import StrictModel
-from app.ai.resources import CompatibilityStatus, ResourceType
+from app.ai.resources import CompatibilityStatus, ModelEcosystem, ResourceType
+
+
+CURRENT_WORKFLOW_MANIFEST_SCHEMA_VERSION = "2"
 
 
 class WorkflowCategory(str, Enum):
@@ -19,6 +23,26 @@ class WorkflowCategory(str, Enum):
 class WorkflowMediaType(str, Enum):
     IMAGE = "image"
     VIDEO = "video"
+
+
+class LoaderFamily(str, Enum):
+    CHECKPOINT = "checkpoint"
+    SEPARATE_COMPONENTS = "separate_components"
+    GGUF = "gguf"
+    HYBRID = "hybrid"
+    CUSTOM = "custom"
+
+
+class ComponentMode(str, Enum):
+    EMBEDDED = "embedded"
+    REQUIRED = "required"
+    OPTIONAL = "optional"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class ComponentPolicy(StrictModel):
+    clip: ComponentMode
+    vae: ComponentMode
 
 
 class NodeInputBinding(StrictModel):
@@ -82,15 +106,20 @@ class EditorFieldManifest(StrictModel):
 
 
 class WorkflowTemplateManifest(StrictModel):
-    schema_version: Literal["1"] = "1"
+    schema_version: Literal["2"] = "2"
     id: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,79}$")
     name: str = Field(min_length=1, max_length=160)
     version: str = Field(min_length=1, max_length=40)
     category: WorkflowCategory
     media_type: WorkflowMediaType
+    supported_ecosystems: list[ModelEcosystem] = Field(min_length=1, max_length=16)
+    loader_family: LoaderFamily
+    component_policy: ComponentPolicy
     workflow: str = Field(default="workflow.json", min_length=1, max_length=200)
     description: str = Field(default="", max_length=1000)
     preview: str | None = Field(default=None, max_length=200)
+    capability_notes: list[str] = Field(default_factory=list, max_length=32)
+    limitation_notes: list[str] = Field(default_factory=list, max_length=32)
     required_nodes: list[str] = Field(default_factory=list)
     resource_slots: dict[str, ResourceSlotManifest] = Field(default_factory=dict)
     fields: list[EditorFieldManifest] = Field(default_factory=list)
@@ -102,12 +131,141 @@ class WorkflowTemplateManifest(StrictModel):
         cleaned = [str(item).strip() for item in value if str(item).strip()]
         return list(dict.fromkeys(cleaned))
 
+    @field_validator("capability_notes", "limitation_notes")
+    @classmethod
+    def clean_notes(cls, value: list[str]) -> list[str]:
+        cleaned = [str(item).strip() for item in value if str(item).strip()]
+        if any(len(item) > 500 for item in cleaned):
+            raise ValueError("workflow template notes cannot exceed 500 characters")
+        return list(dict.fromkeys(cleaned))
+
+    @field_validator("supported_ecosystems")
+    @classmethod
+    def unique_ecosystems(cls, value: list[ModelEcosystem]) -> list[ModelEcosystem]:
+        return list(dict.fromkeys(value))
+
     @model_validator(mode="after")
     def validate_unique_fields(self) -> "WorkflowTemplateManifest":
         field_ids = [field.id for field in self.fields]
         if len(field_ids) != len(set(field_ids)):
             raise ValueError("workflow template field IDs must be unique")
+        slot_types = {
+            resource_type
+            for slot in self.resource_slots.values()
+            for resource_type in slot.accepts
+        }
+        if self.loader_family is LoaderFamily.CHECKPOINT and ResourceType.CHECKPOINT not in slot_types:
+            raise ValueError("checkpoint loader family requires a checkpoint resource slot")
+        if self.loader_family is LoaderFamily.SEPARATE_COMPONENTS and ResourceType.DIFFUSION_MODEL not in slot_types:
+            raise ValueError("separate_components loader family requires a diffusion_model resource slot")
+        if self.loader_family is LoaderFamily.GGUF and not slot_types.intersection({
+            ResourceType.DIFFUSION_MODEL_GGUF,
+            ResourceType.TEXT_ENCODER_GGUF,
+        }):
+            raise ValueError("gguf loader family requires a GGUF resource slot")
+        self._validate_component_policy("clip", {
+            ResourceType.TEXT_ENCODER,
+            ResourceType.TEXT_ENCODER_GGUF,
+        })
+        self._validate_component_policy("vae", {ResourceType.VAE})
         return self
+
+    def _validate_component_policy(self, component: str, accepted: set[ResourceType]) -> None:
+        mode = getattr(self.component_policy, component)
+        matching = [
+            slot
+            for slot in self.resource_slots.values()
+            if accepted.intersection(slot.accepts)
+        ]
+        if mode is ComponentMode.REQUIRED and not any(slot.required for slot in matching):
+            raise ValueError(f"required {component} policy requires a required resource slot")
+        if mode is ComponentMode.OPTIONAL and not matching:
+            raise ValueError(f"optional {component} policy requires a resource slot")
+        if mode in {ComponentMode.EMBEDDED, ComponentMode.NOT_APPLICABLE} and any(
+            slot.required for slot in matching
+        ):
+            raise ValueError(f"{mode.value} {component} policy conflicts with a required resource slot")
+
+
+def migrate_workflow_manifest(payload: Any) -> Any:
+    """Upgrade supported legacy manifests without weakening schema-v2 validation."""
+    if not isinstance(payload, dict):
+        return payload
+    migrated = copy.deepcopy(payload)
+    version = str(migrated.get("schema_version") or "1").strip()
+    if version == CURRENT_WORKFLOW_MANIFEST_SCHEMA_VERSION:
+        return migrated
+    if version != "1":
+        return migrated
+
+    slot_types: set[ResourceType] = set()
+    slots = migrated.get("resource_slots")
+    if isinstance(slots, dict):
+        for slot in slots.values():
+            if not isinstance(slot, dict):
+                continue
+            accepts = slot.get("accepts")
+            if not isinstance(accepts, list):
+                continue
+            for value in accepts:
+                try:
+                    slot_types.add(ResourceType(value))
+                except ValueError:
+                    continue
+
+    if slot_types.intersection({
+        ResourceType.DIFFUSION_MODEL_GGUF,
+        ResourceType.TEXT_ENCODER_GGUF,
+    }):
+        loader_family = LoaderFamily.GGUF
+    elif ResourceType.CHECKPOINT in slot_types and ResourceType.DIFFUSION_MODEL in slot_types:
+        loader_family = LoaderFamily.HYBRID
+    elif ResourceType.CHECKPOINT in slot_types:
+        loader_family = LoaderFamily.CHECKPOINT
+    elif ResourceType.DIFFUSION_MODEL in slot_types:
+        loader_family = LoaderFamily.SEPARATE_COMPONENTS
+    else:
+        loader_family = LoaderFamily.CUSTOM
+
+    def component_mode(accepted: set[ResourceType]) -> ComponentMode:
+        matching: list[dict[str, Any]] = []
+        if isinstance(slots, dict):
+            for slot in slots.values():
+                if not isinstance(slot, dict) or not isinstance(slot.get("accepts"), list):
+                    continue
+                normalized: set[ResourceType] = set()
+                for value in slot["accepts"]:
+                    try:
+                        normalized.add(ResourceType(value))
+                    except ValueError:
+                        continue
+                if accepted.intersection(normalized):
+                    matching.append(slot)
+        if not matching:
+            return ComponentMode.EMBEDDED
+        return (
+            ComponentMode.REQUIRED
+            if any(bool(slot.get("required", True)) for slot in matching)
+            else ComponentMode.OPTIONAL
+        )
+
+    migrated.update({
+        "schema_version": CURRENT_WORKFLOW_MANIFEST_SCHEMA_VERSION,
+        "supported_ecosystems": migrated.get("supported_ecosystems") or [ModelEcosystem.OTHER.value],
+        "loader_family": migrated.get("loader_family") or loader_family.value,
+        "component_policy": migrated.get("component_policy") or {
+            "clip": component_mode({
+                ResourceType.TEXT_ENCODER,
+                ResourceType.TEXT_ENCODER_GGUF,
+            }).value,
+            "vae": component_mode({ResourceType.VAE}).value,
+        },
+        "capability_notes": migrated.get("capability_notes") or [],
+        "limitation_notes": migrated.get("limitation_notes") or [
+            "Migrated from manifest schema v1; ecosystem compatibility requires review."
+        ],
+    })
+    return migrated
 
 
 class WorkflowTemplate(StrictModel):
@@ -203,10 +361,14 @@ class WorkflowRun(StrictModel):
 
 
 __all__ = [
+    "CURRENT_WORKFLOW_MANIFEST_SCHEMA_VERSION",
     "CompatibilityIssue",
+    "ComponentMode",
+    "ComponentPolicy",
     "DependencyReport",
     "EditorFieldManifest",
     "EditorOption",
+    "LoaderFamily",
     "MissingResource",
     "NodeInputBinding",
     "ResourceBinding",
@@ -219,4 +381,5 @@ __all__ = [
     "WorkflowRun",
     "WorkflowTemplate",
     "WorkflowTemplateManifest",
+    "migrate_workflow_manifest",
 ]

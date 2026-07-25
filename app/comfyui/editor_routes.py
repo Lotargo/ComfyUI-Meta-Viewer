@@ -16,12 +16,12 @@ from app.paths import portable_filename
 
 from .client import ComfyUIClientError
 from .workflow_compiler import (
-    RESOURCE_MODEL_FOLDERS,
     WorkflowCompiler,
     WorkflowCompilerError,
     WorkflowDependencyValidator,
     default_field_values,
 )
+from .resource_taxonomy import RESOURCE_MODEL_FOLDERS, inventory_resource_matches
 from .workflow_execution import WorkflowExecutionError, WorkflowExecutionService
 from .workflow_inventory import client_from_store, collect_runtime_inventory
 from .workflow_models import RuntimeInventory, WorkflowRun, WorkflowTemplate
@@ -90,6 +90,8 @@ def _resource_options(template: WorkflowTemplate, inventory: RuntimeInventory) -
         for resource_type in slot.accepts:
             for folder in RESOURCE_MODEL_FOLDERS.get(resource_type, ()):
                 for name in inventory.models.get(folder, []):
+                    if not inventory_resource_matches(folder, name, resource_type):
+                        continue
                     options.setdefault(name, {
                         "name": name,
                         "resource_type": resource_type.value,

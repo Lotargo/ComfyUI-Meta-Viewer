@@ -25,11 +25,25 @@ class ResourceType(str, Enum):
     VAE = "vae"
     EMBEDDING = "embedding"
     DIFFUSION_MODEL = "diffusion_model"
+    DIFFUSION_MODEL_GGUF = "diffusion_model_gguf"
     TEXT_ENCODER = "text_encoder"
+    TEXT_ENCODER_GGUF = "text_encoder_gguf"
     CLIP_VISION = "clip_vision"
     CONTROLNET = "controlnet"
     UPSCALE_MODEL = "upscale_model"
     UNKNOWN = "unknown"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "ResourceType | None":
+        """Read legacy manifest names while always serializing canonical values."""
+        normalized = str(value).strip().casefold()
+        aliases = {
+            "unet": cls.DIFFUSION_MODEL,
+            "unet_gguf": cls.DIFFUSION_MODEL_GGUF,
+            "clip": cls.TEXT_ENCODER,
+            "clip_gguf": cls.TEXT_ENCODER_GGUF,
+        }
+        return aliases.get(normalized)
 
 
 class ModelEcosystem(str, Enum):
@@ -38,6 +52,7 @@ class ModelEcosystem(str, Enum):
     FLUX_1 = "flux_1"
     PONY = "pony"
     ILLUSTRIOUS = "illustrious"
+    HUNYUAN_VIDEO = "hunyuan_video"
     OTHER = "other"
 
 

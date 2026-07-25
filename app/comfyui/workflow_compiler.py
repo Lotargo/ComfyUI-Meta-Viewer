@@ -13,6 +13,7 @@ from app.ai.resources import (
     ResourceType,
 )
 
+from .resource_taxonomy import RESOURCE_MODEL_FOLDERS, inventory_resource_matches
 from .workflow_models import (
     CompatibilityIssue,
     DependencyReport,
@@ -28,21 +29,6 @@ class WorkflowCompilerError(RuntimeError):
     def __init__(self, message: str, *, code: str = "workflow_compile_error"):
         self.code = code
         super().__init__(message)
-
-
-RESOURCE_MODEL_FOLDERS: dict[ResourceType, tuple[str, ...]] = {
-    ResourceType.CHECKPOINT: ("checkpoints",),
-    ResourceType.LORA: ("loras",),
-    ResourceType.LOCON: ("loras",),
-    ResourceType.DORA: ("loras",),
-    ResourceType.VAE: ("vae",),
-    ResourceType.EMBEDDING: ("embeddings",),
-    ResourceType.DIFFUSION_MODEL: ("diffusion_models", "unet"),
-    ResourceType.TEXT_ENCODER: ("text_encoders", "clip"),
-    ResourceType.CLIP_VISION: ("clip_vision",),
-    ResourceType.CONTROLNET: ("controlnet",),
-    ResourceType.UPSCALE_MODEL: ("upscale_models",),
-}
 
 
 AUTO_NODE_BINDINGS: dict[ResourceType, tuple[str, str]] = {
@@ -398,7 +384,11 @@ class WorkflowDependencyValidator:
         available: set[str] = set()
         for resource_type in accepts:
             for folder in RESOURCE_MODEL_FOLDERS.get(resource_type, ()):
-                available.update(inventory.models.get(folder, []))
+                available.update(
+                    name
+                    for name in inventory.models.get(folder, [])
+                    if inventory_resource_matches(folder, name, resource_type)
+                )
         return available
 
     def _compatibility_issues(

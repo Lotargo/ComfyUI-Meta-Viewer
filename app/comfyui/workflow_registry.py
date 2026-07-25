@@ -9,7 +9,11 @@ from typing import Any
 from pydantic import ValidationError
 
 from .sampling_options import apply_builtin_sampling_options
-from .workflow_models import WorkflowTemplate, WorkflowTemplateManifest
+from .workflow_models import (
+    WorkflowTemplate,
+    WorkflowTemplateManifest,
+    migrate_workflow_manifest,
+)
 
 
 BUILTIN_TEMPLATE_ROOT = Path(__file__).resolve().parent / "workflow_templates"
@@ -138,7 +142,7 @@ class WorkflowTemplateRegistry:
     @staticmethod
     def _validate_manifest(payload: Any) -> WorkflowTemplateManifest:
         try:
-            return WorkflowTemplateManifest.model_validate(payload)
+            return WorkflowTemplateManifest.model_validate(migrate_workflow_manifest(payload))
         except ValidationError as exc:
             message = exc.errors()[0].get("msg", str(exc))
             raise WorkflowTemplateError(
@@ -223,7 +227,7 @@ class WorkflowTemplateRegistry:
                 )
             try:
                 manifest = json.loads(archive.read(manifest_info).decode("utf-8"))
-                manifest_model = WorkflowTemplateManifest.model_validate(manifest)
+                manifest_model = WorkflowTemplateRegistry._validate_manifest(manifest)
                 workflow_name = PurePosixPath(manifest_model.workflow).name
                 workflow_info = next(
                     (item for item in files if PurePosixPath(item.filename).name == workflow_name),

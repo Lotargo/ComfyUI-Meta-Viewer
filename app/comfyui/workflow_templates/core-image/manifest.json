@@ -1,12 +1,17 @@
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "id": "core-image",
   "name": "Core image",
   "version": "1.0.0",
   "category": "simple",
   "media_type": "image",
+  "supported_ecosystems": ["sd15", "sdxl", "pony", "illustrious"],
+  "loader_family": "checkpoint",
+  "component_policy": {"clip": "embedded", "vae": "embedded"},
   "workflow": "workflow.json",
   "description": "A portable text-to-image graph built from ComfyUI core nodes.",
+  "capability_notes": ["Checkpoint-contained text-to-image with optional standard LoRA chaining."],
+  "limitation_notes": ["Requires a checkpoint that exposes MODEL, CLIP, and VAE outputs through CheckpointLoaderSimple."],
   "required_nodes": ["CheckpointLoaderSimple", "CLIPTextEncode", "EmptyLatentImage", "KSampler", "VAEDecode", "SaveImage"],
   "resource_slots": {
     "checkpoint": {

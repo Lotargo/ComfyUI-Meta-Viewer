@@ -8,29 +8,17 @@ from app.ai.resources import (
     ModelEcosystem,
     ModelResource,
     ModelResourceCatalog,
-    ResourceType,
 )
 from app.config_store import ConfigStore
 
 from .client import ComfyUIClient, ComfyUIClientError
 from .detector import detect_comfyui
-from .workflow_compiler import RESOURCE_MODEL_FOLDERS
+from .resource_taxonomy import (
+    FOLDER_RESOURCE_TYPES,
+    RESOURCE_MODEL_FOLDERS,
+    classify_inventory_resource,
+)
 from .workflow_models import RuntimeInventory
-
-
-FOLDER_RESOURCE_TYPES: dict[str, ResourceType] = {
-    "checkpoints": ResourceType.CHECKPOINT,
-    "loras": ResourceType.LORA,
-    "vae": ResourceType.VAE,
-    "embeddings": ResourceType.EMBEDDING,
-    "diffusion_models": ResourceType.DIFFUSION_MODEL,
-    "unet": ResourceType.DIFFUSION_MODEL,
-    "text_encoders": ResourceType.TEXT_ENCODER,
-    "clip": ResourceType.TEXT_ENCODER,
-    "clip_vision": ResourceType.CLIP_VISION,
-    "controlnet": ResourceType.CONTROLNET,
-    "upscale_models": ResourceType.UPSCALE_MODEL,
-}
 
 MODEL_SUFFIXES = {
     ".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf", ".onnx"
@@ -117,10 +105,10 @@ def _filesystem_inventory(store: ConfigStore, folders: list[str]) -> dict[str, l
 
 def _sync_catalog(catalog: ModelResourceCatalog, models: dict[str, list[str]]) -> None:
     for folder, names in models.items():
-        resource_type = FOLDER_RESOURCE_TYPES.get(folder)
-        if resource_type is None:
-            continue
         for name in names:
+            resource_type = classify_inventory_resource(folder, name)
+            if resource_type is None:
+                continue
             identity = hashlib.sha256(f"comfyui:{folder}:{name}".encode("utf-8")).hexdigest()
             architecture = _infer_architecture(name)
             try:
@@ -148,6 +136,8 @@ def _infer_architecture(name: str) -> ModelEcosystem:
         return ModelEcosystem.ILLUSTRIOUS
     if "flux" in lowered or "chroma" in lowered:
         return ModelEcosystem.FLUX_1
+    if "hunyuan" in lowered:
+        return ModelEcosystem.HUNYUAN_VIDEO
     if any(token in lowered for token in ("sd15", "sd1.5", "v1-5", "1.5-pruned")):
         return ModelEcosystem.SD15
     if "sdxl" in lowered or "xl" in lowered:

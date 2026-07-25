@@ -13,6 +13,7 @@ html {
     margin-top: 2px;
     padding: 8px 10px;
     box-sizing: border-box;
+    grid-column: 1 / -1;
     align-items: flex-start;
     flex-wrap: wrap;
     flex-shrink: 1;

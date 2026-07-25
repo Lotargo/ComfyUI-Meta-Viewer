@@ -76,12 +76,11 @@ function waitForTwoFrames() {
 
 function relocateCredentialStatus() {
     const status = document.getElementById('secret-store-status');
-    const keySource = document.getElementById('profile-key-source');
-    const field = keySource?.closest('.field');
-    if (!status || !field) return;
+    const openAiFields = document.getElementById('openai-fields');
+    if (!status || !openAiFields) return;
 
     status.classList.add('secret-store-warning');
-    field.append(status);
+    openAiFields.append(status);
 }
 
 async function bootstrap() {

@@ -5013,7 +5013,7 @@
 }
 
 .editor-global-header .header-logo span {
-    color: #b7bbbd;
+    color: hsl(var(--h-secondary), 88%, 56%);
 }
 
 .editor-global-header .app-switcher {
@@ -6092,4 +6092,476 @@
         padding-inline: 2px;
         font-size: 9.5px;
     }
+}
+
+/* Current workflow artwork: a random local library image per page load. */
+
+.model-hero,
+.model-hero.resource-section {
+    isolation: isolate;
+    border-color: rgba(230, 239, 237, .13);
+    background:
+        radial-gradient(circle at 84% 18%, rgba(128, 155, 150, .13), transparent 36%),
+        linear-gradient(145deg, #171c1e, #101416 68%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .045),
+        inset 0 -38px 62px rgba(0, 0, 0, .22),
+        0 12px 30px rgba(0, 0, 0, .18);
+}
+
+.model-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: block;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, rgba(12, 15, 17, .98) 0%, rgba(12, 15, 17, .9) 38%, rgba(12, 15, 17, .68) 70%, rgba(12, 15, 17, .5) 100%),
+        linear-gradient(0deg, rgba(8, 10, 12, .88), transparent 64%);
+}
+
+.model-hero-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    object-fit: cover;
+    object-position: center 42%;
+    opacity: 0;
+    pointer-events: none;
+    filter: saturate(.72) contrast(1.08) brightness(.82);
+    transition:
+        opacity .55s ease,
+        filter .45s ease;
+}
+
+.model-hero-backdrop.is-ready {
+    opacity: .74;
+}
+
+.model-hero:hover .model-hero-backdrop.is-ready {
+    filter: saturate(.86) contrast(1.06) brightness(.9);
+}
+
+.model-hero > :not(.model-hero-backdrop) {
+    z-index: 2;
+}
+
+.model-hero-copy > span,
+.model-hero-meta {
+    color: #99a6a3;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, .72) !important;
+}
+
+.model-hero-copy h2,
+.model-hero-copy p {
+    text-shadow: 0 1px 10px rgba(0, 0, 0, .78) !important;
+}
+
+.model-hero .resource-card select {
+    border-color: rgba(235, 242, 241, .16) !important;
+    background-color: rgba(8, 11, 13, .76) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .035),
+        0 7px 18px rgba(0, 0, 0, .22) !important;
+    backdrop-filter: blur(12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .model-hero-backdrop,
+    .model-hero:hover .model-hero-backdrop.is-ready {
+        transform: none;
+        transition-duration: .01ms;
+    }
+}
+
+/* Unified expandable settings cards. */
+
+.additional-settings,
+.advanced-settings-dialog {
+    overflow: hidden;
+    border: 1px solid rgba(230, 239, 237, .12);
+    border-radius: 13px;
+    background:
+        radial-gradient(circle at 8% 0, rgba(132, 160, 155, .075), transparent 38%),
+        linear-gradient(145deg, rgba(255, 255, 255, .038), transparent 68%),
+        #14181a;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .035),
+        0 12px 28px rgba(0, 0, 0, .17);
+    transition:
+        border-color var(--transition-fast),
+        box-shadow var(--transition-fast);
+}
+
+.additional-settings > summary,
+.advanced-settings-dialog > summary {
+    min-height: 66px;
+    padding: 0 14px;
+    gap: 11px;
+    border-radius: 12px;
+    color: #dce1e0;
+    font-size: 13px;
+    font-weight: 680;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.settings-summary-icon {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 32px;
+    border: 1px solid rgba(173, 196, 191, .14);
+    border-radius: 9px;
+    background: rgba(132, 159, 154, .08);
+    color: #9fb3af;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035);
+}
+
+.additional-summary-icon {
+    border-color: rgba(184, 193, 169, .15);
+    background: rgba(155, 166, 133, .085);
+    color: #b0b99f;
+}
+
+.sidebar-accordion > summary .settings-summary-icon svg {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    stroke-width: 1.55;
+}
+
+.settings-summary-title {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.settings-summary-count,
+.advanced-settings-dialog > summary .advanced-settings-count {
+    min-width: 25px;
+    height: 24px;
+    margin-left: auto;
+    padding: 0 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .035);
+    color: #8f9997;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.additional-settings.has-selection .settings-summary-count {
+    border-color: rgba(169, 191, 174, .18);
+    background: rgba(118, 151, 130, .12);
+    color: #abc0b0;
+}
+
+.additional-settings > summary > .summary-chevron,
+.advanced-settings-dialog > summary > svg {
+    width: 19px;
+    height: 19px;
+    margin-left: 0;
+    flex: 0 0 19px;
+    color: #9aa5a3;
+}
+
+.additional-settings[open],
+.advanced-settings-dialog[open] {
+    border-color: rgba(173, 196, 191, .18);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .04),
+        0 15px 36px rgba(0, 0, 0, .22);
+}
+
+.additional-settings[open] > summary,
+.advanced-settings-dialog[open] > summary {
+    border-bottom: 1px solid rgba(255, 255, 255, .065);
+    border-radius: 12px 12px 0 0;
+    background: rgba(255, 255, 255, .026);
+}
+
+.additional-settings[open] > .advanced-resource-section {
+    margin: 0;
+    padding: 15px;
+    border: 0;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, .016), transparent 38%),
+        rgba(5, 7, 8, .18);
+}
+
+.additional-settings .advanced-section-heading {
+    margin: 0 1px 14px;
+}
+
+.additional-settings .advanced-section-heading h3 {
+    color: #e2e6e5;
+    font-size: 14px;
+    font-weight: 680;
+}
+
+.additional-settings .advanced-section-heading p {
+    max-width: 290px;
+    margin: 5px 0 0;
+    color: #87918f;
+    font-size: 11.5px;
+    line-height: 1.45;
+}
+
+.additional-settings .resource-card {
+    padding: 13px;
+    border: 1px solid rgba(235, 242, 241, .085);
+    border-radius: 11px;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, .025), transparent 64%),
+        rgba(8, 11, 13, .36);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+}
+
+.additional-settings .resource-card-head {
+    margin-bottom: 12px;
+}
+
+.additional-settings .resource-card-head > div {
+    align-items: center;
+    gap: 9px;
+}
+
+.additional-settings .resource-kind-icon {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 32px;
+    border: 1px solid rgba(175, 194, 190, .12);
+    border-radius: 8px;
+    background: rgba(128, 154, 149, .07);
+    color: #94aaa6;
+}
+
+.additional-settings .resource-card-head strong {
+    color: #dce1e0;
+    font-size: 12.5px;
+    font-weight: 660;
+}
+
+.additional-settings .resource-card-head small {
+    margin-top: 2px;
+    color: #7f8987;
+    font-size: 10.5px;
+    line-height: 1.35;
+}
+
+.additional-settings .lora-add-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+}
+
+.additional-settings .lora-add-row select {
+    height: 42px;
+    padding-inline: 11px 34px !important;
+    border-color: rgba(235, 242, 241, .11) !important;
+    border-radius: 9px !important;
+    background-color: rgba(5, 8, 10, .58) !important;
+    color: #cbd2d0 !important;
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+}
+
+.additional-settings .lora-add-row .btn {
+    min-width: 72px;
+    min-height: 42px;
+    padding-inline: 15px;
+    border-color: rgba(163, 188, 183, .18);
+    border-radius: 9px;
+    background: rgba(123, 151, 146, .11);
+    color: #b9cac7;
+    font-size: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035);
+}
+
+.additional-settings .lora-add-row .btn:hover {
+    border-color: rgba(171, 198, 193, .28);
+    background: rgba(132, 163, 157, .17);
+    color: #e3e9e7;
+}
+
+.additional-settings .lora-list {
+    margin-top: 9px;
+    gap: 7px;
+}
+
+.additional-settings .lora-list:empty {
+    display: none;
+}
+
+.additional-settings .lora-card {
+    min-height: 42px;
+    padding: 6px 7px 6px 11px;
+    grid-template-columns: minmax(0, 1fr) 64px 32px;
+    gap: 7px;
+    border-color: rgba(235, 242, 241, .085);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .026);
+}
+
+.additional-settings .lora-card-name {
+    color: #bdc6c4;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 590;
+}
+
+.additional-settings .lora-card input {
+    height: 32px;
+    padding-inline: 7px;
+    border-radius: 7px;
+    font-size: 11px;
+    text-align: center;
+}
+
+.additional-settings .lora-remove {
+    width: 32px;
+    height: 32px;
+    border-radius: 7px;
+    font-size: 17px;
+}
+
+/* Random library artwork for expandable card headers. */
+
+.additional-settings > summary,
+.advanced-settings-dialog > summary {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+}
+
+.additional-settings > summary::before,
+.advanced-settings-dialog > summary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: block;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, rgba(15, 18, 20, .96), rgba(15, 18, 20, .78) 54%, rgba(15, 18, 20, .58)),
+        linear-gradient(0deg, rgba(8, 10, 12, .64), transparent 70%);
+}
+
+.settings-summary-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 45%;
+    opacity: 0;
+    pointer-events: none;
+    filter: saturate(.7) contrast(1.08) brightness(.76);
+    transition:
+        opacity .5s ease,
+        filter .4s ease;
+}
+
+.settings-summary-backdrop.is-ready {
+    opacity: .68;
+}
+
+.additional-settings > summary:hover .settings-summary-backdrop.is-ready,
+.advanced-settings-dialog > summary:hover .settings-summary-backdrop.is-ready {
+    filter: saturate(.86) contrast(1.06) brightness(.86);
+}
+
+.additional-settings > summary > :not(.settings-summary-backdrop),
+.advanced-settings-dialog > summary > :not(.settings-summary-backdrop) {
+    z-index: 2;
+}
+
+.settings-summary-title,
+.settings-summary-count {
+    text-shadow: 0 1px 9px rgba(0, 0, 0, .82) !important;
+}
+
+/* Compact exact-value field beside the sampling range. */
+
+.advanced-range-row {
+    grid-template-columns: minmax(0, 1fr) 68px;
+    gap: 12px;
+}
+
+.advanced-range-value {
+    width: 68px;
+    height: 40px;
+    padding: 0 10px;
+    appearance: textfield;
+    border: 1px solid rgba(235, 242, 241, .11);
+    border-radius: 10px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, .025), transparent),
+        rgba(7, 10, 12, .64);
+    color: #e4e8e7;
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .025),
+        0 5px 14px rgba(0, 0, 0, .15);
+    transition:
+        border-color var(--transition-fast),
+        background-color var(--transition-fast),
+        box-shadow var(--transition-fast);
+}
+
+.advanced-range-value::-webkit-inner-spin-button,
+.advanced-range-value::-webkit-outer-spin-button {
+    margin: 0;
+    appearance: none;
+}
+
+.advanced-range-value:hover {
+    border-color: rgba(235, 242, 241, .18);
+    background-color: rgba(17, 21, 23, .82);
+}
+
+.advanced-range-value:focus,
+.advanced-range-value:focus-visible {
+    border-color: rgba(167, 193, 188, .38);
+    outline: 0;
+    background-color: rgba(20, 25, 27, .92);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .035),
+        0 0 0 3px rgba(128, 158, 152, .09);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .settings-summary-backdrop,
+    .additional-settings > summary:hover .settings-summary-backdrop.is-ready,
+    .advanced-settings-dialog > summary:hover .settings-summary-backdrop.is-ready {
+        transform: none;
+        transition-duration: .01ms;
+    }
+}
+
+/* One virtual image plane, revealed through the three card windows. */
+
+.mosaic-backdrop {
+    inset: auto 0 auto 0;
+    top: calc(0px - var(--mosaic-window-offset, 0px));
+    width: 100%;
+    height: var(--mosaic-plane-height, 100%);
+    object-fit: cover;
+    object-position: center;
+    transform: none;
 }

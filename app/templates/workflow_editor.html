@@ -65,6 +65,7 @@
             <div class="controls-scroll">
                 <form id="workflow-form" class="workflow-form" novalidate>
                     <section id="resource-section" class="resource-section model-hero" aria-labelledby="resource-heading">
+                        <img id="workflow-backdrop" class="mosaic-backdrop model-hero-backdrop" alt="" aria-hidden="true" decoding="async">
                         <div class="model-hero-copy"><span>Current workflow</span><h2 id="template-name">Preparing editor</h2><p id="template-description">Loading local models…</p></div>
                         <div class="model-hero-switch"><label id="template-heading" for="template-select">Switch workflow</label><select id="template-select" aria-describedby="template-description"><option value="">Loading…</option></select></div>
                         <span id="template-meta" class="model-hero-meta">Manifest v1</span>
@@ -74,7 +75,13 @@
                     </section>
 
                     <details id="additional-settings" class="sidebar-accordion additional-settings">
-                        <summary><span>Additional models</span><svg class="summary-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg></summary>
+                        <summary>
+                            <img id="additional-settings-backdrop" class="mosaic-backdrop settings-summary-backdrop" alt="" aria-hidden="true" decoding="async">
+                            <span class="settings-summary-icon additional-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 8 4-8 4-8-4zM4 12l8 4 8-4M4 17l8 4 8-4"/></svg></span>
+                            <span class="settings-summary-title">Additional models</span>
+                            <span id="additional-model-count" class="settings-summary-count">0</span>
+                            <svg class="summary-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg>
+                        </summary>
                         <section id="advanced-resource-section" class="advanced-resource-section" hidden>
                             <div class="advanced-section-heading"><h3>LoRA adapters</h3><p>Add styles and tune the strength of each adapter.</p></div>
                             <div id="advanced-resource-slots" class="resource-slots"></div>
@@ -164,9 +171,10 @@
 
                     <details id="advanced-settings-dialog" class="sidebar-accordion advanced-settings-dialog">
                         <summary id="advanced-settings-open">
-                            <span class="advanced-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></span>
-                            <span class="advanced-summary-title">Advanced configuration</span>
-                            <span id="advanced-count" class="advanced-settings-count">0</span>
+                            <img id="advanced-settings-backdrop" class="mosaic-backdrop settings-summary-backdrop" alt="" aria-hidden="true" decoding="async">
+                            <span class="settings-summary-icon advanced-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></span>
+                            <span class="settings-summary-title advanced-summary-title">Advanced configuration</span>
+                            <span id="advanced-count" class="advanced-settings-count settings-summary-count">0</span>
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                         </summary>
                         <div class="advanced-settings-scroll">

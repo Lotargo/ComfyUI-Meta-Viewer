@@ -14,10 +14,15 @@ const elements = {
     advancedOpen: byId('advanced-settings-open'),
     advancedDialog: byId('advanced-settings-dialog'),
     resourceSection: byId('resource-section'),
+    workflowBackdrop: byId('workflow-backdrop'),
     resourceSlots: byId('resource-slots'),
     resourceCount: byId('resource-count'),
+    additionalSettings: byId('additional-settings'),
+    additionalModelCount: byId('additional-model-count'),
+    additionalSettingsBackdrop: byId('additional-settings-backdrop'),
     advancedResourceSection: byId('advanced-resource-section'),
     advancedResourceSlots: byId('advanced-resource-slots'),
+    advancedSettingsBackdrop: byId('advanced-settings-backdrop'),
     draftStatus: byId('draft-status'),
     validationSummary: byId('validation-summary'),
     previewButton: byId('preview-workflow'),
@@ -174,6 +179,126 @@ function showToast(message, type = 'info') {
     toast.textContent = message;
     elements.toastContainer.appendChild(toast);
     window.setTimeout(() => toast.remove(), 4500);
+}
+
+const DECORATIVE_BACKDROP_BATCH_SIZE = 24;
+let backdropAlignmentFrame = null;
+let backdropResizeObserver = null;
+let backdropMutationObserver = null;
+
+function availableBackdropAssets(payload) {
+    return (payload?.assets || []).filter((asset) => (
+        asset.available
+        && asset.thumbnail_url
+        && Number(asset.width) > Number(asset.height)
+    ));
+}
+
+function decorativeBackdropWindows() {
+    return [
+        { container: elements.resourceSection, image: elements.workflowBackdrop },
+        {
+            container: elements.additionalSettings?.querySelector(':scope > summary'),
+            image: elements.additionalSettingsBackdrop,
+        },
+        { container: elements.advancedOpen, image: elements.advancedSettingsBackdrop },
+    ].filter(({ container, image }) => container && image);
+}
+
+function alignDecorativeBackdrops() {
+    backdropAlignmentFrame = null;
+    const windows = decorativeBackdropWindows().map((entry) => ({
+        ...entry,
+        rect: entry.container.getBoundingClientRect(),
+    })).filter(({ rect }) => rect.width > 0 && rect.height > 0);
+    if (!windows.length) return;
+
+    const planeTop = Math.min(...windows.map(({ rect }) => rect.top));
+    const planeBottom = Math.max(...windows.map(({ rect }) => rect.bottom));
+    const planeHeight = Math.max(1, planeBottom - planeTop);
+    windows.forEach(({ image, rect }) => {
+        image.style.setProperty('--mosaic-plane-height', `${planeHeight}px`);
+        image.style.setProperty('--mosaic-window-offset', `${rect.top - planeTop}px`);
+    });
+}
+
+function scheduleDecorativeBackdropAlignment() {
+    if (backdropAlignmentFrame !== null) return;
+    backdropAlignmentFrame = window.requestAnimationFrame(alignDecorativeBackdrops);
+}
+
+function observeDecorativeBackdropWindows() {
+    const windows = decorativeBackdropWindows();
+    if (!windows.length) return;
+    if ('ResizeObserver' in window) {
+        backdropResizeObserver = new ResizeObserver(scheduleDecorativeBackdropAlignment);
+        windows.forEach(({ container }) => backdropResizeObserver.observe(container));
+    }
+    const controlsScroll = document.querySelector('.controls-scroll');
+    if (controlsScroll && 'MutationObserver' in window) {
+        backdropMutationObserver = new MutationObserver(scheduleDecorativeBackdropAlignment);
+        backdropMutationObserver.observe(controlsScroll, {
+            attributes: true,
+            attributeFilter: ['class', 'hidden', 'open'],
+            childList: true,
+            subtree: true,
+        });
+    }
+    window.addEventListener('resize', scheduleDecorativeBackdropAlignment, { passive: true });
+    scheduleDecorativeBackdropAlignment();
+}
+
+function applyDecorativeBackdrop(target, asset) {
+    target.addEventListener('load', () => {
+        target.classList.add('is-ready');
+        scheduleDecorativeBackdropAlignment();
+    }, { once: true });
+    target.addEventListener('error', () => {
+        target.classList.remove('is-ready');
+        target.removeAttribute('src');
+    }, { once: true });
+    target.src = asset.thumbnail_url;
+}
+
+async function loadDecorativeBackdrops() {
+    const targets = [
+        elements.workflowBackdrop,
+        elements.additionalSettingsBackdrop,
+        elements.advancedSettingsBackdrop,
+    ].filter(Boolean);
+    if (!targets.length) return;
+    try {
+        const buildUrl = (page) => {
+            const params = new URLSearchParams({
+                collection: 'images',
+                orientation: 'landscape',
+                page: String(page),
+                per_page: String(DECORATIVE_BACKDROP_BATCH_SIZE),
+                sort_by: 'date',
+                sort_dir: 'desc',
+            });
+            return `/api/library/assets?${params}`;
+        };
+
+        const firstBatch = await requestJson(buildUrl(1));
+        const total = Math.max(0, Number(firstBatch.total) || 0);
+        if (!total) return;
+
+        const pageCount = Math.max(1, Math.ceil(total / DECORATIVE_BACKDROP_BATCH_SIZE));
+        const randomPage = Math.floor(Math.random() * pageCount) + 1;
+        const randomBatch = randomPage === 1 ? firstBatch : await requestJson(buildUrl(randomPage));
+        const candidates = [...new Map([
+            ...availableBackdropAssets(randomBatch),
+            ...availableBackdropAssets(firstBatch),
+        ].map((asset) => [asset.id, asset])).values()];
+        if (!candidates.length) return;
+
+        const sharedAsset = candidates[Math.floor(Math.random() * candidates.length)];
+        targets.forEach((target) => applyDecorativeBackdrop(target, sharedAsset));
+        scheduleDecorativeBackdropAlignment();
+    } catch {
+        // The library artwork is decorative; keep the built-in fallback when unavailable.
+    }
 }
 
 function iconSvg(kind) {
@@ -408,7 +533,7 @@ function renderAdvancedRange(field) {
             <span class="advanced-control-label">${escapeHtml(friendlyFieldLabel(field))}${helpIcon('Number of processing iterations. More steps can improve detail but increase generation time.')}</span>
             <div class="advanced-range-row">
                 <input class="advanced-range" type="range" aria-label="${escapeHtml(friendlyFieldLabel(field))}" ${attributes}>
-                <input class="advanced-range-value" type="number" aria-label="${escapeHtml(friendlyFieldLabel(field))}, exact value" ${attributes}>
+                <input class="advanced-range-value" type="number" inputmode="numeric" aria-label="${escapeHtml(friendlyFieldLabel(field))}, exact value" ${attributes}>
             </div>
         </div>
     `;
@@ -661,8 +786,15 @@ function renderResources() {
     const slots = Object.entries(currentManifest().resource_slots || {});
     const requiredSlots = slots.filter(([, slot]) => slot.required);
     const optionalSlots = slots.filter(([, slot]) => !slot.required);
+    const selectedOptionalCount = optionalSlots.reduce((total, [slotId]) => {
+        const selection = state.resources[slotId];
+        if (Array.isArray(selection)) return total + selection.length;
+        return total + (typeof selection === 'string' ? Number(Boolean(selection)) : Number(Boolean(selection?.name)));
+    }, 0);
     elements.resourceSection.hidden = requiredSlots.length === 0;
     elements.resourceCount.textContent = requiredSlots.length > 1 ? `${requiredSlots.length} models` : 'Required';
+    elements.additionalModelCount.textContent = String(selectedOptionalCount);
+    elements.additionalSettings.classList.toggle('has-selection', selectedOptionalCount > 0);
     elements.resourceSlots.innerHTML = requiredSlots.map(([slotId, slot]) => renderResourceSlot(slotId, slot)).join('');
     elements.advancedResourceSection.hidden = optionalSlots.length === 0;
     elements.advancedResourceSlots.innerHTML = optionalSlots.map(([slotId, slot]) => renderResourceSlot(slotId, slot)).join('');
@@ -1689,11 +1821,16 @@ function bindEvents() {
     window.addEventListener('beforeunload', () => {
         window.clearTimeout(state.pollTimer);
         window.clearInterval(state.statusTimer);
+        if (backdropAlignmentFrame !== null) window.cancelAnimationFrame(backdropAlignmentFrame);
+        backdropResizeObserver?.disconnect();
+        backdropMutationObserver?.disconnect();
     });
 }
 
 async function initialize() {
     bindEvents();
+    observeDecorativeBackdropWindows();
+    loadDecorativeBackdrops();
     await loadRuntimeConfig();
     await bootstrap();
     await updateRuntimeStatus();

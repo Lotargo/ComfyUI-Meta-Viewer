@@ -113,7 +113,7 @@
 - [x] Утвердить resource taxonomy.
 - [x] Разделить checkpoint-contained, separate-components и GGUF templates.
 - [x] Фильтровать resources по semantic slots.
-- [ ] Регистрировать imported workflows и сохранять mappings.
+- [x] Регистрировать imported API workflows и сохранять автоматически найденные mappings.
 - [ ] Добавить workflow management modal/table.
 - [ ] Связывать ComfyUI errors с конкретными editor fields.
 - [ ] После стабилизации contracts подключить AI operations к drafts.

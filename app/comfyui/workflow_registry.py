@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from .sampling_options import apply_builtin_sampling_options
+from .workflow_import import WorkflowImportPlan, analyze_api_workflow, unwrap_api_workflow
 from .workflow_models import (
     WorkflowTemplate,
     WorkflowTemplateManifest,
@@ -66,36 +67,75 @@ class WorkflowTemplateRegistry:
             code="template_not_found",
         )
 
-    def import_bundle(self, filename: str, data: bytes) -> WorkflowTemplate:
+    def analyze_import(self, filename: str, data: bytes) -> WorkflowImportPlan:
+        self._validate_import_data(data)
+        suffix = Path(filename or "template.json").suffix.lower()
+        if suffix == ".zip":
+            manifest_data, workflow_data, _preview = self._read_zip_bundle(data)
+            return self._bundle_plan(manifest_data, workflow_data, source_format="template_bundle")
+        if suffix != ".json":
+            raise WorkflowTemplateError(
+                "Import a ComfyUI API workflow, JSON template bundle, or ZIP archive.",
+                code="unsupported_template_bundle",
+            )
+
+        payload = self._decode_json(data)
+        if isinstance(payload, dict) and payload.get("manifest") is not None:
+            manifest_data, workflow_data, _preview = self._read_json_bundle(data)
+            return self._bundle_plan(manifest_data, workflow_data, source_format="template_bundle")
+        workflow_data = unwrap_api_workflow(payload)
+        if workflow_data is None:
+            if isinstance(payload, dict) and isinstance(payload.get("nodes"), list):
+                raise WorkflowTemplateError(
+                    "This is a ComfyUI UI workflow. Export it in API format for automatic mapping; UI graph conversion will be added with the mapping wizard.",
+                    code="ui_workflow_requires_api_format",
+                )
+            raise WorkflowTemplateError(
+                "JSON does not contain a ComfyUI API graph or a template bundle.",
+                code="invalid_template_bundle",
+            )
+        self._validate_workflow(workflow_data)
+        return analyze_api_workflow(filename, workflow_data)
+
+    def import_bundle(
+        self,
+        filename: str,
+        data: bytes,
+        *,
+        manifest_overrides: dict[str, str] | None = None,
+    ) -> WorkflowTemplate:
         if self.user_root is None:
             raise WorkflowTemplateError(
                 "User workflow template storage is not configured.",
                 code="template_storage_unavailable",
             )
-        if not data:
-            raise WorkflowTemplateError("Template bundle is empty.", code="empty_template_bundle")
-        if len(data) > MAX_TEMPLATE_BUNDLE_BYTES:
+        plan = self.analyze_import(filename, data)
+        if not plan.ready:
             raise WorkflowTemplateError(
-                "Template bundle exceeds the 20 MB limit.",
-                code="template_bundle_too_large",
+                "This workflow needs manual mapping before it can be registered: "
+                + " ".join(plan.warnings),
+                code="workflow_mapping_required",
             )
-
-        suffix = Path(filename or "template.json").suffix.lower()
-        if suffix == ".zip":
-            manifest_data, workflow_data, preview = self._read_zip_bundle(data)
-        elif suffix == ".json":
-            manifest_data, workflow_data, preview = self._read_json_bundle(data)
-        else:
+        manifest = plan.manifest
+        if manifest_overrides:
+            allowed = {
+                key: str(value).strip()
+                for key, value in manifest_overrides.items()
+                if key in {"id", "name", "description"} and str(value).strip()
+            }
+            if allowed:
+                manifest = self._validate_manifest({
+                    **manifest.model_dump(mode="json"),
+                    **allowed,
+                })
+        workflow_data = plan.workflow
+        existing = next(
+            (item for item in self.list_templates() if item.manifest.id == manifest.id),
+            None,
+        )
+        if existing is not None:
             raise WorkflowTemplateError(
-                "Import a JSON template bundle or ZIP archive.",
-                code="unsupported_template_bundle",
-            )
-
-        manifest = self._validate_manifest(manifest_data)
-        self._validate_workflow(workflow_data)
-        if any(item.manifest.id == manifest.id and item.source == "builtin" for item in self.list_templates()):
-            raise WorkflowTemplateError(
-                f"Template ID '{manifest.id}' is reserved by a built-in template.",
+                f"Template ID '{manifest.id}' is already registered.",
                 code="template_id_conflict",
             )
 
@@ -107,11 +147,64 @@ class WorkflowTemplateRegistry:
 
         self._write_json(template_dir / "manifest.json", manifest.model_dump(mode="json"))
         self._write_json(template_dir / workflow_name, workflow_data)
+        preview = None
+        if Path(filename or "").suffix.lower() == ".zip":
+            _manifest_data, _workflow_data, preview = self._read_zip_bundle(data)
         if preview is not None and manifest.preview:
             preview_name = Path(manifest.preview).name
             if preview_name == manifest.preview:
                 (template_dir / preview_name).write_bytes(preview)
         return self._load_from_manifest(template_dir / "manifest.json", source="user")
+
+    @staticmethod
+    def _validate_import_data(data: bytes) -> None:
+        if not data:
+            raise WorkflowTemplateError("Template bundle is empty.", code="empty_template_bundle")
+        if len(data) > MAX_TEMPLATE_BUNDLE_BYTES:
+            raise WorkflowTemplateError(
+                "Template bundle exceeds the 20 MB limit.",
+                code="template_bundle_too_large",
+            )
+
+    @classmethod
+    def _bundle_plan(
+        cls,
+        manifest_data: Any,
+        workflow_data: dict[str, Any],
+        *,
+        source_format: str,
+    ) -> WorkflowImportPlan:
+        manifest = cls._validate_manifest(manifest_data)
+        cls._validate_workflow(workflow_data)
+        mappings = [
+            {
+                "kind": "resource",
+                "semantic_id": slot_id,
+                "node_id": slot.binding.node_id or slot.binding.source_node_id or "auto",
+                "input": slot.binding.input or slot.binding.kind,
+                "confidence": "declared",
+            }
+            for slot_id, slot in manifest.resource_slots.items()
+        ]
+        mappings.extend(
+            {
+                "kind": "field",
+                "semantic_id": field.id,
+                "node_id": binding.node_id,
+                "input": binding.input,
+                "confidence": "declared",
+            }
+            for field in manifest.fields
+            for binding in field.bindings
+        )
+        return WorkflowImportPlan(
+            source_format=source_format,
+            manifest=manifest,
+            workflow=workflow_data,
+            mappings=mappings,
+            warnings=[],
+            ready=True,
+        )
 
     def _load_from_manifest(self, path: Path, *, source: str) -> WorkflowTemplate:
         try:
@@ -171,13 +264,7 @@ class WorkflowTemplateRegistry:
 
     @staticmethod
     def _read_json_bundle(data: bytes) -> tuple[Any, dict[str, Any], bytes | None]:
-        try:
-            payload = json.loads(data.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise WorkflowTemplateError(
-                f"Template JSON is invalid: {exc}",
-                code="invalid_template_bundle",
-            ) from exc
+        payload = WorkflowTemplateRegistry._decode_json(data)
         if not isinstance(payload, dict):
             raise WorkflowTemplateError(
                 "Template JSON bundle must be an object.",
@@ -191,6 +278,16 @@ class WorkflowTemplateRegistry:
                 code="invalid_template_bundle",
             )
         return manifest, workflow, None
+
+    @staticmethod
+    def _decode_json(data: bytes) -> Any:
+        try:
+            return json.loads(data.decode("utf-8-sig"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise WorkflowTemplateError(
+                f"Template JSON is invalid: {exc}",
+                code="invalid_template_bundle",
+            ) from exc
 
     @staticmethod
     def _read_zip_bundle(data: bytes) -> tuple[Any, dict[str, Any], bytes | None]:

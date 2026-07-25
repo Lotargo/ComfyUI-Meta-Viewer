@@ -1836,6 +1836,54 @@
 .template-drop-zone span { color: var(--text-muted); font-size: 8.5px; }
 .template-import-name { margin: 9px 0 0; color: var(--text-muted); font-size: 9px; text-align: center; }
 
+.template-import-analysis {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+    color: var(--text-muted);
+    font-size: 9px;
+    line-height: 1.5;
+}
+
+.template-import-analysis strong {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--text);
+    font-size: 10px;
+}
+
+.template-import-analysis.error {
+    border-color: color-mix(in srgb, var(--danger) 55%, var(--border-subtle));
+    color: var(--danger);
+}
+
+.template-import-analysis ul {
+    margin: 6px 0 0 15px;
+    padding: 0;
+}
+
+.template-import-fields {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.template-import-fields label {
+    display: grid;
+    gap: 5px;
+    color: var(--text-muted);
+    font-size: 9px;
+}
+
+.template-import-fields label:last-child { grid-column: 1 / -1; }
+.template-import-fields input,
+.template-import-fields textarea { width: 100%; }
+.template-import-fields textarea { resize: vertical; }
+.template-import-fields small { color: var(--text-dim); font-size: 8px; }
+
 .toast-container {
     position: fixed;
     right: 18px;

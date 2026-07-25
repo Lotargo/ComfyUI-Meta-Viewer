@@ -69,6 +69,11 @@ const elements = {
     importForm: byId('template-import-form'),
     importFile: byId('template-import-file'),
     importName: byId('template-import-name'),
+    importAnalysis: byId('template-import-analysis'),
+    importFields: byId('template-import-fields'),
+    importDisplayName: byId('template-import-display-name'),
+    importId: byId('template-import-id'),
+    importDescription: byId('template-import-description'),
     importSubmit: byId('template-import-submit'),
     sourceInspect: byId('analyze-source-workflow'),
     sourceDialog: byId('source-workflow-dialog'),
@@ -148,6 +153,7 @@ const state = {
     lockedAspectRatio: 1,
     samplingMode: 'recommended',
     advancedFieldMemory: {},
+    importPlan: null,
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -1835,6 +1841,9 @@ async function importTemplate(event) {
     elements.importSubmit.disabled = true;
     const form = new FormData();
     form.append('file', file);
+    form.append('name', elements.importDisplayName.value.trim());
+    form.append('id', elements.importId.value.trim());
+    form.append('description', elements.importDescription.value.trim());
     try {
         const template = await requestJson('/api/editor/templates/import', { method: 'POST', body: form });
         const existing = state.templates.findIndex((item) => item.manifest.id === template.manifest.id);
@@ -1842,11 +1851,54 @@ async function importTemplate(event) {
         else state.templates.push(template);
         selectTemplate(template);
         elements.importDialog.close();
+        elements.importForm.reset();
+        state.importPlan = null;
+        elements.importAnalysis.hidden = true;
+        elements.importFields.hidden = true;
+        elements.importName.textContent = 'No file selected';
         showToast(`Imported ${template.manifest.name}.`, 'success');
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
         elements.importSubmit.disabled = false;
+    }
+}
+
+async function analyzeTemplateImport() {
+    const file = elements.importFile.files?.[0];
+    state.importPlan = null;
+    elements.importSubmit.disabled = true;
+    elements.importFields.hidden = true;
+    elements.importAnalysis.classList.remove('error');
+    if (!file) {
+        elements.importAnalysis.hidden = true;
+        return;
+    }
+
+    elements.importAnalysis.hidden = false;
+    elements.importAnalysis.innerHTML = '<strong>Analyzing workflow…</strong><span>Detecting semantic fields, model slots, and output nodes.</span>';
+    const form = new FormData();
+    form.append('file', file);
+    try {
+        const plan = await requestJson('/api/editor/templates/import/analyze', { method: 'POST', body: form });
+        state.importPlan = plan;
+        const manifest = plan.manifest;
+        elements.importDisplayName.value = manifest.name || '';
+        elements.importId.value = manifest.id || '';
+        elements.importDescription.value = manifest.description || '';
+        elements.importFields.hidden = false;
+        const fieldCount = plan.mappings.filter((item) => item.kind === 'field').length;
+        const resourceCount = plan.mappings.filter((item) => item.kind === 'resource').length;
+        const format = plan.source_format === 'api_workflow' ? 'ComfyUI API workflow' : 'Template bundle';
+        const warnings = (plan.warnings || []).length
+            ? `<ul>${plan.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul>`
+            : '';
+        elements.importAnalysis.innerHTML = `<strong>${escapeHtml(format)} · ${escapeHtml(manifest.loader_family)}</strong><span>${fieldCount} editor bindings and ${resourceCount} model bindings detected. ${plan.ready ? 'The workflow is ready to register.' : 'Manual mapping is required before registration.'}</span>${warnings}`;
+        elements.importAnalysis.classList.toggle('error', !plan.ready);
+        elements.importSubmit.disabled = !plan.ready;
+    } catch (error) {
+        elements.importAnalysis.classList.add('error');
+        elements.importAnalysis.innerHTML = `<strong>Cannot import this file</strong><span>${escapeHtml(error.message)}</span>`;
     }
 }
 
@@ -1901,7 +1953,7 @@ function bindEvents() {
     elements.importFile.addEventListener('change', () => {
         const file = elements.importFile.files?.[0];
         elements.importName.textContent = file ? `${file.name} · ${(file.size / 1024).toFixed(1)} KB` : 'No file selected';
-        elements.importSubmit.disabled = !file;
+        analyzeTemplateImport();
     });
     elements.importForm.addEventListener('submit', importTemplate);
     elements.sourceInspect.addEventListener('click', inspectSourceWorkflow);

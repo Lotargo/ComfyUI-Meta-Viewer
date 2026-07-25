@@ -203,17 +203,19 @@
 
 ## 3.1 Import pipeline
 
-- [ ] Импорт API workflow JSON.
+- [x] Импорт API workflow JSON.
 - [ ] Импорт UI workflow JSON, если возможно преобразование или извлечение API graph.
 - [ ] Импорт ZIP bundle с manifest и workflow.
-- [ ] Определение standard loader nodes.
-- [ ] Определение prompt encoder nodes.
-- [ ] Определение sampler/scheduler nodes.
-- [ ] Определение width/height/seed/steps/CFG bindings.
-- [ ] Определение reference inputs.
-- [ ] Определение output nodes.
+- [x] Определение standard loader nodes.
+- [x] Определение prompt encoder nodes.
+- [x] Определение sampler/scheduler nodes.
+- [x] Определение width/height/seed/steps/CFG bindings.
+- [x] Определение reference inputs.
+- [x] Определение output nodes.
 - [ ] Обнаружение нескольких независимых pipelines.
 - [ ] Обнаружение неизвестных custom loaders.
+
+Обычный API graph теперь анализируется до записи, получает schema-v2 manifest с сохранёнными field/resource bindings и регистрируется как user template. Несколько sampler pipelines блокируют регистрацию до mapping wizard; UI workflow JSON пока требует повторного экспорта в API format.
 
 ## 3.2 Mapping wizard
 
@@ -226,7 +228,7 @@
 - [ ] Возможность скрыть node input из обычного editor UI.
 - [ ] Возможность пометить field как advanced.
 - [ ] Preview итогового manifest до регистрации.
-- [ ] Проверка manifest до сохранения.
+- [x] Проверка manifest до сохранения.
 
 ## 3.3 Registry statuses
 
@@ -636,7 +638,7 @@
 
 ## Slice B. Workflow registry
 
-- [ ] Сохранить imported workflow как registered template.
+- [x] Сохранить imported workflow как registered template.
 - [ ] Добавить mapping wizard для неоднозначных bindings.
 - [ ] Добавить workflow management modal/table.
 - [ ] Добавить revalidation against current ComfyUI.

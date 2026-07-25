@@ -162,6 +162,8 @@ def workflow_editor_error(error: Exception):
         "workflow_run_not_found",
     }:
         status = 404
+    elif code == "template_id_conflict":
+        status = 409
     return jsonify({"error": str(error), "code": code}), status
 
 
@@ -215,17 +217,33 @@ def editor_template(template_id: str):
 
 @editor_blueprint.route("/api/editor/templates/import", methods=["POST"])
 def editor_template_import():
+    uploaded, data = _uploaded_template_data()
+    template = _registry().import_bundle(
+        uploaded.filename,
+        data,
+        manifest_overrides={
+            key: request.form[key]
+            for key in ("id", "name", "description")
+            if key in request.form
+        },
+    )
+    return jsonify(_template_payload(template, _inventory())), 201
+
+
+@editor_blueprint.route("/api/editor/templates/import/analyze", methods=["POST"])
+def editor_template_import_analyze():
+    uploaded, data = _uploaded_template_data()
+    return jsonify(_registry().analyze_import(uploaded.filename, data).api_dict())
+
+
+def _uploaded_template_data():
     uploaded = request.files.get("file")
     if uploaded is None or not uploaded.filename:
         raise WorkflowTemplateError(
-            "Choose a JSON template bundle or ZIP archive.",
+            "Choose a ComfyUI API workflow, JSON template bundle, or ZIP archive.",
             code="missing_template_bundle",
         )
-    template = _registry().import_bundle(
-        uploaded.filename,
-        uploaded.stream.read(MAX_TEMPLATE_BUNDLE_BYTES + 1),
-    )
-    return jsonify(_template_payload(template, _inventory())), 201
+    return uploaded, uploaded.stream.read(MAX_TEMPLATE_BUNDLE_BYTES + 1)
 
 
 @editor_blueprint.route("/api/editor/drafts", methods=["POST"])

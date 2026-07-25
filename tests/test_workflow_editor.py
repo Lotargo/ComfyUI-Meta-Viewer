@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import tempfile
 import unittest
@@ -23,7 +24,7 @@ from app.comfyui.workflow_compiler import (
 )
 from app.comfyui.workflow_execution import WorkflowExecutionService
 from app.comfyui.workflow_models import RuntimeInventory, WorkflowTemplateManifest
-from app.comfyui.workflow_registry import WorkflowTemplateRegistry
+from app.comfyui.workflow_registry import WorkflowTemplateError, WorkflowTemplateRegistry
 from app.comfyui.sampling_options import CORE_SAMPLER_OPTIONS, CORE_SCHEDULER_OPTIONS
 from app.comfyui.workflow_store import WorkflowStore
 from app.config_store import ConfigStore
@@ -118,6 +119,131 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
             self.assertEqual(imported.manifest.id, "custom-image")
             self.assertEqual(registry.get("custom-image").source, "user")
             self.assertTrue((Path(temp_dir) / "custom-image" / "manifest.json").is_file())
+
+    def test_api_workflow_is_analyzed_and_registered_with_persisted_mappings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry = WorkflowTemplateRegistry(user_root=temp_dir)
+            workflow = registry.get("core-image").workflow
+            data = json.dumps(workflow).encode("utf-8")
+
+            plan = registry.analyze_import("cinematic_landscape.json", data)
+
+            self.assertTrue(plan.ready)
+            self.assertEqual(plan.source_format, "api_workflow")
+            self.assertEqual(plan.manifest.id, "cinematic-landscape")
+            self.assertEqual(plan.manifest.loader_family.value, "checkpoint")
+            self.assertEqual(
+                plan.manifest.resource_slots["checkpoint"].binding.model_dump(),
+                {
+                    "kind": "node_input",
+                    "node_id": "1",
+                    "input": "ckpt_name",
+                    "source_node_id": None,
+                    "model_output": 0,
+                    "clip_output": 1,
+                },
+            )
+            self.assertEqual(
+                plan.manifest.fields[0].bindings[0].model_dump(),
+                {"node_id": "2", "input": "text"},
+            )
+
+            imported = registry.import_bundle(
+                "cinematic_landscape.json",
+                data,
+                manifest_overrides={
+                    "id": "my-cinematic-workflow",
+                    "name": "My cinematic workflow",
+                },
+            )
+            stored = json.loads(
+                (Path(temp_dir) / "my-cinematic-workflow" / "manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+            self.assertEqual(imported.source, "user")
+            self.assertEqual(stored["fields"][0]["bindings"], [{"node_id": "2", "input": "text"}])
+            self.assertEqual(
+                stored["resource_slots"]["checkpoint"]["binding"]["input"],
+                "ckpt_name",
+            )
+
+    def test_api_workflow_with_multiple_pipelines_requires_mapping(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry = WorkflowTemplateRegistry(user_root=temp_dir)
+            workflow = registry.get("core-image").workflow
+            workflow = {**workflow, "8": {**workflow["5"], "inputs": dict(workflow["5"]["inputs"])}}
+            data = json.dumps({"prompt": workflow}).encode("utf-8")
+
+            plan = registry.analyze_import("two-pipelines.json", data)
+
+            self.assertFalse(plan.ready)
+            self.assertIn("Multiple sampler pipelines", plan.warnings[0])
+            with self.assertRaises(WorkflowTemplateError) as caught:
+                registry.import_bundle("two-pipelines.json", data)
+            self.assertEqual(caught.exception.code, "workflow_mapping_required")
+
+    def test_gguf_api_workflow_maps_wrapped_prompt_and_component_loaders(self) -> None:
+        registry = WorkflowTemplateRegistry(user_root="unused")
+        workflow = registry.get("core-flux-gguf").workflow
+
+        plan = registry.analyze_import(
+            "flux-gguf.json",
+            json.dumps(workflow).encode("utf-8"),
+        )
+
+        self.assertTrue(plan.ready)
+        self.assertEqual(plan.manifest.loader_family.value, "gguf")
+        self.assertEqual(
+            {item.value for item in plan.manifest.resource_slots["diffusion_model"].accepts},
+            {"diffusion_model_gguf"},
+        )
+        self.assertEqual(plan.manifest.component_policy.clip.value, "required")
+        field_ids = [field.id for field in plan.manifest.fields]
+        self.assertIn("positive_prompt", field_ids)
+        self.assertNotIn("negative_prompt", field_ids)
+
+    def test_api_workflow_maps_existing_standard_lora_loader(self) -> None:
+        registry = WorkflowTemplateRegistry(user_root="unused")
+        workflow = registry.get("core-image").workflow
+        workflow = {
+            **workflow,
+            "8": {
+                "class_type": "LoraLoader",
+                "inputs": {
+                    "model": ["1", 0],
+                    "clip": ["1", 1],
+                    "lora_name": "style.safetensors",
+                    "strength_model": 0.8,
+                    "strength_clip": 0.8,
+                },
+            },
+        }
+
+        plan = registry.analyze_import(
+            "lora-workflow.json",
+            json.dumps(workflow).encode("utf-8"),
+        )
+
+        self.assertTrue(plan.ready)
+        self.assertEqual(
+            {item.value for item in plan.manifest.resource_slots["lora"].accepts},
+            {"lora", "locon", "dora"},
+        )
+        self.assertEqual(
+            plan.manifest.resource_slots["lora"].binding.input,
+            "lora_name",
+        )
+
+    def test_ui_workflow_explains_api_format_requirement(self) -> None:
+        registry = WorkflowTemplateRegistry(user_root="unused")
+        data = json.dumps({"nodes": [], "links": []}).encode("utf-8")
+
+        with self.assertRaises(WorkflowTemplateError) as caught:
+            registry.analyze_import("ui-workflow.json", data)
+
+        self.assertEqual(caught.exception.code, "ui_workflow_requires_api_format")
 
     def test_v1_bundle_is_migrated_and_persisted_as_schema_v2(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -491,6 +617,42 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         payload = preview.get_json()
         self.assertTrue(payload["dependencies"]["ready"])
         self.assertEqual(payload["workflow"]["5"]["inputs"]["steps"], 36)
+
+    @patch("app.comfyui.editor_routes._inventory")
+    def test_api_workflow_import_preview_and_registration(self, inventory_mock) -> None:
+        inventory_mock.return_value = self.inventory
+        data = json.dumps(self.template.workflow).encode("utf-8")
+
+        analyzed = self.client.post(
+            "/api/editor/templates/import/analyze",
+            data={"file": (io.BytesIO(data), "route-workflow.json")},
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(analyzed.status_code, 200)
+        analysis = analyzed.get_json()
+        self.assertTrue(analysis["ready"])
+        self.assertEqual(analysis["source_format"], "api_workflow")
+        self.assertTrue(any(item["semantic_id"] == "positive_prompt" for item in analysis["mappings"]))
+
+        imported = self.client.post(
+            "/api/editor/templates/import",
+            data={
+                "file": (io.BytesIO(data), "route-workflow.json"),
+                "id": "registered-route-workflow",
+                "name": "Registered route workflow",
+                "description": "Imported in a route test.",
+            },
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(imported.status_code, 201)
+        payload = imported.get_json()
+        self.assertEqual(payload["manifest"]["id"], "registered-route-workflow")
+        self.assertEqual(payload["source"], "user")
+        self.assertTrue(
+            Path(app.config["UPLOAD_FOLDER"], "workflow_templates", "registered-route-workflow", "manifest.json").is_file()
+        )
 
     @patch("app.comfyui.editor_routes._inventory")
     def test_bootstrap_filters_resources_for_standard_and_gguf_slots(self, inventory_mock) -> None:

@@ -35,7 +35,6 @@ const elements = {
     runStateDetail: byId('run-state-detail'),
     runProgress: byId('run-progress-bar'),
     cancelRun: byId('cancel-run'),
-    queueSummary: byId('queue-summary'),
     resultGrid: byId('result-grid'),
     resultsEmpty: byId('results-empty'),
     resultsRefresh: byId('results-refresh'),
@@ -69,7 +68,6 @@ const elements = {
     collapseControls: byId('collapse-controls'),
     resultsSearch: byId('results-search'),
     batchPrompt: byId('batch-prompt'),
-    batchSizeMeta: byId('batch-size-meta'),
     sizeSummary: byId('size-summary'),
     aspectQuickControl: byId('aspect-quick-control'),
     aspectMore: byId('aspect-more'),
@@ -688,7 +686,6 @@ function updateWorkspaceSummary() {
     const height = state.values.height;
     const size = width && height ? `${width} × ${height}` : currentManifest()?.media_type === 'video' ? 'Video' : 'Workflow size';
     if (elements.sizeSummary) elements.sizeSummary.textContent = size;
-    if (elements.batchSizeMeta) elements.batchSizeMeta.textContent = width && height ? `${size} px` : size;
 }
 
 function dimensionLimits(id) {
@@ -1229,7 +1226,6 @@ function renderRunRibbon(run) {
     const progress = run.status === 'completed' ? 100 : Math.max(4, Math.min(99, Number(run.progress || 0) * 100));
     elements.runProgress.style.width = `${progress}%`;
     elements.cancelRun.hidden = ['completed', 'failed', 'cancelled'].includes(run.status);
-    elements.queueSummary.innerHTML = `<span></span> ${['queued', 'running'].includes(run.status) ? labels[run.status] : 'Queue idle'}`;
     if (['completed', 'failed', 'cancelled'].includes(run.status)) {
         elements.generateFromPreview.disabled = !state.previewReady;
     }

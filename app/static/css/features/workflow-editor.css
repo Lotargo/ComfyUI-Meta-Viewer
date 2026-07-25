@@ -871,32 +871,6 @@
     gap: 6px;
 }
 
-.queue-summary {
-    min-height: 30px;
-    padding: 0 9px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-full);
-    background: var(--surface);
-    color: var(--text-muted);
-    font-size: 8.5px;
-    font-weight: 700;
-}
-
-.queue-summary > span {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-muted);
-}
-
-.queue-summary.busy > span {
-    background: var(--accent2);
-    animation: runtime-pulse 1.35s ease-in-out infinite;
-}
-
 .workspace-icon-button {
     width: 32px;
     height: 32px;
@@ -1926,8 +1900,7 @@
         align-items: flex-start;
     }
 
-    .results-title-group p,
-    .queue-summary {
+    .results-title-group p {
         display: none;
     }
 
@@ -3092,9 +3065,6 @@
 .batch-heading > div { min-width: 0; display: flex; align-items: center; gap: 10px; }
 .batch-heading p { margin: 0; overflow: hidden; color: var(--text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .batch-kind { padding: 5px 8px; border: 1px solid var(--border-glow); border-radius: 5px; background: var(--accent-dim); color: var(--accent-hover); font-size: 10px; font-weight: 700; }
-.batch-meta { flex: 0 0 auto; color: var(--text-muted); font-size: 10px; }
-.batch-meta > span { display: inline-flex; align-items: center; gap: 6px; }
-.batch-meta i { width: 7px; height: 7px; border-radius: 50%; background: #51cb83; box-shadow: 0 0 0 3px rgba(81,203,131,.12); }
 
 .result-grid {
     display: grid;
@@ -3251,7 +3221,6 @@
     .results-search { display: none; }
     .results-toolbar { padding-inline: 14px; }
     .results-scroll { padding: 14px 14px 160px; }
-    .batch-meta { display: none !important; }
     .prompt-dock { right: 12px; bottom: 12px; left: 12px; }
 }
 
@@ -3669,8 +3638,7 @@
     font-size: 16px;
 }
 
-.results-title-group p,
-.queue-summary {
+.results-title-group p {
     font-size: 11px;
 }
 
@@ -4206,8 +4174,7 @@
 .status-stopping .runtime-state-dot,
 .status-error .runtime-state-dot,
 .status-external .runtime-state-dot,
-.validation-dot.ready,
-.batch-meta i {
+.validation-dot.ready {
     box-shadow: none !important;
     filter: none !important;
 }
@@ -5309,7 +5276,6 @@
     color: #98afaa;
 }
 
-.batch-meta i,
 .runtime-state-dot,
 .validation-dot {
     box-shadow: none !important;

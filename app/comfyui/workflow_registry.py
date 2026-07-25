@@ -67,7 +67,13 @@ class WorkflowTemplateRegistry:
             code="template_not_found",
         )
 
-    def analyze_import(self, filename: str, data: bytes) -> WorkflowImportPlan:
+    def analyze_import(
+        self,
+        filename: str,
+        data: bytes,
+        *,
+        mapping_overrides: dict[str, Any] | None = None,
+    ) -> WorkflowImportPlan:
         self._validate_import_data(data)
         suffix = Path(filename or "template.json").suffix.lower()
         if suffix == ".zip":
@@ -95,7 +101,17 @@ class WorkflowTemplateRegistry:
                 code="invalid_template_bundle",
             )
         self._validate_workflow(workflow_data)
-        return analyze_api_workflow(filename, workflow_data)
+        try:
+            return analyze_api_workflow(
+                filename,
+                workflow_data,
+                mapping_overrides=mapping_overrides,
+            )
+        except ValueError as exc:
+            raise WorkflowTemplateError(
+                f"Invalid workflow mapping: {exc}",
+                code="invalid_workflow_mapping",
+            ) from exc
 
     def import_bundle(
         self,
@@ -103,13 +119,18 @@ class WorkflowTemplateRegistry:
         data: bytes,
         *,
         manifest_overrides: dict[str, str] | None = None,
+        mapping_overrides: dict[str, Any] | None = None,
     ) -> WorkflowTemplate:
         if self.user_root is None:
             raise WorkflowTemplateError(
                 "User workflow template storage is not configured.",
                 code="template_storage_unavailable",
             )
-        plan = self.analyze_import(filename, data)
+        plan = self.analyze_import(
+            filename,
+            data,
+            mapping_overrides=mapping_overrides,
+        )
         if not plan.ready:
             raise WorkflowTemplateError(
                 "This workflow needs manual mapping before it can be registered: "
@@ -202,6 +223,12 @@ class WorkflowTemplateRegistry:
             manifest=manifest,
             workflow=workflow_data,
             mappings=mappings,
+            candidates={
+                "samplers": [],
+                "prompt_inputs": [],
+                "outputs": [],
+                "model_inputs": [],
+            },
             warnings=[],
             ready=True,
         )

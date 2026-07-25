@@ -184,6 +184,103 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
                 registry.import_bundle("two-pipelines.json", data)
             self.assertEqual(caught.exception.code, "workflow_mapping_required")
 
+    def test_manual_mapping_resolves_sampler_prompts_output_and_field_visibility(self) -> None:
+        registry = WorkflowTemplateRegistry(user_root="unused")
+        workflow = registry.get("core-image").workflow
+        workflow = {
+            **workflow,
+            "8": {**workflow["5"], "inputs": dict(workflow["5"]["inputs"])},
+            "9": {
+                "class_type": "SaveImage",
+                "inputs": {"filename_prefix": "Mapped", "images": ["6", 0]},
+            },
+        }
+
+        plan = registry.analyze_import(
+            "mapped.json",
+            json.dumps(workflow).encode("utf-8"),
+            mapping_overrides={
+                "sampler_node_id": "8",
+                "positive_binding": "2:text",
+                "negative_binding": "__none__",
+                "output_node_id": "9",
+                "field_options": {
+                    "width": {"hidden": True},
+                    "steps": {"advanced": False},
+                },
+            },
+        )
+
+        self.assertTrue(plan.ready)
+        self.assertEqual(plan.manifest.output_nodes, ["9"])
+        fields = {field.id: field for field in plan.manifest.fields}
+        self.assertEqual(fields["positive_prompt"].bindings[0].node_id, "2")
+        self.assertNotIn("negative_prompt", fields)
+        self.assertTrue(fields["width"].hidden)
+        self.assertFalse(fields["steps"].advanced)
+        self.assertEqual(
+            next(item for item in plan.mappings if item["semantic_id"] == "positive_prompt")["confidence"],
+            "manual",
+        )
+
+    def test_manual_model_role_registers_unknown_loader(self) -> None:
+        registry = WorkflowTemplateRegistry(user_root="unused")
+        workflow = registry.get("core-image").workflow
+        workflow = {
+            **workflow,
+            "1": {
+                "class_type": "AcmeModelLoader",
+                "inputs": {"model_name": "acme-model.gguf"},
+            },
+        }
+        data = json.dumps(workflow).encode("utf-8")
+
+        unmapped = registry.analyze_import("custom-loader.json", data)
+        mapped = registry.analyze_import(
+            "custom-loader.json",
+            data,
+            mapping_overrides={
+                "model_roles": {"1:model_name": "diffusion_model_gguf"},
+            },
+        )
+
+        self.assertFalse(unmapped.ready)
+        self.assertEqual(unmapped.candidates["model_inputs"][0]["value"], "1:model_name")
+        self.assertTrue(mapped.ready)
+        self.assertEqual(mapped.manifest.loader_family.value, "gguf")
+        self.assertEqual(
+            mapped.manifest.resource_slots["diffusion_model"].binding.node_id,
+            "1",
+        )
+
+    def test_manual_prompt_binding_supports_custom_encoder_input(self) -> None:
+        registry = WorkflowTemplateRegistry(user_root="unused")
+        workflow = registry.get("core-image").workflow
+        workflow = {
+            **workflow,
+            "2": {
+                "class_type": "AcmePromptEncoder",
+                "inputs": {"prompt": "custom prompt", "clip": ["1", 1]},
+            },
+        }
+        data = json.dumps(workflow).encode("utf-8")
+
+        unmapped = registry.analyze_import("custom-prompt.json", data)
+        mapped = registry.analyze_import(
+            "custom-prompt.json",
+            data,
+            mapping_overrides={"positive_binding": "2:prompt"},
+        )
+
+        self.assertFalse(unmapped.ready)
+        self.assertTrue(any(
+            item["value"] == "2:prompt"
+            for item in unmapped.candidates["prompt_inputs"]
+        ))
+        self.assertTrue(mapped.ready)
+        positive = next(field for field in mapped.manifest.fields if field.id == "positive_prompt")
+        self.assertEqual(positive.bindings[0].input, "prompt")
+
     def test_gguf_api_workflow_maps_wrapped_prompt_and_component_loaders(self) -> None:
         registry = WorkflowTemplateRegistry(user_root="unused")
         workflow = registry.get("core-flux-gguf").workflow
@@ -583,6 +680,8 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertIn("Describe your idea in everyday language", html)
         self.assertIn('id="advanced-settings-dialog"', html)
         self.assertIn('id="advanced-fields"', html)
+        self.assertIn('id="template-import-mapping"', html)
+        self.assertIn('id="template-manifest-preview"', html)
         self.assertIn("Check dependencies and preview graph", html)
         self.assertNotIn("Manifest controls", html)
 
@@ -653,6 +752,56 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertTrue(
             Path(app.config["UPLOAD_FOLDER"], "workflow_templates", "registered-route-workflow", "manifest.json").is_file()
         )
+
+    @patch("app.comfyui.editor_routes._inventory")
+    def test_mapping_wizard_registers_custom_model_loader(self, inventory_mock) -> None:
+        inventory_mock.return_value = self.inventory
+        workflow = {
+            **self.template.workflow,
+            "1": {
+                "class_type": "AcmeModelLoader",
+                "inputs": {"model_name": "acme.gguf"},
+            },
+        }
+        data = json.dumps(workflow).encode("utf-8")
+        mapping = {
+            "model_roles": {"1:model_name": "diffusion_model_gguf"},
+            "field_options": {"steps": {"advanced": False, "hidden": True}},
+        }
+
+        analyzed = self.client.post(
+            "/api/editor/templates/import/analyze",
+            data={
+                "file": (io.BytesIO(data), "custom-loader.json"),
+                "mapping": json.dumps(mapping),
+            },
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(analyzed.status_code, 200)
+        analysis = analyzed.get_json()
+        self.assertTrue(analysis["ready"])
+        self.assertEqual(analysis["manifest"]["loader_family"], "gguf")
+        self.assertEqual(
+            next(field for field in analysis["manifest"]["fields"] if field["id"] == "steps")["hidden"],
+            True,
+        )
+
+        imported = self.client.post(
+            "/api/editor/templates/import",
+            data={
+                "file": (io.BytesIO(data), "custom-loader.json"),
+                "mapping": json.dumps(mapping),
+                "id": "mapped-custom-loader",
+                "name": "Mapped custom loader",
+            },
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(imported.status_code, 201)
+        manifest = imported.get_json()["manifest"]
+        self.assertEqual(manifest["resource_slots"]["diffusion_model"]["binding"]["node_id"], "1")
+        self.assertTrue(next(field for field in manifest["fields"] if field["id"] == "steps")["hidden"])
 
     @patch("app.comfyui.editor_routes._inventory")
     def test_bootstrap_filters_resources_for_standard_and_gguf_slots(self, inventory_mock) -> None:

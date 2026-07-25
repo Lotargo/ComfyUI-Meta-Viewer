@@ -1809,7 +1809,9 @@
 }
 
 .template-import-dialog {
-    width: min(560px, calc(100vw - 28px));
+    width: min(760px, calc(100vw - 28px));
+    max-height: min(88vh, 900px);
+    overflow: auto;
 }
 
 .template-drop-zone {
@@ -1883,6 +1885,97 @@
 .template-import-fields textarea { width: 100%; }
 .template-import-fields textarea { resize: vertical; }
 .template-import-fields small { color: var(--text-dim); font-size: 8px; }
+
+.template-import-mapping {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.template-mapping-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.template-mapping-heading span {
+    color: var(--accent-hover);
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.template-mapping-heading h3 { margin: 2px 0 0; font-size: 13px; }
+
+.template-mapping-controls {
+    margin-top: 11px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.template-mapping-control {
+    display: grid;
+    gap: 5px;
+    color: var(--text-muted);
+    font-size: 9px;
+}
+
+.template-mapping-control select { width: 100%; }
+.template-mapping-control small { color: var(--text-dim); font-size: 8px; }
+
+.template-mapping-list {
+    margin-top: 12px;
+    display: grid;
+    gap: 6px;
+}
+
+.template-mapping-row {
+    display: grid;
+    grid-template-columns: minmax(150px, .8fr) minmax(190px, 1.35fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 9px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 8.5px;
+}
+
+.template-mapping-row strong { color: var(--text); font-size: 9px; }
+.template-mapping-row code { overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); }
+
+.mapping-confidence {
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    color: var(--accent-hover);
+    font-size: 7.5px;
+    text-transform: uppercase;
+}
+
+.mapping-field-options { display: flex; gap: 8px; }
+.mapping-field-options label { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+
+.template-manifest-preview { margin-top: 10px; }
+.template-manifest-preview summary { color: var(--text-muted); cursor: pointer; font-size: 9px; }
+.template-manifest-preview pre {
+    max-height: 260px;
+    margin: 8px 0 0;
+    padding: 10px;
+    overflow: auto;
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text-muted);
+    font-size: 8px;
+}
+
+@media (max-width: 620px) {
+    .template-mapping-controls { grid-template-columns: 1fr; }
+    .template-mapping-row { grid-template-columns: 1fr auto; }
+    .template-mapping-row code { grid-column: 1 / -1; grid-row: 2; }
+}
 
 .toast-container {
     position: fixed;

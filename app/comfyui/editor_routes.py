@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -226,6 +227,7 @@ def editor_template_import():
             for key in ("id", "name", "description")
             if key in request.form
         },
+        mapping_overrides=_mapping_overrides(),
     )
     return jsonify(_template_payload(template, _inventory())), 201
 
@@ -233,7 +235,11 @@ def editor_template_import():
 @editor_blueprint.route("/api/editor/templates/import/analyze", methods=["POST"])
 def editor_template_import_analyze():
     uploaded, data = _uploaded_template_data()
-    return jsonify(_registry().analyze_import(uploaded.filename, data).api_dict())
+    return jsonify(_registry().analyze_import(
+        uploaded.filename,
+        data,
+        mapping_overrides=_mapping_overrides(),
+    ).api_dict())
 
 
 def _uploaded_template_data():
@@ -244,6 +250,25 @@ def _uploaded_template_data():
             code="missing_template_bundle",
         )
     return uploaded, uploaded.stream.read(MAX_TEMPLATE_BUNDLE_BYTES + 1)
+
+
+def _mapping_overrides() -> dict[str, Any] | None:
+    raw = request.form.get("mapping")
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise WorkflowTemplateError(
+            "Workflow mapping must be valid JSON.",
+            code="invalid_workflow_mapping",
+        ) from exc
+    if not isinstance(payload, dict):
+        raise WorkflowTemplateError(
+            "Workflow mapping must be a JSON object.",
+            code="invalid_workflow_mapping",
+        )
+    return payload
 
 
 @editor_blueprint.route("/api/editor/drafts", methods=["POST"])

@@ -89,6 +89,7 @@ class EditorFieldManifest(StrictModel):
     default: Any = None
     required: bool = False
     advanced: bool = False
+    hidden: bool = False
     description: str = Field(default="", max_length=500)
     minimum: float | None = None
     maximum: float | None = None

@@ -213,21 +213,21 @@
 - [x] Определение reference inputs.
 - [x] Определение output nodes.
 - [ ] Обнаружение нескольких независимых pipelines.
-- [ ] Обнаружение неизвестных custom loaders.
+- [x] Обнаружение неизвестных custom loaders.
 
-Обычный API graph теперь анализируется до записи, получает schema-v2 manifest с сохранёнными field/resource bindings и регистрируется как user template. Несколько sampler pipelines блокируют регистрацию до mapping wizard; UI workflow JSON пока требует повторного экспорта в API format.
+Обычный API graph теперь анализируется до записи, получает schema-v2 manifest с сохранёнными field/resource bindings и регистрируется как user template. Несколько sampler/output candidates и неизвестные loader inputs раскрываются в mapping wizard; UI workflow JSON пока требует повторного экспорта в API format.
 
 ## 3.2 Mapping wizard
 
-- [ ] Показ автоматически найденных semantic mappings.
-- [ ] Показ confidence для неоднозначных mappings.
-- [ ] Ручной выбор роли для неизвестного model loader.
-- [ ] Ручной выбор positive prompt binding.
-- [ ] Ручной выбор negative prompt binding.
-- [ ] Ручной выбор primary output.
-- [ ] Возможность скрыть node input из обычного editor UI.
-- [ ] Возможность пометить field как advanced.
-- [ ] Preview итогового manifest до регистрации.
+- [x] Показ автоматически найденных semantic mappings.
+- [x] Показ confidence для неоднозначных mappings.
+- [x] Ручной выбор роли для неизвестного model loader.
+- [x] Ручной выбор positive prompt binding.
+- [x] Ручной выбор negative prompt binding.
+- [x] Ручной выбор primary output.
+- [x] Возможность скрыть node input из обычного editor UI.
+- [x] Возможность пометить field как advanced.
+- [x] Preview итогового manifest до регистрации.
 - [x] Проверка manifest до сохранения.
 
 ## 3.3 Registry statuses
@@ -639,7 +639,7 @@
 ## Slice B. Workflow registry
 
 - [x] Сохранить imported workflow как registered template.
-- [ ] Добавить mapping wizard для неоднозначных bindings.
+- [x] Добавить mapping wizard для неоднозначных bindings.
 - [ ] Добавить workflow management modal/table.
 - [ ] Добавить revalidation against current ComfyUI.
 

@@ -96,7 +96,7 @@
   **Implemented; runtime matrix pending.** Нужны реальные проверки Windows Portable, venv installations, managed/external modes, crash, port conflict и process cleanup.
 
 - [ ] [09. Workflow templates and editor](comfyui/09_WORKFLOW_TEMPLATES_AND_EDITOR.md)  
-  **Current primary workstream.** Редактор и registry foundation существуют, но остаются разные loader strategies, GGUF, resource-slot filtering, импорт с mapping, workflow management UI и field-level error diagnostics.
+  **Current primary workstream.** Редактор, loader contracts, resource filtering, API workflow registration и mapping wizard реализованы; остаются UI workflow conversion, registry statuses/revalidation, workflow management UI и field-level error diagnostics.
 
 ### Desktop
 
@@ -114,6 +114,7 @@
 - [x] Разделить checkpoint-contained, separate-components и GGUF templates.
 - [x] Фильтровать resources по semantic slots.
 - [x] Регистрировать imported API workflows и сохранять автоматически найденные mappings.
+- [x] Разрешать неоднозначные bindings через mapping wizard с manifest preview.
 - [ ] Добавить workflow management modal/table.
 - [ ] Связывать ComfyUI errors с конкретными editor fields.
 - [ ] После стабилизации contracts подключить AI operations к drafts.

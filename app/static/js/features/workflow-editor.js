@@ -74,6 +74,11 @@ const elements = {
     importDisplayName: byId('template-import-display-name'),
     importId: byId('template-import-id'),
     importDescription: byId('template-import-description'),
+    importMapping: byId('template-import-mapping'),
+    importMappingControls: byId('template-mapping-controls'),
+    importMappingList: byId('template-mapping-list'),
+    importMappingApply: byId('template-mapping-apply'),
+    importManifestPreview: byId('template-manifest-preview'),
     importSubmit: byId('template-import-submit'),
     sourceInspect: byId('analyze-source-workflow'),
     sourceDialog: byId('source-workflow-dialog'),
@@ -154,6 +159,7 @@ const state = {
     samplingMode: 'recommended',
     advancedFieldMemory: {},
     importPlan: null,
+    importMapping: null,
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -578,7 +584,7 @@ function friendlyTemplateDescription(manifest) {
 }
 
 function renderFields() {
-    const fields = currentManifest().fields || [];
+    const fields = (currentManifest().fields || []).filter((field) => !field.hidden);
     const regular = fields.filter((field) => !field.advanced && !ADVANCED_FIELD_IDS.has(field.id));
     const advanced = fields.filter((field) => field.advanced || ADVANCED_FIELD_IDS.has(field.id));
     const promptFields = regular.filter((field) => field.id === 'positive_prompt');
@@ -933,7 +939,9 @@ function renderResources() {
     elements.advancedResourceSlots.innerHTML = optionalSlots.map(([slotId, slot]) => renderResourceSlot(slotId, slot)).join('');
     bindResourceEvents(elements.resourceSlots);
     bindResourceEvents(elements.advancedResourceSlots);
-    const advancedFields = (currentManifest().fields || []).filter((field) => field.advanced || ADVANCED_FIELD_IDS.has(field.id));
+    const advancedFields = (currentManifest().fields || []).filter((field) => (
+        !field.hidden && (field.advanced || ADVANCED_FIELD_IDS.has(field.id))
+    ));
     updateAdvancedCount(advancedFields.length, optionalSlots.length);
     updateGenerateAvailability();
 }
@@ -1070,9 +1078,13 @@ function applyCustomDimension(id, rawValue) {
 
 function syncQuickControls() {
     if (!currentManifest()) return;
-    const fieldIds = new Set((currentManifest().fields || []).map((field) => field.id));
+    const fieldIds = new Set((currentManifest().fields || [])
+        .filter((field) => !field.hidden)
+        .map((field) => field.id));
     const hasSize = fieldIds.has('width') && fieldIds.has('height');
     const hasBatch = fieldIds.has('batch_size');
+    const quickMode = document.querySelector('[data-quick-mode]')?.closest('.quick-control');
+    if (quickMode) quickMode.hidden = !fieldIds.has('steps');
     if (elements.aspectQuickControl) elements.aspectQuickControl.hidden = !hasSize;
     if (elements.batchQuickControl) elements.batchQuickControl.hidden = !hasBatch;
     let quickAspectMatch = false;
@@ -1844,6 +1856,7 @@ async function importTemplate(event) {
     form.append('name', elements.importDisplayName.value.trim());
     form.append('id', elements.importId.value.trim());
     form.append('description', elements.importDescription.value.trim());
+    if (state.importMapping) form.append('mapping', JSON.stringify(state.importMapping));
     try {
         const template = await requestJson('/api/editor/templates/import', { method: 'POST', body: form });
         const existing = state.templates.findIndex((item) => item.manifest.id === template.manifest.id);
@@ -1853,25 +1866,142 @@ async function importTemplate(event) {
         elements.importDialog.close();
         elements.importForm.reset();
         state.importPlan = null;
+        state.importMapping = null;
         elements.importAnalysis.hidden = true;
         elements.importFields.hidden = true;
+        elements.importMapping.hidden = true;
         elements.importName.textContent = 'No file selected';
         showToast(`Imported ${template.manifest.name}.`, 'success');
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
-        elements.importSubmit.disabled = false;
+        elements.importSubmit.disabled = !state.importPlan?.ready;
     }
 }
 
-async function analyzeTemplateImport() {
+function defaultImportMapping(plan) {
+    const fieldBinding = (fieldId) => {
+        const item = plan.mappings.find((mapping) => (
+            mapping.kind === 'field' && mapping.semantic_id === fieldId
+        ));
+        return item ? `${item.node_id}:${item.input}` : '';
+    };
+    return {
+        sampler_node_id: plan.candidates.samplers.length === 1 ? plan.candidates.samplers[0].value : '',
+        positive_binding: fieldBinding('positive_prompt'),
+        negative_binding: fieldBinding('negative_prompt'),
+        output_node_id: plan.candidates.outputs.length === 1 ? plan.candidates.outputs[0].value : '',
+        model_roles: {},
+        field_options: Object.fromEntries((plan.manifest.fields || []).map((field) => [field.id, {
+            advanced: Boolean(field.advanced),
+            hidden: Boolean(field.hidden),
+        }])),
+    };
+}
+
+function mappingSelect(label, key, options, selected, { placeholder = 'Automatic', help = '' } = {}) {
+    return `<label class="template-mapping-control"><span>${escapeHtml(label)}</span><select data-mapping-key="${escapeHtml(key)}"><option value="">${escapeHtml(placeholder)}</option>${options.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === selected ? ' selected' : ''}>${escapeHtml(option.label)} · ${escapeHtml(option.confidence)}</option>`).join('')}</select>${help ? `<small>${escapeHtml(help)}</small>` : ''}</label>`;
+}
+
+function renderImportManifestPreview() {
+    if (!state.importPlan) return;
+    const manifest = structuredClone(state.importPlan.manifest);
+    manifest.id = elements.importId.value.trim() || manifest.id;
+    manifest.name = elements.importDisplayName.value.trim() || manifest.name;
+    manifest.description = elements.importDescription.value.trim();
+    const fieldOptions = state.importMapping?.field_options || {};
+    manifest.fields = (manifest.fields || []).map((field) => ({
+        ...field,
+        ...(fieldOptions[field.id] || {}),
+    }));
+    elements.importManifestPreview.textContent = JSON.stringify(manifest, null, 2);
+}
+
+function renderImportMapping(plan) {
+    elements.importMapping.hidden = false;
+    const mapping = state.importMapping || defaultImportMapping(plan);
+    const promptOptions = plan.candidates.prompt_inputs || [];
+    const outputOptions = plan.candidates.outputs || [];
+    const samplerOptions = plan.candidates.samplers || [];
+    const controls = [];
+    if (plan.source_format === 'api_workflow') {
+        controls.push(mappingSelect('Sampler pipeline', 'sampler_node_id', samplerOptions, mapping.sampler_node_id, {
+            placeholder: samplerOptions.length > 1 ? 'Choose sampler…' : 'Automatic',
+        }));
+        controls.push(mappingSelect('Positive prompt', 'positive_binding', promptOptions, mapping.positive_binding));
+        controls.push(mappingSelect('Negative prompt', 'negative_binding', [
+            { value: '__none__', label: 'No negative prompt', confidence: 'manual' },
+            ...promptOptions,
+        ], mapping.negative_binding));
+        controls.push(mappingSelect('Primary output', 'output_node_id', outputOptions, mapping.output_node_id, {
+            placeholder: outputOptions.length > 1 ? 'Choose output…' : 'Automatic',
+        }));
+        for (const candidate of plan.candidates.model_inputs || []) {
+            const roles = [
+                ['ignore', 'Ignore'],
+                ['checkpoint', 'Checkpoint'],
+                ['diffusion_model', 'Diffusion model'],
+                ['diffusion_model_gguf', 'Diffusion model (GGUF)'],
+                ['text_encoder', 'Text encoder'],
+                ['text_encoder_gguf', 'Text encoder (GGUF)'],
+                ['vae', 'VAE'],
+                ['lora', 'LoRA'],
+            ];
+            controls.push(`<label class="template-mapping-control"><span>${escapeHtml(candidate.label)}</span><select data-model-role="${escapeHtml(candidate.value)}"><option value="">Choose model role…</option>${roles.map(([value, label]) => `<option value="${value}"${mapping.model_roles?.[candidate.value] === value ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select><small>Unknown loader input · current value: ${escapeHtml(candidate.current_value || 'empty')}</small></label>`);
+        }
+    }
+    elements.importMappingControls.innerHTML = controls.join('');
+
+    const fieldRows = (plan.manifest.fields || []).map((field) => {
+        const bindings = field.bindings.map((binding) => `${binding.node_id}:${binding.input}`).join(', ');
+        const confidence = plan.mappings.find((item) => item.kind === 'field' && item.semantic_id === field.id)?.confidence || 'declared';
+        const options = mapping.field_options?.[field.id] || field;
+        return `<div class="template-mapping-row"><strong>${escapeHtml(field.label)}</strong><code>${escapeHtml(bindings)}</code><span class="mapping-confidence">${escapeHtml(confidence)}</span><span class="mapping-field-options"><label><input type="checkbox" data-field-option="advanced" data-field-id="${escapeHtml(field.id)}"${options.advanced ? ' checked' : ''}> Advanced</label><label><input type="checkbox" data-field-option="hidden" data-field-id="${escapeHtml(field.id)}"${options.hidden ? ' checked' : ''}> Hidden</label></span></div>`;
+    });
+    const resourceRows = (plan.mappings || []).filter((item) => item.kind === 'resource').map((item) => (
+        `<div class="template-mapping-row"><strong>${escapeHtml(item.semantic_id)}</strong><code>${escapeHtml(`${item.node_id}:${item.input}`)}</code><span class="mapping-confidence">${escapeHtml(item.confidence)}</span><span>Model slot</span></div>`
+    ));
+    elements.importMappingList.innerHTML = [...fieldRows, ...resourceRows].join('')
+        || '<p class="template-import-name">Choose the required mappings, then apply them to preview the final manifest.</p>';
+    renderImportManifestPreview();
+    elements.importMapping.querySelectorAll('select, input[type="checkbox"]').forEach((control) => {
+        control.addEventListener('change', () => {
+            state.importMapping = readImportMapping();
+            elements.importSubmit.disabled = true;
+            elements.importMappingApply.textContent = 'Apply mappings';
+            renderImportManifestPreview();
+        });
+    });
+}
+
+function readImportMapping() {
+    const mapping = structuredClone(state.importMapping || {});
+    elements.importMappingControls.querySelectorAll('[data-mapping-key]').forEach((select) => {
+        mapping[select.dataset.mappingKey] = select.value;
+    });
+    mapping.model_roles = {};
+    elements.importMappingControls.querySelectorAll('[data-model-role]').forEach((select) => {
+        if (select.value) mapping.model_roles[select.dataset.modelRole] = select.value;
+    });
+    mapping.field_options = {};
+    elements.importMappingList.querySelectorAll('[data-field-id]').forEach((input) => {
+        const options = mapping.field_options[input.dataset.fieldId] || {};
+        options[input.dataset.fieldOption] = input.checked;
+        mapping.field_options[input.dataset.fieldId] = options;
+    });
+    return mapping;
+}
+
+async function analyzeTemplateImport(mappingOverrides = null) {
     const file = elements.importFile.files?.[0];
+    const isRemap = mappingOverrides !== null;
     state.importPlan = null;
     elements.importSubmit.disabled = true;
     elements.importFields.hidden = true;
     elements.importAnalysis.classList.remove('error');
     if (!file) {
         elements.importAnalysis.hidden = true;
+        elements.importMapping.hidden = true;
         return;
     }
 
@@ -1879,13 +2009,17 @@ async function analyzeTemplateImport() {
     elements.importAnalysis.innerHTML = '<strong>Analyzing workflow…</strong><span>Detecting semantic fields, model slots, and output nodes.</span>';
     const form = new FormData();
     form.append('file', file);
+    if (mappingOverrides) form.append('mapping', JSON.stringify(mappingOverrides));
     try {
         const plan = await requestJson('/api/editor/templates/import/analyze', { method: 'POST', body: form });
         state.importPlan = plan;
+        state.importMapping = mappingOverrides || defaultImportMapping(plan);
         const manifest = plan.manifest;
-        elements.importDisplayName.value = manifest.name || '';
-        elements.importId.value = manifest.id || '';
-        elements.importDescription.value = manifest.description || '';
+        if (!isRemap) {
+            elements.importDisplayName.value = manifest.name || '';
+            elements.importId.value = manifest.id || '';
+            elements.importDescription.value = manifest.description || '';
+        }
         elements.importFields.hidden = false;
         const fieldCount = plan.mappings.filter((item) => item.kind === 'field').length;
         const resourceCount = plan.mappings.filter((item) => item.kind === 'resource').length;
@@ -1895,10 +2029,13 @@ async function analyzeTemplateImport() {
             : '';
         elements.importAnalysis.innerHTML = `<strong>${escapeHtml(format)} · ${escapeHtml(manifest.loader_family)}</strong><span>${fieldCount} editor bindings and ${resourceCount} model bindings detected. ${plan.ready ? 'The workflow is ready to register.' : 'Manual mapping is required before registration.'}</span>${warnings}`;
         elements.importAnalysis.classList.toggle('error', !plan.ready);
+        renderImportMapping(plan);
+        elements.importMappingApply.textContent = plan.ready ? 'Mappings applied' : 'Apply mappings';
         elements.importSubmit.disabled = !plan.ready;
     } catch (error) {
         elements.importAnalysis.classList.add('error');
         elements.importAnalysis.innerHTML = `<strong>Cannot import this file</strong><span>${escapeHtml(error.message)}</span>`;
+        elements.importMapping.hidden = true;
     }
 }
 
@@ -1953,7 +2090,12 @@ function bindEvents() {
     elements.importFile.addEventListener('change', () => {
         const file = elements.importFile.files?.[0];
         elements.importName.textContent = file ? `${file.name} · ${(file.size / 1024).toFixed(1)} KB` : 'No file selected';
+        state.importMapping = null;
         analyzeTemplateImport();
+    });
+    elements.importMappingApply.addEventListener('click', () => analyzeTemplateImport(readImportMapping()));
+    [elements.importDisplayName, elements.importId, elements.importDescription].forEach((input) => {
+        input.addEventListener('input', renderImportManifestPreview);
     });
     elements.importForm.addEventListener('submit', importTemplate);
     elements.sourceInspect.addEventListener('click', inspectSourceWorkflow);
@@ -2035,7 +2177,7 @@ function bindEvents() {
     });
     document.querySelector('[data-quick-mode]')?.addEventListener('click', (event) => {
         const button = event.target.closest('[data-mode]');
-        if (!button || !currentManifest()?.fields?.some((field) => field.id === 'steps')) return;
+        if (!button || !currentManifest()?.fields?.some((field) => field.id === 'steps' && !field.hidden)) return;
         const defaultSteps = Number(state.selected?.defaults?.steps ?? 28);
         state.values.steps = button.dataset.mode === 'quality' ? Math.max(defaultSteps + 12, 40) : defaultSteps;
         renderFields();

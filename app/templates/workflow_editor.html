@@ -377,6 +377,15 @@
                 <label><span>Template ID</span><input id="template-import-id" type="text" maxlength="80" pattern="[a-z][a-z0-9_-]{1,79}" required><small>Stable ID used by saved drafts.</small></label>
                 <label><span>Description</span><textarea id="template-import-description" maxlength="1000" rows="2"></textarea></label>
             </div>
+            <section id="template-import-mapping" class="template-import-mapping" hidden aria-labelledby="template-import-mapping-title">
+                <div class="template-mapping-heading"><div><span>Semantic contract</span><h3 id="template-import-mapping-title">Mapping wizard</h3></div><button id="template-mapping-apply" class="btn btn-secondary btn-sm" type="button">Apply mappings</button></div>
+                <div id="template-mapping-controls" class="template-mapping-controls"></div>
+                <div id="template-mapping-list" class="template-mapping-list"></div>
+                <details class="template-manifest-preview">
+                    <summary>Final manifest preview</summary>
+                    <pre id="template-manifest-preview"></pre>
+                </details>
+            </section>
             <div class="dialog-footer"><button class="btn btn-secondary" value="cancel">Cancel</button><button id="template-import-submit" class="btn btn-primary" type="submit" disabled>Import</button></div>
         </form>
     </dialog>

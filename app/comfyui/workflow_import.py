@@ -25,6 +25,7 @@ class WorkflowImportPlan:
     manifest: WorkflowTemplateManifest
     workflow: dict[str, Any]
     mappings: list[dict[str, str]]
+    candidates: dict[str, list[dict[str, Any]]]
     warnings: list[str]
     ready: bool
 
@@ -33,6 +34,7 @@ class WorkflowImportPlan:
             "source_format": self.source_format,
             "manifest": self.manifest.model_dump(mode="json"),
             "mappings": self.mappings,
+            "candidates": self.candidates,
             "warnings": self.warnings,
             "ready": self.ready,
         }
@@ -62,10 +64,15 @@ def unwrap_api_workflow(payload: Any) -> dict[str, Any] | None:
     return None
 
 
-def analyze_api_workflow(filename: str, workflow: dict[str, Any]) -> WorkflowImportPlan:
+def analyze_api_workflow(
+    filename: str,
+    workflow: dict[str, Any],
+    mapping_overrides: dict[str, Any] | None = None,
+) -> WorkflowImportPlan:
     nodes = workflow
+    mapping = mapping_overrides or {}
     samplers = _nodes_of_type(nodes, SAMPLER_NODE_TYPES)
-    output_nodes = [
+    detected_output_nodes = [
         node_id
         for node_id, node in nodes.items()
         if node["class_type"] in IMAGE_OUTPUT_NODE_TYPES | VIDEO_OUTPUT_NODE_TYPES
@@ -75,25 +82,62 @@ def analyze_api_workflow(filename: str, workflow: dict[str, Any]) -> WorkflowImp
     blockers: list[str] = []
     mappings: list[dict[str, str]] = []
 
+    sampler_id = _selected_node_id(
+        mapping.get("sampler_node_id"),
+        [node_id for node_id, _node in samplers],
+        label="sampler",
+    )
     if not samplers:
         blockers.append("No standard KSampler or KSamplerAdvanced node was found.")
-    elif len(samplers) > 1:
+    elif sampler_id is None and len(samplers) > 1:
         blockers.append(
             "Multiple sampler pipelines were found; choose their semantic roles in the mapping wizard."
         )
-    if not output_nodes:
-        blockers.append("No supported output node was found.")
+    elif sampler_id is None:
+        sampler_id = samplers[0][0]
 
-    sampler_id, sampler = samplers[0] if samplers else (None, None)
+    selected_output_id = _selected_node_id(
+        mapping.get("output_node_id"),
+        detected_output_nodes,
+        label="output",
+    )
+    if not detected_output_nodes:
+        blockers.append("No supported output node was found.")
+    elif selected_output_id is None and len(detected_output_nodes) > 1:
+        blockers.append("Multiple output nodes were found; choose the primary output.")
+    elif selected_output_id is None:
+        selected_output_id = detected_output_nodes[0]
+    output_nodes = [selected_output_id] if selected_output_id is not None else detected_output_nodes
+
+    sampler = nodes.get(sampler_id or "")
     fields: list[dict[str, Any]] = []
     if sampler_id is not None and sampler is not None:
-        _add_prompt_fields(nodes, sampler_id, sampler, fields, mappings, blockers)
+        _add_prompt_fields(
+            nodes,
+            sampler_id,
+            sampler,
+            fields,
+            mappings,
+            blockers,
+            positive_binding=mapping.get("positive_binding"),
+            negative_binding=mapping.get("negative_binding"),
+        )
         _add_sampler_fields(sampler_id, sampler, fields, mappings)
         _add_latent_fields(nodes, sampler, fields, mappings)
 
     _add_reference_fields(nodes, fields, mappings)
     _add_output_fields(nodes, output_nodes, fields, mappings)
-    resource_slots, loader_family, component_policy = _resource_contract(nodes, mappings)
+    prompt_candidates = _prompt_candidates(nodes)
+    model_candidates = _unknown_model_inputs(nodes)
+    manual_model_roles = mapping.get("model_roles") or {}
+    if not isinstance(manual_model_roles, dict):
+        raise ValueError("model_roles mapping must be an object")
+    resource_slots, loader_family, component_policy = _resource_contract(
+        nodes,
+        mappings,
+        manual_roles=manual_model_roles,
+        allowed_manual_inputs={item["value"] for item in model_candidates},
+    )
     if loader_family == "custom":
         blockers.append(
             "No standard checkpoint or diffusion-model loader was found."
@@ -112,6 +156,7 @@ def analyze_api_workflow(filename: str, workflow: dict[str, Any]) -> WorkflowImp
         category = "simple"
 
     template_id, template_name = _template_identity(filename)
+    _apply_field_options(fields, mapping.get("field_options"))
     if blockers:
         warnings.extend(blockers)
     manifest = WorkflowTemplateManifest.model_validate({
@@ -142,6 +187,22 @@ def analyze_api_workflow(filename: str, workflow: dict[str, Any]) -> WorkflowImp
         manifest=manifest,
         workflow=workflow,
         mappings=mappings,
+        candidates={
+            "samplers": [
+                _node_candidate(node_id, node, ambiguous=len(samplers) > 1)
+                for node_id, node in samplers
+            ],
+            "prompt_inputs": prompt_candidates,
+            "outputs": [
+                _node_candidate(
+                    node_id,
+                    nodes[node_id],
+                    ambiguous=len(detected_output_nodes) > 1,
+                )
+                for node_id in detected_output_nodes
+            ],
+            "model_inputs": model_candidates,
+        },
         warnings=warnings,
         ready=not blockers,
     )
@@ -155,6 +216,27 @@ def _nodes_of_type(
         for node_id, node in nodes.items()
         if node["class_type"] in class_types
     ]
+
+
+def _selected_node_id(value: Any, available: list[str], *, label: str) -> str | None:
+    if value in (None, ""):
+        return None
+    selected = str(value)
+    if selected not in available:
+        raise ValueError(f"Selected {label} node '{selected}' is not an available candidate")
+    return selected
+
+
+def _node_candidate(
+    node_id: str, node: dict[str, Any], *, ambiguous: bool
+) -> dict[str, Any]:
+    return {
+        "value": node_id,
+        "node_id": node_id,
+        "class_type": node["class_type"],
+        "label": f"Node {node_id} · {node['class_type']}",
+        "confidence": "ambiguous" if ambiguous else "high",
+    }
 
 
 def _edge_node(value: Any) -> str | None:
@@ -175,17 +257,50 @@ def _add_prompt_fields(
     fields: list[dict[str, Any]],
     mappings: list[dict[str, str]],
     blockers: list[str],
+    *,
+    positive_binding: Any = None,
+    negative_binding: Any = None,
 ) -> None:
-    positive_encoder_id = _find_prompt_encoder(
+    positive_manual = _resolve_input_binding(nodes, positive_binding, label="positive prompt")
+    negative_disabled = negative_binding == "__none__"
+    negative_manual = _resolve_input_binding(
+        nodes,
+        negative_binding,
+        label="negative prompt",
+    )
+    positive_encoder_id = None if positive_manual else _find_prompt_encoder(
         nodes, _edge_node(sampler["inputs"].get("positive"))
     )
-    negative_encoder_id = _find_prompt_encoder(
+    negative_encoder_id = None if negative_manual or negative_disabled else _find_prompt_encoder(
         nodes, _edge_node(sampler["inputs"].get("negative"))
     )
+    if positive_manual:
+        _add_manual_prompt_field(
+            nodes,
+            fields,
+            mappings,
+            field_id="positive_prompt",
+            label="Positive prompt",
+            binding=positive_manual,
+            required=True,
+            advanced=False,
+        )
     if positive_encoder_id is None:
-        blockers.append(
-            f"The positive input on sampler node {sampler_id} is not connected "
-            "to a supported prompt encoder."
+        if not positive_manual:
+            blockers.append(
+                f"The positive input on sampler node {sampler_id} is not connected "
+                "to a supported prompt encoder."
+            )
+    if negative_manual:
+        _add_manual_prompt_field(
+            nodes,
+            fields,
+            mappings,
+            field_id="negative_prompt",
+            label="What to avoid",
+            binding=negative_manual,
+            required=False,
+            advanced=True,
         )
     encoders = [
         ("positive_prompt", "Positive prompt", positive_encoder_id, False),
@@ -223,6 +338,53 @@ def _add_prompt_fields(
         mappings.extend(_mapping(field_id, encoder_id, input_name) for input_name in input_names)
 
 
+def _resolve_input_binding(
+    nodes: dict[str, Any],
+    value: Any,
+    *,
+    label: str,
+) -> tuple[str, str] | None:
+    if value in (None, "", "__none__"):
+        return None
+    if not isinstance(value, str) or ":" not in value:
+        raise ValueError(f"Selected {label} binding is invalid")
+    node_id, input_name = value.split(":", 1)
+    node = nodes.get(node_id)
+    if node is None or input_name not in node["inputs"]:
+        raise ValueError(f"Selected {label} binding '{value}' does not exist")
+    current = node["inputs"][input_name]
+    if not isinstance(current, str):
+        raise ValueError(f"Selected {label} binding '{value}' is not a text input")
+    return node_id, input_name
+
+
+def _add_manual_prompt_field(
+    nodes: dict[str, Any],
+    fields: list[dict[str, Any]],
+    mappings: list[dict[str, str]],
+    *,
+    field_id: str,
+    label: str,
+    binding: tuple[str, str],
+    required: bool,
+    advanced: bool,
+) -> None:
+    node_id, input_name = binding
+    fields.append({
+        "id": field_id,
+        "label": label,
+        "kind": "textarea",
+        "section": "Prompt",
+        "default": nodes[node_id]["inputs"][input_name],
+        "required": required,
+        "advanced": advanced,
+        "bindings": [{"node_id": node_id, "input": input_name}],
+    })
+    mappings.append(
+        _mapping(field_id, node_id, input_name, confidence="manual")
+    )
+
+
 def _find_prompt_encoder(
     nodes: dict[str, Any], start_node_id: str | None
 ) -> str | None:
@@ -248,6 +410,93 @@ def _find_prompt_encoder(
             if (source_id := _edge_node(value)) is not None
         )
     return matches[0] if len(matches) == 1 else None
+
+
+def _prompt_candidates(nodes: dict[str, Any]) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    for node_id, node in nodes.items():
+        class_type = node["class_type"]
+        for input_name, value in node["inputs"].items():
+            if not isinstance(value, str):
+                continue
+            if input_name not in {"text", "text_g", "text_l", "prompt"}:
+                continue
+            candidates.append({
+                "value": f"{node_id}:{input_name}",
+                "node_id": node_id,
+                "input": input_name,
+                "class_type": class_type,
+                "label": f"Node {node_id} · {class_type}.{input_name}",
+                "confidence": "candidate",
+            })
+    return candidates
+
+
+def _known_resource_input_pairs(nodes: dict[str, Any]) -> set[tuple[str, str]]:
+    known: set[tuple[str, str]] = set()
+    for node_id, node in nodes.items():
+        class_type = node["class_type"]
+        input_names: tuple[str, ...] = ()
+        if class_type in {"CheckpointLoaderSimple", "CheckpointLoader"}:
+            input_names = ("ckpt_name",)
+        elif class_type in {"UNETLoader", "UnetLoader", "UNETLoaderGGUF", "UnetLoaderGGUF"}:
+            input_names = ("unet_name", "diffusion_model")
+        elif class_type in {"CLIPLoader", "CLIPLoaderGGUF", "DualCLIPLoader", "DualCLIPLoaderGGUF"}:
+            input_names = ("clip_name", "clip_name1", "clip_name2")
+        elif class_type == "VAELoader":
+            input_names = ("vae_name",)
+        elif class_type in {"LoraLoader", "LoraLoaderModelOnly"}:
+            input_names = ("lora_name",)
+        known.update(
+            (node_id, input_name)
+            for input_name in input_names
+            if input_name in node["inputs"]
+        )
+    return known
+
+
+def _unknown_model_inputs(nodes: dict[str, Any]) -> list[dict[str, Any]]:
+    known = _known_resource_input_pairs(nodes)
+    candidates: list[dict[str, Any]] = []
+    for node_id, node in nodes.items():
+        class_type = node["class_type"]
+        if "loader" not in class_type.casefold():
+            continue
+        for input_name, current_value in node["inputs"].items():
+            if (node_id, input_name) in known or not isinstance(current_value, str):
+                continue
+            normalized = input_name.casefold()
+            if not any(token in normalized for token in ("name", "model", "ckpt", "unet", "clip", "vae")):
+                continue
+            candidates.append({
+                "value": f"{node_id}:{input_name}",
+                "node_id": node_id,
+                "input": input_name,
+                "class_type": class_type,
+                "current_value": current_value,
+                "label": f"Node {node_id} · {class_type}.{input_name}",
+                "confidence": "unknown",
+            })
+    return candidates
+
+
+def _apply_field_options(fields: list[dict[str, Any]], value: Any) -> None:
+    if value in (None, {}):
+        return
+    if not isinstance(value, dict):
+        raise ValueError("field_options mapping must be an object")
+    available = {field["id"] for field in fields}
+    for field_id, options in value.items():
+        if field_id not in available:
+            continue
+        if not isinstance(options, dict):
+            raise ValueError(f"Field options for '{field_id}' must be an object")
+        field = next(item for item in fields if item["id"] == field_id)
+        for option in ("advanced", "hidden"):
+            if option in options:
+                if not isinstance(options[option], bool):
+                    raise ValueError(f"Field option '{field_id}.{option}' must be boolean")
+                field[option] = options[option]
 
 
 def _add_sampler_fields(
@@ -386,7 +635,11 @@ def _add_output_fields(
 
 
 def _resource_contract(
-    nodes: dict[str, Any], mappings: list[dict[str, str]]
+    nodes: dict[str, Any],
+    mappings: list[dict[str, str]],
+    *,
+    manual_roles: dict[str, Any] | None = None,
+    allowed_manual_inputs: set[str] | None = None,
 ) -> tuple[dict[str, Any], str, dict[str, str]]:
     slots: dict[str, Any] = {}
     has_checkpoint = False
@@ -435,6 +688,55 @@ def _resource_contract(
                 "lora_name",
             )
 
+    role_contracts = {
+        "checkpoint": ("checkpoint", "Checkpoint", ["checkpoint"]),
+        "diffusion_model": ("diffusion_model", "Diffusion model", ["diffusion_model"]),
+        "diffusion_model_gguf": (
+            "diffusion_model",
+            "Diffusion model (GGUF)",
+            ["diffusion_model_gguf"],
+        ),
+        "text_encoder": ("text_encoder", "Text encoder", ["text_encoder"]),
+        "text_encoder_gguf": (
+            "text_encoder",
+            "Text encoder (GGUF)",
+            ["text_encoder_gguf"],
+        ),
+        "vae": ("vae", "VAE", ["vae"]),
+        "lora": ("lora", "LoRA network", ["lora", "locon", "dora"]),
+    }
+    for binding, raw_role in (manual_roles or {}).items():
+        if allowed_manual_inputs is not None and binding not in allowed_manual_inputs:
+            raise ValueError(f"Manual model binding '{binding}' is not an available candidate")
+        role = str(raw_role or "").strip()
+        if role in {"", "ignore"}:
+            continue
+        contract = role_contracts.get(role)
+        if contract is None:
+            raise ValueError(f"Unknown manual model role '{role}'")
+        node_id, input_name = binding.split(":", 1)
+        slot_id, label, accepts = contract
+        _add_resource_slot(
+            slots,
+            mappings,
+            slot_id,
+            label,
+            accepts,
+            node_id,
+            input_name,
+            confidence="manual",
+        )
+        if role == "checkpoint":
+            has_checkpoint = True
+        elif role in {"diffusion_model", "diffusion_model_gguf"}:
+            has_diffusion = True
+            has_gguf = has_gguf or role == "diffusion_model_gguf"
+        elif role in {"text_encoder", "text_encoder_gguf"}:
+            has_clip = True
+            has_gguf = has_gguf or role == "text_encoder_gguf"
+        elif role == "vae":
+            has_vae = True
+
     if has_checkpoint and has_diffusion:
         family = "hybrid"
     elif has_checkpoint:
@@ -459,6 +761,8 @@ def _add_resource_slot(
     accepts: list[str],
     node_id: str,
     input_name: str,
+    *,
+    confidence: str = "high",
 ) -> None:
     unique_id = slot_id
     suffix = 2
@@ -471,18 +775,31 @@ def _add_resource_slot(
         "required": True,
         "binding": {"kind": "node_input", "node_id": node_id, "input": input_name},
     }
-    mappings.append(_mapping(unique_id, node_id, input_name, kind="resource"))
+    mappings.append(
+        _mapping(
+            unique_id,
+            node_id,
+            input_name,
+            kind="resource",
+            confidence=confidence,
+        )
+    )
 
 
 def _mapping(
-    semantic_id: str, node_id: str, input_name: str, *, kind: str = "field"
+    semantic_id: str,
+    node_id: str,
+    input_name: str,
+    *,
+    kind: str = "field",
+    confidence: str = "high",
 ) -> dict[str, str]:
     return {
         "kind": kind,
         "semantic_id": semantic_id,
         "node_id": node_id,
         "input": input_name,
-        "confidence": "high",
+        "confidence": confidence,
     }
 
 

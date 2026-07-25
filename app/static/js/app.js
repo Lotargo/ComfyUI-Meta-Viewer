@@ -30,6 +30,7 @@ import { loadBootstrap } from './api.js';
 import { initSorting } from './features/sorting.js';
 import { initRatingFilter } from './features/rating-filter.js';
 import { initMediaTypeFilter } from './features/media-type-filter.js';
+import { waitForInitialMediaReady } from './media-loading.js';
 
 function finishBoot() {
     requestAnimationFrame(() => {
@@ -91,6 +92,7 @@ async function bootstrapApplication() {
         await renderAlbumsList(albumList);
         renderSidebar();
         await renderCurrentContent();
+        await waitForInitialMediaReady();
     } catch (error) {
         console.error('Application bootstrap failed:', error);
         await renderFoldersList([]);

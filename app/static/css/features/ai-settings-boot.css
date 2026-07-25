@@ -3,6 +3,10 @@ html {
     scrollbar-gutter: stable;
 }
 
+.ai-settings-body .btn {
+    transition-property: background-color, border-color, color, box-shadow, transform;
+}
+
 .ai-settings-body.ui-booting > .ai-settings-header,
 .ai-settings-body.ui-booting > .ai-settings-main {
     visibility: hidden;

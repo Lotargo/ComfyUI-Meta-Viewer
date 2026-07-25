@@ -1576,7 +1576,7 @@ function resultCard(run, assetId) {
     const media = isVideo
         ? `<video src="/api/original/${assetId}" preload="metadata" controls></video>`
         : `<img src="/api/preview/${assetId}" alt="Generated result ${assetId}" loading="lazy" data-open-result="${assetId}">`;
-    return `<article class="result-card" data-result-search="generation ${run.id}"><div class="result-media">${media}<span class="result-status" title="Saved to library">✓</span><div class="result-card-actions"><button type="button" data-open-result="${assetId}" title="View result" aria-label="View generation ${run.id}">${iconSvg('view')}</button><a href="/api/original/${assetId}" download title="Download">${iconSvg('download')}</a><a href="/library" title="Open in library">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Generation #${run.id}</strong><span>In library</span></div></article>`;
+    return `<article class="result-card" data-result-search="generation ${run.id}"><div class="result-media">${media}<div class="result-card-actions"><button type="button" data-open-result="${assetId}" title="View result" aria-label="View generation ${run.id}">${iconSvg('view')}</button><a href="/api/original/${assetId}" download title="Download">${iconSvg('download')}</a><a href="/library" title="Open in library">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Generation #${run.id}</strong><span>In library</span></div></article>`;
 }
 
 function runHistoryCard(run) {

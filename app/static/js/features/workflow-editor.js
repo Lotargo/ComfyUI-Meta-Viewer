@@ -21,6 +21,7 @@ const elements = {
     draftStatus: byId('draft-status'),
     validationSummary: byId('validation-summary'),
     previewButton: byId('preview-workflow'),
+    previewButtonLabel: byId('preview-workflow-label'),
     generateButton: byId('generate-workflow'),
     generateLabel: byId('generate-label'),
     generateHelp: byId('generate-help'),
@@ -296,26 +297,26 @@ function renderTemplateNavigation() {
     elements.templateName.textContent = friendlyTemplateName(manifest);
     elements.templateMeta.textContent = `${manifest.media_type} · v${manifest.version} · ${state.selected.source}`;
     elements.templateDescription.textContent = friendlyTemplateDescription(manifest);
-    byId('controls-title').textContent = manifest.media_type === 'video' ? 'Видео' : manifest.category === 'reference' ? 'Ремикс' : 'Изображение';
+    byId('controls-title').textContent = manifest.media_type === 'video' ? 'Video' : manifest.category === 'reference' ? 'Remix' : 'Image';
     updateGenerateAvailability();
 }
 
 function friendlyTemplateName(manifest) {
     const names = {
-        'core-image': 'Базовое изображение',
-        'core-reference': 'Ремикс по изображению',
-        'core-video': 'Видео Hunyuan',
-        'core-two-stage': 'Двухэтапная детализация',
+        'core-image': 'Basic image',
+        'core-reference': 'Image remix',
+        'core-video': 'Video generation',
+        'core-two-stage': 'Two-stage refinement',
     };
     return names[manifest.id] || manifest.name;
 }
 
 function friendlyTemplateDescription(manifest) {
     const descriptions = {
-        'core-image': 'Универсальный text-to-image workflow на стандартных узлах ComfyUI.',
-        'core-reference': 'Переосмысление загруженного изображения с управляемой силой изменений.',
-        'core-video': 'Локальная генерация короткого видео через Hunyuan Video.',
-        'core-two-stage': 'Базовая генерация и отдельный проход рефайнера для высокой детализации.',
+        'core-image': 'A general-purpose text-to-image workflow built with standard ComfyUI nodes.',
+        'core-reference': 'Reimagine a source image with adjustable transformation strength.',
+        'core-video': 'Generate video locally with the selected ComfyUI models.',
+        'core-two-stage': 'Base generation followed by a separate refinement pass for added detail.',
     };
     return descriptions[manifest.id] || manifest.description;
 }
@@ -406,10 +407,10 @@ function renderAdvancedRange(field) {
     ].join(' ');
     return `
         <div class="advanced-range-control">
-            <span class="advanced-control-label">${escapeHtml(friendlyFieldLabel(field))}${helpIcon('Количество итераций обработки. Больше шагов обычно повышает детализацию, но увеличивает время генерации.')}</span>
+            <span class="advanced-control-label">${escapeHtml(friendlyFieldLabel(field))}${helpIcon('Number of processing iterations. More steps can improve detail but increase generation time.')}</span>
             <div class="advanced-range-row">
                 <input class="advanced-range" type="range" aria-label="${escapeHtml(friendlyFieldLabel(field))}" ${attributes}>
-                <input class="advanced-range-value" type="number" aria-label="${escapeHtml(friendlyFieldLabel(field))}, точное значение" ${attributes}>
+                <input class="advanced-range-value" type="number" aria-label="${escapeHtml(friendlyFieldLabel(field))}, exact value" ${attributes}>
             </div>
         </div>
     `;
@@ -453,28 +454,28 @@ function renderAdvancedConfiguration(fields) {
         <div class="advanced-config-card">
             ${samplerField && schedulerField ? `
                 <div class="advanced-sampling-control">
-                    <span class="advanced-control-label">Метод сэмплирования${helpIcon('Выберите готовую связку сэмплера и расписания либо настройте оба параметра вручную.')}</span>
-                    <div class="advanced-mode-switch" role="group" aria-label="Режим настройки семплера">
-                        <button type="button" data-sampling-mode="recommended"${customMode ? '' : ' class="active"'}>Рекомендуемые</button>
-                        <button type="button" data-sampling-mode="custom"${customMode ? ' class="active"' : ''}>Настройка</button>
+                    <span class="advanced-control-label">Sampling method${helpIcon('Choose a recommended sampler and scheduler pair, or configure both values manually.')}</span>
+                    <div class="advanced-mode-switch" role="group" aria-label="Sampler configuration mode">
+                        <button type="button" data-sampling-mode="recommended"${customMode ? '' : ' class="active"'}>Recommended</button>
+                        <button type="button" data-sampling-mode="custom"${customMode ? ' class="active"' : ''}>Custom</button>
                     </div>
                     <div class="advanced-recommended-sampling"${customMode ? ' hidden' : ''}>
-                        <select data-sampling-preset aria-label="Рекомендуемый метод сэмплирования">
+                        <select data-sampling-preset aria-label="Recommended sampling method">
                             ${presets.map((preset) => `<option value="${escapeHtml(preset.value)}"${preset.value === selectedPreset ? ' selected' : ''}>${escapeHtml(preset.label)}</option>`).join('')}
                         </select>
                     </div>
                     <div class="advanced-custom-sampling"${customMode ? '' : ' hidden'}>
-                        <label><span>Сэмплер</span>${renderFieldControl(samplerField)}</label>
-                        <label><span>Диспетчер</span>${renderFieldControl(schedulerField)}</label>
+                        <label><span>Sampler</span>${renderFieldControl(samplerField)}</label>
+                        <label><span>Scheduler</span>${renderFieldControl(schedulerField)}</label>
                     </div>
                 </div>
             ` : ''}
             ${stepsField ? renderAdvancedRange(stepsField) : ''}
-            ${negativeField ? renderAdvancedToggle(negativeField, 'Негативная метка', 'Опишите элементы и дефекты, которых не должно быть в результате.') : ''}
-            ${seedField ? renderAdvancedToggle(seedField, 'Фиксированное зерно', 'Сохраняет конкретный seed, чтобы генерацию можно было воспроизвести повторно.') : ''}
+            ${negativeField ? renderAdvancedToggle(negativeField, 'Negative prompt', 'Describe elements and defects that should not appear in the result.') : ''}
+            ${seedField ? renderAdvancedToggle(seedField, 'Fixed seed', 'Keep a specific seed so the generation can be reproduced.') : ''}
             ${extraFields.length ? `
                 <details class="advanced-extra-fields">
-                    <summary>Дополнительные параметры<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg></summary>
+                    <summary>Additional parameters<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg></summary>
                     <div class="advanced-extra-grid">${extraFields.map(renderField).join('')}</div>
                 </details>
             ` : ''}
@@ -492,18 +493,18 @@ function friendlySectionName(section) {
 
 function friendlyFieldLabel(field) {
     const labels = {
-        positive_prompt: currentManifest()?.media_type === 'video' ? 'Что должно происходить в видео?' : 'Опишите изображение',
-        negative_prompt: 'Негативный промпт',
-        reference_image: 'Исходное изображение',
-        width: 'Ширина',
-        height: 'Высота',
-        batch_size: 'Количество изображений',
-        seed: 'Фиксированное зерно',
-        steps: 'Шаги сэмплирования',
-        cfg: 'Сила промпта (CFG)',
-        sampler: 'Сэмплер',
-        scheduler: 'Диспетчер',
-        filename_prefix: 'Префикс файла',
+        positive_prompt: currentManifest()?.media_type === 'video' ? 'What should happen in the video?' : 'Describe the image',
+        negative_prompt: 'Negative prompt',
+        reference_image: 'Source image',
+        width: 'Width',
+        height: 'Height',
+        batch_size: 'Number of images',
+        seed: 'Fixed seed',
+        steps: 'Sampling steps',
+        cfg: 'Prompt strength (CFG)',
+        sampler: 'Sampler',
+        scheduler: 'Scheduler',
+        filename_prefix: 'Filename prefix',
     };
     return labels[field.id] || field.label;
 }
@@ -529,7 +530,7 @@ function renderFieldControl(field) {
     ].filter(Boolean).join(' ');
 
     if (field.kind === 'textarea') {
-        const placeholder = field.id === 'positive_prompt' ? 'Шедевр, высокое качество, кинематографичный свет, детальная сцена…' : 'low quality, blurry, artifacts…';
+        const placeholder = field.id === 'positive_prompt' ? 'A cinematic scene with detailed lighting and rich textures…' : 'low quality, blurry, artifacts…';
         control = `<textarea id="field-${escapeHtml(field.id)}" placeholder="${escapeHtml(placeholder)}" ${attributes}>${escapeHtml(value)}</textarea>`;
     } else if (field.kind === 'select') {
         control = `<select id="field-${escapeHtml(field.id)}" ${attributes}>${field.options.map((option) => `<option value="${escapeHtml(option.value)}"${String(value) === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select>`;
@@ -663,7 +664,7 @@ function renderResources() {
     const requiredSlots = slots.filter(([, slot]) => slot.required);
     const optionalSlots = slots.filter(([, slot]) => !slot.required);
     elements.resourceSection.hidden = requiredSlots.length === 0;
-    elements.resourceCount.textContent = requiredSlots.length > 1 ? `${requiredSlots.length} модели` : 'Обязательно';
+    elements.resourceCount.textContent = requiredSlots.length > 1 ? `${requiredSlots.length} models` : 'Required';
     elements.resourceSlots.innerHTML = requiredSlots.map(([slotId, slot]) => renderResourceSlot(slotId, slot)).join('');
     elements.advancedResourceSection.hidden = optionalSlots.length === 0;
     elements.advancedResourceSlots.innerHTML = optionalSlots.map(([slotId, slot]) => renderResourceSlot(slotId, slot)).join('');
@@ -682,10 +683,10 @@ function updateAdvancedCount(fieldCount, resourceCount = null) {
 
 function updateWorkspaceSummary() {
     const prompt = String(state.values.positive_prompt || '').trim();
-    if (elements.batchPrompt) elements.batchPrompt.textContent = prompt || 'Новые результаты появятся здесь после генерации';
+    if (elements.batchPrompt) elements.batchPrompt.textContent = prompt || 'New results will appear here after generation';
     const width = state.values.width;
     const height = state.values.height;
-    const size = width && height ? `${width} × ${height}` : currentManifest()?.media_type === 'video' ? 'Видео' : 'Размер workflow';
+    const size = width && height ? `${width} × ${height}` : currentManifest()?.media_type === 'video' ? 'Video' : 'Workflow size';
     if (elements.sizeSummary) elements.sizeSummary.textContent = size;
     if (elements.batchSizeMeta) elements.batchSizeMeta.textContent = width && height ? `${size} px` : size;
 }
@@ -770,7 +771,7 @@ function updateCustomResolutionControls() {
     elements.aspectRatioLock?.setAttribute('aria-pressed', state.aspectRatioLocked ? 'true' : 'false');
     elements.aspectRatioLock?.setAttribute(
         'aria-label',
-        state.aspectRatioLocked ? 'Разблокировать соотношение сторон' : 'Зафиксировать соотношение сторон',
+        state.aspectRatioLocked ? 'Unlock aspect ratio' : 'Lock aspect ratio',
     );
     const displayedRatio = state.aspectRatioLocked ? state.lockedAspectRatio : width / height;
     if (elements.customAspectRatio) {
@@ -904,7 +905,7 @@ function resetEditor() {
     renderFields();
     renderResources();
     markDirty();
-    showToast('Настройки возвращены к значениям workflow.', 'info');
+    showToast('Settings restored to the workflow defaults.', 'info');
 }
 
 function accordionPanel(details) {
@@ -914,28 +915,14 @@ function accordionPanel(details) {
 }
 
 function positionAccordionFlyout(details) {
-    if (!details?.open) return;
+    if (!details) return;
     const panel = accordionPanel(details);
-    if (!panel || panel.hidden) return;
-    const rect = details.getBoundingClientRect();
-    const gutter = 8;
-    panel.style.left = `${Math.round(rect.left)}px`;
-    panel.style.width = `${Math.round(rect.width)}px`;
-    panel.style.top = 'auto';
-    panel.style.bottom = 'auto';
-    if (details.id === 'advanced-settings-dialog') {
-        panel.style.bottom = `${Math.round(window.innerHeight - rect.top + gutter)}px`;
-        panel.style.maxHeight = `${Math.max(220, Math.round(rect.top - gutter * 2))}px`;
-    } else {
-        const spaceBelow = window.innerHeight - rect.bottom - gutter * 2;
-        if (spaceBelow >= 260) {
-            panel.style.top = `${Math.round(rect.bottom + gutter)}px`;
-            panel.style.maxHeight = `${Math.round(spaceBelow)}px`;
-        } else {
-            panel.style.bottom = `${Math.round(window.innerHeight - rect.top + gutter)}px`;
-            panel.style.maxHeight = `${Math.max(180, Math.round(rect.top - gutter * 2))}px`;
-        }
-    }
+    if (!panel) return;
+    panel.style.removeProperty('left');
+    panel.style.removeProperty('width');
+    panel.style.removeProperty('top');
+    panel.style.removeProperty('bottom');
+    panel.style.removeProperty('max-height');
 }
 
 function bindAccordionFlyouts() {
@@ -964,22 +951,22 @@ function bindAccordionFlyouts() {
 function renderResourceSlot(slotId, slot) {
     const options = state.selected.resource_options?.[slotId] || [];
     const kind = slot.multiple ? 'adapter' : 'model';
-    const label = slotId.includes('checkpoint') && !slotId.includes('refiner') ? 'Модель' : slot.label;
+    const label = slotId.includes('checkpoint') && !slotId.includes('refiner') ? 'Model' : slot.label;
     const description = slot.required
-        ? (slot.description || 'Локальная модель для генерации.')
-        : (slot.description || 'Дополнительный стилевой адаптер.');
+        ? (slot.description || 'Local model used for generation.')
+        : (slot.description || 'Optional style adapter.');
     const head = `<div class="resource-card-head"><div><span class="resource-kind-icon">${iconSvg(kind)}</span><div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(description)}</small></div></div></div>`;
     if (!options.length) {
-        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="resource-card-empty">Совместимые модели не найдены. Проверьте подключение и папку ComfyUI.</div></div>`;
+        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="resource-card-empty">No compatible models found. Check the connection and your ComfyUI folder.</div></div>`;
     }
     if (slot.multiple) {
         const selections = Array.isArray(state.resources[slotId]) ? state.resources[slotId] : [];
-        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="lora-add-row"><select data-lora-option="${escapeHtml(slotId)}"><option value="">Выберите LoRA…</option>${options.map((option) => `<option value="${escapeHtml(option.name)}">${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select><button class="btn btn-secondary btn-sm" type="button" data-lora-add="${escapeHtml(slotId)}">Добавить</button></div><div class="lora-list">${selections.map((selection, index) => renderLora(slotId, selection, index)).join('')}</div></div>`;
+        return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<div class="lora-add-row"><select data-lora-option="${escapeHtml(slotId)}"><option value="">Select LoRA…</option>${options.map((option) => `<option value="${escapeHtml(option.name)}">${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select><button class="btn btn-secondary btn-sm" type="button" data-lora-add="${escapeHtml(slotId)}">Add</button></div><div class="lora-list">${selections.map((selection, index) => renderLora(slotId, selection, index)).join('')}</div></div>`;
     }
     const selected = typeof state.resources[slotId] === 'string'
         ? state.resources[slotId]
         : state.resources[slotId]?.name || '';
-    return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<select data-resource-slot="${escapeHtml(slotId)}"><option value="">${slot.required ? 'Выберите модель…' : 'Нет'}</option>${options.map((option) => `<option value="${escapeHtml(option.name)}"${selected === option.name ? ' selected' : ''}>${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select></div>`;
+    return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<select data-resource-slot="${escapeHtml(slotId)}"><option value="">${slot.required ? 'Select model…' : 'None'}</option>${options.map((option) => `<option value="${escapeHtml(option.name)}"${selected === option.name ? ' selected' : ''}>${escapeHtml(friendlyResourceName(option.name))}</option>`).join('')}</select></div>`;
 }
 
 function renderLora(slotId, selection, index) {
@@ -1074,6 +1061,9 @@ function renderSourceBanner() {
 
 async function previewWorkflow({ openDialog = true } = {}) {
     elements.previewButton.disabled = true;
+    elements.previewButton.classList.add('is-loading');
+    elements.previewButton.setAttribute('aria-busy', 'true');
+    elements.previewButtonLabel.textContent = 'Checking dependencies…';
     try {
         await saveDraft();
         const payload = await requestJson(`/api/editor/drafts/${state.draft.id}/preview`, { method: 'POST' });
@@ -1091,6 +1081,9 @@ async function previewWorkflow({ openDialog = true } = {}) {
         return null;
     } finally {
         elements.previewButton.disabled = false;
+        elements.previewButton.classList.remove('is-loading');
+        elements.previewButton.removeAttribute('aria-busy');
+        elements.previewButtonLabel.textContent = 'Check dependencies and preview graph';
     }
 }
 
@@ -1098,15 +1091,15 @@ function updateValidation(report, explicitError = '') {
     let mode = 'neutral';
     const missing = requiredConfigurationIssues();
     let text = state.inventory.online
-        ? (missing.length ? missing[0] : 'Готово к генерации')
-        : 'Подключите ComfyUI для генерации';
+        ? (missing.length ? missing[0] : 'Ready to generate')
+        : 'Connect ComfyUI to generate';
     if (report?.ready) {
         mode = 'ready';
-        text = 'Готово к генерации';
+        text = 'Ready to generate';
     } else if (report) {
         mode = 'error';
         const total = (report.missing_nodes?.length || 0) + (report.missing_resources?.length || 0);
-        text = total ? 'Не хватает обязательных файлов ComfyUI' : (report.runtime_error || 'ComfyUI не смогла проверить workflow');
+        text = total ? 'Required ComfyUI files are missing' : (report.runtime_error || 'ComfyUI could not validate the workflow');
     } else if (explicitError) {
         mode = 'error';
         text = explicitError;
@@ -1119,17 +1112,17 @@ function updateValidation(report, explicitError = '') {
 }
 
 function requiredConfigurationIssues() {
-    if (!currentManifest()) return ['Выберите тип генерации'];
+    if (!currentManifest()) return ['Select a generation type'];
     for (const field of currentManifest().fields || []) {
         if (field.required && (state.values[field.id] === '' || state.values[field.id] === null || state.values[field.id] === undefined)) {
-            return [`Заполните «${friendlyFieldLabel(field)}»`];
+            return [`Complete “${friendlyFieldLabel(field)}”`];
         }
     }
     for (const [slotId, slot] of Object.entries(currentManifest().resource_slots || {})) {
         const value = state.resources[slotId];
         if (slot.required && (!value || (Array.isArray(value) && !value.length))) {
-            const label = slotId.includes('checkpoint') ? 'модель' : slot.label.toLowerCase();
-            return [`Выберите ${label}, чтобы продолжить`];
+            const label = slotId.includes('checkpoint') ? 'model' : slot.label.toLowerCase();
+            return [`Select ${label} to continue`];
         }
     }
     return [];
@@ -1139,10 +1132,10 @@ function updateGenerateAvailability() {
     if (!elements.generateButton) return;
     const media = currentManifest()?.media_type === 'video' ? 'video' : 'image';
     const running = state.currentRun && ['queued', 'running'].includes(state.currentRun.status);
-    elements.generateLabel.textContent = state.inventory.online ? (media === 'video' ? 'Создать видео' : 'Создать') : 'Подключить';
+    elements.generateLabel.textContent = state.inventory.online ? (media === 'video' ? 'Create video' : 'Create') : 'Connect';
     elements.generateHelp.textContent = state.inventory.online
-        ? 'Результат автоматически сохранится в библиотеке.'
-        : 'Подключите локальную ComfyUI, чтобы запустить генерацию.';
+        ? 'The result will be saved to the library automatically.'
+        : 'Connect your local ComfyUI installation to start generating.';
     elements.generateButton.disabled = !state.selected || Boolean(running);
 }
 
@@ -1301,7 +1294,7 @@ function resultCard(run, assetId) {
     const media = isVideo
         ? `<video src="/api/original/${assetId}" preload="metadata" controls></video>`
         : `<img src="/api/preview/${assetId}" alt="Generated result ${assetId}" loading="lazy">`;
-    return `<article class="result-card" data-result-search="generation ${run.id}"><div class="result-media">${media}<span class="result-status" title="Сохранено в библиотеке">✓</span><div class="result-card-actions"><a href="/api/original/${assetId}" download title="Скачать">${iconSvg('download')}</a><a href="/library" title="Открыть в библиотеке">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Генерация #${run.id}</strong><span>В библиотеке</span></div></article>`;
+    return `<article class="result-card" data-result-search="generation ${run.id}"><div class="result-media">${media}<span class="result-status" title="Saved to library">✓</span><div class="result-card-actions"><a href="/api/original/${assetId}" download title="Download">${iconSvg('download')}</a><a href="/library" title="Open in library">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Generation #${run.id}</strong><span>In library</span></div></article>`;
 }
 
 function runHistoryCard(run) {
@@ -1586,7 +1579,7 @@ function bindEvents() {
     elements.saveNote.addEventListener('click', async () => {
         try {
             await saveDraft();
-            showToast('Черновик сохранён.', 'success');
+            showToast('Draft saved.', 'success');
         } catch (error) {
             showToast(error.message, 'error');
         }
@@ -1594,6 +1587,7 @@ function bindEvents() {
     elements.collapseControls.addEventListener('click', () => {
         const collapsed = document.body.classList.toggle('controls-collapsed');
         elements.collapseControls.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        elements.collapseControls.setAttribute('aria-label', collapsed ? 'Expand panel' : 'Collapse panel');
     });
     document.querySelectorAll('[data-ui-choice]').forEach((group) => group.addEventListener('click', (event) => {
         const button = event.target.closest('button');

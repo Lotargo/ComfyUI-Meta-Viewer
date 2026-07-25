@@ -4721,3 +4721,1143 @@
     text-align: center;
     white-space: normal;
 }
+
+.preview-workflow-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.preview-workflow-spinner {
+    width: 14px;
+    height: 14px;
+    display: none;
+    flex: 0 0 14px;
+    box-sizing: border-box;
+    border: 2px solid rgba(255, 255, 255, .2);
+    border-top-color: #d9dcdf;
+    border-radius: 50%;
+}
+
+.preview-workflow-button.is-loading .preview-workflow-spinner {
+    display: block;
+    animation: preview-workflow-spin .7s linear infinite;
+}
+
+.preview-workflow-button.is-loading,
+.preview-workflow-button.is-loading:disabled {
+    color: #d9dcdf;
+    opacity: 1;
+    cursor: wait;
+}
+
+@keyframes preview-workflow-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .preview-workflow-button.is-loading .preview-workflow-spinner {
+        animation-duration: 1.4s;
+    }
+}
+
+/* Workflow preview modal: viewport-centered neutral dark glass. */
+.editor-dialog[open] {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+}
+
+.workflow-preview-dialog {
+    box-sizing: border-box;
+    width: min(800px, calc(100vw - 32px));
+    max-width: none;
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(34, 38, 43, .82), rgba(15, 18, 22, .9));
+    color: #f1f2f3;
+    box-shadow:
+        0 24px 58px rgba(0, 0, 0, .46),
+        inset 0 1px 0 rgba(255, 255, 255, .065);
+    backdrop-filter: blur(24px) saturate(82%);
+}
+
+.workflow-preview-dialog::backdrop {
+    background: rgba(3, 6, 8, .64);
+    backdrop-filter: blur(9px) saturate(55%) brightness(.74);
+}
+
+.workflow-preview-dialog > form {
+    box-sizing: border-box;
+    max-height: calc(100dvh - 34px);
+    padding: 26px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-color: #4b4e54 transparent;
+}
+
+.workflow-preview-dialog .dialog-heading {
+    align-items: flex-start;
+    gap: 24px;
+}
+
+.workflow-preview-dialog .workspace-kicker {
+    margin-bottom: 7px;
+    font-size: 11.5px;
+    letter-spacing: .11em;
+}
+
+.workflow-preview-dialog .dialog-heading h2 {
+    color: #f5f5f6;
+    font-size: 26px;
+    line-height: 1.12;
+}
+
+.workflow-preview-dialog .dialog-heading p:last-child {
+    max-width: 620px;
+    margin-top: 7px;
+    color: #92969e;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.workflow-preview-dialog .workspace-icon-button {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-color: rgba(255, 255, 255, .1);
+    background: rgba(255, 255, 255, .025);
+    color: #9da1a8;
+    box-shadow: none !important;
+    filter: none !important;
+}
+
+.workflow-preview-dialog .workspace-icon-button:hover,
+.workflow-preview-dialog .workspace-icon-button:focus-visible {
+    border-color: rgba(255, 255, 255, .18);
+    background: rgba(255, 255, 255, .055);
+    color: #f0f1f2;
+    box-shadow: none !important;
+}
+
+.workflow-preview-dialog .dependency-report {
+    margin-top: 18px;
+    gap: 10px;
+}
+
+.workflow-preview-dialog .dependency-card {
+    position: relative;
+    min-height: 78px;
+    padding: 15px 16px 15px 19px;
+    overflow: hidden;
+    border-color: rgba(203, 218, 221, .11);
+    border-radius: 13px;
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, .062), rgba(255, 255, 255, .018) 62%),
+        rgba(13, 17, 21, .28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .045);
+    backdrop-filter: blur(16px);
+}
+
+.workflow-preview-dialog .dependency-card::before {
+    content: '';
+    position: absolute;
+    top: 13px;
+    bottom: 13px;
+    left: 0;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: #718087;
+}
+
+.workflow-preview-dialog .dependency-card.ready {
+    border-color: rgba(105, 183, 170, .2);
+    background: linear-gradient(135deg, rgba(255, 255, 255, .055), rgba(10, 13, 16, .22));
+}
+
+.workflow-preview-dialog .dependency-card.ready::before {
+    background: #5ca99e;
+}
+
+.workflow-preview-dialog .dependency-card.warning {
+    border-color: rgba(182, 157, 101, .2);
+    background: linear-gradient(135deg, rgba(255, 255, 255, .055), rgba(10, 13, 16, .22));
+}
+
+.workflow-preview-dialog .dependency-card.warning::before {
+    background: #ae9766;
+}
+
+.workflow-preview-dialog .dependency-card.error {
+    border-color: rgba(183, 106, 122, .21);
+    background: linear-gradient(135deg, rgba(255, 255, 255, .055), rgba(10, 13, 16, .22));
+}
+
+.workflow-preview-dialog .dependency-card.error::before {
+    background: #b56f7e;
+}
+
+.workflow-preview-dialog .dependency-card strong {
+    color: #e9eaec;
+    font-size: 13.5px;
+    line-height: 1.35;
+}
+
+.workflow-preview-dialog .dependency-card p,
+.workflow-preview-dialog .dependency-card li {
+    color: #a5aab2;
+    font-size: 12px;
+    line-height: 1.48;
+}
+
+.workflow-preview-dialog .dependency-card p {
+    margin-top: 6px;
+}
+
+.workflow-preview-dialog .dependency-card ul {
+    margin-top: 7px;
+    padding-left: 17px;
+}
+
+.workflow-preview-dialog .raw-workflow-preview {
+    margin-top: 13px;
+    border-color: rgba(255, 255, 255, .09);
+    border-radius: 12px;
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .012)),
+        rgba(9, 12, 15, .3);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+    backdrop-filter: blur(14px);
+}
+
+.workflow-preview-dialog .raw-workflow-preview > summary {
+    min-height: 46px;
+    padding-inline: 14px;
+    color: #b2b5bb;
+    font-size: 12.5px;
+}
+
+.workflow-preview-dialog .raw-workflow-preview pre {
+    max-height: min(360px, 42vh);
+    padding: 15px;
+    border-color: rgba(255, 255, 255, .08);
+    background: rgba(4, 5, 7, .34);
+    color: #c1cecc;
+    font-size: 10.5px;
+    line-height: 1.58;
+}
+
+.workflow-preview-dialog .dialog-footer {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-color: rgba(255, 255, 255, .085);
+}
+
+.workflow-preview-dialog .btn,
+.workflow-preview-dialog .btn:hover,
+.workflow-preview-dialog .btn:focus-visible,
+.workflow-preview-dialog .btn:active {
+    box-shadow: none !important;
+    filter: none !important;
+    text-shadow: none !important;
+}
+
+.workflow-preview-dialog .dialog-footer .btn {
+    min-height: 38px;
+    padding-inline: 15px;
+    font-size: 12px;
+}
+
+@media (max-width: 560px) {
+    .workflow-preview-dialog {
+        width: calc(100vw - 20px);
+        max-height: calc(100dvh - 20px);
+        border-radius: 14px;
+    }
+
+    .workflow-preview-dialog > form {
+        max-height: calc(100dvh - 22px);
+        padding: 16px;
+    }
+}
+
+/* Graphite glass visual system --------------------------------------------- */
+
+.workflow-editor-body {
+    --bg: #090b0d;
+    --bg-elevated: #0f1114;
+    --surface: #15181b;
+    --surface-glass: rgba(20, 23, 26, .84);
+    --surface2: #1c2024;
+    --surface3: #272c31;
+    --border: rgba(235, 241, 243, .13);
+    --border-subtle: rgba(235, 241, 243, .075);
+    --border-glow: rgba(158, 181, 176, .24);
+    --text: #f1f3f3;
+    --text-dim: #afb5b7;
+    --text-muted: #747b80;
+    --accent: #78948f;
+    --accent-hover: #a6bbb7;
+    --accent-dim: rgba(120, 148, 143, .13);
+    --accent-glow: transparent;
+    --accent2: #9ba0a4;
+    --accent2-hover: #c2c5c7;
+    --accent2-dim: rgba(155, 160, 164, .12);
+    --green: #79a98a;
+    --green-dim: rgba(121, 169, 138, .13);
+    --orange: #b99a70;
+    --orange-dim: rgba(185, 154, 112, .13);
+    --red: #b97882;
+    --red-dim: rgba(185, 120, 130, .13);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
+    --shadow: 0 10px 26px rgba(0, 0, 0, .28);
+    --shadow-lg: 0 22px 60px rgba(0, 0, 0, .42);
+    --shadow-glow: none;
+    --radius-sm: 6px;
+    --radius: 8px;
+    --radius-lg: 10px;
+    --radius-xl: 12px;
+    background: #090b0d;
+}
+
+.workflow-editor-body *,
+.workflow-editor-body *::before,
+.workflow-editor-body *::after {
+    text-shadow: none !important;
+}
+
+.workflow-editor-body svg {
+    filter: none !important;
+}
+
+.workflow-editor-body :focus-visible {
+    outline: 1px solid rgba(171, 190, 186, .72);
+    outline-offset: 2px;
+}
+
+.editor-global-header {
+    border-bottom-color: var(--border-subtle);
+    background: rgba(10, 12, 14, .88);
+    backdrop-filter: blur(18px);
+}
+
+.editor-global-header .header-logo span {
+    color: #b7bbbd;
+}
+
+.editor-global-header .app-switcher {
+    border-color: var(--border-subtle);
+    background: rgba(255, 255, 255, .025);
+}
+
+.editor-global-header .app-switcher-link {
+    color: #7e8589;
+    font-weight: 620;
+}
+
+.editor-global-header .app-switcher-link:hover {
+    background: rgba(255, 255, 255, .045);
+    color: var(--text-dim);
+}
+
+.editor-global-header .app-switcher-link.active {
+    background: #252a2e;
+    color: #f0f2f2;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09);
+}
+
+.editor-global-header .runtime-header-control {
+    border-color: var(--border-subtle);
+    background: rgba(255, 255, 255, .025);
+    box-shadow: none;
+}
+
+.editor-global-header .runtime-header-control:hover,
+.editor-global-header .runtime-header-control[aria-expanded="true"] {
+    border-color: var(--border);
+    background: rgba(255, 255, 255, .05);
+    transform: none;
+}
+
+.editor-rail {
+    border-right-color: var(--border-subtle);
+    background: rgba(11, 13, 15, .94);
+}
+
+.template-tab {
+    border-radius: 8px;
+    color: #686f74;
+}
+
+.template-tab:hover {
+    background: rgba(255, 255, 255, .025);
+    color: #a9afb2;
+}
+
+.template-tab.active {
+    background: rgba(255, 255, 255, .035);
+    color: #e7eaea;
+}
+
+.template-tab.active svg {
+    border-radius: 8px;
+    background: rgba(148, 169, 165, .1);
+    color: #9eb3af;
+    box-shadow: inset 0 0 0 1px rgba(174, 194, 190, .13);
+}
+
+.rail-link:hover {
+    background: rgba(255, 255, 255, .045);
+    color: #c1c5c6;
+}
+
+.editor-controls {
+    border-right-color: var(--border-subtle);
+    background: rgba(17, 20, 23, .9);
+    backdrop-filter: blur(20px);
+}
+
+.controls-header,
+.editor-actions {
+    border-color: var(--border-subtle);
+    background: rgba(17, 20, 23, .78);
+}
+
+.controls-header h1 {
+    color: #eceeee;
+    font-weight: 690;
+}
+
+.draft-state {
+    color: #72797e;
+}
+
+.model-hero,
+.model-hero.resource-section {
+    border-color: rgba(255, 255, 255, .1);
+    border-radius: 11px;
+    background: rgba(18, 21, 24, .88);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035);
+    backdrop-filter: blur(16px);
+}
+
+.model-hero::after {
+    display: none;
+}
+
+.model-hero-copy > span,
+.model-hero-meta {
+    color: #747b80;
+    letter-spacing: .06em;
+}
+
+.model-hero-copy h2 {
+    color: #e6e9e9;
+    font-weight: 660;
+}
+
+.model-hero-copy p {
+    color: #8c9296;
+}
+
+.model-hero-switch select,
+.model-hero .resource-card select {
+    border-color: rgba(255, 255, 255, .11) !important;
+    background-color: rgba(8, 10, 12, .7) !important;
+    color: #d8dcdc !important;
+}
+
+.workflow-editor-body select:hover {
+    border-color: rgba(255, 255, 255, .19) !important;
+    background-color: #1d2125 !important;
+}
+
+.workflow-editor-body select:focus,
+.workflow-editor-body select:focus-visible {
+    border-color: #6f817f !important;
+}
+
+.sidebar-accordion,
+.advanced-settings-dialog {
+    border-color: rgba(255, 255, 255, .085);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .025);
+    box-shadow: none;
+    backdrop-filter: blur(14px);
+}
+
+.sidebar-accordion > summary {
+    border-radius: 9px;
+    font-weight: 630;
+}
+
+.sidebar-accordion > summary:hover,
+.sidebar-accordion > summary:focus-visible {
+    background: rgba(255, 255, 255, .035);
+}
+
+.settings-section-title h2,
+.advanced-settings-dialog > summary {
+    color: #858c90;
+    font-weight: 650;
+    letter-spacing: .035em;
+    text-transform: none;
+}
+
+.quick-label,
+.advanced-control-label {
+    color: #d9dddd;
+    font-weight: 610;
+}
+
+.segmented-control,
+.aspect-grid,
+.advanced-mode-switch {
+    border-color: rgba(255, 255, 255, .07);
+    border-radius: 9px;
+    background: rgba(7, 9, 11, .42);
+}
+
+.segmented-control button,
+.aspect-grid button,
+.advanced-mode-switch button {
+    border-radius: 6px;
+}
+
+.segmented-control button:hover,
+.aspect-grid button:hover,
+.advanced-mode-switch button:hover {
+    border-color: transparent;
+    background: rgba(255, 255, 255, .045);
+    color: #dfe2e2;
+}
+
+.segmented-control button.active,
+.aspect-grid button.active,
+.advanced-mode-switch button.active {
+    border-color: rgba(164, 184, 180, .13);
+    background: rgba(137, 160, 156, .12);
+    color: #aabcb9;
+    box-shadow: inset 0 0 0 1px rgba(164, 184, 180, .12);
+}
+
+.panel-action {
+    border-color: rgba(255, 255, 255, .09);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .025);
+    color: #cfd3d3;
+    font-weight: 610;
+}
+
+.panel-action:hover {
+    border-color: rgba(255, 255, 255, .16);
+    background: rgba(255, 255, 255, .055);
+}
+
+.collapse-controls {
+    border-color: var(--border-subtle);
+    background: rgba(17, 20, 23, .94);
+}
+
+.results-workspace {
+    background: #0b0d0f;
+}
+
+.results-toolbar {
+    border-bottom: 1px solid rgba(255, 255, 255, .055);
+    background: rgba(12, 14, 16, .76);
+    backdrop-filter: blur(18px);
+}
+
+.results-view-tabs {
+    border-color: rgba(255, 255, 255, .075);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .025);
+}
+
+.results-view-tabs button,
+.results-view-tabs a {
+    border-radius: 7px;
+    color: #7f868a;
+}
+
+.results-view-tabs .active {
+    background: #22272b;
+    color: #edf0f0;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
+}
+
+.results-search,
+.results-toolbar .workspace-icon-button {
+    border-color: rgba(255, 255, 255, .075);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .025);
+}
+
+.results-search:focus-within {
+    border-color: rgba(166, 187, 183, .27);
+    background: rgba(255, 255, 255, .04);
+}
+
+.batch-kind {
+    border-color: rgba(154, 177, 172, .15);
+    background: rgba(120, 148, 143, .1);
+    color: #98afaa;
+}
+
+.batch-meta i,
+.runtime-state-dot,
+.validation-dot {
+    box-shadow: none !important;
+}
+
+.empty-gallery span {
+    border-color: rgba(255, 255, 255, .105);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .014);
+}
+
+.results-empty h3 {
+    color: #dfe2e2;
+    font-weight: 650;
+}
+
+.result-card {
+    border-color: rgba(255, 255, 255, .08);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .025);
+}
+
+.result-card:hover {
+    border-color: rgba(255, 255, 255, .17);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .28);
+}
+
+.prompt-composer {
+    border-color: rgba(255, 255, 255, .11);
+    border-radius: 13px;
+    background: rgba(21, 24, 27, .86);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, .38), inset 0 1px 0 rgba(255, 255, 255, .035) !important;
+    backdrop-filter: blur(22px);
+}
+
+.prompt-spark {
+    color: #8c9d9a;
+}
+
+.generate-button,
+.generate-button:hover:not(:disabled),
+.workflow-preview-dialog .btn-primary,
+.workflow-preview-dialog .btn-primary:hover {
+    border-color: #617b77;
+    background: #526b67;
+    color: #f4f6f5;
+    box-shadow: none !important;
+    filter: none !important;
+    transform: none;
+}
+
+.generate-button:hover:not(:disabled),
+.workflow-preview-dialog .btn-primary:hover {
+    border-color: #728d88;
+    background: #607b76;
+}
+
+.generate-button:disabled {
+    border-color: rgba(255, 255, 255, .07);
+    background: #252b2c;
+    color: #737b7c;
+    opacity: 1;
+}
+
+.generate-button svg {
+    color: #d2dcda;
+    fill: #d2dcda;
+}
+
+.aspect-popover,
+.runtime-drawer,
+.additional-settings[open] > .advanced-resource-section,
+.advanced-settings-dialog[open] > .advanced-settings-scroll {
+    border-color: rgba(255, 255, 255, .1);
+    background: rgba(17, 20, 23, .94);
+    box-shadow: 0 22px 56px rgba(0, 0, 0, .42);
+    backdrop-filter: blur(22px);
+}
+
+.advanced-fields > .control-section,
+.advanced-fields > .control-section:first-child,
+.advanced-settings-scroll > .technical-settings,
+.additional-settings .resource-card {
+    border-color: rgba(255, 255, 255, .075);
+    background: rgba(255, 255, 255, .022);
+}
+
+.advanced-range-value,
+.advanced-toggle-detail .editor-field textarea,
+.advanced-toggle-detail .seed-control input,
+.advanced-fields .editor-field input,
+.advanced-fields .editor-field textarea,
+.lora-card input {
+    border-color: rgba(255, 255, 255, .085);
+    background: rgba(7, 9, 11, .42);
+}
+
+.advanced-range::-webkit-slider-runnable-track {
+    background: #30363a;
+}
+
+.advanced-range::-webkit-slider-thumb {
+    background: #c9cfce;
+}
+
+.advanced-range::-moz-range-track {
+    background: #30363a;
+}
+
+.advanced-range::-moz-range-thumb {
+    background: #c9cfce;
+}
+
+.advanced-switch {
+    background: #343a3e;
+}
+
+.advanced-switch-row input:checked + .advanced-switch {
+    background: #607b76;
+}
+
+/* Preview dialog uses one dark glass plane and flat status surfaces. */
+.workflow-preview-dialog {
+    width: min(780px, calc(100vw - 32px));
+    border-color: rgba(255, 255, 255, .13);
+    border-radius: 14px;
+    background: rgba(18, 21, 24, .94);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, .58), inset 0 1px 0 rgba(255, 255, 255, .04);
+    backdrop-filter: blur(24px);
+}
+
+.workflow-preview-dialog::backdrop {
+    background: rgba(3, 5, 6, .74);
+    backdrop-filter: blur(8px) brightness(.68);
+}
+
+.workflow-preview-dialog > form {
+    padding: 25px;
+}
+
+.workflow-preview-dialog .workspace-kicker {
+    color: #89918f;
+    font-size: 10px;
+    letter-spacing: .08em;
+}
+
+.workflow-preview-dialog .dialog-heading h2 {
+    color: #f0f2f2;
+    font-size: 24px;
+    font-weight: 660;
+}
+
+.workflow-preview-dialog .dialog-heading p:last-child {
+    color: #858c90;
+}
+
+.workflow-preview-dialog .workspace-icon-button,
+.workflow-preview-dialog .workspace-icon-button:hover,
+.workflow-preview-dialog .workspace-icon-button:focus-visible {
+    border-color: rgba(255, 255, 255, .09);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .025);
+    color: #a4aaad;
+}
+
+.workflow-preview-dialog .workspace-icon-button:hover,
+.workflow-preview-dialog .workspace-icon-button:focus-visible {
+    border-color: rgba(255, 255, 255, .16);
+    background: rgba(255, 255, 255, .05);
+    color: #eef0f0;
+}
+
+.workflow-preview-dialog .dependency-card,
+.workflow-preview-dialog .dependency-card.ready,
+.workflow-preview-dialog .dependency-card.warning,
+.workflow-preview-dialog .dependency-card.error {
+    min-height: 76px;
+    border-color: rgba(255, 255, 255, .075);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .025);
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.workflow-preview-dialog .dependency-card::before {
+    top: 14px;
+    bottom: 14px;
+    width: 2px;
+    background: #687278;
+}
+
+.workflow-preview-dialog .dependency-card.ready::before {
+    background: #6f9880;
+}
+
+.workflow-preview-dialog .dependency-card.warning::before {
+    background: #a08765;
+}
+
+.workflow-preview-dialog .dependency-card.error::before {
+    background: #a86772;
+}
+
+.workflow-preview-dialog .dependency-card strong {
+    color: #dfe2e2;
+    font-weight: 640;
+}
+
+.workflow-preview-dialog .dependency-card p,
+.workflow-preview-dialog .dependency-card li {
+    color: #92999d;
+}
+
+.workflow-preview-dialog .raw-workflow-preview {
+    border-color: rgba(255, 255, 255, .075);
+    border-radius: 9px;
+    background: rgba(7, 9, 11, .38);
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.workflow-preview-dialog .raw-workflow-preview pre {
+    background: rgba(4, 6, 7, .58);
+    color: #afb9b7;
+}
+
+.workflow-preview-dialog .dialog-footer {
+    border-color: rgba(255, 255, 255, .075);
+}
+
+.workflow-preview-dialog .btn-secondary {
+    border-color: rgba(255, 255, 255, .11);
+    background: rgba(255, 255, 255, .025);
+    color: #b6bbbd;
+}
+
+.workflow-preview-dialog .btn-secondary:hover {
+    border-color: rgba(255, 255, 255, .18);
+    background: rgba(255, 255, 255, .05);
+    color: #eff1f1;
+}
+
+@media (max-width: 560px) {
+    .workflow-preview-dialog {
+        border-radius: 11px;
+    }
+}
+
+/* Layout regressions: resource stacks, inline LoRA, compact rail labels. */
+
+.controls-scroll {
+    overflow-x: hidden;
+}
+
+.model-hero,
+.model-hero.resource-section {
+    height: auto;
+    min-height: 176px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.model-hero-copy {
+    order: 1;
+    max-width: none;
+    min-height: 58px;
+    padding-right: 152px;
+}
+
+.model-hero > .resource-slots {
+    position: static;
+    order: 3;
+    width: 100%;
+    margin-top: 20px;
+}
+
+.model-hero .resource-card,
+.model-hero .resource-card select {
+    width: 100%;
+}
+
+.model-hero-meta {
+    position: static;
+    order: 4;
+    margin-top: 9px;
+    align-self: flex-end;
+}
+
+.additional-settings[open] {
+    overflow: hidden;
+}
+
+.additional-settings[open] > .advanced-resource-section {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto;
+    width: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 13px 14px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+    backdrop-filter: none;
+}
+
+.additional-settings[open] > .advanced-resource-section::before {
+    display: none;
+}
+
+.additional-settings .lora-add-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.additional-settings .lora-add-row .btn {
+    min-width: 68px;
+}
+
+.template-category-tabs {
+    gap: 12px;
+}
+
+.template-tab {
+    min-height: 78px;
+    padding: 9px 3px 8px;
+    justify-content: flex-start;
+    gap: 6px;
+    overflow: visible;
+    border: 1px solid transparent;
+    border-radius: 10px;
+}
+
+.template-tab svg,
+.template-tab.active svg {
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    padding: 8px;
+    flex: 0 0 40px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+}
+
+.template-tab:hover {
+    border-color: rgba(255, 255, 255, .045);
+    background: rgba(255, 255, 255, .018);
+}
+
+.template-tab.active {
+    border-color: rgba(255, 255, 255, .075);
+    background: rgba(255, 255, 255, .035);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+}
+
+.template-tab.active svg {
+    border-color: rgba(174, 194, 190, .13);
+    background: rgba(148, 169, 165, .1);
+    color: #9eb3af;
+}
+
+.template-tab span {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 9px;
+    letter-spacing: -.015em;
+    text-overflow: clip;
+    white-space: nowrap;
+}
+
+@media (max-width: 1200px) {
+    .template-tab span {
+        font-size: 8.5px;
+    }
+}
+
+@media (max-width: 560px) {
+    .template-tab {
+        min-height: 74px;
+        padding: 8px 2px 7px;
+    }
+
+    .template-tab svg,
+    .template-tab.active svg {
+        width: 38px;
+        height: 38px;
+        padding: 8px;
+        flex-basis: 38px;
+    }
+
+    .template-tab span {
+        font-size: 8px;
+        letter-spacing: -.025em;
+    }
+
+    .model-hero-copy {
+        padding-right: 0;
+        padding-top: 42px;
+    }
+
+    .model-hero-switch {
+        right: auto;
+        left: 12px;
+    }
+}
+
+/* Workflow switch: asymmetric graphite dock. */
+
+.model-hero-switch {
+    width: 144px;
+    height: 34px;
+    padding: 1px;
+    overflow: hidden;
+    background: rgba(225, 234, 235, .16);
+    border-radius: 0;
+    clip-path: polygon(
+        10px 0,
+        100% 0,
+        100% calc(100% - 9px),
+        calc(100% - 9px) 100%,
+        0 100%,
+        0 10px
+    );
+    transition: background-color var(--transition-fast);
+}
+
+.model-hero-switch:hover {
+    background: rgba(225, 234, 235, .25);
+}
+
+.model-hero-switch:focus-within {
+    background: rgba(166, 187, 183, .62);
+}
+
+.model-hero-switch select,
+.model-hero-switch select:hover,
+.model-hero-switch select:focus,
+.model-hero-switch select:focus-visible {
+    width: 100%;
+    height: 100%;
+    padding: 0 34px 0 14px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: 0 !important;
+    background-color: rgba(10, 12, 14, .96) !important;
+    background-position: right 10px center !important;
+    box-shadow: none !important;
+    clip-path: polygon(
+        9px 0,
+        100% 0,
+        100% calc(100% - 8px),
+        calc(100% - 8px) 100%,
+        0 100%,
+        0 9px
+    );
+}
+
+/* Panel divider control: SVG vertical grip. */
+
+.collapse-controls {
+    right: -28px;
+    width: 28px;
+    height: 104px;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    outline: 0;
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+    clip-path: none;
+    transition:
+        transform .24s ease;
+}
+
+.collapse-controls .collapse-controls-art {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: visible;
+}
+
+.collapse-controls .collapse-grip-surface {
+    fill: #1a1e20;
+    stroke: none;
+    transition: fill var(--transition-fast);
+}
+
+.collapse-controls .collapse-grip-chevron {
+    fill: none;
+    stroke: #7f888b;
+    stroke-width: 1.35;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transform-box: fill-box;
+    transform-origin: center;
+    vector-effect: non-scaling-stroke;
+    transition: stroke var(--transition-fast), transform .24s ease;
+}
+
+.collapse-controls:hover .collapse-grip-surface {
+    fill: #212629;
+}
+
+.collapse-controls:hover .collapse-grip-chevron {
+    stroke: #c7cdcf;
+}
+
+.collapse-controls:focus-visible {
+    outline: 0;
+}
+
+.collapse-controls:focus-visible .collapse-grip-surface {
+    fill: #252c2e;
+}
+
+.collapse-controls:focus-visible .collapse-grip-chevron {
+    stroke: #e5e9e9;
+}
+
+.controls-collapsed .collapse-controls {
+    right: -28px;
+    transform: translateY(-50%);
+}
+
+.controls-collapsed .collapse-grip-chevron {
+    transform: rotate(180deg);
+}
+
+.controls-collapsed .editor-controls {
+    opacity: 1;
+}
+
+.controls-collapsed .editor-controls > :not(.collapse-controls) {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+@media (max-height: 620px) {
+    .collapse-controls {
+        height: 90px;
+    }
+}

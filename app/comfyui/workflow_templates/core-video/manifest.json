@@ -1,12 +1,12 @@
 {
   "schema_version": "1",
   "id": "core-video",
-  "name": "Core Hunyuan video",
+  "name": "Core video",
   "version": "1.0.0",
   "category": "video",
   "media_type": "video",
   "workflow": "workflow.json",
-  "description": "A manifest-driven native video graph with explicit model, text encoder, and VAE slots.",
+  "description": "A manifest-driven native video graph with explicit diffusion model, text encoder, and VAE slots.",
   "required_nodes": ["UNETLoader", "DualCLIPLoader", "CLIPTextEncode", "EmptyHunyuanLatentVideo", "VAELoader", "KSampler", "VAEDecode", "CreateVideo", "SaveVideo"],
   "resource_slots": {
     "diffusion_model": {"label": "Diffusion model", "accepts": ["diffusion_model"], "required": true, "binding": {"kind": "node_input", "node_id": "1", "input": "unet_name"}},

@@ -70,6 +70,7 @@ const elements = {
     toastContainer: byId('toast-container'),
     resetEditor: byId('reset-editor'),
     saveNote: byId('save-note'),
+    editorSidebarToggle: byId('editor-sidebar-toggle'),
     collapseControls: byId('collapse-controls'),
     resultsSearch: byId('results-search'),
     batchPrompt: byId('batch-prompt'),
@@ -1716,7 +1717,11 @@ function bindEvents() {
         const collapsed = document.body.classList.toggle('controls-collapsed');
         elements.collapseControls.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
         elements.collapseControls.setAttribute('aria-label', collapsed ? 'Expand panel' : 'Collapse panel');
+        elements.editorSidebarToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        elements.editorSidebarToggle.setAttribute('aria-label', collapsed ? 'Expand settings panel' : 'Collapse settings panel');
+        elements.editorSidebarToggle.setAttribute('title', collapsed ? 'Expand settings panel' : 'Collapse settings panel');
     });
+    elements.editorSidebarToggle.addEventListener('click', () => elements.collapseControls.click());
     document.querySelectorAll('[data-ui-choice]').forEach((group) => group.addEventListener('click', (event) => {
         const button = event.target.closest('button');
         if (!button) return;

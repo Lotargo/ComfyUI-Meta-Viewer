@@ -422,10 +422,6 @@ html {
     word-spacing: 0.1em;
 }
 
-.ai-settings-body .header-logo {
-    word-spacing: 0.12em;
-}
-
 .profile-card .model-id,
 .cli-path {
     margin: 6px 0 0;

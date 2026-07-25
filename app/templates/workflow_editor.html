@@ -15,10 +15,12 @@
     <link rel="stylesheet" href="/static/css/components/badges.css">
     <link rel="stylesheet" href="/static/css/components/toast.css">
     <link rel="stylesheet" href="/static/css/features/workflow-editor.css?v={{ static_version('css/features/workflow-editor.css') }}">
+    <link rel="stylesheet" href="/static/css/base/studio-theme.css?v={{ static_version('css/base/studio-theme.css') }}">
 </head>
-<body class="workflow-editor-body">
+<body class="workflow-editor-body studio-theme">
     <header class="editor-global-header global-header">
         <div class="global-header-left">
+            <button id="editor-sidebar-toggle" class="header-icon-button" type="button" title="Collapse settings panel" aria-label="Collapse settings panel" aria-controls="editor-controls" aria-expanded="true"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
             <a class="header-logo" href="/"><span>Comfy</span>UI Meta Viewer</a>
             <nav class="app-switcher" aria-label="Primary navigation">
                 <a class="app-switcher-link" href="/">Viewer</a>
@@ -57,7 +59,7 @@
             </div>
         </aside>
 
-        <aside class="editor-controls" aria-labelledby="controls-title">
+        <aside id="editor-controls" class="editor-controls" aria-labelledby="controls-title">
             <header class="controls-header">
                 <div><h1 id="controls-title">Image</h1><span id="draft-status" class="draft-state">New draft</span></div>
             </header>

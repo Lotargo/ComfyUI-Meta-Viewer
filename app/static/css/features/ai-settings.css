@@ -192,11 +192,27 @@ html {
     transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.default-profile-panel select,
-.field input,
-.field select {
+.field input {
     height: 38px;
     padding: 0 11px;
+}
+
+.default-profile-panel select,
+.field select {
+    height: 38px;
+    padding: 0 36px 0 12px;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23999ba3' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m8 10 4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 16px 16px;
+    cursor: pointer;
+}
+
+.default-profile-panel select:hover,
+.field select:hover {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
 .field textarea {

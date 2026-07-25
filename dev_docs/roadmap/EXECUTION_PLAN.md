@@ -1,0 +1,659 @@
+# Detailed execution roadmap
+
+Этот документ превращает верхнеуровневые технические задания в последовательный план интеграции и проверки продукта.
+
+Существующие документы `00–10` остаются архитектурными заданиями и источником требований. Этот файл отвечает на другие вопросы:
+
+- в каком порядке выполнять оставшуюся работу;
+- какие задачи блокируют следующие;
+- что уже реализовано только на уровне кода, но ещё не считается завершённым продуктовым сценарием;
+- какие проверки обязательны перед возвратом верхнеуровневой галочки;
+- какие решения не следует заново пересматривать без новых доказательств.
+
+## Правила статусов
+
+- `[x]` означает, что результат реализован, интегрирован и проверен по указанным критериям.
+- `[ ]` означает, что отсутствует реализация, интеграция, практическая проверка или документированное подтверждение.
+- Наличие класса, API route, HTML-страницы или одного успешного запуска само по себе не закрывает задачу.
+- Верхнеуровневая задача в `README.md` закрывается только после выполнения всех обязательных дочерних пунктов этого плана и критериев исходного технического задания.
+- Проверка должна включать не только unit-тесты, но и реальный пользовательский поток в браузере и подключённом ComfyUI там, где это применимо.
+
+## Зафиксированные продуктовые границы
+
+Эти решения считаются принятыми. Возвращаться к их пересмотру следует только при появлении конкретной технической причины или подтверждённого пользовательского сценария.
+
+- [x] Meta Viewer остаётся локальным и однопользовательским приложением.
+- [x] Альбомы, избранное и виртуальная организация не перемещают исходные файлы.
+- [x] Meta Viewer не пытается заменить ComfyUI Manager.
+- [x] Один универсальный workflow не считается корректным способом поддержки всех моделей.
+- [x] Prompt scenario и workflow template считаются разными сущностями.
+- [x] Prompt scenarios описывают смысл и структуру prompt, а templates описывают технический граф выполнения.
+- [x] AI-операции создают редактируемый draft и не запускают генерацию автоматически.
+- [x] Неизвестный model file не перемещается автоматически только на основе имени или слабой эвристики.
+- [x] Эвристическое определение типа ресурса всегда имеет confidence и допускает ручное подтверждение.
+- [x] Обычный редактор остаётся простым; редкие компоненты и параметры раскрываются только при необходимости.
+- [x] AI rating является отдельной опциональной функцией и не блокирует основную генерацию.
+- [x] Policy rejection, technical failure и художественная оценка хранятся как разные состояния.
+
+## Критический путь
+
+Текущий порядок разработки:
+
+1. Стабилизировать contracts templates и model resources.
+2. Покрыть основные технические способы генерации встроенными templates.
+3. Завершить импорт, регистрацию и управление пользовательскими workflows.
+4. Довести resource compatibility, preflight и диагностику ошибок.
+5. Подключить AI operations к drafts редактора.
+6. Проверить полные end-to-end сценарии.
+7. Добавить опциональный AI ranking.
+8. Провести release verification.
+9. Только после этого начинать desktop packaging.
+
+---
+
+# Phase 0. Baseline audit and regression safety
+
+Цель: зафиксировать текущее работающее состояние перед глубокой интеграцией редактора.
+
+## 0.1 Текущий функциональный baseline
+
+- [ ] Зафиксировать список доступных страниц и основных пользовательских потоков.
+- [ ] Зафиксировать текущие built-in workflow templates и их реальные manifests.
+- [ ] Зафиксировать текущие resource types, которые возвращает inventory ComfyUI.
+- [ ] Зафиксировать текущие supported node bindings.
+- [ ] Зафиксировать текущий формат editor draft, run и imported result.
+- [ ] Зафиксировать текущий AI draft/job contract.
+- [ ] Сохранить минимальные воспроизводимые test fixtures для существующих workflows.
+
+## 0.2 Регрессионная защита
+
+- [ ] Добавить тест загрузки Viewer с изображениями и видео без layout shifts.
+- [ ] Добавить browser smoke test Library.
+- [ ] Добавить browser smoke test AI settings.
+- [ ] Добавить browser smoke test Create/editor.
+- [ ] Проверить, что reset index не затрагивает исходные файлы.
+- [ ] Проверить, что удаление виртуального album не затрагивает assets.
+- [ ] Проверить, что Remix создаёт draft и не запускает generation.
+
+**Gate:** следующие фазы можно начинать без полного закрытия Phase 0, но перед крупным refactor должны существовать fixtures и хотя бы минимальные smoke tests затрагиваемой области.
+
+---
+
+# Phase 1. Foundation verification
+
+Цель: отделить уже написанный код от реально подтверждённой кроссплатформенной и runtime-совместимости.
+
+## 1.1 Cross-platform paths
+
+- [ ] Проверить scan пути с пробелами на Windows.
+- [ ] Проверить scan пути с кириллицей и Unicode на Windows.
+- [ ] Проверить UNC или сетевой путь на Windows, если окружение доступно.
+- [ ] Проверить обычный абсолютный путь на Linux.
+- [ ] Проверить путь с Unicode на Linux.
+- [ ] Проверить обычный абсолютный путь на macOS.
+- [ ] Проверить путь с Unicode на macOS.
+- [ ] Проверить folder picker и ручной fallback на каждой доступной ОС.
+- [ ] Проверить reveal/open original на каждой доступной ОС.
+
+## 1.2 Source monitoring
+
+- [ ] Проверить create event.
+- [ ] Проверить modify event.
+- [ ] Проверить rename event с сохранением identity и virtual relations.
+- [ ] Проверить delete event.
+- [ ] Проверить recursive source.
+- [ ] Проверить массовое копирование файлов с debounce.
+- [ ] Проверить временно недоступный диск без удаления записей.
+- [ ] Проверить disable и повторный enable источника.
+- [ ] Проверить reconcile после reconnect.
+- [ ] Проверить desktop-synced cloud folder хотя бы с одним реальным клиентом.
+
+## 1.3 Unified image/video behavior
+
+- [ ] Проверить image indexing без установленного FFmpeg.
+- [ ] Проверить video indexing с FFmpeg.
+- [ ] Проверить video indexing без FFmpeg.
+- [ ] Проверить poster generation failure без падения общего worker.
+- [ ] Проверить album, favorite, rating, tag и note для video asset.
+- [ ] Проверить открытие original video с range support.
+- [ ] Проверить удаление video из index отдельно от physical Trash.
+
+**Gate:** задачи 00, 02 и 04 возвращают верхнеуровневые галочки только после подтверждения соответствующих подпунктов.
+
+---
+
+# Phase 2. Workflow template contract
+
+Цель: перейти от универсального workflow к небольшому набору технически различающихся templates.
+
+## 2.1 Resource taxonomy
+
+- [ ] Зафиксировать канонические типы `checkpoint`.
+- [ ] Зафиксировать канонические типы `diffusion_model` / `unet`.
+- [ ] Зафиксировать канонические типы `diffusion_model_gguf`.
+- [ ] Зафиксировать канонические типы `clip` / `text_encoder`.
+- [ ] Зафиксировать канонические типы `clip_gguf`, если поддерживается установленными nodes.
+- [ ] Зафиксировать канонические типы `vae`.
+- [ ] Зафиксировать канонические типы `lora`, `locon`, `dora`.
+- [ ] Зафиксировать типы reference/control resources.
+- [ ] Зафиксировать video-specific model resources.
+- [ ] Обеспечить compatibility aliases для существующей схемы.
+
+## 2.2 Manifest schema
+
+Каждый template должен декларировать технические возможности, а не закрытый список имён моделей.
+
+- [ ] Добавить manifest version.
+- [ ] Добавить template category.
+- [ ] Добавить result media type.
+- [ ] Добавить supported model ecosystem или список ecosystems.
+- [ ] Добавить required node types.
+- [ ] Добавить semantic resource slots.
+- [ ] Добавить accepted resource types для каждого slot.
+- [ ] Добавить loader family или binding strategy.
+- [ ] Добавить optional/required state для CLIP и VAE.
+- [ ] Добавить editable fields.
+- [ ] Добавить advanced fields.
+- [ ] Добавить field-to-node/input bindings.
+- [ ] Добавить output nodes.
+- [ ] Добавить capability and limitation notes.
+- [ ] Добавить template validation schema.
+- [ ] Добавить миграцию manifests предыдущей версии.
+
+## 2.3 Built-in templates: minimum supported set
+
+### Basic text-to-image
+
+- [ ] Checkpoint-contained image generation для SDXL/Pony-like моделей.
+- [ ] Separate diffusion model + CLIP + VAE для Flux-like архитектур.
+- [ ] GGUF diffusion model template.
+- [ ] GGUF text encoder support там, где доступен проверенный loader.
+
+### Image-conditioned generation
+
+- [ ] Basic img2img/reference template.
+- [ ] Inpainting template.
+- [ ] ControlNet или pose-conditioning template.
+
+### Derived and multi-stage generation
+
+- [ ] Upscale template.
+- [ ] Refiner или explicit two-stage template.
+- [ ] Один проверенный video template.
+
+## 2.4 Template behavior
+
+- [ ] Primary UI показывает только обязательные поля.
+- [ ] `More settings` показывает применимые advanced fields.
+- [ ] CFG отображается только там, где он имеет реальный binding.
+- [ ] CLIP skip отображается только для совместимых workflows.
+- [ ] VAE скрыт при embedded/default behavior.
+- [ ] CLIP скрыт при embedded/default behavior.
+- [ ] Separate VAE/CLIP появляются при требовании template или обнаруженной ошибке.
+- [ ] Смена template очищает или повторно валидирует неприменимые values.
+- [ ] Смена model resource не удаляет пользовательский prompt.
+
+**Gate:** нельзя подключать автоматический AI workflow selection, пока manifests не описывают resource slots и ограничения детерминированно.
+
+---
+
+# Phase 3. Workflow import and registry
+
+Цель: пользовательский workflow становится зарегистрированным template с понятным состоянием, а не одноразовым JSON.
+
+## 3.1 Import pipeline
+
+- [ ] Импорт API workflow JSON.
+- [ ] Импорт UI workflow JSON, если возможно преобразование или извлечение API graph.
+- [ ] Импорт ZIP bundle с manifest и workflow.
+- [ ] Определение standard loader nodes.
+- [ ] Определение prompt encoder nodes.
+- [ ] Определение sampler/scheduler nodes.
+- [ ] Определение width/height/seed/steps/CFG bindings.
+- [ ] Определение reference inputs.
+- [ ] Определение output nodes.
+- [ ] Обнаружение нескольких независимых pipelines.
+- [ ] Обнаружение неизвестных custom loaders.
+
+## 3.2 Mapping wizard
+
+- [ ] Показ автоматически найденных semantic mappings.
+- [ ] Показ confidence для неоднозначных mappings.
+- [ ] Ручной выбор роли для неизвестного model loader.
+- [ ] Ручной выбор positive prompt binding.
+- [ ] Ручной выбор negative prompt binding.
+- [ ] Ручной выбор primary output.
+- [ ] Возможность скрыть node input из обычного editor UI.
+- [ ] Возможность пометить field как advanced.
+- [ ] Preview итогового manifest до регистрации.
+- [ ] Проверка manifest до сохранения.
+
+## 3.3 Registry statuses
+
+- [ ] `ready`.
+- [ ] `warning`.
+- [ ] `invalid`.
+- [ ] `expert` / `partially_mapped`.
+- [ ] Причина текущего статуса.
+- [ ] Дата последней проверки.
+- [ ] Версия ComfyUI или inventory fingerprint последней проверки.
+
+## 3.4 Workflow management modal
+
+Добавить отдельную модалку или страницу с таблицей зарегистрированных workflows.
+
+- [ ] Колонка name.
+- [ ] Колонка category.
+- [ ] Колонка family/ecosystem.
+- [ ] Колонка structure/loader strategy.
+- [ ] Колонка source: built-in/imported.
+- [ ] Колонка validation status.
+- [ ] Колонка last validation.
+- [ ] Колонка manifest version.
+- [ ] Поиск и фильтрация.
+- [ ] Открытие workflow в editor.
+- [ ] Переименование и изменение description.
+- [ ] Повторное открытие mapping wizard.
+- [ ] Revalidate against current ComfyUI.
+- [ ] Duplicate.
+- [ ] Export.
+- [ ] Delete imported template.
+- [ ] Restore built-in template.
+- [ ] Удаление template не затрагивает models, nodes и ComfyUI files.
+
+**Gate:** Task 09 не закрывается без удобного управления импортированными templates и повторной проверки после изменений ComfyUI.
+
+---
+
+# Phase 4. Model resource compatibility and onboarding
+
+Цель: не обещать запуск любого файла, но предотвращать заведомо неправильные комбинации.
+
+## 4.1 Resource inventory
+
+- [ ] Получать фактические resource options из connected ComfyUI.
+- [ ] Иметь filesystem fallback для offline inventory.
+- [ ] Хранить source path только там, где это безопасно и нужно.
+- [ ] Хранить stable identity или content hash, если вычисление практически допустимо.
+- [ ] Хранить resource type.
+- [ ] Хранить architecture/ecosystem.
+- [ ] Хранить prompt family отдельно от binary compatibility.
+- [ ] Хранить доступность.
+- [ ] Хранить обнаруженные metadata и trigger words.
+- [ ] Хранить confidence происхождения metadata.
+
+## 4.2 Compatibility resolver
+
+- [ ] Фильтровать resource list по active template slot.
+- [ ] Не показывать несовместимые resources как обычный selectable option.
+- [ ] Иметь отдельный раздел incompatible/unknown с объяснением.
+- [ ] Различать embedded и external CLIP.
+- [ ] Различать embedded и external VAE.
+- [ ] Различать checkpoint loader и diffusion-model loader.
+- [ ] Различать standard safetensors и GGUF loader requirements.
+- [ ] Повторно валидировать LoRA при смене checkpoint.
+- [ ] Не удалять несовместимый пользовательский выбор молча.
+- [ ] Блокировать запуск только при доказанной incompatibility или unresolved required slot.
+- [ ] Разрешать запуск с предупреждением для состояния `experimental`.
+
+## 4.3 Optional model registration wizard
+
+Эта функция не должна автоматически перемещать неизвестные файлы без подтверждения.
+
+- [ ] Выбор model file через UI.
+- [ ] Чтение extension и доступных metadata.
+- [ ] Анализ safetensors tensor keys там, где применимо.
+- [ ] Распознавание GGUF container.
+- [ ] Filename используется только как слабая эвристика.
+- [ ] Показ предполагаемого resource type.
+- [ ] Показ confidence.
+- [ ] Ручное подтверждение или изменение type.
+- [ ] Показ рекомендуемой директории ComfyUI.
+- [ ] Опция copy с явным размером файла и подтверждением.
+- [ ] Опция link только при поддерживаемом и понятном platform behavior.
+- [ ] Опция показать директорию без копирования.
+- [ ] Не использовать silent move.
+- [ ] После действия обновить inventory через ComfyUI.
+- [ ] Подтвердить, что ресурс действительно появился в нужном slot.
+
+**Gate:** автоматический onboarding не является обязательным для первой стабильной версии. Обязательны slot filtering, preflight и понятная диагностика.
+
+---
+
+# Phase 5. Preflight and error diagnostics
+
+Цель: превращать ошибки ComfyUI в понятные действия, не превращая основной editor в копию node graph.
+
+## 5.1 Preflight before queue
+
+- [ ] Проверить runtime online.
+- [ ] Проверить required node types.
+- [ ] Проверить required model resources.
+- [ ] Проверить unresolved semantic slots.
+- [ ] Проверить basic architecture/ecosystem compatibility.
+- [ ] Проверить required input files.
+- [ ] Проверить ranges известных editable parameters.
+- [ ] Разделить missing nodes, missing resources и compatibility issues.
+- [ ] Повторять preflight непосредственно перед каждым run.
+
+## 5.2 Runtime error normalization
+
+- [ ] Сохранять raw ComfyUI error.
+- [ ] Извлекать node ID.
+- [ ] Извлекать class type.
+- [ ] Извлекать input name.
+- [ ] Извлекать expected/received type, если доступно.
+- [ ] Отличать missing file от incompatible tensor/model type.
+- [ ] Отличать invalid parameter от execution failure.
+- [ ] Отличать out-of-memory от workflow incompatibility.
+- [ ] Отличать cancellation от failure.
+
+## 5.3 Editor guidance
+
+- [ ] Связать node/input с manifest field.
+- [ ] Автоматически открыть `More settings`, если проблема находится там.
+- [ ] Подсветить проблемное поле.
+- [ ] Прокрутить к проблемному полю.
+- [ ] Показать краткое пользовательское объяснение.
+- [ ] Показать рекомендуемое действие без автоматического изменения workflow.
+- [ ] Оставить raw technical details в раскрываемом блоке.
+- [ ] Не занижать художественный rating из-за technical error.
+
+**Gate:** расширять основной editor всеми возможными node parameters запрещено. Новое поле добавляется только при наличии manifest binding и подтверждённого пользовательского сценария.
+
+---
+
+# Phase 6. AI layer integration with editor
+
+Цель: замкнуть AI operations в редактируемый и воспроизводимый draft, не связывая prompt knowledge с техническими adapters.
+
+## 6.1 Shared editor draft contract
+
+- [ ] Editor draft может ссылаться на PromptTask.
+- [ ] Editor draft хранит positive prompt.
+- [ ] Editor draft хранит negative prompt отдельно.
+- [ ] Editor draft хранит source text или SceneSpec.
+- [ ] Editor draft хранит family.
+- [ ] Editor draft хранит scenario.
+- [ ] Editor draft хранит modifiers.
+- [ ] Editor draft хранит execution backend metadata.
+- [ ] Editor draft хранит versions profiles/manifests/contracts.
+- [ ] Editor draft хранит выбранный workflow template отдельно от prompt scenario.
+- [ ] Draft переживает reload и restart.
+- [ ] Manual edits создают новую revision или явно сохраняются без потери исходного AI result.
+
+## 6.2 Generate prompt
+
+- [ ] Пользователь вводит исходное описание.
+- [ ] Выбирает family или получает совместимое предложение от выбранного workflow.
+- [ ] Выбирает scenario из capability resolver.
+- [ ] Получает PromptResult.
+- [ ] Результат открывается в editor draft.
+- [ ] Generation не запускается автоматически.
+
+## 6.3 Translate
+
+- [ ] Translation является отдельной операцией.
+- [ ] Source и translated prompt сохраняются раздельно.
+- [ ] Translation не выполняет family adaptation без явного запроса.
+- [ ] Пользователь видит результат до запуска workflow.
+
+## 6.4 Adapt
+
+- [ ] Adapt является отдельной операцией.
+- [ ] Target family выбирается явно или определяется compatible template.
+- [ ] Checkpoint-specific triggers не удаляются без причины.
+- [ ] Adapted result создаёт новую draft revision.
+
+## 6.5 Reconstruct from image
+
+- [ ] Vision stage создаёт SceneSpec.
+- [ ] SceneSpec хранится в SQLite.
+- [ ] SceneSpec можно просмотреть.
+- [ ] SceneSpec можно исправить вручную.
+- [ ] PromptResult рендерится из сохранённого SceneSpec.
+- [ ] Повторный render не требует нового vision call.
+- [ ] Embedded metadata и AI reconstruction визуально различаются.
+
+## 6.6 Remix
+
+- [ ] Пользователь выбирает source prompt: embedded, reconstructed, translated, adapted или manual.
+- [ ] Пользователь выбирает compatible workflow template.
+- [ ] Reference input подготавливается, если template его требует.
+- [ ] Source lineage сохраняется.
+- [ ] Открывается editor draft.
+- [ ] Run остаётся ручным действием.
+
+## 6.7 Execution backends
+
+- [ ] Один PromptTask проверен через direct OpenAI-compatible profile.
+- [ ] Тот же контракт проверен через OpenCode.
+- [ ] Claude Code adapter проверен как реальная prompt operation, а не только connection test.
+- [ ] Antigravity явно остаётся experimental до стабильного structured output.
+- [ ] Codex exporter не дублирует prompt knowledge.
+- [ ] Cancellation и timeout работают для direct и хотя бы одного agent host.
+- [ ] Нормализованный результат не зависит от выбранного transport.
+
+**Gate:** AI rating нельзя считать приоритетом, пока Generate, Translate, Adapt, Reconstruct и Remix не замкнуты на editor drafts и manual run.
+
+---
+
+# Phase 7. Prompt research and quality verification
+
+Цель: подтвердить, что compiler и manifests действительно полезны целевым моделям, а не только структурно корректны.
+
+## 7.1 Existing family coverage
+
+- [x] Flux-like family profile существует.
+- [x] SDXL family profile существует.
+- [x] Pony family profile существует.
+- [x] Базовые scenario manifests зарегистрированы.
+
+## 7.2 Missing operation benchmarks
+
+- [ ] Reconstruct benchmark.
+- [ ] Adapt benchmark.
+- [ ] Translate benchmark.
+- [ ] Image-conditioned multimodal benchmark.
+- [ ] SceneSpec correction and rerender benchmark.
+
+## 7.3 Family-specific practical checks
+
+- [ ] Запустить выбранные Flux checks на реальной целевой модели.
+- [ ] Запустить независимые SDXL checks.
+- [ ] Запустить независимые Pony checks.
+- [ ] Проверить weak/local model target.
+- [ ] Зафиксировать unsupported и limited combinations.
+- [ ] Добавить checkpoint capability profiles только после практической проверки.
+- [ ] Добавить regression cases для подтверждённых checkpoint-specific rules.
+- [ ] Добавить repeat-run statistics там, где нестабильность влияет на UX.
+
+## 7.4 Multi-character boundary
+
+- [x] `multi_character` не обещается базовым бюджетным набором.
+- [ ] Добавлять multi-character capability только для конкретного проверенного checkpoint profile.
+- [ ] Не выводить experimental capability как обычную поддерживаемую опцию.
+
+---
+
+# Phase 8. Optional AI rating
+
+Цель: добавить экспериментальную оценку результатов без влияния provider policy на основной пользовательский сценарий.
+
+## 8.1 Product behavior
+
+- [ ] AI rating выключен по умолчанию.
+- [ ] AI rating можно включить глобально.
+- [ ] AI rating можно включить для отдельного run.
+- [ ] AI rating можно запустить вручную для выбранного asset.
+- [ ] Отсутствие AI profile не мешает generation.
+- [ ] Отказ provider не мешает сохранению результата.
+
+## 8.2 Status separation
+
+- [ ] `rated`.
+- [ ] `not_rated`.
+- [ ] `ai_rejected`.
+- [ ] `unreadable`.
+- [ ] `generation_error`.
+- [ ] Policy rejection не преобразуется в низкий rank.
+- [ ] Technical error не преобразуется в низкий rank.
+- [ ] Manual user stars и AI rank остаются разными полями.
+
+## 8.3 Rating UI
+
+- [ ] Показ technical quality.
+- [ ] Показ composition.
+- [ ] Показ prompt adherence.
+- [ ] Показ defects.
+- [ ] Показ explanation.
+- [ ] Показ provider/model/version metadata.
+- [ ] Возможность вручную изменить AI rank.
+- [ ] Возможность удалить AI rating.
+- [ ] Отдельный filter по AI rank.
+- [ ] Отдельный filter по AI rating status.
+
+## 8.4 Content-policy robustness
+
+- [ ] Проверить обычный SFW asset.
+- [ ] Проверить policy rejection.
+- [ ] Проверить локальный профиль с отличающейся content policy.
+- [ ] Не рекомендовать обход ограничений provider.
+- [ ] Честно объяснять, что refusal относится к выбранному provider, а не к визуальному качеству asset.
+
+---
+
+# Phase 9. End-to-end release verification
+
+Цель: проверить продуктовые потоки перед упаковкой desktop-версии.
+
+## 9.1 Supported operating systems
+
+- [ ] Windows verification.
+- [ ] Linux verification.
+- [ ] macOS verification.
+- [ ] Составить таблицу непроверенных функций для недоступных окружений.
+
+## 9.2 ComfyUI installations
+
+- [ ] Windows Portable root selected.
+- [ ] Nested `ComfyUI` directory selected.
+- [ ] Windows venv installation.
+- [ ] Linux venv installation.
+- [ ] macOS venv installation.
+- [ ] External running ComfyUI.
+- [ ] Managed start/stop/restart.
+- [ ] Interrupt generation отдельно от stop process.
+- [ ] Port conflict.
+- [ ] Missing Python.
+- [ ] Missing custom node.
+- [ ] Missing model resource.
+- [ ] ComfyUI crash during run.
+
+## 9.3 Workflow matrix
+
+- [ ] Checkpoint-contained image generation.
+- [ ] Separate-components image generation.
+- [ ] GGUF generation.
+- [ ] Reference/img2img.
+- [ ] Inpaint.
+- [ ] Control/pose.
+- [ ] Upscale/refiner.
+- [ ] Video.
+- [ ] Imported standard workflow.
+- [ ] Imported partially mapped workflow.
+- [ ] Result imported into Library.
+- [ ] Remix lineage preserved.
+
+## 9.4 Browser and UX checks
+
+- [ ] Viewer reload without visible layout jumps.
+- [ ] Library reload and selection behavior.
+- [ ] AI settings reload and profile actions.
+- [ ] Editor responsive layout.
+- [ ] No overlapping controls at supported widths.
+- [ ] Dropdowns and modals remain inside viewport.
+- [ ] Keyboard navigation for critical actions.
+- [ ] Error fields are highlighted correctly.
+- [ ] Dark/light theme regression, если обе темы поддерживаются.
+- [ ] ESLint or equivalent JS checks.
+- [ ] Python tests.
+- [ ] Browser smoke tests.
+
+**Gate:** desktop packaging не начинается до закрытия обязательной release matrix или явного документирования отложенных ограничений.
+
+---
+
+# Phase 10. Desktop packaging
+
+Цель: упаковать уже стабилизированный продукт, а не использовать desktop shell для маскировки незавершённой интеграции.
+
+## 10.1 Technology decision
+
+- [ ] Исследовать актуальные desktop wrappers для Python/web app.
+- [ ] Сравнить размер, startup, process control и packaging complexity.
+- [ ] Проверить system folder picker.
+- [ ] Проверить system keyring.
+- [ ] Проверить child-process management.
+- [ ] Зафиксировать выбранный stack и причины.
+
+## 10.2 Runtime packaging
+
+- [ ] Backend запускается автоматически.
+- [ ] UI открывается в собственном окне.
+- [ ] Poetry не требуется пользователю.
+- [ ] Системные app-data paths используются для DB/config/cache.
+- [ ] User data переживает update.
+- [ ] Managed ComfyUI корректно завершается вместе с app.
+- [ ] Crash recovery не удаляет пользовательские данные.
+
+## 10.3 Installers
+
+- [ ] Windows installer.
+- [ ] Linux package или portable format.
+- [ ] macOS app bundle.
+- [ ] Проверка clean install.
+- [ ] Проверка update поверх предыдущей версии.
+- [ ] Проверка uninstall без неожиданного удаления user data.
+
+---
+
+# Current execution slice
+
+Следующий рабочий срез должен быть ограничен задачами ниже. Не следует одновременно начинать AI rating, desktop packaging и расширенный model importer.
+
+## Slice A. Template and compatibility foundation
+
+- [ ] Инвентаризировать текущие built-in templates.
+- [ ] Утвердить resource taxonomy.
+- [ ] Обновить manifest schema.
+- [ ] Разделить checkpoint-contained и separate-components templates.
+- [ ] Добавить GGUF-aware template contract.
+- [ ] Фильтровать model resources по active slot.
+- [ ] Показывать incompatibility reason до запуска.
+
+## Slice B. Workflow registry
+
+- [ ] Сохранить imported workflow как registered template.
+- [ ] Добавить mapping wizard для неоднозначных bindings.
+- [ ] Добавить workflow management modal/table.
+- [ ] Добавить revalidation against current ComfyUI.
+
+## Slice C. AI draft integration
+
+Начинается только после стабильного Slice A.
+
+- [ ] Подключить Generate prompt к editor draft.
+- [ ] Подключить Translate как отдельную операцию.
+- [ ] Подключить Adapt как отдельную операцию.
+- [ ] Подключить Reconstruct через editable SceneSpec.
+- [ ] Проверить Remix end-to-end.
+
+## Явно отложено
+
+- [ ] Полностью автоматическое определение и перемещение любой скачанной модели.
+- [ ] Универсальный workflow для всех architectures.
+- [ ] Полная замена ComfyUI Manager.
+- [ ] Автоматический подбор VAE/CLIP без проверяемого manifest или metadata source.
+- [ ] AI rating до завершения основной AI-to-editor интеграции.
+- [ ] Desktop packaging до release verification.

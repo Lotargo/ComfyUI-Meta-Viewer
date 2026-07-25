@@ -418,9 +418,8 @@ html {
 }
 
 .cli-topline .cli-status {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .card-topline {

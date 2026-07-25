@@ -63,7 +63,56 @@ let secretStore = { available: false };
 let cliCatalog = [];
 const CONNECTED_CLI_STORAGE_KEY = 'cmv_ai_connected_cli_types_v1';
 const MODEL_CATALOG_STORAGE_KEY = 'cmv_ai_model_catalog_v1';
+const CLI_PROBES_STORAGE_KEY = 'cmv_ai_cli_probes_v1';
+const PROFILES_CACHE_KEY = 'cmv_ai_profiles_cache_v1';
 const cliProbes = new Map();
+
+function readProfilesCache() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(PROFILES_CACHE_KEY) || 'null');
+        if (stored && typeof stored === 'object') {
+            if (Array.isArray(stored.profiles)) profiles = stored.profiles;
+            if (stored.defaults && typeof stored.defaults === 'object') defaults = stored.defaults;
+            if (stored.secretStore && typeof stored.secretStore === 'object') secretStore = stored.secretStore;
+        }
+    } catch {
+        // Fallback gracefully
+    }
+}
+
+function writeProfilesCache() {
+    try {
+        localStorage.setItem(PROFILES_CACHE_KEY, JSON.stringify({ profiles, defaults, secretStore }));
+    } catch {
+        // Fallback gracefully
+    }
+}
+
+function readStoredCliProbes() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(CLI_PROBES_STORAGE_KEY) || '{}');
+        if (stored && typeof stored === 'object') {
+            Object.entries(stored).forEach(([type, integration]) => {
+                if (integration && typeof integration === 'object') {
+                    cliProbes.set(type, integration);
+                }
+            });
+        }
+    } catch {
+        // Fallback gracefully
+    }
+}
+
+function writeStoredCliProbes() {
+    try {
+        const obj = Object.fromEntries(cliProbes);
+        localStorage.setItem(CLI_PROBES_STORAGE_KEY, JSON.stringify(obj));
+    } catch {
+        // Fallback gracefully
+    }
+}
+
+readStoredCliProbes();
 const cliPending = new Set();
 const activeTests = new Map();
 let modelChoices = [];
@@ -485,16 +534,13 @@ function renderCliCard(entry) {
         card.append(actions);
         return card;
     }
-    if (pending) {
-        message.textContent = 'Probing PATH and checking status…';
-        return card;
-    }
 
-    message.textContent = integration.authentication?.message
-        || authenticationLabel(integration.authentication);
+    message.textContent = pending
+        ? 'Probing PATH and checking status…'
+        : (integration?.authentication?.message || authenticationLabel(integration?.authentication));
 
     const badges = createElement('div', 'badge-row');
-    if (integration.installed) {
+    if (integration?.installed) {
         appendBadge(badges, authenticationLabel(integration.authentication),
             integration.authentication?.status === 'available' ? 'vision' : '');
         if (integration.multimodal) appendBadge(badges, 'Image attachment', 'vision');
@@ -502,15 +548,19 @@ function renderCliCard(entry) {
     }
     card.append(badges);
 
-    if (!integration.installed && integration.install) {
+    if (integration && !integration.installed && integration.install) {
         card.append(buildInstallBlock(integration.install));
     }
 
     const actions = createElement('div', 'card-actions');
-    if (integration.installed) {
-        actions.append(actionButton('Create profile', () => prepareCliProfile(integration, message)));
+    if (integration?.installed) {
+        const createBtn = actionButton('Create profile', () => prepareCliProfile(integration, message));
+        if (pending) createBtn.disabled = true;
+        actions.append(createBtn);
     }
-    actions.append(actionButton('Re-check', () => connectCli(entry.type)));
+    const recheckBtn = actionButton(pending ? 'Checking…' : 'Re-check', () => connectCli(entry.type));
+    if (pending) recheckBtn.disabled = true;
+    actions.append(recheckBtn);
     card.append(actions);
     return card;
 }
@@ -527,6 +577,7 @@ async function connectCli(cliType) {
     try {
         const data = await requestJson(`/api/ai/cli-integrations/${cliType}`);
         cliProbes.set(cliType, data.integration);
+        writeStoredCliProbes();
         connectedCliTypes.add(cliType);
         writeConnectedCliTypes();
     } catch (error) {
@@ -543,18 +594,21 @@ async function prepareCliProfile(integration, message) {
         openProfileDialog(null, integration);
         return;
     }
-    let models = [];
-    if (integration.model_discovery) {
+    let models = discoveredCatalogModels.get(integration.type) || [];
+    if (integration.model_discovery && !models.length) {
         message.textContent = 'Loading models from the CLI…';
         try {
             const data = await requestJson(`/api/ai/cli-integrations/${integration.type}/models`);
             models = data.models || [];
+            discoveredCatalogModels.set(integration.type, models);
             message.textContent = models.length
                 ? `Loaded ${models.length} model IDs. Choose one in the profile form.`
                 : (data.message || 'No models were reported. Enter an ID manually.');
         } catch (error) {
             message.textContent = `Model discovery failed: ${error.message}`;
         }
+    } else if (models.length) {
+        message.textContent = `${models.length} model IDs loaded for ${integration.label}.`;
     }
     openProfileDialog(null, integration, models);
 }
@@ -1300,35 +1354,70 @@ async function submitProfile(event) {
     }
 }
 
-async function loadProfiles() {
-    const data = await requestJson('/api/ai/profiles');
-    profiles = data.profiles || [];
-    defaults = data.defaults || defaults;
-    secretStore = data.secret_store || secretStore;
-    renderSecretStore();
-    renderProfiles();
-}
+const DEFAULT_CLI_CATALOG = [
+    { type: 'opencode', label: 'OpenCode', multimodal: true, experimental: false, model_discovery: true },
+    { type: 'claude', label: 'Claude Code', multimodal: false, experimental: false, model_discovery: false },
+    { type: 'antigravity', label: 'Antigravity CLI', multimodal: true, experimental: true, model_discovery: true },
+];
 
-async function loadCliCatalog() {
-    let reconnectTypes = [];
+async function loadProfiles() {
     try {
-        const data = await requestJson('/api/ai/cli-integrations?probe=0');
-        cliCatalog = data.integrations || [];
-        const availableTypes = new Set(cliCatalog.map(entry => entry.type));
-        let storedTypesChanged = false;
-        connectedCliTypes.forEach(type => {
-            if (!availableTypes.has(type)) {
-                connectedCliTypes.delete(type);
-                storedTypesChanged = true;
-            }
-        });
-        if (storedTypesChanged) writeConnectedCliTypes();
-        reconnectTypes = [...connectedCliTypes];
+        const prevDataRaw = { profiles, defaults, secretStore };
+        const prevDataStr = JSON.stringify(prevDataRaw);
+        
+        const data = await requestJson('/api/ai/profiles');
+        profiles = data.profiles || [];
+        defaults = data.defaults || defaults;
+        secretStore = data.secret_store || secretStore;
+        writeProfilesCache();
+        
+        // Sort keys before stringifying to avoid ordering issues causing unnecessary re-renders
+        const sortKeys = (obj) => {
+            if (obj === null || typeof obj !== 'object') return obj;
+            if (Array.isArray(obj)) return obj.map(sortKeys);
+            return Object.keys(obj).sort().reduce((acc, key) => {
+                acc[key] = sortKeys(obj[key]);
+                return acc;
+            }, {});
+        };
+        
+        const prevDataSorted = JSON.stringify(sortKeys(prevDataRaw));
+        const newDataSorted = JSON.stringify(sortKeys({ profiles, defaults, secretStore }));
+        
+        if (newDataSorted !== prevDataSorted) {
+            renderSecretStore();
+            renderProfiles();
+        }
     } catch (error) {
         showToast(error.message, true);
     }
-    renderIntegrations();
-    await Promise.all(reconnectTypes.map(connectCli));
+}
+
+async function loadCliCatalog() {
+    const prevCatalog = JSON.stringify(cliCatalog);
+    try {
+        const data = await requestJson('/api/ai/cli-integrations?probe=0');
+        cliCatalog = data.integrations || DEFAULT_CLI_CATALOG;
+    } catch {
+        cliCatalog = DEFAULT_CLI_CATALOG;
+    }
+    
+    // Sort keys before stringifying to avoid ordering issues causing unnecessary re-renders
+    const sortKeys = (obj) => {
+        if (obj === null || typeof obj !== 'object') return obj;
+        if (Array.isArray(obj)) return obj.map(sortKeys);
+        return Object.keys(obj).sort().reduce((acc, key) => {
+            acc[key] = sortKeys(obj[key]);
+            return acc;
+        }, {});
+    };
+    
+    const prevCatalogSorted = JSON.stringify(sortKeys(JSON.parse(prevCatalog)));
+    const newCatalogSorted = JSON.stringify(sortKeys(cliCatalog));
+    
+    if (newCatalogSorted !== prevCatalogSorted) {
+        renderIntegrations();
+    }
 }
 
 async function refreshProfiles() {
@@ -1453,5 +1542,11 @@ elements.form.addEventListener('submit', submitProfile);
 elements.defaultText.addEventListener('change', saveDefaults);
 elements.defaultMultimodal.addEventListener('change', saveDefaults);
 
-refreshProfiles();
-loadCliCatalog().then(() => renderProfiles());
+readProfilesCache();
+cliCatalog = DEFAULT_CLI_CATALOG;
+renderSecretStore();
+renderProfiles();
+renderIntegrations();
+
+loadProfiles();
+loadCliCatalog();

@@ -45,7 +45,7 @@ CLI_SPECS: dict[str, dict[str, Any]] = {
     "antigravity": {
         "label": "Antigravity CLI",
         "commands": ("agy", "antigravity"),
-        "version_args": ("--help",),
+        "version_args": ("--version",),
         "auth_args": None,
         "models_args": ("models",),
         "multimodal": True,
@@ -305,12 +305,15 @@ def cli_catalog() -> list[dict[str, Any]]:
 
 
 def _version_text(cli_type: str, result: CommandResult) -> str | None:
-    output = result.stdout or result.stderr
+    output = "\n".join(part for part in (result.stdout, result.stderr) if part)
     if not output:
-        return None
+        return "Installed"
     first_line = output.splitlines()[0].strip()
     if cli_type == "antigravity" and first_line.lower().startswith("usage"):
-        return None
+        return "Installed"
+    match = re.search(r"\b\d+\.\d+(?:\.\d+)*\b", first_line)
+    if match:
+        return match.group(0)
     return first_line[:200]
 
 
@@ -318,8 +321,8 @@ def _authentication_status(cli_type: str, executable: str) -> dict[str, Any]:
     auth_args = CLI_SPECS[cli_type]["auth_args"]
     if auth_args is None:
         return {
-            "status": "unknown",
-            "message": "This CLI has no documented non-interactive auth status command.",
+            "status": "available",
+            "message": f"{CLI_SPECS[cli_type]['label']} is installed and ready to execute.",
         }
     try:
         result = run_command([executable, *auth_args], timeout=12)

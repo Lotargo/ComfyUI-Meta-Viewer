@@ -7,6 +7,31 @@ html {
     transition-property: background-color, border-color, color, box-shadow, transform;
 }
 
+#secret-store-status.secret-store-warning {
+    width: 100%;
+    max-width: none;
+    margin-top: 2px;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    flex-shrink: 1;
+    border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+    background: var(--red-dim);
+    color: color-mix(in srgb, var(--red) 76%, white);
+}
+
+#secret-store-status.secret-store-warning.available {
+    display: none;
+}
+
+#secret-store-status.secret-store-warning .status-pill-detail {
+    flex: 1 0 100%;
+    padding-left: 16px;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
 .ai-settings-body.ui-booting > .ai-settings-header,
 .ai-settings-body.ui-booting > .ai-settings-main {
     visibility: hidden;

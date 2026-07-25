@@ -25,12 +25,18 @@ const stylesheetReady = new Promise(resolve => {
     document.head.append(link);
 });
 
+function timeout(delay) {
+    return new Promise(resolve => window.setTimeout(resolve, delay));
+}
+
 function isManagedImage(target) {
     return target instanceof HTMLImageElement && target.matches(MEDIA_SELECTOR);
 }
 
 function registerImage(image) {
     if (readiness.has(image)) return readiness.get(image);
+
+    image.decoding = 'async';
 
     let resolveReady;
     const promise = new Promise(resolve => {
@@ -44,9 +50,9 @@ function registerImage(image) {
 
         if (!failed && typeof image.decode === 'function') {
             try {
-                await image.decode();
+                await Promise.race([image.decode(), timeout(750)]);
             } catch {
-                // A completed image can still be safely revealed when decode() is unavailable or rejects.
+                // A completed image can still be safely revealed when decode() rejects.
             }
         }
 
@@ -91,10 +97,6 @@ function initialImages() {
     ].slice(0, INITIAL_GALLERY_LIMIT).concat([
         ...document.querySelectorAll('.image-item .item-thumb > img'),
     ].slice(0, INITIAL_SIDEBAR_LIMIT));
-}
-
-function timeout(delay) {
-    return new Promise(resolve => window.setTimeout(resolve, delay));
 }
 
 document.addEventListener('load', event => {

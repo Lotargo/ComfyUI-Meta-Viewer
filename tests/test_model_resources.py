@@ -137,6 +137,35 @@ class ModelResourcesTest(unittest.TestCase):
         self.assertEqual(refreshed.restriction_reason, "Use a separate-components workflow.")
         self.assertEqual(refreshed.display_name, "Curated Flux checkpoint")
 
+    def test_inventory_sync_does_not_misclassify_t5xxl_as_sdxl(self) -> None:
+        name = "t5xxl_fp16.safetensors"
+        identity = hashlib.sha256(f"comfyui:text_encoders:{name}".encode("utf-8")).hexdigest()
+        stale_identity = hashlib.sha256(f"comfyui:clip:{name}".encode("utf-8")).hexdigest()
+        self.catalog.register(ModelResource(
+            content_hash=identity,
+            file_path=name,
+            resource_type=ResourceType.TEXT_ENCODER,
+            architecture=ModelEcosystem.SDXL,
+            display_name="Previously inferred T5XXL encoder",
+            metadata_source="comfyui",
+        ))
+        self.catalog.register(ModelResource(
+            content_hash=stale_identity,
+            file_path=name,
+            resource_type=ResourceType.TEXT_ENCODER,
+            architecture=ModelEcosystem.SDXL,
+            prompt_family="sdxl",
+            display_name="Stale alias for T5XXL encoder",
+            metadata_source="comfyui",
+        ))
+
+        _sync_catalog(self.catalog, {"text_encoders": [name]})
+        refreshed = self.catalog.get_by_hash(identity)
+
+        self.assertEqual(refreshed.architecture, ModelEcosystem.OTHER)
+        self.assertEqual(refreshed.prompt_family, "generic")
+        self.assertFalse(self.catalog.get_by_hash(stale_identity).is_available)
+
 
 if __name__ == "__main__":
     unittest.main()

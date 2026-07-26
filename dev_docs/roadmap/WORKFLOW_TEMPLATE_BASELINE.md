@@ -117,7 +117,7 @@ Node/input сопоставляется только с declarative field/resour
 - подтверждены все declarative input names, loader type `flux`, sampler `euler` и scheduler `simple`;
 - unit/API regression suite проверяет compiled standard/GGUF graphs, mixed regular/GGUF text encoders и фильтрацию bootstrap resource options по active slot.
 
-Фактическая генерация Flux-like templates остаётся в Phase 9 workflow matrix: текущая установка ещё не содержит подтверждённого полного Flux/Z-Image component set, поэтому наличие nodes не выдается за end-to-end Flux evidence.
+Фактическая генерация standard `core-flux` остаётся в Phase 9 workflow matrix. GGUF-вариант `core-flux-gguf` подтверждён отдельным Krea-based run ниже; Z-Image остаётся дополнительной architecture-specific проверкой после завершения скачивания её component set.
 
 ### Pony/SDXL GGUF runtime and quality baseline
 
@@ -131,4 +131,15 @@ Node/input сопоставляется только с declarative field/resour
 - визуальная проверка полноразмерного PNG подтвердила связный портрет и читаемые детали лица, волос, меха и ткани без явного разрушения композиции;
 - metadata extractor сохраняет GGUF diffusion model как основную model identity, не подменяя её conditioning checkpoint.
 
-Flux-подобная GGUF-проверка на Z-Image остаётся отложенной до завершения скачивания совместимого component set. Она должна повторить preview/preflight, generation и Library provenance уже на `core-flux-gguf`; Pony smoke не считается доказательством Flux-совместимости.
+### Krea/Flux GGUF runtime and quality baseline
+
+26 июля 2026 года выполнен end-to-end run на локальном Krea-based `unstableEvolution_GGUFQ417GB.gguf` через `core-flux-gguf`:
+
+- tensor inspection подтвердил Flux-family структуру с `double_blocks`, `single_blocks`, `guidance_in`, `img_in`, `txt_in` и `final_layer`; GGUF не содержит metadata KV, поэтому catalog сохраняет честный `experimental` warning вместо неподтверждённого architecture label;
+- component set: `clip_l.safetensors`, `t5xxl_fp16.safetensors` и `ae.safetensors`; SHA-256 загруженного CLIP-L сверён с опубликованным файлом;
+- реальный preflight выявил и закрыл false positive, при котором общий T5XXL encoder ошибочно считался SDXL из-за подстроки `xl`; automatic inventory теперь переоценивает собственные inference records и отключает stale folder aliases;
+- final quality run `9`, prompt `209a59c1-e5db-4c38-b557-2df29f3aa247` выполнен через editor endpoint в 832×1216, 8 steps, Euler/simple, Flux guidance 4.5, sampler CFG 1, seed `26072027`; предварительный 28-step run был отменён после уточнения целевого 7–11 step profile и не считается evidence;
+- output `CMV/Krea-GGUF-832x1216_00001_.png` импортирован в Library как asset `6261`; сохранены template/draft/run/prompt provenance, полный API graph, GGUF model identity и параметры generation;
+- полноразмерный PNG визуально проверен: портрет, волосы, снег, ткань, observatory background и depth of field связны; единственный заметный локальный дефект — псевдотекст логотипа на куртке.
+
+Эта проверка подтверждает end-to-end Flux-family GGUF path и не зависит от Pony evidence. Z-Image остаётся отдельной дополнительной проверкой той же цепочки после загрузки совместимого component set.

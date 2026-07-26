@@ -461,7 +461,7 @@
 
 ## 7.3 Family-specific practical checks
 
-- [ ] Запустить выбранные Flux checks на реальной целевой модели.
+- [x] Запустить выбранные Flux checks на реальной целевой модели.
 - [ ] Запустить независимые SDXL checks.
 - [ ] Запустить независимые Pony checks.
 - [ ] Проверить weak/local model target.
@@ -567,7 +567,7 @@
 - [x] Result imported into Library.
 - [ ] Remix lineage preserved.
 
-**GGUF evidence (2026-07-26):** Pony/SDXL GGUF проверен через `core-pony-gguf`: runtime inventory и preflight готовы, quality run выполнен в 832×1216 на 28 steps, полноразмерный output визуально проверен и импортирован в Library с provenance и корректной GGUF model identity. Ранний 512×512 run считается только техническим smoke. Отдельная Flux-подобная проверка `core-flux-gguf` на Z-Image остаётся отложенной до загрузки совместимого component set и не блокирует уже подтверждённый общий пункт `GGUF generation`.
+**GGUF evidence (2026-07-26):** Pony/SDXL GGUF проверен через `core-pony-gguf`: runtime inventory и preflight готовы, quality run выполнен в 832×1216 на 28 steps, полноразмерный output визуально проверен и импортирован в Library с provenance и корректной GGUF model identity. Ранний 512×512 run считается только техническим smoke. Flux-family GGUF отдельно подтверждён через `core-flux-gguf` на Krea-based `unstableEvolution_GGUFQ417GB.gguf`: run `9` выполнен в 832×1216 на целевых 8 steps, output визуально проверен и импортирован как Library asset `6261` с полным provenance. Z-Image остаётся дополнительной architecture-specific проверкой после загрузки её component set, а не blocker для уже подтверждённого Flux GGUF path.
 
 ## 9.4 Browser and UX checks
 

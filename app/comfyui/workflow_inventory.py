@@ -111,23 +111,23 @@ def _sync_catalog(catalog: ModelResourceCatalog, models: dict[str, list[str]]) -
         }
     except Exception:
         existing_by_hash = {}
+    discovered_hashes: set[str] = set()
     for folder, names in models.items():
         for name in names:
             resource_type = classify_inventory_resource(folder, name)
             if resource_type is None:
                 continue
             identity = hashlib.sha256(f"comfyui:{folder}:{name}".encode("utf-8")).hexdigest()
+            discovered_hashes.add(identity)
             architecture = _infer_architecture(name)
             try:
                 existing = existing_by_hash.get(identity)
                 if existing is not None:
-                    resolved_architecture = existing.architecture
-                    if (
-                        existing.metadata_source == "comfyui"
-                        and resolved_architecture is ModelEcosystem.OTHER
-                        and architecture is not ModelEcosystem.OTHER
-                    ):
-                        resolved_architecture = architecture
+                    resolved_architecture = (
+                        architecture
+                        if existing.metadata_source == "comfyui"
+                        else existing.architecture
+                    )
                     resource = existing.model_copy(update={
                         "file_path": name,
                         "resource_type": resource_type,
@@ -135,7 +135,11 @@ def _sync_catalog(catalog: ModelResourceCatalog, models: dict[str, list[str]]) -
                         "prompt_family": (
                             resolved_architecture.value
                             if resolved_architecture is not ModelEcosystem.OTHER
-                            else existing.prompt_family
+                            else (
+                                "generic"
+                                if existing.metadata_source == "comfyui"
+                                else existing.prompt_family
+                            )
                         ),
                         "is_available": True,
                     })
@@ -156,6 +160,18 @@ def _sync_catalog(catalog: ModelResourceCatalog, models: dict[str, list[str]]) -
                 # Inventory remains usable even if a stale or locked catalog cannot be updated.
                 continue
 
+    for identity, existing in existing_by_hash.items():
+        if (
+            existing.metadata_source != "comfyui"
+            or identity in discovered_hashes
+            or not existing.is_available
+        ):
+            continue
+        try:
+            catalog.register(existing.model_copy(update={"is_available": False}))
+        except Exception:
+            continue
+
 
 def _infer_architecture(name: str) -> ModelEcosystem:
     lowered = name.casefold()
@@ -167,6 +183,10 @@ def _infer_architecture(name: str) -> ModelEcosystem:
         return ModelEcosystem.FLUX_1
     if "hunyuan" in lowered:
         return ModelEcosystem.HUNYUAN_VIDEO
+    # T5XXL encoders are shared by ecosystems such as Flux and SD3. The
+    # trailing "xxl" is not evidence that the file belongs to SDXL.
+    if "t5xxl" in lowered or "t5-v1_1-xxl" in lowered:
+        return ModelEcosystem.OTHER
     if any(token in lowered for token in ("sd15", "sd1.5", "v1-5", "1.5-pruned")):
         return ModelEcosystem.SD15
     if "sdxl" in lowered or "xl" in lowered:

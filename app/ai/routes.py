@@ -28,7 +28,7 @@ from .reconstruction import (
     PromptReconstructionService,
     SceneAnalysisService,
 )
-from .remix import RemixPromptSource, RemixRequest, RemixService
+from .remix import RemixError, RemixPromptSource, RemixRequest, RemixService
 from .resources import CapabilityResolver, ModelResource, ModelResourceCatalog, ResourceType
 from .secrets import SecretStoreError
 from .transport import AIProviderRequestError, test_profile
@@ -135,6 +135,12 @@ def cli_error(error: CLIIntegrationError):
 def ai_job_error(error: AIJobStoreError):
     status = 404 if "does not exist" in str(error) else 422
     return jsonify({"error": str(error), "code": "ai_job_store_error"}), status
+
+
+@ai_blueprint.errorhandler(RemixError)
+def ai_remix_error(error: RemixError):
+    status = 404 if error.code == "asset_not_found" else 422
+    return jsonify({"error": str(error), "code": error.code}), status
 
 
 @ai_blueprint.errorhandler(PromptTranslationError)
@@ -568,7 +574,11 @@ def ai_scene_spec_update(job_id: int):
 @ai_blueprint.route("/api/ai/remix", methods=["POST"])
 def ai_remix():
     payload = _json_object()
-    request_data = RemixRequest.model_validate(payload)
+    request_data = RemixRequest.model_validate({
+        key: value
+        for key, value in payload.items()
+        if key in RemixRequest.model_fields
+    })
     service = RemixService()
     outcome = service.create_remix_draft(
         request=request_data,

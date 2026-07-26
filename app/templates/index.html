@@ -33,6 +33,7 @@
     <link rel="stylesheet" href="/static/css/features/gallery.css">
     <link rel="stylesheet" href="/static/css/features/lightbox.css">
     <link rel="stylesheet" href="/static/css/features/cutout.css">
+    <link rel="stylesheet" href="/static/css/features/remix.css?v={{ static_version('css/features/remix.css') }}">
     <!-- Animations -->
     <link rel="stylesheet" href="/static/css/base/animations.css">
     <!-- Utils -->
@@ -350,6 +351,47 @@
         </aside>
     </div>
 </div>
+
+<dialog id="remix-dialog" class="remix-dialog" aria-labelledby="remix-dialog-title">
+    <form id="remix-form" method="dialog">
+        <header class="remix-dialog-header">
+            <div>
+                <p>Remix draft</p>
+                <h2 id="remix-dialog-title">Open this asset in Create</h2>
+                <span id="remix-asset-label">Choose the prompt lineage and workflow before continuing.</span>
+            </div>
+            <button class="remix-dialog-close" type="button" id="remix-close" aria-label="Close Remix dialog">×</button>
+        </header>
+        <div class="remix-dialog-body">
+            <label class="remix-field">
+                <span>Prompt source</span>
+                <select id="remix-prompt-source" required></select>
+                <small id="remix-prompt-source-note">Choose embedded metadata, a saved AI result, or a manual edit.</small>
+            </label>
+            <label class="remix-field">
+                <span>Workflow template</span>
+                <select id="remix-template" required></select>
+                <small id="remix-template-note">Only templates compatible with this media type are shown.</small>
+            </label>
+            <label class="remix-field remix-field-wide">
+                <span>Positive prompt</span>
+                <textarea id="remix-positive-prompt" rows="6" maxlength="40000" required></textarea>
+            </label>
+            <label class="remix-field remix-field-wide">
+                <span>Negative prompt</span>
+                <textarea id="remix-negative-prompt" rows="3" maxlength="20000" placeholder="Optional"></textarea>
+            </label>
+            <div id="remix-reference-note" class="remix-reference-note" role="status"></div>
+        </div>
+        <footer class="remix-dialog-footer">
+            <span>No generation starts automatically.</span>
+            <div>
+                <button class="btn btn-secondary" type="button" id="remix-cancel">Cancel</button>
+                <button class="btn btn-primary" type="submit" id="remix-submit">Open draft in Create</button>
+            </div>
+        </footer>
+    </form>
+</dialog>
 
 <!-- Keyboard shortcuts overlay -->
 <div class="shortcuts-overlay" id="shortcuts-overlay">

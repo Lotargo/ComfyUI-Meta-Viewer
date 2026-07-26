@@ -36,6 +36,8 @@ export function initKeyboardShortcuts() {
 }
 
 function handleKeydown(e) {
+    if (e.key === 'Escape' && dom.remixDialog?.open) return;
+
     if (e.key === 'Escape' && dom.shortcutsOverlay?.classList.contains('open')) {
         e.preventDefault();
         toggleShortcuts(false);

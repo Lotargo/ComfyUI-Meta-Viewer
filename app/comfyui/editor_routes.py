@@ -10,7 +10,8 @@ from pydantic import ValidationError
 from app import database
 from app.ai.adaptation import PromptAdaptationStore
 from app.ai.job_store import AIJobStore
-from app.ai.remix import RemixPromptSource, RemixRequest, RemixService
+from app.ai.prompting import PromptFamily
+from app.ai.remix import RemixError, RemixPromptSource, RemixRequest, RemixService
 from app.ai.resources import ModelResourceCatalog
 from app.ai.translation import PromptTranslationStore
 from app.config_store import ConfigStore
@@ -130,6 +131,64 @@ def _template_payload(template: WorkflowTemplate, inventory: RuntimeInventory) -
     }
 
 
+def _remix_template_options(source: dict[str, Any]) -> list[dict[str, Any]]:
+    media_type = source.get("media_type") or "image"
+    options: list[dict[str, Any]] = []
+    for template in _registry().list_templates():
+        manifest = template.manifest
+        if manifest.media_type.value != media_type:
+            continue
+        field_ids = {field.id for field in manifest.fields}
+        if "positive_prompt" not in field_ids:
+            continue
+        reference_fields = [
+            field.id
+            for field in manifest.fields
+            if field.kind == "image" and field.required
+        ]
+        if reference_fields and media_type != "image":
+            continue
+        options.append({
+            "id": manifest.id,
+            "name": manifest.name,
+            "description": manifest.description,
+            "category": manifest.category.value,
+            "supported_ecosystems": [
+                ecosystem.value for ecosystem in manifest.supported_ecosystems
+            ],
+            "requires_reference": bool(reference_fields),
+            "reference_fields": reference_fields,
+            "target_family": _prompt_family_for_template(template).value,
+        })
+    return options
+
+
+def _prompt_family_for_template(template: WorkflowTemplate) -> PromptFamily:
+    ecosystems = {
+        ecosystem.value for ecosystem in template.manifest.supported_ecosystems
+    }
+    if "flux_1" in ecosystems and not ecosystems.intersection({"sdxl", "pony", "illustrious"}):
+        return PromptFamily.FLUX
+    if "pony" in ecosystems and not ecosystems.intersection({"sdxl", "illustrious"}):
+        return PromptFamily.PONY
+    return PromptFamily.SDXL
+
+
+def _template_supports_prompt_family(
+    template: WorkflowTemplate,
+    family: PromptFamily,
+) -> bool:
+    ecosystems = {
+        ecosystem.value for ecosystem in template.manifest.supported_ecosystems
+    }
+    compatible = {
+        PromptFamily.FLUX: {"flux_1"},
+        PromptFamily.SDXL: {"sdxl", "illustrious"},
+        PromptFamily.PONY: {"pony"},
+    }[family]
+    return bool(ecosystems.intersection(compatible))
+
+
 def _resource_options(
     template: WorkflowTemplate,
     inventory: RuntimeInventory,
@@ -194,6 +253,7 @@ def _json_object() -> dict[str, Any]:
 @editor_blueprint.errorhandler(WorkflowCompilerError)
 @editor_blueprint.errorhandler(WorkflowStoreError)
 @editor_blueprint.errorhandler(WorkflowExecutionError)
+@editor_blueprint.errorhandler(RemixError)
 def workflow_editor_error(error: Exception):
     code = getattr(error, "code", "workflow_editor_error")
     status = 422
@@ -542,9 +602,9 @@ def editor_upload_input():
     return jsonify({"input": response, "value": value}), 201
 
 
-@editor_blueprint.route("/api/editor/remix", methods=["POST"])
+@editor_blueprint.route("/api/editor/remix", methods=["GET", "POST"])
 def editor_remix():
-    payload = _json_object()
+    payload = _json_object() if request.method == "POST" else request.args
     asset_id = _optional_positive_int(payload.get("asset_id"), "asset_id")
     if asset_id is None:
         raise WorkflowCompilerError("asset_id is required.", code="invalid_editor_request")
@@ -554,30 +614,132 @@ def editor_remix():
             f"Asset {asset_id} was not found.",
             code="asset_not_found",
         )
-    template_id = payload.get("template_id") or (
-        "core-reference" if source.get("media_type") == "image" else "core-image"
+    service = RemixService()
+    template_options = _remix_template_options(source)
+    if request.method == "GET":
+        default_template_id = next(
+            (
+                option["id"] for option in template_options
+                if option["id"] == (
+                    "core-reference"
+                    if source.get("media_type") == "image"
+                    else "core-video"
+                )
+            ),
+            template_options[0]["id"] if template_options else None,
+        )
+        prompt_sources = service.list_prompt_sources(asset_id)
+        default_prompt_source = next(
+            (item.key for item in prompt_sources if item.prompt_source is not RemixPromptSource.USER_EDITED),
+            prompt_sources[0].key if prompt_sources else None,
+        )
+        return jsonify({
+            "asset": {
+                "id": asset_id,
+                "file_name": source.get("file_name"),
+                "media_type": source.get("media_type"),
+                "preview_url": f"/api/preview/{asset_id}",
+            },
+            "prompt_sources": [item.model_dump(mode="json") for item in prompt_sources],
+            "templates": template_options,
+            "defaults": {
+                "prompt_source_key": default_prompt_source,
+                "template_id": default_template_id,
+            },
+        })
+
+    if not template_options:
+        raise WorkflowCompilerError(
+            "No compatible workflow template is registered for this asset.",
+            code="remix_template_unavailable",
+        )
+    compatible_ids = {option["id"] for option in template_options}
+    template_id = payload.get("template_id") or next(
+        (
+            option["id"] for option in template_options
+            if option["id"] == (
+                "core-reference"
+                if source.get("media_type") == "image"
+                else "core-video"
+            )
+        ),
+        template_options[0]["id"],
     )
+    if template_id not in compatible_ids:
+        raise WorkflowCompilerError(
+            "The selected workflow template is not compatible with this asset.",
+            code="remix_template_incompatible",
+        )
     template = _registry().get(template_id)
     try:
         prompt_source = RemixPromptSource(
             payload.get("prompt_source") or RemixPromptSource.ORIGINAL_METADATA.value
+        )
+        base_prompt_source = (
+            RemixPromptSource(payload["base_prompt_source"])
+            if payload.get("base_prompt_source")
+            else None
         )
     except ValueError as exc:
         raise WorkflowCompilerError(
             "prompt_source is not supported.",
             code="invalid_editor_request",
         ) from exc
-    outcome = RemixService().create_remix_draft(
+    prompt_draft_id = _optional_positive_int(
+        payload.get("prompt_draft_id"),
+        "prompt_draft_id",
+    )
+    source_family = None
+    if prompt_draft_id is not None:
+        selected_source = base_prompt_source or prompt_source
+        source_family = next(
+            (
+                option.family
+                for option in service.list_prompt_sources(asset_id)
+                if option.prompt_draft_id == prompt_draft_id
+                and option.prompt_source is selected_source
+            ),
+            None,
+        )
+    if source_family is not None and not _template_supports_prompt_family(
+        template,
+        source_family,
+    ):
+        raise WorkflowCompilerError(
+            "The selected workflow template does not support this prompt family.",
+            code="remix_template_incompatible",
+        )
+    outcome = service.create_remix_draft(
         request=RemixRequest(
             asset_id=asset_id,
             prompt_source=prompt_source,
+            base_prompt_source=base_prompt_source,
+            prompt_draft_id=prompt_draft_id,
             workflow_template_id=template.manifest.id,
+            target_family=source_family or _prompt_family_for_template(template),
+            override_positive_prompt=payload.get("positive_prompt"),
+            override_negative_prompt=payload.get("negative_prompt"),
         ),
     )
     values = default_field_values(template)
     values["positive_prompt"] = outcome.draft.draft.positive_prompt
-    values["negative_prompt"] = outcome.draft.draft.negative_prompt
-    if template.manifest.id == "core-reference" and source.get("media_type") == "image":
+    if (
+        outcome.draft.draft.negative_prompt
+        and any(field.id == "negative_prompt" for field in template.manifest.fields)
+    ):
+        values["negative_prompt"] = outcome.draft.draft.negative_prompt
+    reference_fields = [
+        field.id
+        for field in template.manifest.fields
+        if field.kind == "image" and field.required
+    ]
+    reference_input = {
+        "required": bool(reference_fields),
+        "prepared": False,
+        "field_ids": reference_fields,
+        "error": None,
+    }
+    if reference_fields and source.get("media_type") == "image":
         try:
             data = _asset_bytes(source)
             uploaded = client_from_store(_config_store(), timeout=15.0).upload_image(
@@ -586,12 +748,15 @@ def editor_remix():
                 subfolder="cmv/remix",
             )
             subfolder = str(uploaded.get("subfolder") or "")
-            values["reference_image"] = (
+            reference_value = (
                 f"{subfolder}/{uploaded['name']}" if subfolder else str(uploaded["name"])
             )
-        except (ComfyUIClientError, OSError):
+            for field_id in reference_fields:
+                values[field_id] = reference_value
+            reference_input["prepared"] = True
+        except (ComfyUIClientError, OSError) as exc:
             # The remix remains a manual draft when the runtime is offline.
-            pass
+            reference_input["error"] = str(exc)
     draft = _workflow_store().create_draft(
         template_id=template.manifest.id,
         template_version=template.manifest.version,
@@ -602,7 +767,11 @@ def editor_remix():
     )
     return jsonify({
         "draft": draft.model_dump(mode="json"),
+        "job": outcome.job.model_dump(mode="json"),
         "prompt_draft": outcome.draft.model_dump(mode="json"),
+        "prompt_source": outcome.prompt_source.value,
+        "reference_input": reference_input,
+        "lineage": {"parent_asset_id": asset_id},
         "editor_url": f"/editor?draft_id={draft.id}",
     }), 201
 

@@ -1,0 +1,121 @@
+.remix-dialog {
+    width: min(760px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    border-radius: var(--radius-xl);
+    background: color-mix(in srgb, var(--bg-elevated) 96%, black);
+    color: var(--text);
+    box-shadow: var(--shadow-lg);
+}
+
+.remix-dialog::backdrop {
+    background: rgba(3, 7, 10, 0.78);
+    backdrop-filter: blur(7px);
+}
+
+.remix-dialog > form {
+    display: grid;
+    max-height: calc(100vh - 32px);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.remix-dialog-header,
+.remix-dialog-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
+    padding: 18px 22px;
+    border-color: var(--border-subtle);
+}
+
+.remix-dialog-header { border-bottom: 1px solid var(--border-subtle); }
+.remix-dialog-footer { border-top: 1px solid var(--border-subtle); }
+
+.remix-dialog-header p {
+    margin: 0 0 4px;
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.remix-dialog-header h2 {
+    margin: 0 0 5px;
+    font-family: var(--font-title);
+    font-size: 21px;
+}
+
+.remix-dialog-header span,
+.remix-dialog-footer > span,
+.remix-field small {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.remix-dialog-close {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 22px;
+}
+
+.remix-dialog-close:hover { color: var(--text); border-color: var(--accent); }
+
+.remix-dialog-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    overflow-y: auto;
+    padding: 22px;
+}
+
+.remix-field { display: grid; gap: 7px; }
+.remix-field-wide { grid-column: 1 / -1; }
+.remix-field > span { font-size: 12px; font-weight: 700; }
+
+.remix-field select,
+.remix-field textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+}
+
+.remix-field select { min-height: 42px; padding: 0 34px 0 11px; }
+.remix-field textarea { min-height: 82px; padding: 11px; resize: vertical; line-height: 1.45; }
+
+.remix-field select:focus,
+.remix-field textarea:focus {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: var(--shadow-glow);
+}
+
+.remix-reference-note {
+    grid-column: 1 / -1;
+    min-height: 38px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--surface-glass);
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.remix-dialog-footer > div { display: flex; gap: 8px; }
+
+@media (max-width: 680px) {
+    .remix-dialog-body { grid-template-columns: 1fr; }
+    .remix-field-wide { grid-column: auto; }
+    .remix-dialog-footer { align-items: stretch; flex-direction: column; }
+    .remix-dialog-footer > div { display: grid; grid-template-columns: 1fr 1fr; }
+}

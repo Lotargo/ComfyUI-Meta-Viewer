@@ -9,6 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app import database
+from app.ai.job_store import AIJobStore, PromptDraft, PromptDraftSource
+from app.ai.prompting import PromptFamily, PromptOperation, PromptScenario, PromptTask
 from app.ai.resources import (
     CompatibilityStatus,
     ModelEcosystem,
@@ -801,6 +803,17 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertIn("Check dependencies and preview graph", html)
         self.assertNotIn("Manifest controls", html)
 
+    def test_viewer_exposes_remix_source_and_template_dialog(self) -> None:
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('id="lb-remix"', html)
+        self.assertIn('id="remix-dialog"', html)
+        self.assertIn('id="remix-prompt-source"', html)
+        self.assertIn('id="remix-template"', html)
+        self.assertIn("No generation starts automatically.", html)
+
     @patch("app.comfyui.editor_routes._inventory")
     def test_manifest_driven_draft_preview_round_trip(self, inventory_mock) -> None:
         inventory_mock.return_value = self.inventory
@@ -1180,7 +1193,24 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
             },
         )
 
-        response = self.client.post("/api/editor/remix", json={"asset_id": asset_id})
+        options = self.client.get(f"/api/editor/remix?asset_id={asset_id}")
+        self.assertEqual(options.status_code, 200)
+        option_payload = options.get_json()
+        self.assertEqual(option_payload["defaults"]["template_id"], "core-reference")
+        self.assertEqual(
+            option_payload["prompt_sources"][0]["prompt_source"],
+            "original_metadata",
+        )
+        self.assertTrue(any(item["id"] == "core-image" for item in option_payload["templates"]))
+
+        response = self.client.post(
+            "/api/editor/remix",
+            json={
+                "asset_id": asset_id,
+                "template_id": "core-reference",
+                "prompt_source": "original_metadata",
+            },
+        )
 
         self.assertEqual(response.status_code, 201)
         payload = response.get_json()
@@ -1192,7 +1222,89 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
             "A lantern floating over a frozen lake",
         )
         self.assertEqual(payload["draft"]["values"]["reference_image"], "cmv/remix/source.png")
+        self.assertEqual(payload["prompt_source"], "original_metadata")
+        self.assertEqual(payload["lineage"]["parent_asset_id"], asset_id)
+        self.assertTrue(payload["reference_input"]["prepared"])
         self.assertEqual(WorkflowStore().list_runs(), [])
+
+    def test_remix_manual_prompt_uses_text_only_template_and_keeps_base_lineage(self) -> None:
+        asset_id, _ = database.insert_upload_asset(
+            "manual-source.png",
+            PNG_1X1,
+            media_type="image",
+            has_generation_metadata=True,
+            embedded_metadata={
+                "prompt_parameters": {
+                    "positive_prompt": "A glass greenhouse in winter",
+                    "negative_prompt": "watermark",
+                }
+            },
+        )
+
+        response = self.client.post(
+            "/api/editor/remix",
+            json={
+                "asset_id": asset_id,
+                "template_id": "core-image",
+                "prompt_source": "user_edited",
+                "base_prompt_source": "original_metadata",
+                "positive_prompt": "A glass greenhouse during a blue-hour snowstorm",
+                "negative_prompt": "watermark, duplicated windows",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(payload["draft"]["template_id"], "core-image")
+        self.assertEqual(
+            payload["draft"]["values"]["positive_prompt"],
+            "A glass greenhouse during a blue-hour snowstorm",
+        )
+        self.assertFalse(payload["reference_input"]["required"])
+        self.assertEqual(
+            payload["prompt_draft"]["draft"]["source_payload"]["base_prompt_source"],
+            "original_metadata",
+        )
+        self.assertEqual(WorkflowStore().list_runs(), [])
+
+    def test_remix_rejects_template_outside_saved_prompt_family(self) -> None:
+        asset_id, _ = database.insert_upload_asset(
+            "sdxl-source.png",
+            PNG_1X1,
+            media_type="image",
+            has_generation_metadata=True,
+        )
+        job_store = AIJobStore()
+        job = job_store.create(
+            task=PromptTask(
+                family=PromptFamily.SDXL,
+                operation=PromptOperation.TRANSLATE,
+                scenario=PromptScenario.PORTRAIT,
+            ),
+            execution_backend="openai_compatible",
+            asset_id=asset_id,
+            user_input="translated portrait",
+        )
+        prompt_draft = job_store.save_draft(
+            job.id,
+            PromptDraft(
+                positive_prompt="An SDXL portrait",
+                source_kind=PromptDraftSource.TRANSLATION,
+            ),
+        )
+
+        response = self.client.post(
+            "/api/editor/remix",
+            json={
+                "asset_id": asset_id,
+                "template_id": "core-flux",
+                "prompt_source": "translation",
+                "prompt_draft_id": prompt_draft.id,
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.get_json()["code"], "remix_template_incompatible")
 
 
 class FakeCompletedClient:
@@ -1239,11 +1351,18 @@ class WorkflowExecutionTest(unittest.TestCase):
     def test_completed_output_is_imported_into_library(self) -> None:
         store = WorkflowStore()
         template = WorkflowTemplateRegistry().get("core-image")
+        source_asset_id, _ = database.insert_upload_asset(
+            "remix-parent.png",
+            PNG_1X1,
+            media_type="image",
+            has_generation_metadata=False,
+        )
         draft = store.create_draft(
             template_id=template.manifest.id,
             template_version=template.manifest.version,
             values=default_field_values(template),
             resource_selections={"checkpoint": "models/base-xl.safetensors"},
+            source_asset_id=source_asset_id,
         )
         run = store.create_run(draft_id=draft.id, prompt_id="prompt-1", client_id="client-1")
 
@@ -1255,6 +1374,15 @@ class WorkflowExecutionTest(unittest.TestCase):
         self.assertIsNotNone(detail)
         self.assertEqual(detail.media_type, "image")
         self.assertEqual(detail.embedded_metadata["generation"]["template_id"], "core-image")
+        conn = database.get_conn()
+        try:
+            lineage = conn.execute(
+                "SELECT derived_from_asset_id FROM images WHERE id=?",
+                (completed.output_asset_ids[0],),
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertEqual(lineage["derived_from_asset_id"], source_asset_id)
 
     def test_failed_run_persists_normalized_field_diagnostic_and_raw_error(self) -> None:
         store = WorkflowStore()

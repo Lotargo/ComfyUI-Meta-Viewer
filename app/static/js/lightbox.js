@@ -53,6 +53,8 @@ let displayedImageId = null;
 let currentImagesArray = [];
 let usesGalleryPagination = false;
 let fileDeleteInProgress = false;
+let remixConfiguration = null;
+let remixAssetId = null;
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 10;
 const ZOOM_STEP = 0.15;
@@ -633,22 +635,143 @@ export function downloadImage() {
     document.body.removeChild(a);
 }
 
+function selectedRemixPromptSource() {
+    return remixConfiguration?.prompt_sources?.find(
+        source => source.key === dom.remixPromptSource?.value,
+    ) || null;
+}
+
+function selectedRemixTemplate() {
+    return remixConfiguration?.templates?.find(
+        template => template.id === dom.remixTemplate?.value,
+    ) || null;
+}
+
+function remixTemplateSupportsSource(template, source) {
+    if (!source?.family) return true;
+    const compatibleEcosystems = {
+        flux: ['flux_1'],
+        sdxl: ['sdxl', 'illustrious'],
+        pony: ['pony'],
+    }[source.family] || [];
+    return (template.supported_ecosystems || []).some(
+        ecosystem => compatibleEcosystems.includes(ecosystem),
+    );
+}
+
+function renderRemixTemplateOptions(source) {
+    const previous = dom.remixTemplate.value;
+    const templates = (remixConfiguration?.templates || []).filter(
+        template => remixTemplateSupportsSource(template, source),
+    );
+    dom.remixTemplate.innerHTML = templates
+        .map(template => `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name)}${template.requires_reference ? ' · reference' : ''}</option>`)
+        .join('');
+    const preferred = [
+        previous,
+        remixConfiguration?.defaults?.template_id,
+        templates[0]?.id,
+    ].find(templateId => templates.some(template => template.id === templateId));
+    dom.remixTemplate.value = preferred || '';
+    dom.remixSubmit.disabled = !templates.length;
+    renderRemixTemplate();
+}
+
+function renderRemixPromptSource() {
+    const source = selectedRemixPromptSource();
+    if (!source) return;
+    dom.remixPositivePrompt.value = source.positive_prompt || '';
+    dom.remixNegativePrompt.value = source.negative_prompt || '';
+    dom.remixPromptSourceNote.textContent = source.description || 'Editable prompt source.';
+    renderRemixTemplateOptions(source);
+}
+
+function renderRemixTemplate() {
+    const template = selectedRemixTemplate();
+    if (!template) return;
+    const ecosystems = (template.supported_ecosystems || []).join(', ');
+    dom.remixTemplateNote.textContent = [template.description, ecosystems]
+        .filter(Boolean)
+        .join(' · ');
+    dom.remixReferenceNote.textContent = template.requires_reference
+        ? 'This workflow requires a reference image. CMV will upload the current asset to the connected ComfyUI input folder; if ComfyUI is offline, the draft opens with the reference field still pending.'
+        : 'This workflow uses the selected prompt without uploading the asset as a reference. Source lineage is still preserved.';
+}
+
+function closeRemixDialog() {
+    if (dom.remixDialog?.open) dom.remixDialog.close();
+}
+
 async function remixCurrentAsset() {
     const img = getDetailForLightbox();
     if (!img?.id || dom.lbRemix?.disabled) return;
     dom.lbRemix.disabled = true;
     try {
+        const response = await fetch(`/api/editor/remix?asset_id=${encodeURIComponent(img.id)}`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Could not load Remix options');
+        if (!payload.templates?.length) throw new Error('No compatible workflow is available');
+        remixConfiguration = payload;
+        remixAssetId = img.id;
+        dom.remixAssetLabel.textContent = `${payload.asset.file_name || 'Asset'} · source asset #${img.id}`;
+        dom.remixPromptSource.innerHTML = payload.prompt_sources
+            .map(source => `<option value="${escapeHtml(source.key)}">${escapeHtml(source.label)}</option>`)
+            .join('');
+        dom.remixPromptSource.value = payload.defaults.prompt_source_key || payload.prompt_sources[0]?.key;
+        renderRemixPromptSource();
+        dom.remixDialog.showModal();
+    } catch (error) {
+        showToast(error.message || String(error));
+    } finally {
+        dom.lbRemix.disabled = false;
+    }
+}
+
+async function createRemixDraft(event) {
+    event.preventDefault();
+    const source = selectedRemixPromptSource();
+    const template = selectedRemixTemplate();
+    const positivePrompt = dom.remixPositivePrompt.value.trim();
+    const negativePrompt = dom.remixNegativePrompt.value.trim();
+    if (!remixAssetId || !source || !template || !positivePrompt) return;
+
+    const changed = (
+        positivePrompt !== String(source.positive_prompt || '').trim()
+        || negativePrompt !== String(source.negative_prompt || '').trim()
+    );
+    const manuallyEdited = source.prompt_source === 'user_edited' || changed;
+    const basePromptSource = manuallyEdited
+        ? (source.prompt_source === 'user_edited'
+            ? source.base_prompt_source
+            : source.prompt_source)
+        : null;
+    const requestPayload = {
+        asset_id: remixAssetId,
+        template_id: template.id,
+        prompt_source: manuallyEdited ? 'user_edited' : source.prompt_source,
+        prompt_draft_id: source.prompt_draft_id || null,
+    };
+    if (manuallyEdited) {
+        requestPayload.base_prompt_source = basePromptSource || null;
+        requestPayload.positive_prompt = positivePrompt;
+        requestPayload.negative_prompt = negativePrompt;
+    }
+
+    dom.remixSubmit.disabled = true;
+    dom.remixSubmit.textContent = 'Preparing draft…';
+    try {
         const response = await fetch('/api/editor/remix', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ asset_id: img.id }),
+            body: JSON.stringify(requestPayload),
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'Could not create a remix draft');
         window.location.assign(payload.editor_url);
     } catch (error) {
         showToast(error.message || String(error));
-        dom.lbRemix.disabled = false;
+        dom.remixSubmit.disabled = false;
+        dom.remixSubmit.textContent = 'Open draft in Create';
     }
 }
 
@@ -732,6 +855,11 @@ export function initLightboxEvents({ enableContextMenu = true } = {}) {
     dom.lbViewOriginal?.addEventListener('click', viewOriginal);
     dom.lbDownload?.addEventListener('click', downloadImage);
     dom.lbRemix?.addEventListener('click', remixCurrentAsset);
+    dom.remixPromptSource?.addEventListener('change', renderRemixPromptSource);
+    dom.remixTemplate?.addEventListener('change', renderRemixTemplate);
+    dom.remixForm?.addEventListener('submit', createRemixDraft);
+    dom.remixClose?.addEventListener('click', closeRemixDialog);
+    dom.remixCancel?.addEventListener('click', closeRemixDialog);
 
     dom.lbDelete?.addEventListener('click', deleteCurrentLightboxAsset);
 

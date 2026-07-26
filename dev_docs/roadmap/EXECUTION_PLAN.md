@@ -433,12 +433,31 @@ Reconstruct разделён на два явных этапа: OpenAI-compatibl
 
 ## 6.6 Remix
 
-- [ ] Пользователь выбирает source prompt: embedded, reconstructed, translated, adapted или manual.
-- [ ] Пользователь выбирает compatible workflow template.
-- [ ] Reference input подготавливается, если template его требует.
-- [ ] Source lineage сохраняется.
-- [ ] Открывается editor draft.
-- [ ] Run остаётся ручным действием.
+- [x] Пользователь выбирает source prompt: embedded, reconstructed, translated, adapted или manual.
+- [x] Пользователь выбирает compatible workflow template.
+- [x] Reference input подготавливается, если template его требует.
+- [x] Source lineage сохраняется.
+- [x] Открывается editor draft.
+- [x] Run остаётся ручным действием.
+
+Viewer Remix открывает отдельный review dialog и получает доступные источники из
+embedded metadata, AI annotations, persisted Generate/Translate/Adapt drafts,
+rendered SceneSpec и prompt, фактически использованного editor workflow. Выбранный
+AI draft проверяется на принадлежность source asset. Manual edit хранит исходный
+source type и draft ID в provenance. Список workflow ограничен media-compatible
+templates; обязательные image fields заполняются одним upload reference, а offline
+runtime оставляет их pending. Созданный workflow draft хранит `source_asset_id`,
+поэтому импортированный output автоматически получает `derived_from_asset_id`.
+
+**Runtime evidence (2026-07-26):** asset `6265` и persisted Translation draft `7`
+выбраны через новый options contract для `core-reference`. Offline attempt создал
+редактируемый draft `35` с явным pending reference и без workflow run. После
+временного запуска Windows Portable ComfyUI online draft `36` загрузил reference
+как `cmv/remix/Create_00008_.png`; preflight подтвердил ready graph и отдельный
+negative conditioning. Только отдельное ручное действие Run создало run `23`,
+который завершился за 39 s и импортировал asset `6338`. Результат сохранил
+`template_id=core-reference`, negative prompt и lineage
+`derived_from_asset_id=6265`. Временный runtime после проверки остановлен.
 
 ## 6.7 Execution backends
 
@@ -665,7 +684,7 @@ Reconstruct разделён на два явных этапа: OpenAI-compatibl
 - [x] Подключить Translate как отдельную операцию.
 - [x] Подключить Adapt как отдельную операцию.
 - [x] Подключить Reconstruct через editable SceneSpec.
-- [ ] Проверить Remix end-to-end.
+- [x] Проверить Remix end-to-end.
 
 ## Явно отложено
 

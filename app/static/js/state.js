@@ -91,6 +91,19 @@ export const dom = {
     lbRotateCw: document.getElementById('lb-rotate-cw'),
     lbRotateCcw: document.getElementById('lb-rotate-ccw'),
     lbCutout: document.getElementById('lb-cutout'),
+    remixDialog: document.getElementById('remix-dialog'),
+    remixForm: document.getElementById('remix-form'),
+    remixClose: document.getElementById('remix-close'),
+    remixCancel: document.getElementById('remix-cancel'),
+    remixSubmit: document.getElementById('remix-submit'),
+    remixAssetLabel: document.getElementById('remix-asset-label'),
+    remixPromptSource: document.getElementById('remix-prompt-source'),
+    remixPromptSourceNote: document.getElementById('remix-prompt-source-note'),
+    remixTemplate: document.getElementById('remix-template'),
+    remixTemplateNote: document.getElementById('remix-template-note'),
+    remixPositivePrompt: document.getElementById('remix-positive-prompt'),
+    remixNegativePrompt: document.getElementById('remix-negative-prompt'),
+    remixReferenceNote: document.getElementById('remix-reference-note'),
 };
 
 /**

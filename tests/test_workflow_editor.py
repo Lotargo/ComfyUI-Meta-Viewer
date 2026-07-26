@@ -5,6 +5,7 @@ import io
 import json
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -736,6 +737,50 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
             self.assertFalse((root / "delete-me").exists())
             self.assertEqual(model_file.read_bytes(), b"model")
 
+    def test_duplicate_and_export_are_importable_and_choose_unique_copy_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry = WorkflowTemplateRegistry(user_root=root)
+            source = registry.get("core-image")
+
+            exported = registry.export_bundle(source.manifest.id)
+            with zipfile.ZipFile(io.BytesIO(exported)) as archive:
+                self.assertEqual(
+                    set(archive.namelist()),
+                    {"manifest.json", source.manifest.workflow},
+                )
+                manifest = json.loads(archive.read("manifest.json"))
+                workflow = json.loads(archive.read(source.manifest.workflow))
+            self.assertEqual(manifest["id"], "core-image")
+            self.assertEqual(workflow, source.workflow)
+
+            first = registry.duplicate_template("core-image")
+            second = registry.duplicate_template("core-image")
+
+            self.assertEqual(first.manifest.id, "core-image-copy")
+            self.assertEqual(second.manifest.id, "core-image-copy-2")
+            self.assertEqual(first.manifest.name, f"{source.manifest.name} copy")
+            self.assertEqual(first.source, "user")
+            self.assertEqual(first.workflow, source.workflow)
+            self.assertTrue((root / first.manifest.id / "manifest.json").is_file())
+
+            with tempfile.TemporaryDirectory() as import_dir:
+                imported = WorkflowTemplateRegistry(user_root=import_dir).import_bundle(
+                    "core-image-copy.zip",
+                    registry.export_bundle(first.manifest.id),
+                )
+            self.assertEqual(imported.manifest.id, first.manifest.id)
+            self.assertEqual(imported.workflow, source.workflow)
+
+    def test_duplicate_rejects_an_explicit_conflicting_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry = WorkflowTemplateRegistry(user_root=temp_dir)
+
+            with self.assertRaises(WorkflowTemplateError) as raised:
+                registry.duplicate_template("core-image", duplicate_id="core-video")
+
+            self.assertEqual(raised.exception.code, "template_id_conflict")
+
     def test_v1_bundle_is_migrated_and_persisted_as_schema_v2(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             registry = WorkflowTemplateRegistry(user_root=temp_dir)
@@ -1332,6 +1377,41 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertEqual(deleted.get_json()["code"], "builtin_template_read_only")
         self.assertEqual(remapped.status_code, 422)
         self.assertEqual(remapped.get_json()["code"], "builtin_template_read_only")
+
+    @patch("app.comfyui.editor_routes._inventory")
+    def test_workflow_duplicate_and_export_routes(self, inventory_mock) -> None:
+        inventory_mock.return_value = self.inventory
+
+        exported = self.client.get("/api/editor/templates/core-image/export")
+        self.assertEqual(exported.status_code, 200)
+        self.assertEqual(exported.mimetype, "application/zip")
+        self.assertIn("core-image.zip", exported.headers["Content-Disposition"])
+        with zipfile.ZipFile(io.BytesIO(exported.data)) as archive:
+            self.assertEqual(
+                json.loads(archive.read("manifest.json"))["id"],
+                "core-image",
+            )
+
+        duplicated = self.client.post("/api/editor/templates/core-image/duplicate")
+        self.assertEqual(duplicated.status_code, 201)
+        duplicate = duplicated.get_json()
+        self.assertEqual(duplicate["manifest"]["id"], "core-image-copy")
+        self.assertEqual(duplicate["source"], "user")
+
+        named = self.client.post(
+            "/api/editor/templates/core-image/duplicate",
+            json={"id": "custom-image-copy", "name": "Custom image copy"},
+        )
+        self.assertEqual(named.status_code, 201)
+        self.assertEqual(named.get_json()["manifest"]["id"], "custom-image-copy")
+        self.assertEqual(named.get_json()["manifest"]["name"], "Custom image copy")
+
+        conflict = self.client.post(
+            "/api/editor/templates/core-image/duplicate",
+            json={"id": "core-video"},
+        )
+        self.assertEqual(conflict.status_code, 409)
+        self.assertEqual(conflict.get_json()["code"], "template_id_conflict")
 
     @patch("app.comfyui.editor_routes._inventory")
     def test_bootstrap_filters_resources_for_standard_and_gguf_slots(self, inventory_mock) -> None:

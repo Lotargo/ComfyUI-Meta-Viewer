@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file
 from pydantic import ValidationError
 
 from app import database
@@ -339,6 +340,35 @@ def editor_template(template_id: str):
         return jsonify({"deleted": True, "template_id": template_id})
     inventory = _inventory()
     return jsonify(_template_payload(registry.get(template_id), inventory))
+
+
+@editor_blueprint.route("/api/editor/templates/<template_id>/duplicate", methods=["POST"])
+def editor_template_duplicate(template_id: str):
+    payload = _json_object()
+    unexpected = set(payload) - {"id", "name"}
+    if unexpected:
+        raise WorkflowTemplateError(
+            "Unsupported workflow duplicate fields: " + ", ".join(sorted(unexpected)),
+            code="invalid_template_duplicate",
+        )
+    template = _registry().duplicate_template(
+        template_id,
+        duplicate_id=payload.get("id"),
+        name=payload.get("name"),
+    )
+    return jsonify(_template_payload(template, _inventory())), 201
+
+
+@editor_blueprint.route("/api/editor/templates/<template_id>/export", methods=["GET"])
+def editor_template_export(template_id: str):
+    registry = _registry()
+    template = registry.get(template_id)
+    return send_file(
+        BytesIO(registry.export_bundle(template_id)),
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"{template.manifest.id}.zip",
+    )
 
 
 @editor_blueprint.route("/api/editor/workflows", methods=["GET"])

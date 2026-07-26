@@ -788,7 +788,15 @@ configuration is stored outside SQLite; workflow drafts and runs are durable SQL
 | `GET` | `/api/editor/bootstrap` | Return all manifests, defaults, local resource options, and runtime inventory |
 | `GET` | `/api/editor/templates` | Refresh templates and resource inventory |
 | `GET` | `/api/editor/templates/{template_id}` | Return one manifest-driven template |
+| `PATCH/DELETE` | `/api/editor/templates/{template_id}` | Edit metadata or delete an imported template; built-ins are read-only |
+| `POST` | `/api/editor/templates/{template_id}/duplicate` | Create an independent imported copy, choosing a unique ID when none is supplied |
+| `GET` | `/api/editor/templates/{template_id}/export` | Download an importable ZIP containing the manifest, API graph, and optional preview |
 | `POST` | `/api/editor/templates/import` | Import a multipart JSON bundle or ZIP archive |
+| `POST` | `/api/editor/templates/import/analyze` | Analyze an upload and return inferred semantic mappings without saving it |
+| `GET` | `/api/editor/workflows` | List built-in and imported templates with persisted validation status |
+| `POST` | `/api/editor/workflows/revalidate` | Revalidate every registered template against current ComfyUI inventory |
+| `POST` | `/api/editor/workflows/{template_id}/revalidate` | Revalidate one registered template |
+| `GET/POST/PUT` | `/api/editor/workflows/{template_id}/mapping` | Read, preview, or save imported-template mapping changes |
 | `POST` | `/api/editor/drafts` | Create an editing draft from a template |
 | `GET/PATCH` | `/api/editor/drafts/{draft_id}` | Read or update declared values and resource selections |
 | `POST` | `/api/editor/drafts/{draft_id}/preview` | Compile the API graph and return dependency preflight data |

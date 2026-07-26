@@ -170,6 +170,120 @@ class WorkflowTemplateRegistry:
                 code="template_storage_error",
             ) from exc
 
+    def duplicate_template(
+        self,
+        template_id: str,
+        *,
+        duplicate_id: str | None = None,
+        name: str | None = None,
+    ) -> WorkflowTemplate:
+        """Create an independent user-owned copy of a registered template."""
+        if self.user_root is None:
+            raise WorkflowTemplateError(
+                "User workflow template storage is not configured.",
+                code="template_storage_unavailable",
+            )
+        source = self.get(template_id)
+        resolved_id = str(duplicate_id or "").strip() or self._available_copy_id(
+            source.manifest.id
+        )
+        resolved_name = str(name or "").strip()
+        if not resolved_name:
+            resolved_name = f"{source.manifest.name} copy"[:160].strip()
+        return self.import_bundle(
+            f"{source.manifest.id}.zip",
+            self.export_bundle(source.manifest.id),
+            manifest_overrides={"id": resolved_id, "name": resolved_name},
+        )
+
+    def export_bundle(self, template_id: str) -> bytes:
+        """Return a portable ZIP bundle that can be imported by this registry."""
+        template = self.get(template_id)
+        template_dir = self._template_storage_dir(template)
+        manifest = template.manifest
+        workflow_name = Path(manifest.workflow).name
+        manifest_payload = manifest.model_dump(mode="json")
+        manifest_payload["workflow"] = workflow_name
+
+        preview_name: str | None = None
+        preview_data: bytes | None = None
+        if manifest.preview:
+            preview_name = Path(manifest.preview).name
+            if preview_name != manifest.preview:
+                raise WorkflowTemplateError(
+                    "Workflow preview path is invalid.",
+                    code="invalid_template_preview",
+                )
+            try:
+                preview_data = (template_dir / preview_name).read_bytes()
+            except OSError as exc:
+                raise WorkflowTemplateError(
+                    f"Cannot read workflow preview for '{manifest.id}': {exc}",
+                    code="invalid_template_preview",
+                ) from exc
+            if len(preview_data) > MAX_TEMPLATE_FILE_BYTES:
+                raise WorkflowTemplateError(
+                    f"Template preview '{preview_name}' exceeds the 10 MB limit.",
+                    code="template_file_too_large",
+                )
+
+        json_options = {"ensure_ascii": False, "indent": 2}
+        manifest_data = (json.dumps(manifest_payload, **json_options) + "\n").encode("utf-8")
+        workflow_data = (json.dumps(template.workflow, **json_options) + "\n").encode("utf-8")
+        for filename, data in (
+            ("manifest.json", manifest_data),
+            (workflow_name, workflow_data),
+        ):
+            if len(data) > MAX_TEMPLATE_FILE_BYTES:
+                raise WorkflowTemplateError(
+                    f"Template file '{filename}' exceeds the 10 MB limit.",
+                    code="template_file_too_large",
+                )
+
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("manifest.json", manifest_data)
+            archive.writestr(workflow_name, workflow_data)
+            if preview_name is not None and preview_data is not None:
+                archive.writestr(preview_name, preview_data)
+        bundle = output.getvalue()
+        if len(bundle) > MAX_TEMPLATE_BUNDLE_BYTES:
+            raise WorkflowTemplateError(
+                "Exported template bundle exceeds the 20 MB limit.",
+                code="template_bundle_too_large",
+            )
+        return bundle
+
+    def _available_copy_id(self, template_id: str) -> str:
+        known_ids = {template.manifest.id for template in self.list_templates()}
+        stem = f"{template_id}-copy"
+        index = 1
+        while True:
+            suffix = "" if index == 1 else f"-{index}"
+            candidate = f"{stem[:80 - len(suffix)]}{suffix}"
+            target_exists = (self.user_root / candidate).exists() if self.user_root else False
+            if candidate not in known_ids and not target_exists:
+                return candidate
+            index += 1
+
+    def _template_storage_dir(self, template: WorkflowTemplate) -> Path:
+        root = self.user_root if template.source == "user" else self.builtin_root
+        if root is not None and root.is_dir():
+            for manifest_path in sorted(root.glob("*/manifest.json")):
+                try:
+                    candidate = self._load_from_manifest(
+                        manifest_path,
+                        source=template.source,
+                    )
+                except WorkflowTemplateError:
+                    continue
+                if candidate.manifest.id == template.manifest.id:
+                    return manifest_path.parent
+        raise WorkflowTemplateError(
+            f"Workflow template '{template.manifest.id}' was not found.",
+            code="template_not_found",
+        )
+
     def analyze_registered_mapping(
         self,
         template_id: str,

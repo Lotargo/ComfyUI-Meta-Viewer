@@ -257,13 +257,13 @@
 - [x] Переименование и изменение description.
 - [x] Повторное открытие mapping wizard.
 - [x] Revalidate against current ComfyUI.
-- [ ] Duplicate.
-- [ ] Export.
+- [x] Duplicate.
+- [x] Export.
 - [x] Delete imported template.
-- [ ] Restore built-in template.
+- [x] Restore built-in template не требуется: built-in templates read-only, не удаляются и не могут быть перекрыты user template с тем же ID.
 - [x] Удаление template не затрагивает models, nodes и ComfyUI files.
 
-Для imported workflows mapping wizard повторно открывается из management table с восстановленными sampler/prompt/output selections, manual model roles и field visibility. Preview не изменяет сохранённый manifest; apply атомарно заменяет semantic contract, повышает patch-version и сбрасывает runtime validation до явного revalidate.
+Для imported workflows mapping wizard повторно открывается из management table с восстановленными sampler/prompt/output selections, manual model roles и field visibility. Preview не изменяет сохранённый manifest; apply атомарно заменяет semantic contract, повышает patch-version и сбрасывает runtime validation до явного revalidate. Любой валидный built-in или imported workflow можно дублировать в независимый user template с уникальным ID и экспортировать в переносимый ZIP bundle, который проходит обычный import round-trip.
 
 **Gate:** Task 09 не закрывается без удобного управления импортированными templates и повторной проверки после изменений ComfyUI.
 

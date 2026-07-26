@@ -2642,7 +2642,7 @@ function renderWorkflowRegistry() {
         const valid = validation.status !== 'invalid';
         const editable = workflow.source === 'user' && valid;
         const removable = workflow.source === 'user';
-        return `<tr data-workflow-id="${escapeHtml(workflow.id)}"><td><strong>${escapeHtml(workflow.name)}</strong><small>${escapeHtml(workflow.description || workflow.id)}</small></td><td>${escapeHtml(workflow.category)} · ${escapeHtml(workflow.media_type)}</td><td>${escapeHtml((workflow.ecosystems || []).join(', ') || 'Unknown')}</td><td>${escapeHtml(workflow.loader_family)}</td><td>${escapeHtml(workflow.source === 'user' ? 'Imported' : 'Built-in')}</td><td><span class="workflow-status-badge ${escapeHtml(validation.status)}">${escapeHtml(workflowStatusLabel(validation.status))}</span><small title="${escapeHtml(validation.reason)}">${escapeHtml(validation.reason)}</small></td><td>${escapeHtml(formatValidationDate(validation.last_validated_at))}<small>${validation.inventory_fingerprint ? `Inventory ${escapeHtml(validation.inventory_fingerprint.slice(0, 8))}` : 'No inventory fingerprint'}</small></td><td>Schema ${escapeHtml(workflow.manifest_version)}<small>Template ${escapeHtml(workflow.template_version)}</small></td><td><span class="workflow-management-actions"><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="open"${valid ? '' : ' disabled'}>Open</button><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="revalidate"${valid ? '' : ' disabled'}>Check</button>${editable ? '<button class="btn btn-ghost btn-sm" type="button" data-workflow-action="remap">Map</button><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="edit">Edit</button>' : ''}${removable ? '<button class="btn btn-danger btn-sm" type="button" data-workflow-action="delete">Delete</button>' : ''}</span></td></tr>`;
+        return `<tr data-workflow-id="${escapeHtml(workflow.id)}"><td><strong>${escapeHtml(workflow.name)}</strong><small>${escapeHtml(workflow.description || workflow.id)}</small></td><td>${escapeHtml(workflow.category)} · ${escapeHtml(workflow.media_type)}</td><td>${escapeHtml((workflow.ecosystems || []).join(', ') || 'Unknown')}</td><td>${escapeHtml(workflow.loader_family)}</td><td>${escapeHtml(workflow.source === 'user' ? 'Imported' : 'Built-in')}</td><td><span class="workflow-status-badge ${escapeHtml(validation.status)}">${escapeHtml(workflowStatusLabel(validation.status))}</span><small title="${escapeHtml(validation.reason)}">${escapeHtml(validation.reason)}</small></td><td>${escapeHtml(formatValidationDate(validation.last_validated_at))}<small>${validation.inventory_fingerprint ? `Inventory ${escapeHtml(validation.inventory_fingerprint.slice(0, 8))}` : 'No inventory fingerprint'}</small></td><td>Schema ${escapeHtml(workflow.manifest_version)}<small>Template ${escapeHtml(workflow.template_version)}</small></td><td><span class="workflow-management-actions"><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="open"${valid ? '' : ' disabled'}>Open</button><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="revalidate"${valid ? '' : ' disabled'}>Check</button>${valid ? '<button class="btn btn-ghost btn-sm" type="button" data-workflow-action="duplicate">Duplicate</button><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="export">Export</button>' : ''}${editable ? '<button class="btn btn-ghost btn-sm" type="button" data-workflow-action="remap">Map</button><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="edit">Edit</button>' : ''}${removable ? '<button class="btn btn-danger btn-sm" type="button" data-workflow-action="delete">Delete</button>' : ''}</span></td></tr>`;
     }).join('');
     elements.workflowManageEmpty.hidden = workflows.length > 0;
 }
@@ -2821,6 +2821,45 @@ async function deleteManagedWorkflow(templateId) {
     }
 }
 
+async function duplicateManagedWorkflow(templateId) {
+    const workflow = state.workflows.find((item) => item.id === templateId);
+    if (!workflow || workflow.validation?.status === 'invalid') return;
+    try {
+        const template = await requestJson(`/api/editor/templates/${encodeURIComponent(templateId)}/duplicate`, {
+            method: 'POST',
+        });
+        await refreshTemplates();
+        await loadWorkflowRegistry();
+        openWorkflowMetadata(template.manifest.id);
+        showToast(`Created ${template.manifest.name}.`, 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+async function exportManagedWorkflow(templateId) {
+    const workflow = state.workflows.find((item) => item.id === templateId);
+    if (!workflow || workflow.validation?.status === 'invalid') return;
+    try {
+        const response = await fetch(`/api/editor/templates/${encodeURIComponent(templateId)}/export`);
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || `Export failed (${response.status})`);
+        }
+        const blobUrl = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = `${templateId}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(blobUrl);
+        showToast(`Exported ${workflow.name}.`, 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
 function handleWorkflowManagementAction(event) {
     const button = event.target.closest('[data-workflow-action]');
     const row = button?.closest('[data-workflow-id]');
@@ -2838,6 +2877,10 @@ function handleWorkflowManagementAction(event) {
         openWorkflowMetadata(templateId);
     } else if (button.dataset.workflowAction === 'remap') {
         openWorkflowRemap(templateId);
+    } else if (button.dataset.workflowAction === 'duplicate') {
+        duplicateManagedWorkflow(templateId);
+    } else if (button.dataset.workflowAction === 'export') {
+        exportManagedWorkflow(templateId);
     } else if (button.dataset.workflowAction === 'delete') {
         deleteManagedWorkflow(templateId);
     }

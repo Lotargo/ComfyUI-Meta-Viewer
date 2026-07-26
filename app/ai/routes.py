@@ -29,7 +29,14 @@ from .reconstruction import (
     SceneAnalysisService,
 )
 from .remix import RemixError, RemixPromptSource, RemixRequest, RemixService
-from .resources import CapabilityResolver, ModelResource, ModelResourceCatalog, ResourceType
+from .resources import (
+    CapabilityResolver,
+    ModelEcosystem,
+    ModelResource,
+    ModelResourceCatalog,
+    ModelResourceError,
+    ResourceType,
+)
 from .secrets import SecretStoreError
 from .transport import AIProviderRequestError, test_profile
 from .translation import PromptText, PromptTranslationError, PromptTranslationService
@@ -427,6 +434,10 @@ def ai_adapt():
 
     target_family = payload.get("target_family", PromptFamily.FLUX)
     checkpoint_profile = payload.get("checkpoint_profile")
+    checkpoint_resource = _adaptation_checkpoint_resource(
+        payload.get("checkpoint_resource_hash"),
+        target_family=target_family,
+    )
 
     service = PromptAdaptationService()
     outcome = service.adapt(
@@ -435,6 +446,7 @@ def ai_adapt():
         source=source,
         target_family=target_family,
         checkpoint_profile=checkpoint_profile,
+        checkpoint_resource=checkpoint_resource,
         api_key=profile_store.resolve_api_key(profile),
         asset_id=payload.get("asset_id"),
     )
@@ -452,6 +464,57 @@ def ai_adapt():
         ).model_dump(mode="json"),
         "adaptation": outcome.adaptation.model_dump(mode="json"),
     }), 201
+
+
+def _adaptation_checkpoint_resource(
+    content_hash: object,
+    *,
+    target_family: PromptFamily | str,
+) -> ModelResource | None:
+    if content_hash is None or content_hash == "":
+        return None
+    if not isinstance(content_hash, str):
+        raise PromptAdaptationError(
+            "checkpoint_resource_hash must be a model resource identity.",
+            code="invalid_checkpoint_resource",
+        )
+    try:
+        family = PromptFamily(target_family)
+    except ValueError as exc:
+        raise PromptAdaptationError(
+            "target_family must be one of: flux, sdxl, pony.",
+            code="invalid_target_family",
+        ) from exc
+    try:
+        resource = ModelResourceCatalog().get_by_hash(content_hash.strip())
+    except ModelResourceError as exc:
+        raise PromptAdaptationError(
+            "The selected checkpoint resource is unavailable.",
+            code="invalid_checkpoint_resource",
+        ) from exc
+    if resource.resource_type is not ResourceType.CHECKPOINT or not resource.is_available:
+        raise PromptAdaptationError(
+            "The selected model resource is not an available checkpoint.",
+            code="invalid_checkpoint_resource",
+        )
+    compatible_architectures = {
+        PromptFamily.FLUX: {ModelEcosystem.FLUX_1, ModelEcosystem.OTHER},
+        PromptFamily.SDXL: {
+            ModelEcosystem.SDXL,
+            ModelEcosystem.ILLUSTRIOUS,
+            ModelEcosystem.OTHER,
+        },
+        PromptFamily.PONY: {ModelEcosystem.PONY, ModelEcosystem.OTHER},
+    }
+    if (
+        resource.architecture not in compatible_architectures[family]
+        and resource.prompt_family != family.value
+    ):
+        raise PromptAdaptationError(
+            "The selected checkpoint does not match the target prompt family.",
+            code="incompatible_checkpoint_resource",
+        )
+    return resource
 
 
 @ai_blueprint.route("/api/ai/reconstruct", methods=["POST"])

@@ -87,8 +87,8 @@
 - [ ] [06A. Prompt profile and agent execution architecture](ai/06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md)  
   **Implemented; product integration pending.** Compiler, contracts, persistence и adapters существуют, но должны быть замкнуты на editor drafts и проверены одинаковым PromptTask через direct и agent-host execution.
 
-- [ ] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)  
-  **Active integration phase.** Generate, отдельный Translate, family-aware Adapt, Reconstruct через persisted editable SceneSpec и Remix с выбором source/workflow создают связанные editor drafts без автоматического запуска. OpenCode vision analysis, render из сохранённого SceneSpec и Remix через реальный Windows Portable ComfyUI проверены; далее остаются checkpoint trigger verification и опциональный AI rating.
+- [ ] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)
+  **Active integration phase.** Generate, отдельный Translate, family-aware Adapt, Reconstruct через persisted editable SceneSpec и Remix с выбором source/workflow создают связанные editor drafts без автоматического запуска. OpenCode vision analysis, render из сохранённого SceneSpec, checkpoint trigger preservation и Remix через реальный Windows Portable ComfyUI проверены; далее остаётся опциональный AI rating.
 
 ### ComfyUI
 

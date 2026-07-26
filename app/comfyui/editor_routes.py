@@ -196,7 +196,7 @@ def _resource_options(
     inventory: RuntimeInventory,
     *,
     catalog: ModelResourceCatalog | None = None,
-) -> dict[str, list[dict[str, str]]]:
+) -> dict[str, list[dict[str, Any]]]:
     catalog_resources: dict[tuple[str, str], Any] = {}
     if catalog is not None:
         try:
@@ -206,9 +206,9 @@ def _resource_options(
             }
         except Exception:
             catalog_resources = {}
-    output: dict[str, list[dict[str, str]]] = {}
+    output: dict[str, list[dict[str, Any]]] = {}
     for slot_id, slot in template.manifest.resource_slots.items():
-        options: dict[str, dict[str, str]] = {}
+        options: dict[str, dict[str, Any]] = {}
         for resource_type in slot.accepts:
             for folder in RESOURCE_MODEL_FOLDERS.get(resource_type, ()):
                 for name in inventory.models.get(folder, []):
@@ -227,7 +227,12 @@ def _resource_options(
                             resource=resource,
                         )
                         option.update({
+                            "content_hash": resource.content_hash,
+                            "display_name": resource.display_name,
                             "architecture": resource.architecture.value,
+                            "prompt_family": resource.prompt_family,
+                            "metadata_source": resource.metadata_source,
+                            "trigger_words": list(resource.trigger_words),
                             "compatibility_status": (
                                 issue.status.value
                                 if issue is not None

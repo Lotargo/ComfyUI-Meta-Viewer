@@ -87,6 +87,13 @@ output. The draft API joins that immutable revision with its job context, so fam
 scenario, backend, provider profile, model, output contract, and technical status remain available
 after an application restart.
 
+Adaptation can additionally bind the selected catalogued checkpoint by content identity. Trigger
+words are trusted only when they come from that server-side resource record and already occur in the
+source positive prompt. The Adapt operation request tells the backend to preserve those exact
+tokens, and a normalized result transformer restores any omitted protected trigger before the
+result and draft are persisted. This guard never inserts catalog triggers that were absent from the
+source.
+
 ## Native agent-host packages
 
 `PromptSkillExporter` can generate packages for OpenCode, Claude Code, Antigravity, and Codex.

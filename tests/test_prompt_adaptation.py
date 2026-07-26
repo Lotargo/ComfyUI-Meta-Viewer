@@ -23,6 +23,7 @@ from app.ai.prompting import (
     PromptScenario,
     PromptTask,
 )
+from app.ai.resources import ModelEcosystem, ModelResource, ResourceType
 from app.ai.translation import PromptText
 
 
@@ -102,6 +103,41 @@ class PromptAdaptationTest(unittest.TestCase):
                 source=PromptText(positive_prompt="portrait"),
                 target_family="unknown-family",
             )
+
+    def test_adapt_restores_only_trusted_checkpoint_triggers_present_in_source(self) -> None:
+        checkpoint = ModelResource(
+            content_hash="pony-checkpoint-trigger-1",
+            file_path="models/pony-photo.safetensors",
+            resource_type=ResourceType.CHECKPOINT,
+            architecture=ModelEcosystem.PONY,
+            prompt_family="pony",
+            display_name="Pony Photo",
+            metadata_source="manual",
+            trigger_words=["ohwx style", "unused trigger"],
+        )
+        source = PromptText(
+            positive_prompt="Portrait of a ranger in OHWX Style under neon rain",
+            negative_prompt="ugly",
+        )
+
+        outcome = self.service.adapt(
+            profile={"kind": "adaptation-test"},
+            task=self.task,
+            source=source,
+            target_family=PromptFamily.PONY,
+            checkpoint_resource=checkpoint,
+        )
+
+        self.assertEqual(outcome.adaptation.protected_triggers, ("OHWX Style",))
+        self.assertIn("OHWX Style", outcome.adaptation.adapted.positive_prompt)
+        self.assertNotIn("unused trigger", outcome.adaptation.adapted.positive_prompt)
+        self.assertIn(
+            'PROTECTED CHECKPOINT TRIGGERS PRESENT IN SOURCE\n["OHWX Style"]',
+            self.adapter.prepared.user_input,
+        )
+        restored = self.store.get(outcome.execution.job_id)
+        self.assertEqual(restored.schema_version, "2")
+        self.assertEqual(restored.protected_triggers, ("OHWX Style",))
 
 
 if __name__ == "__main__":

@@ -1141,6 +1141,7 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertIn('id="template-manifest-preview"', html)
         self.assertIn('id="workflow-management-dialog"', html)
         self.assertIn('id="workflow-management-body"', html)
+        self.assertIn('id="adapt-checkpoint-note"', html)
         self.assertIn('id="run-diagnostic"', html)
         self.assertIn('id="run-diagnostic-raw"', html)
         self.assertIn("Check dependencies and preview graph", html)
@@ -1460,6 +1461,8 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
             resource_type=ResourceType.CHECKPOINT,
             architecture=ModelEcosystem.FLUX_1,
             display_name="Flux checkpoint in checkpoint folder",
+            metadata_source="manual",
+            trigger_words=["fluxPhotoTrigger"],
             technical_status=CompatibilityStatus.INCOMPATIBLE,
             restriction_reason="This checkpoint requires a separate-components Flux workflow.",
         ))
@@ -1470,6 +1473,9 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
             for item in bootstrap.get_json()["templates"]
         }
         option = templates["core-image"]["resource_options"]["checkpoint"][0]
+        self.assertEqual(option["content_hash"], "flux-checkpoint-123")
+        self.assertEqual(option["trigger_words"], ["fluxPhotoTrigger"])
+        self.assertEqual(option["metadata_source"], "manual")
         self.assertEqual(option["compatibility_status"], "incompatible")
         self.assertEqual(
             option["compatibility_reason"],

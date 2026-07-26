@@ -264,9 +264,10 @@ def init_db() -> None:
 
             CREATE TABLE IF NOT EXISTS ai_prompt_adaptations (
                 job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
-                schema_version TEXT NOT NULL DEFAULT '1',
+                schema_version TEXT NOT NULL DEFAULT '2',
                 target_family TEXT NOT NULL,
                 checkpoint_profile TEXT,
+                protected_triggers_json TEXT NOT NULL DEFAULT '[]',
                 source_positive_prompt TEXT NOT NULL,
                 source_negative_prompt TEXT NOT NULL DEFAULT '',
                 adapted_positive_prompt TEXT NOT NULL,
@@ -398,6 +399,7 @@ def init_db() -> None:
             "ALTER TABLE ai_prompt_drafts ADD COLUMN source_payload_json TEXT NOT NULL DEFAULT '{}'",
             "ALTER TABLE ai_prompt_drafts ADD COLUMN updated_at TEXT",
             "ALTER TABLE images ADD COLUMN derived_from_asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL",
+            "ALTER TABLE ai_prompt_adaptations ADD COLUMN protected_triggers_json TEXT NOT NULL DEFAULT '[]'",
         )
         for migration in migrations:
             try:

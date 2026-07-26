@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from ..job_store import (
     AIJobStore,
@@ -13,6 +13,7 @@ from ..prompting import (
     PromptCompiler,
     PromptCompilerError,
     PromptOperation,
+    PromptResult,
     PromptTask,
     SceneSpec,
 )
@@ -79,6 +80,7 @@ class ExecutionRouter:
         image_path: str | Path | None = None,
         asset_id: int | None = None,
         scene_spec: SceneSpec | None = None,
+        result_transformer: Callable[[PromptResult], PromptResult] | None = None,
     ) -> PromptExecutionOutcome:
         adapter = self._select_adapter(profile)
         normalized_path = Path(image_path) if image_path is not None else None
@@ -156,13 +158,27 @@ class ExecutionRouter:
                 technical_error=technical_error,
             ) from exc
 
+        result = executed.result
+        if result_transformer is not None:
+            try:
+                result = PromptResult.model_validate(result_transformer(result))
+            except Exception as exc:
+                self._record_failure(job.id, str(exc))
+                raise ExecutionRouterError(
+                    "The normalized model result could not be finalized.",
+                    code="result_transform_error",
+                    stage="contract",
+                    job_id=job.id,
+                    technical_error=str(exc),
+                ) from exc
+
         try:
             self.job_store.save_draft(
                 job.id,
                 PromptDraft(
-                    schema_version=executed.result.schema_version,
-                    positive_prompt=executed.result.positive_prompt,
-                    negative_prompt=executed.result.negative_prompt,
+                    schema_version=result.schema_version,
+                    positive_prompt=result.positive_prompt,
+                    negative_prompt=result.negative_prompt,
                     source_kind=self._draft_source_kind(
                         task=task,
                         asset_id=asset_id,
@@ -183,7 +199,7 @@ class ExecutionRouter:
             )
             snapshot = persist_result(
                 job.id,
-                result=executed.result,
+                result=result,
                 execution_metadata=executed.metadata,
                 bundle=executed.bundle,
             )
@@ -200,7 +216,7 @@ class ExecutionRouter:
         return PromptExecutionOutcome(
             job_id=snapshot.job.id,
             adapter_id=adapter.adapter_id,
-            result=executed.result,
+            result=result,
             bundle=executed.bundle,
             metadata=executed.metadata,
         )

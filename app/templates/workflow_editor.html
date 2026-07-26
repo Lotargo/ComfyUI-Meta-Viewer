@@ -424,7 +424,7 @@
                 <label class="ai-prompt-source"><span>Source negative prompt</span><textarea id="adapt-prompt-negative" rows="3" maxlength="20000" placeholder="Optional"></textarea></label>
                 <label><span>Target prompt family</span><select id="adapt-prompt-family" required></select></label>
                 <label><span>Scenario</span><select id="adapt-prompt-scenario" required></select></label>
-                <label><span>Checkpoint profile</span><input id="adapt-checkpoint-profile" type="text" maxlength="120" placeholder="Optional tested profile"><small>Use a known capability profile when the checkpoint needs special prompt rules.</small></label>
+                <label><span>Checkpoint profile</span><input id="adapt-checkpoint-profile" type="text" maxlength="120" placeholder="Optional tested profile"><small id="adapt-checkpoint-note">Use a known capability profile when the checkpoint needs special prompt rules.</small></label>
                 <label class="ai-prompt-profile"><span>Execution profile</span><select id="adapt-prompt-profile" required></select><small id="adapt-profile-note">Profiles are configured on the AI settings page.</small></label>
             </div>
             <div class="dialog-footer"><button class="btn btn-secondary" value="cancel">Cancel</button><button id="adapt-prompt-submit" class="btn btn-primary" type="submit">Adapt to draft</button></div>

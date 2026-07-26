@@ -135,6 +135,7 @@ const elements = {
     adaptPromptFamily: byId('adapt-prompt-family'),
     adaptPromptScenario: byId('adapt-prompt-scenario'),
     adaptCheckpointProfile: byId('adapt-checkpoint-profile'),
+    adaptCheckpointNote: byId('adapt-checkpoint-note'),
     adaptPromptProfile: byId('adapt-prompt-profile'),
     adaptProfileNote: byId('adapt-profile-note'),
     adaptPromptSubmit: byId('adapt-prompt-submit'),
@@ -1567,9 +1568,12 @@ function openPromptProvenance() {
         const checkpoint = adaptation.checkpoint_profile
             ? ` · ${adaptation.checkpoint_profile}`
             : '';
+        const triggers = adaptation.protected_triggers?.length
+            ? ` · protected: ${adaptation.protected_triggers.join(', ')}`
+            : '';
         elements.promptProvenanceKicker.textContent = 'Saved family adaptation';
         elements.promptProvenanceTitle.textContent = 'Source and adapted prompt';
-        elements.promptProvenanceSummary.textContent = `Target: ${adaptation.target_family.toUpperCase()}${checkpoint}`;
+        elements.promptProvenanceSummary.textContent = `Target: ${adaptation.target_family.toUpperCase()}${checkpoint}${triggers}`;
         elements.promptResultLabel.textContent = 'Adaptation';
     }
     elements.promptSourcePositive.textContent = provenance.source.positive_prompt;
@@ -1871,6 +1875,7 @@ async function openAdaptPromptDialog() {
             state.values.negative_prompt || state.advancedFieldMemory.negative_prompt || '',
         );
         elements.adaptCheckpointProfile.value = '';
+        renderAdaptCheckpointNote();
         renderAdaptationScenarios();
         elements.adaptPromptDialog.showModal();
         elements.adaptPromptPositive.focus();
@@ -1879,6 +1884,35 @@ async function openAdaptPromptDialog() {
     } finally {
         elements.adaptPromptOpen.disabled = false;
     }
+}
+
+function selectedAdaptCheckpointResource() {
+    const slots = currentManifest()?.resource_slots || {};
+    for (const [slotId, slot] of Object.entries(slots)) {
+        if (!(slot.accepts || []).includes('checkpoint')) continue;
+        const selectedName = state.resources[slotId];
+        if (!selectedName || Array.isArray(selectedName)) continue;
+        const option = (state.selected.resource_options?.[slotId] || [])
+            .find((item) => item.name === selectedName);
+        if (option) return option;
+    }
+    return null;
+}
+
+function renderAdaptCheckpointNote() {
+    const resource = selectedAdaptCheckpointResource();
+    if (!resource) {
+        elements.adaptCheckpointNote.textContent = 'No catalogued checkpoint is selected; only the optional tested profile will guide adaptation.';
+        return;
+    }
+    const source = elements.adaptPromptPositive.value.toLocaleLowerCase();
+    const present = (resource.trigger_words || []).filter((trigger) => (
+        source.includes(String(trigger).toLocaleLowerCase())
+    ));
+    const name = resource.display_name || friendlyResourceName(resource.name);
+    elements.adaptCheckpointNote.textContent = present.length
+        ? `${name}: protected source triggers — ${present.join(', ')}.`
+        : `${name}: no trusted catalog triggers were found in the source prompt.`;
 }
 
 async function createAdaptedPromptDraft(event) {
@@ -1891,6 +1925,7 @@ async function createAdaptedPromptDraft(event) {
     elements.adaptPromptSubmit.disabled = true;
     elements.adaptPromptSubmit.textContent = 'Adapting…';
     try {
+        const checkpointResource = selectedAdaptCheckpointResource();
         const adapted = await requestJson('/api/ai/adapt', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1898,6 +1933,7 @@ async function createAdaptedPromptDraft(event) {
                 profile_id: elements.adaptPromptProfile.value,
                 target_family: elements.adaptPromptFamily.value,
                 checkpoint_profile: elements.adaptCheckpointProfile.value.trim() || null,
+                checkpoint_resource_hash: checkpointResource?.content_hash || null,
                 source: {
                     positive_prompt: positivePrompt,
                     negative_prompt: elements.adaptPromptNegative.value.trim(),
@@ -3180,6 +3216,7 @@ function bindEvents() {
     elements.adaptPromptOpen.addEventListener('click', openAdaptPromptDialog);
     elements.adaptPromptFamily.addEventListener('change', renderAdaptationScenarios);
     elements.adaptPromptProfile.addEventListener('change', renderAdaptationScenarios);
+    elements.adaptPromptPositive.addEventListener('input', renderAdaptCheckpointNote);
     elements.adaptPromptForm.addEventListener('submit', createAdaptedPromptDraft);
     elements.reconstructPromptOpen.addEventListener('click', openReconstructPromptDialog);
     elements.reconstructPromptFamily.addEventListener('change', renderReconstructionScenarios);

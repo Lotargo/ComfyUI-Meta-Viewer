@@ -145,6 +145,8 @@ Metadata извлекаются локально из структуры ComfyUI
 
 Trigger words показываются как metadata/chips с явным добавлением в prompt. Приложение не должно незаметно дублировать их при каждом открытии draft. Базовый strength может управлять общим весом, а отдельные `strength_model` и `strength_clip`, если их поддерживает binding, относятся к расширенным настройкам.
 
+При Adapt выбранный checkpoint связывается с catalog record по content identity. Trigger считается trusted только при наличии в server-side metadata этого checkpoint и защищается только если уже присутствует в source positive prompt. Instruction contract требует сохранить точное написание, а normalized-result guard восстанавливает пропущенный backend token до persistence. Trigger words из metadata, которых не было в source, автоматически не добавляются. Реальный OpenCode Adapt job `13` от 27 июля 2026 года подтвердил сохранение одного присутствующего trigger и отсутствие инъекции второго catalog trigger.
+
 Workflow template описывает поддерживаемые resource slots и способ их привязки, но не закрытый список конкретных checkpoint и LoRA. Подробный контракт slots, generic graph binding и исключения для неоднозначных workflows определяются в задании 09.
 
 Полезные ориентиры, которые необходимо перепроверить перед реализацией, поскольку внешние продукты меняются:

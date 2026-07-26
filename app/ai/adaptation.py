@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from typing import Any, Literal
 
 from .. import database
 from .execution.base import PromptExecutionOutcome
 from .execution.router import ExecutionRouter
-from .prompting import PromptFamily, PromptOperation, PromptTask
+from .prompting import PromptFamily, PromptOperation, PromptResult, PromptTask
 from .prompting.models import StrictModel
+from .resources import ModelResource
 from .translation import PromptText
 
 
@@ -19,10 +21,11 @@ class PromptAdaptationError(RuntimeError):
 
 
 class PromptAdaptation(StrictModel):
-    schema_version: Literal["1"] = "1"
+    schema_version: Literal["1", "2"] = "2"
     job_id: int
     target_family: PromptFamily
     checkpoint_profile: str | None = None
+    protected_triggers: tuple[str, ...] = ()
     source: PromptText
     adapted: PromptText
     created_at: str
@@ -42,6 +45,7 @@ class PromptAdaptationStore:
         adapted: PromptText,
         target_family: PromptFamily,
         checkpoint_profile: str | None = None,
+        protected_triggers: tuple[str, ...] = (),
     ) -> PromptAdaptation:
         conn = database.get_conn()
         try:
@@ -72,13 +76,15 @@ class PromptAdaptationStore:
             conn.execute(
                 """INSERT INTO ai_prompt_adaptations (
                     job_id, schema_version, target_family, checkpoint_profile,
+                    protected_triggers_json,
                     source_positive_prompt, source_negative_prompt,
                     adapted_positive_prompt, adapted_negative_prompt
-                ) VALUES (?, '1', ?, ?, ?, ?, ?, ?)""",
+                ) VALUES (?, '2', ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     job_id,
                     target_family.value,
                     checkpoint_profile,
+                    json.dumps(protected_triggers, ensure_ascii=False),
                     source.positive_prompt,
                     source.negative_prompt,
                     adapted.positive_prompt,
@@ -86,7 +92,7 @@ class PromptAdaptationStore:
                 ),
             )
             conn.commit()
-        except sqlite3.IntegrityError as exc:
+        except sqlite3.Error as exc:
             conn.rollback()
             raise PromptAdaptationError(
                 f"Cannot save prompt adaptation: {exc}",
@@ -114,6 +120,7 @@ class PromptAdaptationStore:
             job_id=row["job_id"],
             target_family=row["target_family"],
             checkpoint_profile=row["checkpoint_profile"],
+            protected_triggers=self._decode_triggers(row["protected_triggers_json"]),
             source=PromptText(
                 positive_prompt=row["source_positive_prompt"],
                 negative_prompt=row["source_negative_prompt"],
@@ -124,6 +131,16 @@ class PromptAdaptationStore:
             ),
             created_at=row["created_at"],
         )
+
+    @staticmethod
+    def _decode_triggers(payload: str | None) -> tuple[str, ...]:
+        try:
+            values = json.loads(payload or "[]")
+        except (json.JSONDecodeError, TypeError):
+            return ()
+        if not isinstance(values, list):
+            return ()
+        return tuple(str(value) for value in values if str(value).strip())
 
 
 class PromptAdaptationService:
@@ -146,6 +163,7 @@ class PromptAdaptationService:
         source: PromptText,
         target_family: PromptFamily | str,
         checkpoint_profile: str | None = None,
+        checkpoint_resource: ModelResource | None = None,
         api_key: str | None = None,
         asset_id: int | None = None,
     ) -> PromptAdaptationOutcome:
@@ -170,10 +188,17 @@ class PromptAdaptationService:
                 "checkpoint_profile": checkpoint_profile or task.checkpoint_profile,
             }
         )
+        protected_triggers = self._protected_triggers(
+            source.positive_prompt,
+            checkpoint_resource.trigger_words if checkpoint_resource is not None else (),
+        )
 
         user_input = (
             f"TARGET FAMILY PROFILE\n{family_enum.value}\n\n"
-            f"CHECKPOINT PROFILE\n{checkpoint_profile or 'default'}\n\n"
+            f"CHECKPOINT PROFILE\n{adapted_task.checkpoint_profile or 'default'}\n\n"
+            "PROTECTED CHECKPOINT TRIGGERS PRESENT IN SOURCE\n"
+            + json.dumps(protected_triggers, ensure_ascii=False)
+            + "\nPreserve every listed trigger exactly. Do not add unlisted checkpoint triggers.\n\n"
             f"SOURCE PROMPT JSON\n"
             + json.dumps(source.model_dump(mode="json"), ensure_ascii=False)
         )
@@ -184,6 +209,10 @@ class PromptAdaptationService:
             user_input=user_input,
             api_key=api_key,
             asset_id=asset_id,
+            result_transformer=lambda result: self._restore_protected_triggers(
+                result,
+                protected_triggers,
+            ),
         )
 
         adapted_prompt = PromptText(
@@ -197,12 +226,55 @@ class PromptAdaptationService:
             adapted=adapted_prompt,
             target_family=family_enum,
             checkpoint_profile=adapted_task.checkpoint_profile,
+            protected_triggers=protected_triggers,
         )
 
         return PromptAdaptationOutcome(
             execution=execution,
             adaptation=adaptation,
         )
+
+    @classmethod
+    def _protected_triggers(
+        cls,
+        source_prompt: str,
+        trusted_triggers: tuple[str, ...] | list[str],
+    ) -> tuple[str, ...]:
+        protected: list[str] = []
+        seen: set[str] = set()
+        for raw_trigger in trusted_triggers:
+            trigger = str(raw_trigger).strip()
+            if not trigger or trigger.casefold() in seen:
+                continue
+            match = cls._trigger_pattern(trigger).search(source_prompt)
+            if match is not None:
+                protected.append(match.group(0))
+                seen.add(trigger.casefold())
+        return tuple(protected)
+
+    @classmethod
+    def _restore_protected_triggers(
+        cls,
+        result: PromptResult,
+        protected_triggers: tuple[str, ...],
+    ) -> PromptResult:
+        missing = [
+            trigger
+            for trigger in protected_triggers
+            if cls._trigger_pattern(trigger).search(result.positive_prompt) is None
+        ]
+        if not missing:
+            return result
+        positive = result.positive_prompt.rstrip(" ,")
+        return result.model_copy(update={
+            "positive_prompt": ", ".join([positive, *missing]),
+        })
+
+    @staticmethod
+    def _trigger_pattern(trigger: str) -> re.Pattern[str]:
+        prefix = r"(?<!\w)" if trigger[0].isalnum() or trigger[0] == "_" else ""
+        suffix = r"(?!\w)" if trigger[-1].isalnum() or trigger[-1] == "_" else ""
+        return re.compile(f"{prefix}{re.escape(trigger)}{suffix}", re.IGNORECASE)
 
 
 __all__ = [

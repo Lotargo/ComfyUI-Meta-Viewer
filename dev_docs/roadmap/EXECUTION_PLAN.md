@@ -414,10 +414,12 @@
 
 - [x] Adapt является отдельной операцией.
 - [x] Target family выбирается явно или определяется compatible template.
-- [ ] Checkpoint-specific triggers не удаляются без причины.
+- [x] Checkpoint-specific triggers не удаляются без причины.
 - [x] Adapted result создаёт новую draft revision.
 
-Adapt вызывается из editor отдельным действием, использует сохранённый text profile, явно выбранные family/scenario и optional checkpoint profile. Source и adapted result хранятся в отдельном persistence contract, восстанавливаются при reload и открываются в сравнении; созданный workflow draft остаётся редактируемым и не запускает ComfyUI. Сохранность checkpoint-specific triggers остаётся предметом практического operation benchmark.
+Adapt вызывается из editor отдельным действием, использует сохранённый text profile, явно выбранные family/scenario и optional checkpoint profile. Source и adapted result хранятся в отдельном persistence contract, восстанавливаются при reload и открываются в сравнении; созданный workflow draft остаётся редактируемым и не запускает ComfyUI. Выбранный catalogued checkpoint передаётся по content identity: только его trusted triggers, уже присутствующие в source positive prompt, защищаются instruction contract и детерминированным normalized-result guard, а отсутствующие triggers не добавляются.
+
+**Runtime evidence (2026-07-27):** реальный сохранённый OpenCode text profile выполнил Flux Adapt job `13` с checkpoint profile `runtime-trigger-preservation-v1`. Source содержал trusted trigger `cmvTrigger77`, а второй catalog trigger `absentTrigger88` отсутствовал. Persisted adaptation schema v2 сохранила `protected_triggers=["cmvTrigger77"]`; итоговый prompt сохранил `cmvTrigger77` и не получил `absentTrigger88`.
 
 ## 6.5 Reconstruct from image
 

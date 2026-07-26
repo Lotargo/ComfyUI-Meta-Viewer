@@ -18,6 +18,7 @@ from app.ai.prompting import (
     SceneSpec,
 )
 from app.ai.reconstruction import SceneAnalysisOutcome
+from app.ai.resources import ModelEcosystem, ModelResource, ModelResourceCatalog, ResourceType
 from app.ai.translation import PromptText, PromptTranslationStore
 from app.main import app
 
@@ -558,6 +559,17 @@ class PromptDraftRoutesTest(unittest.TestCase):
                     adaptation=adaptation,
                 )
 
+        checkpoint = ModelResourceCatalog().register(ModelResource(
+            content_hash="pony-route-checkpoint-1",
+            file_path="pony-photo-v1.safetensors",
+            resource_type=ResourceType.CHECKPOINT,
+            architecture=ModelEcosystem.PONY,
+            prompt_family="pony",
+            display_name="Pony Photo v1",
+            metadata_source="manual",
+            trigger_words=["ponyPhotoTrigger"],
+        ))
+
         with (
             patch("app.ai.routes._store", return_value=StubProfileStore()),
             patch(
@@ -570,6 +582,7 @@ class PromptDraftRoutesTest(unittest.TestCase):
                 json={
                     "target_family": "pony",
                     "checkpoint_profile": "pony-photo-v1",
+                    "checkpoint_resource_hash": checkpoint.content_hash,
                     "source": {
                         "positive_prompt": "cinematic forest portrait",
                         "negative_prompt": "text, watermark",
@@ -592,6 +605,7 @@ class PromptDraftRoutesTest(unittest.TestCase):
             "cinematic forest portrait",
         )
         self.assertEqual(captured["api_key"], "server-side-adaptation-secret")
+        self.assertEqual(captured["checkpoint_resource"], checkpoint)
         self.assertNotIn("server-side-adaptation-secret", response.get_data(as_text=True))
 
         workflow = self.client.post(

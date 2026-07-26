@@ -741,6 +741,13 @@ Returns local diagnostics and cache statistics.
 
 ## AI Prompt Drafts
 
+`POST /api/ai/adapt` creates a family-aware prompt adaptation. In addition to `source`, `task`,
+`target_family`, and the optional tested `checkpoint_profile`, the editor sends
+`checkpoint_resource_hash` when the selected checkpoint exists in the local model catalog. Trusted
+catalog trigger words that are already present in the source prompt are protected across normalized
+execution and recorded in the adaptation as `protected_triggers`; catalog triggers absent from the
+source are not injected.
+
 `GET /api/ai/jobs/<job_id>` returns the durable job snapshot, including the current `SceneSpec`,
 all prompt draft revisions, the normalized result, and execution metadata.
 

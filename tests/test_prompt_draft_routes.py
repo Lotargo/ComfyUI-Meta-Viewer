@@ -15,7 +15,9 @@ from app.ai.prompting import (
     PromptScenario,
     PromptTask,
     PromptResult,
+    SceneSpec,
 )
+from app.ai.reconstruction import SceneAnalysisOutcome
 from app.ai.translation import PromptText, PromptTranslationStore
 from app.main import app
 
@@ -549,6 +551,222 @@ class PromptDraftRoutesTest(unittest.TestCase):
             conn.close()
         self.assertEqual(run_count, 0)
 
+    def test_reconstruct_analyzes_edits_and_rerenders_saved_scene_spec(self) -> None:
+        vision_profile = {
+            "id": "saved-vision",
+            "kind": "openai_compatible",
+            "name": "Saved vision",
+            "model": "vision-model",
+            "multimodal": True,
+        }
+        text_profile = {
+            "id": "saved-renderer",
+            "kind": "openai_compatible",
+            "name": "Saved renderer",
+            "model": "render-model",
+            "multimodal": False,
+        }
+        asset_id, _ = database.insert_upload_image(
+            "source.png",
+            b"\x89PNG\r\n\x1a\nsource-image",
+            False,
+        )
+        captured = {"analysis_calls": 0, "render_calls": 0}
+
+        class StubProfileStore:
+            @staticmethod
+            def list():
+                return {
+                    "profiles": [vision_profile, text_profile],
+                    "defaults": {
+                        "text_profile_id": text_profile["id"],
+                        "multimodal_profile_id": vision_profile["id"],
+                    },
+                }
+
+            @staticmethod
+            def get(profile_id):
+                return {
+                    vision_profile["id"]: vision_profile,
+                    text_profile["id"]: text_profile,
+                }[profile_id]
+
+            @staticmethod
+            def resolve_api_key(profile):
+                return f"secret-for-{profile['id']}"
+
+        class StubAnalysisService:
+            @staticmethod
+            def analyze(**kwargs):
+                captured["analysis_calls"] += 1
+                captured["analysis"] = kwargs
+                scene_spec = SceneSpec.model_validate({
+                    "recommended_scenario": "product_object",
+                    "subjects": [{
+                        "kind": "glass bottle",
+                        "position": "center",
+                        "attributes": {},
+                        "confidence": 0.98,
+                    }],
+                    "composition": {
+                        "shot": "product close-up",
+                        "camera_angle": "eye level",
+                        "background": "warm beige",
+                    },
+                    "visible_text": [],
+                    "uncertain_details": ["small label text"],
+                })
+                store = AIJobStore()
+                job = store.create(
+                    task=kwargs["task"].model_copy(
+                        update={"output_contract": "scene_spec"}
+                    ),
+                    execution_backend="vision-openai-compatible",
+                    provider_profile_id=vision_profile["id"],
+                    model_id=vision_profile["model"],
+                    asset_id=kwargs["asset_id"],
+                )
+                store.save_scene_spec(job.id, scene_spec)
+                store.wait_for_scene_review(job.id)
+                return SceneAnalysisOutcome(
+                    job_id=job.id,
+                    scene_spec=scene_spec,
+                    latency_ms=11,
+                    raw_response_sha256="a" * 64,
+                )
+
+        class StubReconstructionService:
+            @staticmethod
+            def render_from_scene_spec(**kwargs):
+                captured["render_calls"] += 1
+                captured["render"] = kwargs
+                result = PromptResult(
+                    positive_prompt="centered glass bottle on cool grey seamless paper",
+                    negative_prompt="duplicate bottle, unreadable label",
+                )
+                store = AIJobStore()
+                job = store.create(
+                    task=kwargs["task"],
+                    execution_backend="openai-compatible",
+                    provider_profile_id=text_profile["id"],
+                    model_id=text_profile["model"],
+                    asset_id=kwargs["asset_id"],
+                )
+                store.save_scene_spec(job.id, kwargs["scene_spec"])
+                store.save_draft(
+                    job.id,
+                    PromptDraft(
+                        positive_prompt=result.positive_prompt,
+                        negative_prompt=result.negative_prompt,
+                        source_kind=PromptDraftSource.SCENE_SPEC,
+                        source_payload=kwargs["scene_spec"].model_dump(mode="json"),
+                    ),
+                )
+                store.wait_for_review(job.id, result=result)
+                return SimpleNamespace(job_id=job.id)
+
+        with (
+            patch("app.ai.routes._store", return_value=StubProfileStore()),
+            patch(
+                "app.ai.routes.SceneAnalysisService",
+                return_value=StubAnalysisService(),
+            ),
+            patch(
+                "app.ai.routes.PromptReconstructionService",
+                return_value=StubReconstructionService(),
+            ),
+        ):
+            analyzed = self.client.post(
+                "/api/ai/reconstruct/analyze",
+                json={
+                    "asset_id": asset_id,
+                    "task": {"family": "flux", "scenario": "product_object"},
+                },
+            )
+            self.assertEqual(analyzed.status_code, 201)
+            analysis_payload = analyzed.get_json()
+            analysis_job_id = analysis_payload["job"]["id"]
+            edited_scene = analysis_payload["scene_spec"]
+            edited_scene["composition"]["background"] = "cool grey seamless paper"
+            edited_scene["uncertain_details"] = []
+            saved = self.client.patch(
+                f"/api/ai/jobs/{analysis_job_id}/scene-spec",
+                json={"scene_spec": edited_scene},
+            )
+            self.assertEqual(saved.status_code, 200)
+
+            rendered = self.client.post(
+                "/api/ai/reconstruct",
+                json={
+                    "scene_spec_job_id": analysis_job_id,
+                    "task": {"family": "flux", "scenario": "product_object"},
+                },
+            )
+
+        self.assertEqual(rendered.status_code, 201)
+        rendered_payload = rendered.get_json()
+        self.assertEqual(captured["analysis_calls"], 1)
+        self.assertEqual(captured["render_calls"], 1)
+        self.assertEqual(
+            captured["render"]["scene_spec"].composition.background,
+            "cool grey seamless paper",
+        )
+        self.assertEqual(captured["render"]["api_key"], "secret-for-saved-renderer")
+
+        workflow = self.client.post(
+            "/api/editor/drafts",
+            json={
+                "template_id": "core-image",
+                "source_asset_id": asset_id,
+                "ai_prompt_draft_id": rendered_payload["prompt_draft"]["id"],
+            },
+        )
+        self.assertEqual(workflow.status_code, 201)
+        workflow_payload = workflow.get_json()
+        self.assertEqual(workflow_payload["ai_prompt_context"]["operation"], "reconstruct")
+        self.assertEqual(
+            workflow_payload["ai_scene_spec"]["composition"]["background"],
+            "cool grey seamless paper",
+        )
+        self.assertEqual(workflow_payload["draft"]["source_asset_id"], asset_id)
+        self.assertEqual(
+            workflow_payload["draft"]["values"]["positive_prompt"],
+            "centered glass bottle on cool grey seamless paper",
+        )
+        reloaded = self.client.get(
+            f"/api/editor/drafts/{workflow_payload['draft']['id']}"
+        )
+        self.assertEqual(reloaded.status_code, 200)
+        self.assertEqual(
+            reloaded.get_json()["ai_scene_spec"]["uncertain_details"],
+            [],
+        )
+
+        with (
+            patch("app.ai.routes._store", return_value=StubProfileStore()),
+            patch(
+                "app.ai.routes.PromptReconstructionService",
+                return_value=StubReconstructionService(),
+            ),
+        ):
+            rerendered = self.client.post(
+                "/api/ai/reconstruct",
+                json={
+                    "scene_spec_job_id": analysis_job_id,
+                    "task": {"family": "flux", "scenario": "product_object"},
+                },
+            )
+        self.assertEqual(rerendered.status_code, 201)
+        self.assertEqual(captured["analysis_calls"], 1)
+        self.assertEqual(captured["render_calls"], 2)
+
+        conn = database.get_conn()
+        try:
+            run_count = conn.execute("SELECT COUNT(*) FROM workflow_runs").fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(run_count, 0)
+
     def test_editor_exposes_ai_prompt_draft_controls(self) -> None:
         response = self.client.get("/editor")
         self.assertEqual(response.status_code, 200)
@@ -558,6 +776,8 @@ class PromptDraftRoutesTest(unittest.TestCase):
         self.assertIn(b'id="translate-prompt-dialog"', response.data)
         self.assertIn(b'id="adapt-prompt-open"', response.data)
         self.assertIn(b'id="adapt-prompt-dialog"', response.data)
+        self.assertIn(b'id="reconstruct-prompt-open"', response.data)
+        self.assertIn(b'id="reconstruct-prompt-dialog"', response.data)
         self.assertIn(b'id="prompt-provenance-dialog"', response.data)
         self.assertIn(b'Generation stays manual', response.data)
 

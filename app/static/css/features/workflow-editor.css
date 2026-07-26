@@ -6848,13 +6848,14 @@
 
 .prompt-operation-actions {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, .72fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
 }
 
 .ai-prompt-open,
 .translate-prompt-open,
-.adapt-prompt-open {
+.adapt-prompt-open,
+.reconstruct-prompt-open {
     min-height: 42px;
     padding: 0 14px;
     border: 1px solid rgba(167, 193, 188, .24);
@@ -6867,14 +6868,16 @@
 
 .ai-prompt-open:hover,
 .translate-prompt-open:hover,
-.adapt-prompt-open:hover {
+.adapt-prompt-open:hover,
+.reconstruct-prompt-open:hover {
     border-color: rgba(167, 193, 188, .4);
     background: linear-gradient(135deg, rgba(128, 168, 160, .3), rgba(78, 103, 113, .24));
 }
 
 .ai-prompt-open:disabled,
 .translate-prompt-open:disabled,
-.adapt-prompt-open:disabled { opacity: .55; cursor: wait; }
+.adapt-prompt-open:disabled,
+.reconstruct-prompt-open:disabled { opacity: .55; cursor: wait; }
 
 .quick-control-note {
     color: #83908e;
@@ -6885,6 +6888,29 @@
 .ai-prompt-dialog > form,
 .translate-prompt-dialog > form,
 .adapt-prompt-dialog > form { width: min(680px, calc(100vw - 32px)); }
+
+.reconstruct-prompt-dialog > form { width: min(940px, calc(100vw - 32px)); }
+
+.reconstruct-layout {
+    display: grid;
+    grid-template-columns: minmax(180px, .55fr) minmax(0, 1.45fr);
+    gap: 20px;
+    padding: 22px 24px;
+}
+
+.reconstruct-source { display: grid; align-content: start; gap: 9px; }
+.reconstruct-source img {
+    width: 100%;
+    max-height: 330px;
+    object-fit: contain;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface2);
+}
+.reconstruct-source span { color: var(--text-muted); font-size: 11px; }
+.reconstruct-prompt-fields { padding: 0; }
+.reconstruct-analyze { grid-column: 1 / -1; justify-self: start; }
+.reconstruct-prompt-fields textarea { min-height: 280px; font-family: var(--font-mono); font-size: 11px; }
 
 .ai-prompt-fields {
     display: grid;
@@ -6966,4 +6992,5 @@
     .ai-prompt-source,
     .ai-prompt-profile { grid-column: auto; }
     .prompt-provenance-grid { grid-template-columns: 1fr; margin: 0 18px 18px; }
+    .reconstruct-layout { grid-template-columns: 1fr; padding: 18px; }
 }

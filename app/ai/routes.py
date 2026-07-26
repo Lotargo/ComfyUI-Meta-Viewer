@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 from pydantic import ValidationError
+
+from app import database
 
 from .adaptation import PromptAdaptationError, PromptAdaptationService
 from .cli import (
@@ -15,12 +18,16 @@ from .cli import (
     probe_cli,
 )
 from .execution import ExecutionRouter, ExecutionRouterError
-from .job_store import AIJobStore, AIJobStoreError
+from .job_store import AIJobStatus, AIJobStore, AIJobStoreError
 from .profiles import AIProfileStore, AIProfileStoreError
 from .prompting import PromptFamily, PromptOperation, PromptScenario, PromptTask, SceneSpec
 from .prompting.registry import FAMILY_PROFILES, SCENARIO_MANIFESTS
 from .ranking import AIRank, AIRankingError, AIRankingService, AIRatingStore
-from .reconstruction import PromptReconstructionService
+from .reconstruction import (
+    PromptReconstructionError,
+    PromptReconstructionService,
+    SceneAnalysisService,
+)
 from .remix import RemixPromptSource, RemixRequest, RemixService
 from .resources import CapabilityResolver, ModelResource, ModelResourceCatalog, ResourceType
 from .secrets import SecretStoreError
@@ -29,6 +36,7 @@ from .translation import PromptText, PromptTranslationError, PromptTranslationSe
 
 
 ai_blueprint = Blueprint("ai", __name__)
+MAX_RECONSTRUCTION_IMAGE_BYTES = 20 * 1024 * 1024
 
 
 def _store() -> AIProfileStore:
@@ -60,6 +68,45 @@ def _resolved_text_profile(payload: dict) -> tuple[AIProfileStore, dict]:
             code="missing_profile",
         )
     return profile_store, profile_store.get(profile_id)
+
+
+def _asset_image_data_url(asset_id: int) -> str:
+    source = database.get_asset_source_info(asset_id)
+    if source is None:
+        raise AIJobStoreError(f"Asset {asset_id} does not exist.")
+    if source.get("media_type") != "image":
+        raise AIJobStoreError("Scene reconstruction currently requires an image asset.")
+    if int(source.get("file_size") or 0) > MAX_RECONSTRUCTION_IMAGE_BYTES:
+        raise AIJobStoreError("The source image exceeds the 20 MB analysis limit.")
+    try:
+        if source.get("has_original_data"):
+            data = database.get_asset_original_data(asset_id)
+        else:
+            path = Path(str(source.get("path") or ""))
+            if not path.is_file():
+                raise OSError("The indexed image file is unavailable.")
+            if path.stat().st_size > MAX_RECONSTRUCTION_IMAGE_BYTES:
+                raise AIJobStoreError("The source image exceeds the 20 MB analysis limit.")
+            data = path.read_bytes()
+    except OSError as exc:
+        raise AIJobStoreError(f"Cannot read source image: {exc}") from exc
+    if not data:
+        raise AIJobStoreError("The source image is empty or unavailable.")
+    if len(data) > MAX_RECONSTRUCTION_IMAGE_BYTES:
+        raise AIJobStoreError("The source image exceeds the 20 MB analysis limit.")
+    mime_type = str(source.get("mime_type") or "image/png").lower()
+    if mime_type not in {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}:
+        suffix = Path(str(source.get("file_name") or "")).suffix.lower()
+        mime_type = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+        }.get(suffix, "application/octet-stream")
+    if not mime_type.startswith("image/"):
+        raise AIJobStoreError("The source asset has an unsupported image format.")
+    return f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
 
 
 @ai_blueprint.errorhandler(AIProfileStoreError)
@@ -100,6 +147,18 @@ def ai_translation_error(error: PromptTranslationError):
 def ai_adaptation_error(error: PromptAdaptationError):
     status = 404 if error.code == "adaptation_not_found" else 422
     return jsonify({"error": str(error), "code": error.code}), status
+
+
+@ai_blueprint.errorhandler(PromptReconstructionError)
+def ai_reconstruction_error(error: PromptReconstructionError):
+    status = 502 if error.stage in {"transport", "contract"} else 422
+    return jsonify({
+        "error": str(error),
+        "code": error.code,
+        "stage": error.stage,
+        "job_id": error.job_id,
+        "technical_error": error.technical_error,
+    }), status
 
 
 @ai_blueprint.errorhandler(ExecutionRouterError)
@@ -392,31 +451,118 @@ def ai_adapt():
 @ai_blueprint.route("/api/ai/reconstruct", methods=["POST"])
 def ai_reconstruct():
     payload = _json_object()
-    profile = payload.get("profile")
-    if not isinstance(profile, dict):
-        raise AIProfileStoreError("profile dictionary is required.")
+    profile_store, profile = _resolved_text_profile(payload)
     task_data = payload.get("task") or {}
+    if not isinstance(task_data, dict):
+        raise AIProfileStoreError("task dictionary is required.")
     task = PromptTask.model_validate({**task_data, "operation": "reconstruct"})
 
     scene_spec_data = payload.get("scene_spec")
-    service = PromptReconstructionService()
-    if scene_spec_data:
+    scene_spec_job_id = payload.get("scene_spec_job_id")
+    asset_id = payload.get("asset_id")
+    if asset_id is not None and (
+        isinstance(asset_id, bool) or not isinstance(asset_id, int) or asset_id <= 0
+    ):
+        raise AIJobStoreError("asset_id must be a positive integer.")
+    if scene_spec_job_id is not None:
+        if isinstance(scene_spec_job_id, bool) or not isinstance(scene_spec_job_id, int):
+            raise AIJobStoreError("scene_spec_job_id must be an integer.")
+        source_snapshot = _job_store().get(scene_spec_job_id)
+        if source_snapshot.scene_spec is None:
+            raise AIJobStoreError(
+                f"AI job {scene_spec_job_id} has no saved SceneSpec."
+            )
+        scene_spec = source_snapshot.scene_spec
+        source_asset_id = source_snapshot.job.asset_id
+        if asset_id is not None and source_asset_id is not None and asset_id != source_asset_id:
+            raise AIJobStoreError(
+                "asset_id does not match the asset attached to the saved SceneSpec."
+            )
+        asset_id = source_asset_id or asset_id
+    elif scene_spec_data:
         scene_spec = SceneSpec.model_validate(scene_spec_data)
-        outcome = service.render_from_scene_spec(
-            profile=profile,
-            task=task,
-            scene_spec=scene_spec,
-            asset_id=payload.get("asset_id"),
-        )
     else:
-        router = ExecutionRouter()
-        outcome = router.execute(
-            profile=profile,
-            task=task,
-            user_input=payload.get("user_input", "Reconstruct prompt from asset"),
-            asset_id=payload.get("asset_id"),
+        raise AIJobStoreError(
+            "scene_spec_job_id or scene_spec is required; run vision analysis first."
         )
-    return jsonify(outcome.model_dump(mode="json"))
+    service = PromptReconstructionService()
+    outcome = service.render_from_scene_spec(
+        profile=profile,
+        task=task,
+        scene_spec=scene_spec,
+        api_key=profile_store.resolve_api_key(profile),
+        asset_id=asset_id,
+    )
+    snapshot = _job_store().get(outcome.job_id)
+    if not snapshot.drafts:
+        raise AIJobStoreError(f"AI job {outcome.job_id} completed without a prompt draft.")
+    prompt_draft = snapshot.drafts[-1]
+    return jsonify({
+        "job": snapshot.job.model_dump(mode="json"),
+        "scene_spec": snapshot.scene_spec.model_dump(mode="json"),
+        "prompt_draft": prompt_draft.model_dump(mode="json"),
+        "context": _job_store().draft_context(
+            prompt_draft, snapshot.job
+        ).model_dump(mode="json"),
+    }), 201
+
+
+@ai_blueprint.route("/api/ai/reconstruct/analyze", methods=["POST"])
+def ai_reconstruct_analyze():
+    payload = _json_object()
+    profile_store = _store()
+    profile_id = payload.get("profile_id") or profile_store.list()["defaults"].get(
+        "multimodal_profile_id"
+    )
+    if not isinstance(profile_id, str) or not profile_id.strip():
+        raise AIProfileStoreError(
+            "Choose a multimodal AI profile before analyzing an image.",
+            code="missing_profile",
+        )
+    profile = profile_store.get(profile_id)
+    asset_id = payload.get("asset_id")
+    if isinstance(asset_id, bool) or not isinstance(asset_id, int):
+        raise AIJobStoreError("asset_id must be an integer.")
+    image_data_url = _asset_image_data_url(asset_id)
+    task_data = payload.get("task") or {}
+    if not isinstance(task_data, dict):
+        raise AIProfileStoreError("task dictionary is required.")
+    task = PromptTask.model_validate({**task_data, "operation": "reconstruct"})
+    outcome = SceneAnalysisService().analyze(
+        profile=profile,
+        task=task,
+        image_data_url=image_data_url,
+        api_key=profile_store.resolve_api_key(profile),
+        asset_id=asset_id,
+    )
+    snapshot = _job_store().get(outcome.job_id)
+    return jsonify({
+        "job": snapshot.job.model_dump(mode="json"),
+        "scene_spec": outcome.scene_spec.model_dump(mode="json"),
+        "analysis": outcome.model_dump(mode="json"),
+    }), 201
+
+
+@ai_blueprint.route("/api/ai/jobs/<int:job_id>/scene-spec", methods=["PATCH"])
+def ai_scene_spec_update(job_id: int):
+    payload = _json_object()
+    unexpected = set(payload) - {"scene_spec"}
+    if unexpected:
+        raise AIJobStoreError(
+            "Unsupported SceneSpec fields: " + ", ".join(sorted(unexpected))
+        )
+    scene_spec = SceneSpec.model_validate(payload.get("scene_spec"))
+    store = _job_store()
+    job = store.get(job_id).job
+    if job.task.operation is not PromptOperation.RECONSTRUCT:
+        raise AIJobStoreError("SceneSpec can only be attached to reconstruct jobs.")
+    if job.status is not AIJobStatus.WAITING_FOR_REVIEW:
+        raise AIJobStoreError("Only a SceneSpec waiting for review can be edited.")
+    store.save_scene_spec(job_id, scene_spec)
+    return jsonify({
+        "job": store.get(job_id).job.model_dump(mode="json"),
+        "scene_spec": scene_spec.model_dump(mode="json"),
+    })
 
 
 @ai_blueprint.route("/api/ai/remix", methods=["POST"])

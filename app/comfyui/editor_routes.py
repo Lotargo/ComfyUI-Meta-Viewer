@@ -73,6 +73,11 @@ def _workflow_draft_payload(draft) -> dict[str, Any]:
         payload["ai_prompt_adaptation"] = PromptAdaptationStore().get(
             job.id
         ).model_dump(mode="json")
+    elif job.task.operation.value == "reconstruct":
+        snapshot = store.get(job.id)
+        if snapshot.scene_spec is not None:
+            payload["ai_scene_spec"] = snapshot.scene_spec.model_dump(mode="json")
+            payload["ai_scene_spec_job_id"] = job.id
     return payload
 
 

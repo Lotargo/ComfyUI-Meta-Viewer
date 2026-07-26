@@ -135,6 +135,20 @@ const elements = {
     adaptPromptProfile: byId('adapt-prompt-profile'),
     adaptProfileNote: byId('adapt-profile-note'),
     adaptPromptSubmit: byId('adapt-prompt-submit'),
+    reconstructPromptOpen: byId('reconstruct-prompt-open'),
+    reconstructPromptDialog: byId('reconstruct-prompt-dialog'),
+    reconstructPromptForm: byId('reconstruct-prompt-form'),
+    reconstructPromptFamily: byId('reconstruct-prompt-family'),
+    reconstructPromptScenario: byId('reconstruct-prompt-scenario'),
+    reconstructVisionProfile: byId('reconstruct-vision-profile'),
+    reconstructVisionNote: byId('reconstruct-vision-note'),
+    reconstructAnalyze: byId('reconstruct-analyze'),
+    reconstructSceneSpec: byId('reconstruct-scene-spec'),
+    reconstructRenderProfile: byId('reconstruct-render-profile'),
+    reconstructRenderNote: byId('reconstruct-render-note'),
+    reconstructSourcePreview: byId('reconstruct-source-preview'),
+    reconstructSourceLabel: byId('reconstruct-source-label'),
+    reconstructPromptSubmit: byId('reconstruct-prompt-submit'),
     promptProvenanceDialog: byId('prompt-provenance-dialog'),
     promptProvenanceKicker: byId('prompt-provenance-kicker'),
     promptProvenanceTitle: byId('prompt-provenance-title'),
@@ -224,9 +238,12 @@ const state = {
     aiCapabilities: [],
     aiProfiles: [],
     aiDefaultProfileId: null,
+    aiDefaultMultimodalProfileId: null,
     aiPromptContext: null,
     aiPromptTranslation: null,
     aiPromptAdaptation: null,
+    aiSceneSpec: null,
+    aiSceneSpecJobId: null,
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -276,6 +293,8 @@ function persistCreateWorkspace() {
         ai_prompt_adaptation: state.aiPromptAdaptation
             ? structuredClone(state.aiPromptAdaptation)
             : null,
+        ai_scene_spec: state.aiSceneSpec ? structuredClone(state.aiSceneSpec) : null,
+        ai_scene_spec_job_id: state.aiSceneSpecJobId,
         values: { ...state.values },
         resources: { ...state.resources },
         ui: {
@@ -314,6 +333,8 @@ function restoreTemplateWorkspace(template, saved) {
     state.aiPromptAdaptation = state.draft && saved?.ai_prompt_adaptation
         ? structuredClone(saved.ai_prompt_adaptation)
         : null;
+    state.aiSceneSpec = saved?.ai_scene_spec ? structuredClone(saved.ai_scene_spec) : null;
+    state.aiSceneSpecJobId = Number(saved?.ai_scene_spec_job_id) || null;
     state.values = { ...template.defaults, ...savedValues };
     state.resources = {
         ...defaultResourceSelections(template),
@@ -564,6 +585,8 @@ async function bootstrap() {
                 state.aiPromptContext = draftPayload.ai_prompt_context || null;
                 state.aiPromptTranslation = draftPayload.ai_prompt_translation || null;
                 state.aiPromptAdaptation = draftPayload.ai_prompt_adaptation || null;
+                state.aiSceneSpec = draftPayload.ai_scene_spec || null;
+                state.aiSceneSpecJobId = draftPayload.ai_scene_spec_job_id || null;
                 state.values = { ...registered.defaults, ...draftPayload.draft.values };
                 state.resources = { ...draftPayload.draft.resource_selections };
                 selectTemplate(registered, { preserveDraft: true });
@@ -604,6 +627,8 @@ function selectTemplate(template, { preserveDraft = false } = {}) {
             state.aiPromptContext = null;
             state.aiPromptTranslation = null;
             state.aiPromptAdaptation = null;
+            state.aiSceneSpec = null;
+            state.aiSceneSpecJobId = null;
             state.values = { ...template.defaults };
             state.resources = defaultResourceSelections(template);
             state.samplingMode = 'recommended';
@@ -1444,6 +1469,8 @@ async function ensureDraft() {
     state.aiPromptContext = payload.ai_prompt_context || null;
     state.aiPromptTranslation = payload.ai_prompt_translation || null;
     state.aiPromptAdaptation = payload.ai_prompt_adaptation || null;
+    state.aiSceneSpec = payload.ai_scene_spec || null;
+    state.aiSceneSpecJobId = payload.ai_scene_spec_job_id || null;
     syncDraftUrl();
     persistCreateWorkspace();
     renderSourceBanner();
@@ -1464,6 +1491,8 @@ async function saveDraft({ recoverMissing = true } = {}) {
         state.aiPromptContext = payload.ai_prompt_context || state.aiPromptContext;
         state.aiPromptTranslation = payload.ai_prompt_translation || state.aiPromptTranslation;
         state.aiPromptAdaptation = payload.ai_prompt_adaptation || state.aiPromptAdaptation;
+        state.aiSceneSpec = payload.ai_scene_spec || state.aiSceneSpec;
+        state.aiSceneSpecJobId = payload.ai_scene_spec_job_id || state.aiSceneSpecJobId;
         persistCreateWorkspace();
         setDraftStatus(`Saved · #${state.draft.id}`, 'saved');
     } catch (error) {
@@ -1472,6 +1501,8 @@ async function saveDraft({ recoverMissing = true } = {}) {
             state.aiPromptContext = null;
             state.aiPromptTranslation = null;
             state.aiPromptAdaptation = null;
+            state.aiSceneSpec = null;
+            state.aiSceneSpecJobId = null;
             syncDraftUrl();
             persistCreateWorkspace();
             return saveDraft({ recoverMissing: false });
@@ -1489,13 +1520,16 @@ function renderSourceBanner() {
     if (!fromAsset && !fromAI) return;
     const title = elements.sourceBanner.querySelector('strong');
     const detail = elements.sourceBanner.querySelector('span');
+    const operation = state.aiPromptContext?.operation;
+    const reconstructed = operation === 'reconstruct' && Boolean(state.aiSceneSpec);
     if (fromAsset) {
-        title.textContent = 'Remix draft';
-        detail.textContent = 'The prompt and source were imported from the library.';
+        title.textContent = reconstructed ? 'AI reconstructed prompt' : 'Remix draft';
+        detail.textContent = reconstructed
+            ? 'The prompt was rendered from an editable SceneSpec, separately from embedded metadata.'
+            : 'The prompt and source were imported from the library.';
         elements.sourceInspect.hidden = false;
-        elements.sourceInspect.textContent = 'Source';
+        elements.sourceInspect.textContent = reconstructed ? 'SceneSpec' : 'Source';
     } else {
-        const operation = state.aiPromptContext?.operation;
         title.textContent = operation === 'translate'
             ? 'Translated prompt'
             : (operation === 'adapt' ? 'Adapted prompt' : 'AI prompt draft');
@@ -1541,6 +1575,10 @@ function openPromptProvenance() {
 }
 
 function inspectDraftSource() {
+    if (state.aiPromptContext?.operation === 'reconstruct' && state.aiSceneSpec) {
+        openReconstructPromptDialog();
+        return;
+    }
     if (state.draft?.source_asset_id) {
         inspectSourceWorkflow();
         return;
@@ -1571,6 +1609,7 @@ async function loadPromptAssistantData() {
         profile.has_credentials !== false && supportedPromptProfile(profile)
     ));
     state.aiDefaultProfileId = profiles.defaults?.text_profile_id || null;
+    state.aiDefaultMultimodalProfileId = profiles.defaults?.multimodal_profile_id || null;
 }
 
 function populatePromptFamilies(select) {
@@ -1591,6 +1630,21 @@ function populatePromptProfiles(select, note) {
     note.innerHTML = state.aiProfiles.length
         ? 'The selected profile returns the same normalized prompt contract.'
         : 'Add a usable text profile in <a href="/settings/ai">AI settings</a> first.';
+}
+
+function populateVisionProfiles(select, note) {
+    const profiles = state.aiProfiles.filter((profile) => (
+        profile.kind === 'openai_compatible' && profile.multimodal === true
+    ));
+    select.innerHTML = profiles.length
+        ? profiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
+        : '<option value="">No ready multimodal profiles</option>';
+    if (profiles.some((profile) => profile.id === state.aiDefaultMultimodalProfileId)) {
+        select.value = state.aiDefaultMultimodalProfileId;
+    }
+    note.innerHTML = profiles.length
+        ? 'The image is sent only during Analyze image.'
+        : 'Add an OpenAI-compatible multimodal profile in <a href="/settings/ai">AI settings</a> first.';
 }
 
 function compatibleScenarios(familyId) {
@@ -1635,6 +1689,20 @@ function renderAdaptationScenarios() {
     );
 }
 
+function renderReconstructionScenarios() {
+    const available = renderScenarioOptions(
+        elements.reconstructPromptScenario,
+        elements.reconstructPromptFamily.value,
+    );
+    elements.reconstructAnalyze.disabled = (
+        !state.draft?.source_asset_id || !elements.reconstructVisionProfile.value
+    );
+    elements.reconstructPromptSubmit.disabled = (
+        !available.length || !elements.reconstructRenderProfile.value
+        || !state.aiSceneSpecJobId || !elements.reconstructSceneSpec.value.trim()
+    );
+}
+
 async function openAIPromptDialog() {
     elements.aiPromptOpen.disabled = true;
     try {
@@ -1657,6 +1725,8 @@ function activateAIPromptDraft(created, statusLabel, toastMessage) {
     state.aiPromptContext = created.ai_prompt_context || null;
     state.aiPromptTranslation = created.ai_prompt_translation || null;
     state.aiPromptAdaptation = created.ai_prompt_adaptation || null;
+    state.aiSceneSpec = created.ai_scene_spec || null;
+    state.aiSceneSpecJobId = created.ai_scene_spec_job_id || null;
     state.values = { ...state.values, ...created.draft.values };
     state.advancedFieldMemory.negative_prompt = state.values.negative_prompt || '';
     renderFields();
@@ -1851,6 +1921,134 @@ async function createAdaptedPromptDraft(event) {
     } finally {
         elements.adaptPromptSubmit.textContent = 'Adapt to draft';
         renderAdaptationScenarios();
+    }
+}
+
+async function openReconstructPromptDialog() {
+    if (!state.draft?.source_asset_id && !state.aiSceneSpec) {
+        showToast('Open an image from the Viewer with Remix before reconstruction.', 'info');
+        return;
+    }
+    elements.reconstructPromptOpen.disabled = true;
+    try {
+        await loadPromptAssistantData();
+        populatePromptFamilies(elements.reconstructPromptFamily);
+        populatePromptProfiles(elements.reconstructRenderProfile, elements.reconstructRenderNote);
+        populateVisionProfiles(elements.reconstructVisionProfile, elements.reconstructVisionNote);
+        if (state.aiPromptContext?.family) {
+            elements.reconstructPromptFamily.value = state.aiPromptContext.family;
+        }
+        renderReconstructionScenarios();
+        if (state.aiPromptContext?.scenario) {
+            elements.reconstructPromptScenario.value = state.aiPromptContext.scenario;
+        } else if (state.aiSceneSpec?.recommended_scenario) {
+            elements.reconstructPromptScenario.value = state.aiSceneSpec.recommended_scenario;
+        }
+        elements.reconstructSceneSpec.value = state.aiSceneSpec
+            ? JSON.stringify(state.aiSceneSpec, null, 2)
+            : '';
+        const assetId = state.draft?.source_asset_id;
+        elements.reconstructSourcePreview.hidden = !assetId;
+        if (assetId) elements.reconstructSourcePreview.src = `/api/thumbnail/${assetId}`;
+        elements.reconstructSourceLabel.textContent = assetId ? `Library asset #${assetId}` : 'Saved SceneSpec';
+        renderReconstructionScenarios();
+        elements.reconstructPromptDialog.showModal();
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.reconstructPromptOpen.disabled = false;
+    }
+}
+
+async function analyzeReconstructionScene() {
+    const assetId = state.draft?.source_asset_id;
+    if (!assetId || !elements.reconstructVisionProfile.value) return;
+    elements.reconstructAnalyze.disabled = true;
+    elements.reconstructAnalyze.textContent = 'Analyzing…';
+    try {
+        const analyzed = await requestJson('/api/ai/reconstruct/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                profile_id: elements.reconstructVisionProfile.value,
+                asset_id: assetId,
+                task: {
+                    family: elements.reconstructPromptFamily.value,
+                    scenario: elements.reconstructPromptScenario.value,
+                },
+            }),
+        });
+        state.aiSceneSpec = analyzed.scene_spec;
+        state.aiSceneSpecJobId = analyzed.job.id;
+        elements.reconstructSceneSpec.value = JSON.stringify(analyzed.scene_spec, null, 2);
+        if (analyzed.scene_spec.recommended_scenario) {
+            const supported = compatibleScenarios(elements.reconstructPromptFamily.value)
+                .some((item) => item.id === analyzed.scene_spec.recommended_scenario);
+            if (supported) elements.reconstructPromptScenario.value = analyzed.scene_spec.recommended_scenario;
+        }
+        persistCreateWorkspace();
+        showToast('SceneSpec created. Review uncertain details before rendering.', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.reconstructAnalyze.textContent = 'Analyze image';
+        renderReconstructionScenarios();
+    }
+}
+
+async function createReconstructedPromptDraft(event) {
+    event.preventDefault();
+    if (!state.aiSceneSpecJobId || !elements.reconstructRenderProfile.value) return;
+    let sceneSpec;
+    try {
+        sceneSpec = JSON.parse(elements.reconstructSceneSpec.value);
+    } catch {
+        showToast('SceneSpec must be valid JSON.', 'error');
+        return;
+    }
+    elements.reconstructPromptSubmit.disabled = true;
+    elements.reconstructPromptSubmit.textContent = 'Rendering…';
+    try {
+        await requestJson(`/api/ai/jobs/${state.aiSceneSpecJobId}/scene-spec`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scene_spec: sceneSpec }),
+        });
+        const rendered = await requestJson('/api/ai/reconstruct', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                profile_id: elements.reconstructRenderProfile.value,
+                scene_spec_job_id: state.aiSceneSpecJobId,
+                asset_id: state.draft?.source_asset_id || null,
+                task: {
+                    family: elements.reconstructPromptFamily.value,
+                    scenario: elements.reconstructPromptScenario.value,
+                },
+            }),
+        });
+        const created = await requestJson('/api/editor/drafts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                template_id: currentManifest().id,
+                values: state.values,
+                resource_selections: state.resources,
+                source_asset_id: state.draft?.source_asset_id || null,
+                ai_prompt_draft_id: rendered.prompt_draft.id,
+            }),
+        });
+        activateAIPromptDraft(
+            created,
+            'Reconstructed draft',
+            'SceneSpec rendered to an editable prompt. Review it before generation.',
+        );
+        elements.reconstructPromptDialog.close();
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.reconstructPromptSubmit.textContent = 'Render to draft';
+        renderReconstructionScenarios();
     }
 }
 
@@ -2828,6 +3026,13 @@ function bindEvents() {
     elements.adaptPromptFamily.addEventListener('change', renderAdaptationScenarios);
     elements.adaptPromptProfile.addEventListener('change', renderAdaptationScenarios);
     elements.adaptPromptForm.addEventListener('submit', createAdaptedPromptDraft);
+    elements.reconstructPromptOpen.addEventListener('click', openReconstructPromptDialog);
+    elements.reconstructPromptFamily.addEventListener('change', renderReconstructionScenarios);
+    elements.reconstructVisionProfile.addEventListener('change', renderReconstructionScenarios);
+    elements.reconstructRenderProfile.addEventListener('change', renderReconstructionScenarios);
+    elements.reconstructSceneSpec.addEventListener('input', renderReconstructionScenarios);
+    elements.reconstructAnalyze.addEventListener('click', analyzeReconstructionScene);
+    elements.reconstructPromptForm.addEventListener('submit', createReconstructedPromptDraft);
     elements.resetEditor.addEventListener('click', resetEditor);
     elements.saveNote.addEventListener('click', async () => {
         try {

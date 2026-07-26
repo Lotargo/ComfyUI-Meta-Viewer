@@ -152,12 +152,14 @@ class AIJobStore:
             conn.close()
         return self.get(job_id).job
 
-    def mark_running(self, job_id: int, bundle: InstructionBundle) -> AIJob:
+    def mark_running(
+        self, job_id: int, bundle: InstructionBundle | None = None
+    ) -> AIJob:
         return self._transition(
             job_id,
             target=AIJobStatus.RUNNING,
             allowed={AIJobStatus.QUEUED},
-            bundle_metadata=bundle.metadata(),
+            bundle_metadata=bundle.metadata() if bundle is not None else None,
         )
 
     def save_scene_spec(self, job_id: int, scene_spec: SceneSpec) -> SceneSpec:
@@ -326,6 +328,19 @@ class AIJobStore:
             execution_metadata=execution_metadata,
             bundle=bundle,
         )
+
+    def wait_for_scene_review(self, job_id: int) -> AIJobSnapshot:
+        snapshot = self.get(job_id)
+        if snapshot.scene_spec is None:
+            raise AIJobStoreError(
+                f"AI job {job_id} has no SceneSpec to review."
+            )
+        self._transition(
+            job_id,
+            target=AIJobStatus.WAITING_FOR_REVIEW,
+            allowed={AIJobStatus.QUEUED, AIJobStatus.RUNNING},
+        )
+        return self.get(job_id)
 
     def accept_draft(
         self,

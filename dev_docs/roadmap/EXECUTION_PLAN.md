@@ -412,12 +412,14 @@ Adapt вызывается из editor отдельным действием, и
 ## 6.5 Reconstruct from image
 
 - [ ] Vision stage создаёт SceneSpec.
-- [ ] SceneSpec хранится в SQLite.
-- [ ] SceneSpec можно просмотреть.
-- [ ] SceneSpec можно исправить вручную.
-- [ ] PromptResult рендерится из сохранённого SceneSpec.
-- [ ] Повторный render не требует нового vision call.
-- [ ] Embedded metadata и AI reconstruction визуально различаются.
+- [x] SceneSpec хранится в SQLite.
+- [x] SceneSpec можно просмотреть.
+- [x] SceneSpec можно исправить вручную.
+- [x] PromptResult рендерится из сохранённого SceneSpec.
+- [x] Повторный render не требует нового vision call.
+- [x] Embedded metadata и AI reconstruction визуально различаются.
+
+Reconstruct разделён на два явных этапа: OpenAI-compatible multimodal profile анализирует Library asset в strict `SceneSpec`, после чего JSON можно исправить и сохранить; отдельный text profile рендерит сохранённый SceneSpec в prompt draft. Editor восстанавливает SceneSpec после reload, сохраняет source asset и не запускает ComfyUI. Повторный render использует `scene_spec_job_id`, поэтому изображение не отправляется vision provider повторно. Vision implementation покрыта contract/API tests, но первый пункт остаётся pending до реального smoke: в текущем окружении настроены только CLI multimodal profiles, а vision stage этого среза намеренно принимает OpenAI-compatible profile.
 
 ## 6.6 Remix
 
@@ -652,7 +654,7 @@ Adapt вызывается из editor отдельным действием, и
 - [x] Подключить Generate prompt к editor draft.
 - [x] Подключить Translate как отдельную операцию.
 - [x] Подключить Adapt как отдельную операцию.
-- [ ] Подключить Reconstruct через editable SceneSpec.
+- [ ] Подключить Reconstruct через editable SceneSpec. **Implemented; compatible vision-profile smoke pending.**
 - [ ] Проверить Remix end-to-end.
 
 ## Явно отложено

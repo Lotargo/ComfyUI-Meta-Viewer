@@ -25,7 +25,9 @@ from app.ai.prompting import (
 from app.ai.reconstruction import (
     PromptReconstructionError,
     PromptReconstructionService,
+    SceneAnalysisService,
 )
+from app.ai.transport import OpenAICompatibleResponse
 
 
 class SceneRenderAdapter:
@@ -153,6 +155,74 @@ class PromptReconstructionTest(unittest.TestCase):
             PromptScenario.PRODUCT_OBJECT,
         )
         self.assertEqual(len(self.adapter.calls), 1)
+
+    def test_vision_analysis_creates_reviewable_persisted_scene_spec(self) -> None:
+        calls = []
+
+        def chat_runner(profile, *, api_key, messages):
+            calls.append((profile, api_key, messages))
+            return OpenAICompatibleResponse(
+                text=(
+                    '{"schema_version":"1","recommended_scenario":"product_object",'
+                    '"subjects":[{"kind":"clear glass bottle","position":"center",'
+                    '"attributes":{},"confidence":0.98}],'
+                    '"composition":{"shot":"product close-up","camera_angle":"eye level",'
+                    '"background":"warm beige"},"visible_text":[],'
+                    '"uncertain_details":["small label text"]}'
+                ),
+                latency_ms=17,
+            )
+
+        service = SceneAnalysisService(
+            job_store=self.store,
+            chat_runner=chat_runner,
+        )
+        outcome = service.analyze(
+            profile={
+                "id": "vision-profile",
+                "kind": "openai_compatible",
+                "model": "vision-model",
+                "multimodal": True,
+            },
+            api_key="vision-secret",
+            task=self.task,
+            image_data_url="data:image/png;base64,iVBORw0KGgo=",
+        )
+
+        snapshot = self.store.get(outcome.job_id)
+        self.assertEqual(snapshot.job.status.value, "waiting_for_review")
+        self.assertEqual(snapshot.job.task.output_contract, "scene_spec")
+        self.assertEqual(snapshot.scene_spec, outcome.scene_spec)
+        self.assertEqual(outcome.scene_spec.subjects[0].kind, "clear glass bottle")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1], "vision-secret")
+        self.assertEqual(calls[0][2][1]["content"][1]["type"], "image_url")
+
+    def test_invalid_vision_contract_marks_analysis_job_failed(self) -> None:
+        service = SceneAnalysisService(
+            job_store=self.store,
+            chat_runner=lambda *_args, **_kwargs: OpenAICompatibleResponse(
+                text='{"not":"a scene spec"}',
+                latency_ms=3,
+            ),
+        )
+        with self.assertRaises(PromptReconstructionError) as error:
+            service.analyze(
+                profile={
+                    "id": "vision-profile",
+                    "kind": "openai_compatible",
+                    "model": "vision-model",
+                    "multimodal": True,
+                },
+                task=self.task,
+                image_data_url="data:image/png;base64,iVBORw0KGgo=",
+            )
+        self.assertEqual(error.exception.stage, "contract")
+        self.assertIsNotNone(error.exception.job_id)
+        self.assertEqual(
+            self.store.get(error.exception.job_id).job.status.value,
+            "failed",
+        )
 
 
 if __name__ == "__main__":

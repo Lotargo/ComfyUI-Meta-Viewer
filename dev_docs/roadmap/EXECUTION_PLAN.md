@@ -567,7 +567,7 @@
 - [x] Result imported into Library.
 - [ ] Remix lineage preserved.
 
-**GGUF evidence (2026-07-26):** Pony/SDXL GGUF smoke завершён через `core-pony-gguf`: runtime inventory и preflight готовы, реальный run завершён, output импортирован в Library с provenance и корректной GGUF model identity. Отдельная Flux-подобная проверка `core-flux-gguf` на Z-Image остаётся отложенной до загрузки совместимого component set и не блокирует уже подтверждённый общий пункт `GGUF generation`.
+**GGUF evidence (2026-07-26):** Pony/SDXL GGUF проверен через `core-pony-gguf`: runtime inventory и preflight готовы, quality run выполнен в 832×1216 на 28 steps, полноразмерный output визуально проверен и импортирован в Library с provenance и корректной GGUF model identity. Ранний 512×512 run считается только техническим smoke. Отдельная Flux-подобная проверка `core-flux-gguf` на Z-Image остаётся отложенной до загрузки совместимого component set и не блокирует уже подтверждённый общий пункт `GGUF generation`.
 
 ## 9.4 Browser and UX checks
 

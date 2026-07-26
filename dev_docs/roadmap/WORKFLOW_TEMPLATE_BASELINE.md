@@ -113,14 +113,16 @@ LoRA повторно оценивается относительно выбра
 
 Фактическая генерация Flux-like templates остаётся в Phase 9 workflow matrix: текущая установка ещё не содержит подтверждённого полного Flux/Z-Image component set, поэтому наличие nodes не выдается за end-to-end Flux evidence.
 
-### Pony/SDXL GGUF runtime smoke
+### Pony/SDXL GGUF runtime and quality baseline
 
 26 июля 2026 года выполнен end-to-end run на локальном `babesByStableYogi_v65Q4Q8.gguf` с CLIP/VAE из `cyberrealisticPony_v150.safetensors`:
 
 - добавлен отдельный `core-pony-gguf`, где GGUF является MODEL, а checkpoint отдаёт только CLIP/VAE;
 - runtime inventory распознаёт ComfyUI-GGUF virtual folder `unet_gguf`; preview/preflight вернул `ready=true`, без missing nodes/resources, с честным `experimental` warning для неизвестной по имени архитектуры GGUF;
-- реальная генерация run `5`, prompt `a305b043-3b6e-411a-8c1a-99afeb72af7b` завершилась успешно на smoke-настройках 512×512, 8 steps, seed `26072026`;
-- повторный запуск через полный editor endpoint создал run `6`; output `CMV/Pony-GGUF_00001_.png` импортирован в Library как asset `6258`, сохранены template/draft/run/prompt provenance и полный API graph;
+- первоначальный run 512×512 на 8 steps использовался только как технический smoke и не считается проверкой качества;
+- quality run `7`, prompt `cb42629f-7ac1-4ce3-8470-7b35389cade8` выполнен через полный editor endpoint в нативном портретном разрешении 832×1216, 28 steps, CFG 7, seed `26072026`;
+- output `CMV/Pony-GGUF-832x1216_00001_.png` импортирован в Library как asset `6260`; сохранены template/draft/run/prompt provenance, полный API graph и GGUF model identity;
+- визуальная проверка полноразмерного PNG подтвердила связный портрет и читаемые детали лица, волос, меха и ткани без явного разрушения композиции;
 - metadata extractor сохраняет GGUF diffusion model как основную model identity, не подменяя её conditioning checkpoint.
 
 Flux-подобная GGUF-проверка на Z-Image остаётся отложенной до завершения скачивания совместимого component set. Она должна повторить preview/preflight, generation и Library provenance уже на `core-flux-gguf`; Pony smoke не считается доказательством Flux-совместимости.

@@ -88,7 +88,7 @@
   **Implemented; product integration pending.** Compiler, contracts, persistence и adapters существуют, но должны быть замкнуты на editor drafts и проверены одинаковым PromptTask через direct и agent-host execution.
 
 - [ ] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)
-  **Active integration phase.** Generate, отдельный Translate, family-aware Adapt, Reconstruct через persisted editable SceneSpec и Remix с выбором source/workflow создают связанные editor drafts без автоматического запуска. OpenCode vision analysis, render из сохранённого SceneSpec, checkpoint trigger preservation и Remix через реальный Windows Portable ComfyUI проверены; далее остаётся опциональный AI rating.
+  **Active AI rating phase.** Generate, отдельный Translate, family-aware Adapt, Reconstruct через persisted editable SceneSpec и Remix с выбором source/workflow создают связанные editor drafts без автоматического запуска. Для опционального AI rating реализованы nullable artistic rank, раздельные technical statuses, безопасный выбор сохранённого multimodal profile, ручной запуск/override/delete и Library filters; остаются global/per-run opt-in, интерактивная UI-проверка и реальные provider-policy checks.
 
 ### ComfyUI
 
@@ -126,5 +126,9 @@
 - [x] Подключить Reconstruct через editable persisted SceneSpec и повторный render без vision call.
 - [x] Подключить Remix с выбором persisted prompt source и compatible workflow, сохраняя lineage.
 - [x] После стабилизации contracts подключить AI operations к drafts.
+- [x] Отделить AI rank от technical evaluation statuses и user stars.
+- [x] Добавить ручной AI rating для Library asset через сохранённый multimodal profile.
+- [x] Добавить override/delete и отдельные Library filters по AI rank/status.
+- [ ] Добавить global/per-run opt-in и проверить AI rating на реальных provider policies.
 
-AI rating, полностью автоматический model importer и desktop packaging в текущий рабочий срез не входят.
+Полностью автоматический model importer и desktop packaging в текущий рабочий срез не входят.

@@ -112,6 +112,27 @@
                             <select id="library-node-filter" aria-label="Filter by ComfyUI node">
                                 <option value="">All generation nodes</option>
                             </select>
+                            <select id="library-ai-rank-filter" aria-label="Filter by AI rank">
+                                <option value="">All AI ranks</option>
+                                <option value="SSS+">AI rank SSS+</option>
+                                <option value="SSS">AI rank SSS</option>
+                                <option value="SS">AI rank SS</option>
+                                <option value="S">AI rank S</option>
+                                <option value="A">AI rank A</option>
+                                <option value="B">AI rank B</option>
+                                <option value="C">AI rank C</option>
+                                <option value="D">AI rank D</option>
+                                <option value="E">AI rank E</option>
+                                <option value="F">AI rank F</option>
+                            </select>
+                            <select id="library-ai-status-filter" aria-label="Filter by AI rating status">
+                                <option value="">All AI statuses</option>
+                                <option value="rated">Rated</option>
+                                <option value="not_rated">Not rated</option>
+                                <option value="ai_rejected">Provider rejected</option>
+                                <option value="unreadable">Unreadable response</option>
+                                <option value="generation_error">Technical error</option>
+                            </select>
                         </div>
                         <div class="library-view-actions" aria-label="Library view controls">
                             <select id="library-sort" aria-label="Sort assets">
@@ -196,6 +217,10 @@
                     <span class="preview-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v13H8l-3 3z"></path><path d="M9.5 10.5h5"></path></svg></span>
                     <span class="preview-action-success" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg></span>
                     <span class="preview-action-label">Negative</span>
+                </button>
+                <button id="preview-ai-rating" class="preview-action" type="button" title="Open AI rating" aria-label="Open AI rating" hidden>
+                    <span class="preview-action-icon" aria-hidden="true">AI</span>
+                    <span class="preview-action-label">Rating</span>
                 </button>
             </div>
         </div>
@@ -309,6 +334,45 @@
                 <button id="save-album-btn" class="btn btn-primary" value="default">Save</button>
             </div>
         </form>
+    </dialog>
+
+    <dialog id="ai-rating-dialog" class="asset-editor ai-rating-dialog" aria-labelledby="ai-rating-title">
+        <div class="editor-heading">
+            <div>
+                <p class="library-eyebrow">Experimental evaluation</p>
+                <h2 id="ai-rating-title">AI rating</h2>
+            </div>
+            <button id="ai-rating-close" class="editor-close" type="button" aria-label="Close">×</button>
+        </div>
+        <p id="ai-rating-summary" class="ai-rating-summary">No AI rating has been saved for this asset.</p>
+        <div id="ai-rating-result" class="ai-rating-result" hidden>
+            <div class="ai-rating-rank-row">
+                <strong id="ai-rating-rank">—</strong>
+                <span id="ai-rating-status"></span>
+            </div>
+            <div id="ai-rating-metrics" class="ai-rating-metrics"></div>
+            <div id="ai-rating-defects" class="ai-rating-copy"></div>
+            <p id="ai-rating-explanation" class="ai-rating-copy"></p>
+            <p id="ai-rating-metadata" class="ai-rating-metadata"></p>
+        </div>
+        <label>Multimodal profile
+            <select id="ai-rating-profile"></select>
+        </label>
+        <label>Manual AI rank override
+            <select id="ai-rating-override">
+                <option value="">Use model rank</option>
+                <option value="SSS+">SSS+</option><option value="SSS">SSS</option>
+                <option value="SS">SS</option><option value="S">S</option>
+                <option value="A">A</option><option value="B">B</option>
+                <option value="C">C</option><option value="D">D</option>
+                <option value="E">E</option><option value="F">F</option>
+            </select>
+        </label>
+        <div class="editor-actions ai-rating-actions">
+            <button id="ai-rating-delete" class="btn btn-ghost" type="button" hidden>Delete rating</button>
+            <button id="ai-rating-save-override" class="btn" type="button">Save override</button>
+            <button id="ai-rating-run" class="btn btn-primary" type="button">Rate asset</button>
+        </div>
     </dialog>
 
     <div id="library-toast" class="library-toast" role="status" aria-live="polite"></div>

@@ -11,6 +11,7 @@ from PIL import Image
 
 from app import database as db
 from app import library
+from app.ai.ranking import AIRank, AIRatingResult, AIRatingStatus, AIRatingStore
 from app.indexing import index_source_directory
 from app.main import app
 from app.paths import build_runtime_paths
@@ -66,6 +67,50 @@ class LibraryTestCase(unittest.TestCase):
 
 
 class VirtualOrganizationTest(LibraryTestCase):
+    def test_ai_rank_and_status_filters_are_independent_from_user_stars(self) -> None:
+        self.make_image("rated.png")
+        self.make_image("rejected.png", "blue")
+        self.make_image("untouched.png", "red")
+        result = self.index()
+        records = {
+            asset["file_name"]: asset
+            for asset in library.get_assets(per_page=10)["assets"]
+        }
+        rated_id = records["rated.png"]["id"]
+        rejected_id = records["rejected.png"]["id"]
+        library.update_asset(rated_id, rating=5)
+        AIRatingStore().save(
+            image_id=rated_id,
+            result=AIRatingResult(
+                rank=AIRank.S,
+                technical_quality=9,
+                composition=8,
+                prompt_adherence=9,
+            ),
+        )
+        AIRatingStore().save(
+            image_id=rejected_id,
+            result=AIRatingResult(
+                status=AIRatingStatus.AI_REJECTED,
+                explanation="Provider policy rejection",
+            ),
+        )
+
+        ranked = library.get_assets(ai_rank="S", per_page=10)
+        self.assertEqual([asset["id"] for asset in ranked["assets"]], [rated_id])
+        self.assertEqual(ranked["assets"][0]["rating"], 5)
+        self.assertEqual(ranked["assets"][0]["ai_rating_status"], "rated")
+
+        rejected = library.get_assets(ai_rating_status="ai_rejected", per_page=10)
+        self.assertEqual([asset["id"] for asset in rejected["assets"]], [rejected_id])
+        self.assertIsNone(rejected["assets"][0]["ai_rank"])
+
+        not_rated = library.get_assets(ai_rating_status="not_rated", per_page=10)
+        self.assertEqual(
+            {asset["file_name"] for asset in not_rated["assets"]},
+            {"untouched.png"},
+        )
+
     def test_assets_can_belong_to_multiple_albums_without_source_changes(self) -> None:
         first_path = self.make_image("first.png")
         second_path = self.make_image("second.png", "blue")
@@ -486,6 +531,12 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIn("Preview media", template)
         self.assertIn('id="preview-actions" class="preview-actions"', template)
         self.assertIn('class="preview-action"', template)
+        self.assertIn('id="library-ai-rank-filter"', template)
+        self.assertIn('id="library-ai-status-filter"', template)
+        self.assertIn('id="ai-rating-dialog"', template)
+        self.assertIn("async function openAiRatingDialog", script)
+        self.assertIn("'/api/ai/evaluate'", script)
+        self.assertIn("rank_override: dom.aiRatingOverride.value || null", script)
         self.assertIn("@container library-toolbar", styles)
         self.assertIn("@container preview-panel", styles)
         self.assertIn("@media (hover: hover) and (pointer: fine)", styles)

@@ -5,7 +5,7 @@ import sqlite3
 from enum import Enum
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from .. import database
 from .execution.base import PromptExecutionOutcome
@@ -41,10 +41,10 @@ class AIRatingStatus(str, Enum):
 
 class AIRatingResult(StrictModel):
     status: AIRatingStatus = AIRatingStatus.RATED
-    rank: AIRank = AIRank.C
-    technical_quality: float = Field(default=7.0, ge=0.0, le=10.0)
-    composition: float = Field(default=7.0, ge=0.0, le=10.0)
-    prompt_adherence: float = Field(default=7.0, ge=0.0, le=10.0)
+    rank: AIRank | None = None
+    technical_quality: float | None = Field(default=None, ge=0.0, le=10.0)
+    composition: float | None = Field(default=None, ge=0.0, le=10.0)
+    prompt_adherence: float | None = Field(default=None, ge=0.0, le=10.0)
     defects: list[str] = Field(default_factory=list)
     explanation: str = Field(default="", max_length=5000)
 
@@ -53,12 +53,38 @@ class AIRatingResult(StrictModel):
     def strip_explanation(cls, value: str) -> str:
         return value.strip()
 
+    @model_validator(mode="after")
+    def validate_rated_result(self) -> "AIRatingResult":
+        if self.status == AIRatingStatus.RATED:
+            missing = [
+                name
+                for name in ("rank", "technical_quality", "composition", "prompt_adherence")
+                if getattr(self, name) is None
+            ]
+            if missing:
+                raise ValueError(
+                    "A rated result requires: " + ", ".join(missing)
+                )
+        elif any(
+            value is not None
+            for value in (
+                self.rank,
+                self.technical_quality,
+                self.composition,
+                self.prompt_adherence,
+            )
+        ):
+            raise ValueError(
+                "Technical AI rating states cannot contain artistic ranks or scores."
+            )
+        return self
+
 
 class AIRating(StrictModel):
     id: int | None = None
     image_id: int
     job_id: int | None = None
-    rank: AIRank
+    rank: AIRank | None = None
     rank_override: AIRank | None = None
     status: AIRatingStatus = AIRatingStatus.RATED
     technical_quality: float | None = None
@@ -70,11 +96,12 @@ class AIRating(StrictModel):
     provider_profile_id: str | None = None
     model_id: str | None = None
     evaluation_version: str = "1"
+    output_schema_version: str = "1"
     created_at: str | None = None
     updated_at: str | None = None
 
     @property
-    def effective_rank(self) -> AIRank:
+    def effective_rank(self) -> AIRank | None:
         return self.rank_override if self.rank_override is not None else self.rank
 
 
@@ -91,6 +118,7 @@ class AIRatingStore:
         provider_profile_id: str | None = None,
         model_id: str | None = None,
         evaluation_version: str = "1",
+        output_schema_version: str = "1",
     ) -> AIRating:
         conn = database.get_conn()
         try:
@@ -98,8 +126,9 @@ class AIRatingStore:
                 """INSERT INTO ai_ratings (
                     image_id, job_id, rank, status, technical_quality,
                     composition, prompt_adherence, defects_json, explanation,
-                    execution_backend, provider_profile_id, model_id, evaluation_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    execution_backend, provider_profile_id, model_id, evaluation_version,
+                    schema_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(image_id) DO UPDATE SET
                     job_id=excluded.job_id,
                     rank=excluded.rank,
@@ -113,11 +142,12 @@ class AIRatingStore:
                     provider_profile_id=excluded.provider_profile_id,
                     model_id=excluded.model_id,
                     evaluation_version=excluded.evaluation_version,
+                    schema_version=excluded.schema_version,
                     updated_at=datetime('now')""",
                 (
                     image_id,
                     job_id,
-                    result.rank.value,
+                    result.rank.value if result.rank is not None else None,
                     result.status.value,
                     result.technical_quality,
                     result.composition,
@@ -128,6 +158,7 @@ class AIRatingStore:
                     provider_profile_id,
                     model_id,
                     evaluation_version,
+                    output_schema_version,
                 ),
             )
             conn.commit()
@@ -141,7 +172,14 @@ class AIRatingStore:
     def set_manual_override(self, image_id: int, rank_override: AIRank | str | None) -> AIRating:
         override_val = None
         if rank_override is not None:
-            override_val = rank_override.value if isinstance(rank_override, AIRank) else str(rank_override)
+            try:
+                override_val = (
+                    rank_override.value
+                    if isinstance(rank_override, AIRank)
+                    else AIRank(str(rank_override)).value
+                )
+            except ValueError as exc:
+                raise AIRankingError("Unknown AI rank override.") from exc
 
         conn = database.get_conn()
         try:
@@ -151,12 +189,11 @@ class AIRatingStore:
             )
             if cursor.rowcount == 0:
                 # If rating doesn't exist yet, insert a default not_rated rating with override
-                rank_str = override_val or AIRank.C.value
                 conn.execute(
                     """INSERT INTO ai_ratings (
                         image_id, rank, rank_override, status, explanation
                     ) VALUES (?, ?, ?, 'not_rated', 'Manual rank override')""",
-                    (image_id, rank_str, override_val),
+                    (image_id, None, override_val),
                 )
             conn.commit()
         except sqlite3.Error as exc:
@@ -165,6 +202,18 @@ class AIRatingStore:
         finally:
             conn.close()
         return self.get_by_image_id(image_id)
+
+    def delete(self, image_id: int) -> bool:
+        conn = database.get_conn()
+        try:
+            cursor = conn.execute("DELETE FROM ai_ratings WHERE image_id=?", (image_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.Error as exc:
+            conn.rollback()
+            raise AIRankingError(f"Failed to delete AI rating for image {image_id}: {exc}") from exc
+        finally:
+            conn.close()
 
     def get_by_image_id(self, image_id: int) -> AIRating:
         conn = database.get_conn()
@@ -191,7 +240,7 @@ class AIRatingStore:
             id=row["id"],
             image_id=row["image_id"],
             job_id=row["job_id"],
-            rank=AIRank(row["rank"]),
+            rank=AIRank(row["rank"]) if row["rank"] else None,
             rank_override=AIRank(row["rank_override"]) if row["rank_override"] else None,
             status=AIRatingStatus(row["status"]),
             technical_quality=row["technical_quality"],
@@ -203,6 +252,7 @@ class AIRatingStore:
             provider_profile_id=row["provider_profile_id"],
             model_id=row["model_id"],
             evaluation_version=row["evaluation_version"] or "1",
+            output_schema_version=row["schema_version"] or "1",
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
@@ -230,10 +280,8 @@ class AIRankingService:
         enabled: bool = True,
     ) -> AIRating:
         if not enabled:
-            # Rating feature disabled
             result = AIRatingResult(
                 status=AIRatingStatus.NOT_RATED,
-                rank=AIRank.C,
                 explanation="AI rating evaluation is disabled.",
             )
             return self.store.save(
@@ -253,8 +301,12 @@ class AIRankingService:
             f"IMAGE EVALUATION TASK\n"
             f"Image ID: {image_id}\n"
             f"Original Prompt: {prompt_text}\n"
-            f"Evaluate image composition, technical quality, prompt adherence, and defects. "
-            f"Return rank (F, E, D, C, B, A, S, SS, SSS, SSS+)."
+            "Evaluate image composition, technical quality, prompt adherence, and defects. "
+            "Return a PromptResult whose positive_prompt contains only a JSON object with "
+            'the keys "rank", "technical_quality", "composition", "prompt_adherence", '
+            '"defects", and "explanation". Scores are numbers from 0 to 10, defects is a '
+            "JSON string array, and rank is one of F, E, D, C, B, A, S, SS, SSS, SSS+. "
+            "Do not use Markdown and leave negative_prompt empty."
         )
 
         try:
@@ -264,16 +316,6 @@ class AIRankingService:
                 user_input=user_input,
                 api_key=api_key,
                 asset_id=image_id,
-            )
-            # Parse result from outcome or fallback to structured result
-            rating_result = self._parse_evaluation_result(outcome)
-            return self.store.save(
-                image_id=image_id,
-                result=rating_result,
-                job_id=outcome.job_id,
-                execution_backend=outcome.adapter_id,
-                provider_profile_id=profile.get("id"),
-                model_id=profile.get("model"),
             )
         except Exception as exc:
             err_msg = str(exc).lower()
@@ -286,18 +328,28 @@ class AIRankingService:
 
             result = AIRatingResult(
                 status=status,
-                rank=AIRank.F if status == AIRatingStatus.GENERATION_ERROR else AIRank.D,
                 explanation=explanation,
             )
             return self.store.save(
                 image_id=image_id,
                 result=result,
                 execution_backend=profile.get("kind", "unknown"),
+                provider_profile_id=profile.get("id"),
+                model_id=profile.get("model"),
             )
+
+        rating_result = self._parse_evaluation_result(outcome)
+        return self.store.save(
+            image_id=image_id,
+            result=rating_result,
+            job_id=outcome.job_id,
+            execution_backend=outcome.adapter_id,
+            provider_profile_id=profile.get("id"),
+            model_id=profile.get("model"),
+        )
 
     @staticmethod
     def _parse_evaluation_result(outcome: PromptExecutionOutcome) -> AIRatingResult:
-        # Default structured result check
         res = outcome.result
         positive = res.positive_prompt or ""
 
@@ -305,47 +357,25 @@ class AIRankingService:
         try:
             data = json.loads(positive)
             if isinstance(data, dict) and "rank" in data:
-                rank_val = data.get("rank", "B")
-                if rank_val in AIRank._value2member_map_:
-                    rank_enum = AIRank(rank_val)
-                else:
-                    rank_enum = AIRank.B
-                return AIRatingResult(
-                    status=AIRatingStatus.RATED,
-                    rank=rank_enum,
-                    technical_quality=float(data.get("technical_quality", 8.0)),
-                    composition=float(data.get("composition", 8.0)),
-                    prompt_adherence=float(data.get("prompt_adherence", 8.0)),
-                    defects=list(data.get("defects", [])),
-                    explanation=str(data.get("explanation", positive)),
-                )
+                return AIRatingResult.model_validate({
+                    **data,
+                    "status": AIRatingStatus.RATED,
+                })
         except (json.JSONDecodeError, TypeError, ValueError):
-            pass
-
-        # Fallback heuristic: check if rank keywords appear in text
-        for r_str, r_enum in [
-            ("SSS+", AIRank.SSS_PLUS),
-            ("SSS", AIRank.SSS),
-            ("SS", AIRank.SS),
-            ("S", AIRank.S),
-            ("A", AIRank.A),
-            ("B", AIRank.B),
-            ("C", AIRank.C),
-            ("D", AIRank.D),
-            ("E", AIRank.E),
-            ("F", AIRank.F),
-        ]:
-            if f"Rank: {r_str}" in positive or f"Rank {r_str}" in positive or f"rank: {r_str}" in positive.lower():
-                return AIRatingResult(
-                    status=AIRatingStatus.RATED,
-                    rank=r_enum,
-                    explanation=positive,
-                )
+            return AIRatingResult(
+                status=AIRatingStatus.UNREADABLE,
+                explanation=(
+                    "The selected AI profile returned a response that does not match "
+                    "the rating schema. The asset was preserved and no artistic rank was assigned."
+                ),
+            )
 
         return AIRatingResult(
-            status=AIRatingStatus.RATED,
-            rank=AIRank.B,
-            explanation=positive or "Image evaluated successfully.",
+            status=AIRatingStatus.UNREADABLE,
+            explanation=(
+                "The selected AI profile did not return a structured rating. "
+                "The asset was preserved and no artistic rank was assigned."
+            ),
         )
 
 

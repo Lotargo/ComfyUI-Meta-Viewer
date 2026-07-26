@@ -127,6 +127,12 @@ def profile_error(error: AIProfileStoreError):
     return jsonify({"error": str(error), "code": error.code}), status
 
 
+@ai_blueprint.errorhandler(AIRankingError)
+def ai_ranking_error(error: AIRankingError):
+    status = 404 if "not found" in str(error).lower() else 422
+    return jsonify({"error": str(error), "code": "ai_rating_error"}), status
+
+
 @ai_blueprint.errorhandler(SecretStoreError)
 def secret_store_error(error: SecretStoreError):
     return jsonify({"error": str(error), "code": "secret_store_unavailable"}), 503
@@ -686,26 +692,41 @@ def ai_resources_resolve():
 @ai_blueprint.route("/api/ai/evaluate", methods=["POST"])
 def ai_evaluate():
     payload = _json_object()
-    profile = payload.get("profile")
-    if not isinstance(profile, dict):
-        raise AIProfileStoreError("profile dictionary is required.")
+    profile_store = _store()
+    profile_id = payload.get("profile_id") or profile_store.list()["defaults"].get(
+        "multimodal_profile_id"
+    )
+    if not isinstance(profile_id, str) or not profile_id.strip():
+        raise AIProfileStoreError(
+            "Choose a multimodal AI profile before rating an asset.",
+            code="missing_profile",
+        )
+    profile = profile_store.get(profile_id)
+    if profile.get("multimodal") is not True:
+        raise AIProfileStoreError("AI rating requires a multimodal profile.")
     image_id = payload.get("image_id")
-    if not isinstance(image_id, int):
+    if isinstance(image_id, bool) or not isinstance(image_id, int):
         raise AIRankingError("image_id integer is required.")
+
+    _asset_image_data_url(image_id)
 
     service = AIRankingService()
     rating = service.evaluate_asset(
         profile=profile,
         image_id=image_id,
         prompt_text=payload.get("prompt_text", ""),
-        enabled=payload.get("enabled", True),
+        api_key=profile_store.resolve_api_key(profile),
     )
     return jsonify({"rating": rating.model_dump(mode="json")})
 
 
-@ai_blueprint.route("/api/ai/ratings/<int:image_id>", methods=["GET", "PATCH"])
+@ai_blueprint.route("/api/ai/ratings/<int:image_id>", methods=["GET", "PATCH", "DELETE"])
 def ai_rating(image_id: int):
     store = AIRatingStore()
+    if request.method == "DELETE":
+        if not store.delete(image_id):
+            raise AIRankingError(f"AI rating for image {image_id} not found.")
+        return jsonify({"ok": True})
     if request.method == "GET":
         rating = store.get_by_image_id(image_id)
     else:

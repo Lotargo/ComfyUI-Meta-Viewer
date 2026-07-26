@@ -361,7 +361,7 @@
 - [x] Показать краткое пользовательское объяснение.
 - [x] Показать рекомендуемое действие без автоматического изменения workflow.
 - [x] Оставить raw technical details в раскрываемом блоке.
-- [ ] Не занижать художественный rating из-за technical error.
+- [x] Не занижать художественный rating из-за technical error.
 
 **Gate:** расширять основной editor всеми возможными node parameters запрещено. Новое поле добавляется только при наличии manifest binding и подтверждённого пользовательского сценария.
 
@@ -521,23 +521,23 @@ negative conditioning. Только отдельное ручное действ
 
 ## 8.1 Product behavior
 
-- [ ] AI rating выключен по умолчанию.
+- [x] AI rating выключен по умолчанию.
 - [ ] AI rating можно включить глобально.
 - [ ] AI rating можно включить для отдельного run.
-- [ ] AI rating можно запустить вручную для выбранного asset.
-- [ ] Отсутствие AI profile не мешает generation.
-- [ ] Отказ provider не мешает сохранению результата.
+- [x] AI rating можно запустить вручную для выбранного asset.
+- [x] Отсутствие AI profile не мешает generation.
+- [x] Отказ provider не мешает сохранению результата.
 
 ## 8.2 Status separation
 
-- [ ] `rated`.
-- [ ] `not_rated`.
-- [ ] `ai_rejected`.
-- [ ] `unreadable`.
-- [ ] `generation_error`.
-- [ ] Policy rejection не преобразуется в низкий rank.
-- [ ] Technical error не преобразуется в низкий rank.
-- [ ] Manual user stars и AI rank остаются разными полями.
+- [x] `rated`.
+- [x] `not_rated`.
+- [x] `ai_rejected`.
+- [x] `unreadable`.
+- [x] `generation_error`.
+- [x] Policy rejection не преобразуется в низкий rank.
+- [x] Technical error не преобразуется в низкий rank.
+- [x] Manual user stars и AI rank остаются разными полями.
 
 ## 8.3 Rating UI
 
@@ -551,6 +551,11 @@ negative conditioning. Только отдельное ручное действ
 - [ ] Возможность удалить AI rating.
 - [ ] Отдельный filter по AI rank.
 - [ ] Отдельный filter по AI rating status.
+
+Backend и Library DOM для всех перечисленных controls реализованы. Интерактивный
+browser smoke диалога остаётся pending: доступный headless Chrome подтвердил
+загрузку страницы, layout и наличие rank/status filters и rating dialog, но
+окружение не содержит `agent-browser`/Playwright для надёжного click-flow.
 
 ## 8.4 Content-policy robustness
 
@@ -690,11 +695,23 @@ negative conditioning. Только отдельное ручное действ
 - [x] Подключить Reconstruct через editable SceneSpec.
 - [x] Проверить Remix end-to-end.
 
+## Slice D. Optional AI rating foundation
+
+Начат после завершения основной AI-to-editor интеграции.
+
+- [x] Хранить technical status без фиктивного художественного rank.
+- [x] Выбирать только сохранённый multimodal profile и разрешать credentials server-side.
+- [x] Добавить ручной запуск, rank override и удаление rating для Library asset.
+- [x] Добавить отдельные Library filters по AI rank и evaluation status.
+- [ ] Проверить интерактивный flow rating dialog в полноценном browser automation окружении.
+- [ ] Добавить global opt-in и per-run opt-in после определения run lifecycle hook.
+- [ ] Проверить SFW, policy rejection и отличающуюся local policy на реальных profiles.
+
 ## Явно отложено
 
 - [ ] Полностью автоматическое определение и перемещение любой скачанной модели.
 - [ ] Универсальный workflow для всех architectures.
 - [ ] Полная замена ComfyUI Manager.
 - [ ] Автоматический подбор VAE/CLIP без проверяемого manifest или metadata source.
-- [ ] AI rating до завершения основной AI-to-editor интеграции.
+- [x] AI rating не начинался до завершения основной AI-to-editor интеграции.
 - [ ] Desktop packaging до release verification.

@@ -334,7 +334,7 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
                 job_id INTEGER REFERENCES ai_jobs(id) ON DELETE SET NULL,
-                rank TEXT NOT NULL,
+                rank TEXT,
                 rank_override TEXT,
                 status TEXT NOT NULL DEFAULT 'rated',
                 technical_quality REAL,
@@ -373,6 +373,8 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_ai_ratings_rank ON ai_ratings(rank);
         """)
         _migrate_ai_job_review_status(conn)
+        _migrate_ai_rating_nullable_rank(conn)
+        _normalize_ai_rating_statuses(conn)
         migrations = (
             "ALTER TABLE images ADD COLUMN original_data BLOB",
             "ALTER TABLE folders ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'",
@@ -508,6 +510,84 @@ def _migrate_ai_job_review_status(conn: sqlite3.Connection) -> None:
         raise sqlite3.IntegrityError(
             "AI job status migration produced foreign key violations."
         )
+
+
+def _migrate_ai_rating_nullable_rank(conn: sqlite3.Connection) -> None:
+    """Allow technical rating states to exist without a fabricated artistic rank."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='ai_ratings'"
+    ).fetchone()
+    if row is None or "rank TEXT NOT NULL" not in str(row["sql"]):
+        return
+
+    columns = (
+        "id, image_id, job_id, rank, rank_override, status, technical_quality, "
+        "composition, prompt_adherence, defects_json, explanation, "
+        "execution_backend, provider_profile_id, model_id, evaluation_version, "
+        "schema_version, created_at, updated_at"
+    )
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys=OFF")
+    try:
+        conn.executescript(f"""
+            BEGIN IMMEDIATE;
+            CREATE TABLE ai_ratings__nullable_rank_migration (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                job_id INTEGER REFERENCES ai_jobs(id) ON DELETE SET NULL,
+                rank TEXT,
+                rank_override TEXT,
+                status TEXT NOT NULL DEFAULT 'rated',
+                technical_quality REAL,
+                composition REAL,
+                prompt_adherence REAL,
+                defects_json TEXT NOT NULL DEFAULT '[]',
+                explanation TEXT NOT NULL DEFAULT '',
+                execution_backend TEXT NOT NULL DEFAULT '',
+                provider_profile_id TEXT,
+                model_id TEXT,
+                evaluation_version TEXT NOT NULL DEFAULT '1',
+                schema_version TEXT NOT NULL DEFAULT '1',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(image_id)
+            );
+            INSERT INTO ai_ratings__nullable_rank_migration ({columns})
+                SELECT {columns} FROM ai_ratings;
+            DROP TABLE ai_ratings;
+            ALTER TABLE ai_ratings__nullable_rank_migration RENAME TO ai_ratings;
+            CREATE INDEX idx_ai_ratings_image ON ai_ratings(image_id);
+            CREATE INDEX idx_ai_ratings_rank ON ai_ratings(rank);
+            COMMIT;
+        """)
+    except Exception:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys=ON")
+
+    violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+    if violations:
+        raise sqlite3.IntegrityError(
+            "AI rating rank migration produced foreign key violations."
+        )
+
+
+def _normalize_ai_rating_statuses(conn: sqlite3.Connection) -> None:
+    """Remove legacy low ranks that were fabricated for technical states."""
+    conn.execute(
+        """UPDATE ai_ratings
+        SET rank=NULL,
+            technical_quality=NULL,
+            composition=NULL,
+            prompt_adherence=NULL,
+            updated_at=datetime('now')
+        WHERE status <> 'rated'
+          AND (rank IS NOT NULL OR technical_quality IS NOT NULL
+               OR composition IS NOT NULL OR prompt_adherence IS NOT NULL)"""
+    )
+    conn.commit()
 
 
 def upsert_folder(path: str) -> int:

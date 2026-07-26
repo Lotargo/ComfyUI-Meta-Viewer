@@ -200,6 +200,8 @@ def api_library_assets():
         source_id=request.args.get("source_id", type=int),
         tag=request.args.get("tag"),
         rating=rating,
+        ai_rank=request.args.get("ai_rank"),
+        ai_rating_status=request.args.get("ai_rating_status"),
         model_family=request.args.get("model_family"),
         orientation=request.args.get("orientation"),
         node_type=request.args.get("node_type"),

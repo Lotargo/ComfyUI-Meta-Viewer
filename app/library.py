@@ -588,6 +588,7 @@ def get_assets(
     asset_id: int | None = None,
     rating: int | None = None,
     ai_rank: str | None = None,
+    ai_rating_status: str | None = None,
     model_family: str | None = None,
     orientation: str | None = None,
     node_type: str | None = None,
@@ -613,6 +614,26 @@ def get_assets(
             "EXISTS (SELECT 1 FROM ai_ratings filter_ar WHERE filter_ar.image_id = i.id AND COALESCE(filter_ar.rank_override, filter_ar.rank) = ?)"
         )
         params.append(ai_rank.strip().upper())
+
+    if ai_rating_status and ai_rating_status.strip():
+        normalized_status = ai_rating_status.strip().casefold()
+        allowed_statuses = {
+            "rated", "not_rated", "ai_rejected", "unreadable", "generation_error"
+        }
+        if normalized_status not in allowed_statuses:
+            raise LibraryError("Unknown AI rating status")
+        if normalized_status == "not_rated":
+            conditions.append(
+                "(NOT EXISTS (SELECT 1 FROM ai_ratings status_ar WHERE status_ar.image_id = i.id) "
+                "OR EXISTS (SELECT 1 FROM ai_ratings status_ar WHERE "
+                "status_ar.image_id = i.id AND status_ar.status = 'not_rated'))"
+            )
+        else:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM ai_ratings status_ar WHERE "
+                "status_ar.image_id = i.id AND status_ar.status = ?)"
+            )
+            params.append(normalized_status)
 
     if model_family:
         model_condition, model_params = _model_family_condition(
@@ -808,6 +829,7 @@ def get_assets(
         ai_rank_val = asset.pop("ai_rank", None)
         ai_override_val = asset.pop("ai_rank_override", None)
         asset["ai_rank"] = ai_override_val if ai_override_val is not None else ai_rank_val
+        asset["ai_rating_status"] = asset.pop("ai_rank_status", None) or "not_rated"
         asset["thumbnail_url"] = f"/api/thumbnail/{image_id}"
         asset["original_url"] = f"/api/original/{image_id}"
 

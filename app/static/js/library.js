@@ -16,6 +16,8 @@ const dom = {
     modelFilter: document.getElementById('library-model-filter'),
     orientationFilter: document.getElementById('library-orientation-filter'),
     nodeFilter: document.getElementById('library-node-filter'),
+    aiRankFilter: document.getElementById('library-ai-rank-filter'),
+    aiStatusFilter: document.getElementById('library-ai-status-filter'),
     toolbar: document.getElementById('selection-toolbar'),
     selectionCount: document.getElementById('selection-count'),
     selectVisible: document.getElementById('select-visible'),
@@ -59,11 +61,27 @@ const dom = {
     previewCopyWorkflow: document.getElementById('preview-copy-workflow'),
     previewCopyPosPrompt: document.getElementById('preview-copy-pos-prompt'),
     previewCopyNegPrompt: document.getElementById('preview-copy-neg-prompt'),
+    previewAiRating: document.getElementById('preview-ai-rating'),
     previewCarousel: document.getElementById('preview-carousel'),
     previewResizeHandle: document.getElementById('preview-resize-handle'),
     btnToggleSidebar: document.getElementById('btn-toggle-sidebar'),
     sidebar: document.querySelector('.library-sidebar'),
     toast: document.getElementById('library-toast'),
+    aiRatingDialog: document.getElementById('ai-rating-dialog'),
+    aiRatingClose: document.getElementById('ai-rating-close'),
+    aiRatingSummary: document.getElementById('ai-rating-summary'),
+    aiRatingResult: document.getElementById('ai-rating-result'),
+    aiRatingRank: document.getElementById('ai-rating-rank'),
+    aiRatingStatus: document.getElementById('ai-rating-status'),
+    aiRatingMetrics: document.getElementById('ai-rating-metrics'),
+    aiRatingDefects: document.getElementById('ai-rating-defects'),
+    aiRatingExplanation: document.getElementById('ai-rating-explanation'),
+    aiRatingMetadata: document.getElementById('ai-rating-metadata'),
+    aiRatingProfile: document.getElementById('ai-rating-profile'),
+    aiRatingOverride: document.getElementById('ai-rating-override'),
+    aiRatingDelete: document.getElementById('ai-rating-delete'),
+    aiRatingSaveOverride: document.getElementById('ai-rating-save-override'),
+    aiRatingRun: document.getElementById('ai-rating-run'),
 };
 
 const storageKeys = {
@@ -273,6 +291,8 @@ function assetRenderSignature(asset) {
         asset.codec,
         asset.preview_status,
         asset.preview_error,
+        asset.ai_rank,
+        asset.ai_rating_status,
         asset.file_size,
     ]);
 }
@@ -280,6 +300,7 @@ function assetRenderSignature(asset) {
 function assetCardHtml(asset) {
     const selected = state.selected.has(asset.id);
     const rating = '★'.repeat(asset.rating || 0);
+    const aiRank = asset.ai_rank ? `<span class="asset-ai-rank" title="AI rank">AI ${escapeHtml(asset.ai_rank)}</span>` : '';
     const tags = (asset.tags || []).slice(0, 3).map(tag => `<span class="asset-tag">${escapeHtml(tag)}</span>`).join('');
     const isVideo = asset.media_type === 'video';
     const dimensions = asset.width && asset.height ? `${asset.width}×${asset.height}` : (asset.format || asset.media_type || 'asset');
@@ -320,7 +341,7 @@ function assetCardHtml(asset) {
                 <div class="asset-source" title="${escapeHtml(asset.source_path)}">${escapeHtml(asset.source_name)}</div>
                 ${tags ? `<div class="asset-tags">${tags}</div>` : ''}
                 <div class="asset-card-footer">
-                    <span class="asset-rating">${rating || 'Not rated'}</span>
+                    <span class="asset-rating">${rating || 'Not rated'} ${aiRank}</span>
                     <span class="asset-meta">${escapeHtml(technical)} · ${formatBytes(asset.file_size)}</span>
                 </div>
             </div>
@@ -509,11 +530,12 @@ function showPreviewCopyFeedback(button) {
     previewCopyFeedbackTimers.set(button, timer);
 }
 
-function setPreviewActionsAvailability({ workflow = false, positive = false, negative = false } = {}) {
+function setPreviewActionsAvailability({ workflow = false, positive = false, negative = false, rating = false } = {}) {
     dom.previewCopyWorkflow.hidden = !workflow;
     dom.previewCopyPosPrompt.hidden = !positive;
     dom.previewCopyNegPrompt.hidden = !negative;
-    dom.previewActions.hidden = !(workflow || positive || negative);
+    dom.previewAiRating.hidden = !rating;
+    dom.previewActions.hidden = !(workflow || positive || negative || rating);
 }
 
 function updateLayoutColumns() {
@@ -555,6 +577,7 @@ function updatePreviewPanel() {
 
     const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
     if (state.showPreview && activeAsset) {
+        setPreviewActionsAvailability({ rating: activeAsset.media_type === 'image' });
         const originalUrl = `/api/original/${activeAsset.id}`;
         const isVideo = activeAsset.media_type === 'video';
 
@@ -615,11 +638,12 @@ function updatePreviewPanel() {
                         workflow: hasWorkflow,
                         positive: hasPos,
                         negative: hasNeg,
+                        rating: activeAsset.media_type === 'image',
                     });
                 }
             } catch (error) {
                 console.error('Failed to load asset details for preview options:', error);
-                setPreviewActionsAvailability();
+                setPreviewActionsAvailability({ rating: activeAsset.media_type === 'image' });
             }
         }, 100);
     } else {
@@ -646,6 +670,8 @@ function applyCurrentFilters(params) {
     if (dom.modelFilter.value) params.set('model_family', dom.modelFilter.value);
     if (dom.orientationFilter.value) params.set('orientation', dom.orientationFilter.value);
     if (dom.nodeFilter.value) params.set('node_type', dom.nodeFilter.value);
+    if (dom.aiRankFilter.value) params.set('ai_rank', dom.aiRankFilter.value);
+    if (dom.aiStatusFilter.value) params.set('ai_rating_status', dom.aiStatusFilter.value);
     return params;
 }
 
@@ -1653,6 +1679,115 @@ dom.editorForm.addEventListener('submit', async event => {
 
 let currentSelectedDetail = null;
 
+const aiRatingStatusLabels = {
+    rated: 'Rated',
+    not_rated: 'Not rated',
+    ai_rejected: 'Provider policy rejection',
+    unreadable: 'Unreadable structured response',
+    generation_error: 'Technical evaluation error',
+};
+
+function renderAiRating(rating) {
+    const hasRating = Boolean(rating);
+    dom.aiRatingResult.hidden = !hasRating;
+    dom.aiRatingDelete.hidden = !hasRating;
+    dom.aiRatingSummary.textContent = hasRating
+        ? 'AI rank, technical states, and your star rating are stored separately.'
+        : 'No AI rating has been saved for this asset.';
+    if (!hasRating) {
+        dom.aiRatingOverride.value = '';
+        return;
+    }
+
+    dom.aiRatingRank.textContent = rating.rank_override || rating.rank || '—';
+    dom.aiRatingStatus.textContent = aiRatingStatusLabels[rating.status] || rating.status;
+    const metrics = [
+        ['Technical quality', rating.technical_quality],
+        ['Composition', rating.composition],
+        ['Prompt adherence', rating.prompt_adherence],
+    ].filter(([, value]) => value !== null && value !== undefined);
+    dom.aiRatingMetrics.innerHTML = metrics.map(([label, value]) => (
+        `<span><small>${escapeHtml(label)}</small><strong>${Number(value).toFixed(1)}/10</strong></span>`
+    )).join('');
+    const defects = Array.isArray(rating.defects) ? rating.defects : [];
+    dom.aiRatingDefects.textContent = defects.length
+        ? `Defects: ${defects.join('; ')}`
+        : (rating.status === 'rated' ? 'Defects: none reported' : '');
+    dom.aiRatingExplanation.textContent = rating.explanation || '';
+    const metadata = [
+        rating.execution_backend,
+        rating.model_id,
+        rating.evaluation_version ? `evaluation v${rating.evaluation_version}` : '',
+        rating.output_schema_version ? `schema v${rating.output_schema_version}` : '',
+        rating.updated_at || rating.created_at,
+    ].filter(Boolean);
+    dom.aiRatingMetadata.textContent = metadata.join(' · ');
+    dom.aiRatingOverride.value = rating.rank_override || '';
+}
+
+async function loadAiRating(imageId) {
+    const response = await fetch(`/api/ai/ratings/${imageId}`);
+    if (response.status === 404) return null;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error) throw new Error(data.error || 'Could not load AI rating.');
+    return data.rating || null;
+}
+
+async function loadAiRatingProfiles() {
+    const data = await fetchJson('/api/ai/profiles');
+    const profiles = (data.profiles || []).filter(profile => profile.multimodal === true);
+    dom.aiRatingProfile.innerHTML = profiles.length
+        ? profiles.map(profile => (
+            `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`
+        )).join('')
+        : '<option value="">No multimodal profiles configured</option>';
+    const defaultId = data.defaults?.multimodal_profile_id;
+    if (profiles.some(profile => profile.id === defaultId)) dom.aiRatingProfile.value = defaultId;
+    dom.aiRatingRun.disabled = profiles.length === 0;
+}
+
+async function openAiRatingDialog() {
+    const asset = state.assets.find(item => item.id === state.activeAssetId);
+    if (!asset || asset.media_type !== 'image') return;
+    dom.aiRatingDialog.dataset.imageId = String(asset.id);
+    dom.aiRatingDialog.dataset.fileName = asset.file_name;
+    dom.aiRatingSummary.textContent = 'Loading rating and profiles…';
+    dom.aiRatingResult.hidden = true;
+    dom.aiRatingDelete.hidden = true;
+    dom.aiRatingDialog.showModal();
+    try {
+        const [rating] = await Promise.all([
+            loadAiRating(asset.id),
+            loadAiRatingProfiles(),
+        ]);
+        if (Number(dom.aiRatingDialog.dataset.imageId) === asset.id) renderAiRating(rating);
+    } catch (error) {
+        dom.aiRatingSummary.textContent = error.message;
+        showToast(error.message, true);
+    }
+}
+
+function setAiRatingBusy(busy) {
+    dom.aiRatingRun.disabled = busy || !dom.aiRatingProfile.value;
+    dom.aiRatingSaveOverride.disabled = busy;
+    dom.aiRatingDelete.disabled = busy;
+    dom.aiRatingRun.textContent = busy ? 'Rating…' : 'Rate asset';
+}
+
+async function refreshAfterAiRating(rating = null) {
+    const imageId = Number(dom.aiRatingDialog.dataset.imageId);
+    const asset = state.assets.find(item => item.id === imageId);
+    if (asset) {
+        asset.ai_rank = rating ? (rating.rank_override || rating.rank) : null;
+        asset.ai_rating_status = rating?.status || 'not_rated';
+    }
+    renderAssets({ reconcile: true });
+    await Promise.all([
+        loadMetadata(),
+        refreshAssets({ reconcile: true, preserveScroll: true }),
+    ]);
+}
+
 dom.toolbarCopyWorkflow.addEventListener('click', async () => {
     const wf = currentSelectedDetail?.workflow_ui_json || currentSelectedDetail?.workflow;
     if (!wf) return;
@@ -1739,6 +1874,8 @@ dom.sort.addEventListener('change', resetAssetQuery);
 dom.modelFilter.addEventListener('change', resetAssetQuery);
 dom.orientationFilter.addEventListener('change', resetAssetQuery);
 dom.nodeFilter.addEventListener('change', resetAssetQuery);
+dom.aiRankFilter.addEventListener('change', resetAssetQuery);
+dom.aiStatusFilter.addEventListener('change', resetAssetQuery);
 
 dom.albumDialogForm.addEventListener('submit', async event => {
     if (event.submitter?.id !== 'save-album-btn') return;
@@ -1988,12 +2125,79 @@ async function initialize() {
         setupDialogBackdropClose(dom.editor);
         setupDialogBackdropClose(dom.albumDialog);
         setupDialogBackdropClose(dom.guideDialog);
+        setupDialogBackdropClose(dom.aiRatingDialog);
 
         dom.btnLibraryGuide.addEventListener('click', () => {
             dom.guideDialog.showModal();
             dom.btnLibraryGuide.setAttribute('aria-expanded', 'true');
         });
         dom.closeLibraryGuide.addEventListener('click', () => dom.guideDialog.close());
+        dom.aiRatingClose.addEventListener('click', () => dom.aiRatingDialog.close());
+        dom.previewAiRating.addEventListener('click', () => {
+            openAiRatingDialog().catch(error => showToast(error.message, true));
+        });
+        dom.aiRatingProfile.addEventListener('change', () => {
+            dom.aiRatingRun.disabled = !dom.aiRatingProfile.value;
+        });
+        dom.aiRatingRun.addEventListener('click', async () => {
+            const imageId = Number(dom.aiRatingDialog.dataset.imageId);
+            if (!imageId || !dom.aiRatingProfile.value) return;
+            setAiRatingBusy(true);
+            try {
+                let detail = currentSelectedDetail?.id === imageId ? currentSelectedDetail : null;
+                if (!detail) detail = await fetchJson(`/api/assets/${imageId}`);
+                const data = await fetchJson('/api/ai/evaluate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image_id: imageId,
+                        profile_id: dom.aiRatingProfile.value,
+                        prompt_text: detail.prompt_parameters?.positive_prompt || '',
+                    }),
+                });
+                renderAiRating(data.rating);
+                await refreshAfterAiRating(data.rating);
+                showToast(data.rating.status === 'rated' ? 'AI rating saved' : 'AI evaluation status saved');
+            } catch (error) {
+                showToast(error.message, true);
+            } finally {
+                setAiRatingBusy(false);
+            }
+        });
+        dom.aiRatingSaveOverride.addEventListener('click', async () => {
+            const imageId = Number(dom.aiRatingDialog.dataset.imageId);
+            if (!imageId) return;
+            setAiRatingBusy(true);
+            try {
+                const data = await fetchJson(`/api/ai/ratings/${imageId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rank_override: dom.aiRatingOverride.value || null }),
+                });
+                renderAiRating(data.rating);
+                await refreshAfterAiRating(data.rating);
+                showToast('AI rank override saved');
+            } catch (error) {
+                showToast(error.message, true);
+            } finally {
+                setAiRatingBusy(false);
+            }
+        });
+        dom.aiRatingDelete.addEventListener('click', async () => {
+            const imageId = Number(dom.aiRatingDialog.dataset.imageId);
+            if (!imageId || !window.confirm('Delete this AI rating? Your star rating will not change.')) return;
+            setAiRatingBusy(true);
+            try {
+                await fetchJson(`/api/ai/ratings/${imageId}`, { method: 'DELETE' });
+                renderAiRating(null);
+                await refreshAfterAiRating(null);
+                showToast('AI rating deleted');
+            } catch (error) {
+                showToast(error.message, true);
+            } finally {
+                setAiRatingBusy(false);
+            }
+        });
 
         dom.editor.addEventListener('close', () => {
             setTimeout(() => document.activeElement?.blur(), 0);

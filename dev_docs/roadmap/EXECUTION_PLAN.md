@@ -402,10 +402,12 @@
 
 ## 6.4 Adapt
 
-- [ ] Adapt является отдельной операцией.
-- [ ] Target family выбирается явно или определяется compatible template.
+- [x] Adapt является отдельной операцией.
+- [x] Target family выбирается явно или определяется compatible template.
 - [ ] Checkpoint-specific triggers не удаляются без причины.
-- [ ] Adapted result создаёт новую draft revision.
+- [x] Adapted result создаёт новую draft revision.
+
+Adapt вызывается из editor отдельным действием, использует сохранённый text profile, явно выбранные family/scenario и optional checkpoint profile. Source и adapted result хранятся в отдельном persistence contract, восстанавливаются при reload и открываются в сравнении; созданный workflow draft остаётся редактируемым и не запускает ComfyUI. Сохранность checkpoint-specific triggers остаётся предметом практического operation benchmark.
 
 ## 6.5 Reconstruct from image
 
@@ -649,7 +651,7 @@
 
 - [x] Подключить Generate prompt к editor draft.
 - [x] Подключить Translate как отдельную операцию.
-- [ ] Подключить Adapt как отдельную операцию.
+- [x] Подключить Adapt как отдельную операцию.
 - [ ] Подключить Reconstruct через editable SceneSpec.
 - [ ] Проверить Remix end-to-end.
 

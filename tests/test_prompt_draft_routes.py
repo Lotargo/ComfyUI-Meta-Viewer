@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app import database
+from app.ai.adaptation import PromptAdaptationStore
 from app.ai.job_store import AIJobStore, PromptDraft, PromptDraftSource
 from app.ai.prompting import (
     PromptFamily,
@@ -397,6 +398,157 @@ class PromptDraftRoutesTest(unittest.TestCase):
             conn.close()
         self.assertEqual(run_count, 0)
 
+    def test_adapt_creates_family_aware_editor_draft_and_preserves_source(self) -> None:
+        captured = {}
+        profile = {
+            "id": "saved-adapter",
+            "kind": "openai_compatible",
+            "name": "Saved adapter",
+            "model": "adaptation-model",
+        }
+
+        class StubProfileStore:
+            @staticmethod
+            def list():
+                return {
+                    "profiles": [],
+                    "defaults": {"text_profile_id": profile["id"]},
+                }
+
+            @staticmethod
+            def get(profile_id):
+                self.assertEqual(profile_id, profile["id"])
+                return profile
+
+            @staticmethod
+            def resolve_api_key(resolved_profile):
+                self.assertIs(resolved_profile, profile)
+                return "server-side-adaptation-secret"
+
+        class StubAdaptationService:
+            @staticmethod
+            def adapt(**kwargs):
+                captured.update(kwargs)
+                result = PromptResult(
+                    positive_prompt="score_9, score_8_up, cinematic forest portrait",
+                    negative_prompt="score_4, score_5, text, watermark",
+                )
+                store = AIJobStore()
+                job = store.create(
+                    task=kwargs["task"].model_copy(
+                        update={
+                            "family": PromptFamily(kwargs["target_family"]),
+                            "checkpoint_profile": kwargs["checkpoint_profile"],
+                        }
+                    ),
+                    execution_backend="openai_compatible",
+                    provider_profile_id=profile["id"],
+                    model_id=profile["model"],
+                    user_input="adaptation request",
+                )
+                store.save_draft(
+                    job.id,
+                    PromptDraft(
+                        positive_prompt=result.positive_prompt,
+                        negative_prompt=result.negative_prompt,
+                        source_kind=PromptDraftSource.ADAPTATION,
+                        source_payload={
+                            "source": kwargs["source"].model_dump(mode="json"),
+                            "target_family": kwargs["target_family"],
+                        },
+                        versions={"family": "1", "operation": "1"},
+                    ),
+                )
+                store.wait_for_review(job.id, result=result)
+                adaptation = PromptAdaptationStore().save(
+                    job_id=job.id,
+                    source=kwargs["source"],
+                    adapted=PromptText(
+                        positive_prompt=result.positive_prompt,
+                        negative_prompt=result.negative_prompt,
+                    ),
+                    target_family=PromptFamily(kwargs["target_family"]),
+                    checkpoint_profile=kwargs["checkpoint_profile"],
+                )
+                return SimpleNamespace(
+                    execution=SimpleNamespace(job_id=job.id),
+                    adaptation=adaptation,
+                )
+
+        with (
+            patch("app.ai.routes._store", return_value=StubProfileStore()),
+            patch(
+                "app.ai.routes.PromptAdaptationService",
+                return_value=StubAdaptationService(),
+            ),
+        ):
+            response = self.client.post(
+                "/api/ai/adapt",
+                json={
+                    "target_family": "pony",
+                    "checkpoint_profile": "pony-photo-v1",
+                    "source": {
+                        "positive_prompt": "cinematic forest portrait",
+                        "negative_prompt": "text, watermark",
+                    },
+                    "task": {
+                        "family": "pony",
+                        "scenario": "portrait",
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(payload["job"]["task"]["operation"], "adapt")
+        self.assertEqual(payload["job"]["status"], "waiting_for_review")
+        self.assertEqual(payload["context"]["family"], "pony")
+        self.assertEqual(payload["adaptation"]["target_family"], "pony")
+        self.assertEqual(
+            payload["adaptation"]["source"]["positive_prompt"],
+            "cinematic forest portrait",
+        )
+        self.assertEqual(captured["api_key"], "server-side-adaptation-secret")
+        self.assertNotIn("server-side-adaptation-secret", response.get_data(as_text=True))
+
+        workflow = self.client.post(
+            "/api/editor/drafts",
+            json={
+                "template_id": "core-image",
+                "ai_prompt_draft_id": payload["prompt_draft"]["id"],
+            },
+        )
+        self.assertEqual(workflow.status_code, 201)
+        workflow_payload = workflow.get_json()
+        workflow_draft = workflow_payload["draft"]
+        self.assertEqual(workflow_payload["ai_prompt_context"]["operation"], "adapt")
+        self.assertEqual(
+            workflow_payload["ai_prompt_adaptation"]["checkpoint_profile"],
+            "pony-photo-v1",
+        )
+        self.assertEqual(
+            workflow_payload["ai_prompt_adaptation"]["source"]["positive_prompt"],
+            "cinematic forest portrait",
+        )
+        self.assertEqual(
+            workflow_draft["values"]["positive_prompt"],
+            "score_9, score_8_up, cinematic forest portrait",
+        )
+
+        reloaded = self.client.get(f"/api/editor/drafts/{workflow_draft['id']}")
+        self.assertEqual(reloaded.status_code, 200)
+        self.assertEqual(
+            reloaded.get_json()["ai_prompt_adaptation"]["target_family"],
+            "pony",
+        )
+
+        conn = database.get_conn()
+        try:
+            run_count = conn.execute("SELECT COUNT(*) FROM workflow_runs").fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(run_count, 0)
+
     def test_editor_exposes_ai_prompt_draft_controls(self) -> None:
         response = self.client.get("/editor")
         self.assertEqual(response.status_code, 200)
@@ -404,6 +556,8 @@ class PromptDraftRoutesTest(unittest.TestCase):
         self.assertIn(b'id="ai-prompt-dialog"', response.data)
         self.assertIn(b'id="translate-prompt-open"', response.data)
         self.assertIn(b'id="translate-prompt-dialog"', response.data)
+        self.assertIn(b'id="adapt-prompt-open"', response.data)
+        self.assertIn(b'id="adapt-prompt-dialog"', response.data)
         self.assertIn(b'id="prompt-provenance-dialog"', response.data)
         self.assertIn(b'Generation stays manual', response.data)
 

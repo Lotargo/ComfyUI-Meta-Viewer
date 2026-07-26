@@ -5,7 +5,7 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, render_template, request
 from pydantic import ValidationError
 
-from .adaptation import PromptAdaptationService
+from .adaptation import PromptAdaptationError, PromptAdaptationService
 from .cli import (
     CLI_SPECS,
     CLIIntegrationError,
@@ -93,6 +93,12 @@ def ai_job_error(error: AIJobStoreError):
 @ai_blueprint.errorhandler(PromptTranslationError)
 def ai_translation_error(error: PromptTranslationError):
     status = 404 if error.code == "translation_not_found" else 422
+    return jsonify({"error": str(error), "code": error.code}), status
+
+
+@ai_blueprint.errorhandler(PromptAdaptationError)
+def ai_adaptation_error(error: PromptAdaptationError):
+    status = 404 if error.code == "adaptation_not_found" else 422
     return jsonify({"error": str(error), "code": error.code}), status
 
 
@@ -346,10 +352,10 @@ def ai_translate():
 @ai_blueprint.route("/api/ai/adapt", methods=["POST"])
 def ai_adapt():
     payload = _json_object()
-    profile = payload.get("profile")
-    if not isinstance(profile, dict):
-        raise AIProfileStoreError("profile dictionary is required.")
+    profile_store, profile = _resolved_text_profile(payload)
     task_data = payload.get("task") or {}
+    if not isinstance(task_data, dict):
+        raise AIProfileStoreError("task dictionary is required.")
     task = PromptTask.model_validate({**task_data, "operation": "adapt"})
     source_data = payload.get("source") or {}
     source = PromptText.model_validate(source_data)
@@ -364,9 +370,23 @@ def ai_adapt():
         source=source,
         target_family=target_family,
         checkpoint_profile=checkpoint_profile,
+        api_key=profile_store.resolve_api_key(profile),
         asset_id=payload.get("asset_id"),
     )
-    return jsonify(outcome.model_dump(mode="json"))
+    snapshot = _job_store().get(outcome.execution.job_id)
+    if not snapshot.drafts:
+        raise AIJobStoreError(
+            f"AI job {outcome.execution.job_id} completed without a prompt draft."
+        )
+    prompt_draft = snapshot.drafts[-1]
+    return jsonify({
+        "job": snapshot.job.model_dump(mode="json"),
+        "prompt_draft": prompt_draft.model_dump(mode="json"),
+        "context": _job_store().draft_context(
+            prompt_draft, snapshot.job
+        ).model_dump(mode="json"),
+        "adaptation": outcome.adaptation.model_dump(mode="json"),
+    }), 201
 
 
 @ai_blueprint.route("/api/ai/reconstruct", methods=["POST"])

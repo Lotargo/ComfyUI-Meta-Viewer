@@ -8,6 +8,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 from pydantic import ValidationError
 
 from app import database
+from app.ai.adaptation import PromptAdaptationStore
 from app.ai.job_store import AIJobStore
 from app.ai.remix import RemixPromptSource, RemixRequest, RemixService
 from app.ai.resources import ModelResourceCatalog
@@ -66,6 +67,10 @@ def _workflow_draft_payload(draft) -> dict[str, Any]:
     })
     if job.task.operation.value == "translate":
         payload["ai_prompt_translation"] = PromptTranslationStore().get(
+            job.id
+        ).model_dump(mode="json")
+    elif job.task.operation.value == "adapt":
+        payload["ai_prompt_adaptation"] = PromptAdaptationStore().get(
             job.id
         ).model_dump(mode="json")
     return payload

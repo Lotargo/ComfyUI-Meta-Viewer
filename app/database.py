@@ -262,6 +262,18 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS ai_prompt_adaptations (
+                job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+                schema_version TEXT NOT NULL DEFAULT '1',
+                target_family TEXT NOT NULL,
+                checkpoint_profile TEXT,
+                source_positive_prompt TEXT NOT NULL,
+                source_negative_prompt TEXT NOT NULL DEFAULT '',
+                adapted_positive_prompt TEXT NOT NULL,
+                adapted_negative_prompt TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             CREATE TABLE IF NOT EXISTS model_resources (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content_hash TEXT UNIQUE NOT NULL,
@@ -348,6 +360,8 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_ai_prompt_drafts_job ON ai_prompt_drafts(job_id, id);
             CREATE INDEX IF NOT EXISTS idx_ai_prompt_translations_language
                 ON ai_prompt_translations(target_language);
+            CREATE INDEX IF NOT EXISTS idx_ai_prompt_adaptations_family
+                ON ai_prompt_adaptations(target_family);
             CREATE INDEX IF NOT EXISTS idx_model_resources_hash ON model_resources(content_hash);
             CREATE INDEX IF NOT EXISTS idx_model_resources_arch ON model_resources(architecture);
             CREATE INDEX IF NOT EXISTS idx_workflow_drafts_template ON workflow_drafts(template_id, id);

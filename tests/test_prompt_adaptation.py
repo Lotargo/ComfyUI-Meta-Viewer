@@ -5,7 +5,11 @@ import unittest
 from pathlib import Path
 
 from app import database
-from app.ai.adaptation import PromptAdaptationService
+from app.ai.adaptation import (
+    PromptAdaptationError,
+    PromptAdaptationService,
+    PromptAdaptationStore,
+)
 from app.ai.execution import (
     AdapterExecutionResult,
     ExecutionCapabilities,
@@ -19,7 +23,7 @@ from app.ai.prompting import (
     PromptScenario,
     PromptTask,
 )
-from app.ai.translation import PromptText, PromptTranslationStore
+from app.ai.translation import PromptText
 
 
 class AdaptAdapter:
@@ -57,10 +61,10 @@ class PromptAdaptationTest(unittest.TestCase):
 
         self.adapter = AdaptAdapter()
         self.router = ExecutionRouter(adapters=(self.adapter,))
-        self.translation_store = PromptTranslationStore()
+        self.store = PromptAdaptationStore()
         self.service = PromptAdaptationService(
             router=self.router,
-            translation_store=self.translation_store,
+            store=self.store,
         )
         self.task = PromptTask(
             family=PromptFamily.PONY,
@@ -84,10 +88,20 @@ class PromptAdaptationTest(unittest.TestCase):
             target_family=PromptFamily.PONY,
         )
 
-        self.assertEqual(outcome.source_prompt, source)
-        self.assertIn("score_9", outcome.adapted_prompt.positive_prompt)
-        self.assertEqual(outcome.target_family, PromptFamily.PONY)
+        self.assertEqual(outcome.adaptation.source, source)
+        self.assertIn("score_9", outcome.adaptation.adapted.positive_prompt)
+        self.assertEqual(outcome.adaptation.target_family, PromptFamily.PONY)
         self.assertEqual(outcome.execution.bundle.task.operation, PromptOperation.ADAPT)
+        self.assertEqual(self.store.get(outcome.execution.job_id), outcome.adaptation)
+
+    def test_adapt_rejects_unknown_target_family(self) -> None:
+        with self.assertRaisesRegex(PromptAdaptationError, "target_family"):
+            self.service.adapt(
+                profile={"kind": "adaptation-test"},
+                task=self.task,
+                source=PromptText(positive_prompt="portrait"),
+                target_family="unknown-family",
+            )
 
 
 if __name__ == "__main__":

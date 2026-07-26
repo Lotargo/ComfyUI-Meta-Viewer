@@ -124,8 +124,22 @@ const elements = {
     translatePromptProfile: byId('translate-prompt-profile'),
     translateProfileNote: byId('translate-profile-note'),
     translatePromptSubmit: byId('translate-prompt-submit'),
+    adaptPromptOpen: byId('adapt-prompt-open'),
+    adaptPromptDialog: byId('adapt-prompt-dialog'),
+    adaptPromptForm: byId('adapt-prompt-form'),
+    adaptPromptPositive: byId('adapt-prompt-positive'),
+    adaptPromptNegative: byId('adapt-prompt-negative'),
+    adaptPromptFamily: byId('adapt-prompt-family'),
+    adaptPromptScenario: byId('adapt-prompt-scenario'),
+    adaptCheckpointProfile: byId('adapt-checkpoint-profile'),
+    adaptPromptProfile: byId('adapt-prompt-profile'),
+    adaptProfileNote: byId('adapt-profile-note'),
+    adaptPromptSubmit: byId('adapt-prompt-submit'),
     promptProvenanceDialog: byId('prompt-provenance-dialog'),
+    promptProvenanceKicker: byId('prompt-provenance-kicker'),
+    promptProvenanceTitle: byId('prompt-provenance-title'),
     promptProvenanceSummary: byId('prompt-provenance-summary'),
+    promptResultLabel: byId('prompt-result-label'),
     promptSourcePositive: byId('prompt-source-positive'),
     promptSourceNegative: byId('prompt-source-negative'),
     promptTranslatedPositive: byId('prompt-translated-positive'),
@@ -212,6 +226,7 @@ const state = {
     aiDefaultProfileId: null,
     aiPromptContext: null,
     aiPromptTranslation: null,
+    aiPromptAdaptation: null,
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -258,6 +273,9 @@ function persistCreateWorkspace() {
         ai_prompt_translation: state.aiPromptTranslation
             ? structuredClone(state.aiPromptTranslation)
             : null,
+        ai_prompt_adaptation: state.aiPromptAdaptation
+            ? structuredClone(state.aiPromptAdaptation)
+            : null,
         values: { ...state.values },
         resources: { ...state.resources },
         ui: {
@@ -292,6 +310,9 @@ function restoreTemplateWorkspace(template, saved) {
         : null;
     state.aiPromptTranslation = state.draft && saved?.ai_prompt_translation
         ? structuredClone(saved.ai_prompt_translation)
+        : null;
+    state.aiPromptAdaptation = state.draft && saved?.ai_prompt_adaptation
+        ? structuredClone(saved.ai_prompt_adaptation)
         : null;
     state.values = { ...template.defaults, ...savedValues };
     state.resources = {
@@ -542,6 +563,7 @@ async function bootstrap() {
                 state.draft = draftPayload.draft;
                 state.aiPromptContext = draftPayload.ai_prompt_context || null;
                 state.aiPromptTranslation = draftPayload.ai_prompt_translation || null;
+                state.aiPromptAdaptation = draftPayload.ai_prompt_adaptation || null;
                 state.values = { ...registered.defaults, ...draftPayload.draft.values };
                 state.resources = { ...draftPayload.draft.resource_selections };
                 selectTemplate(registered, { preserveDraft: true });
@@ -581,6 +603,7 @@ function selectTemplate(template, { preserveDraft = false } = {}) {
             state.draft = null;
             state.aiPromptContext = null;
             state.aiPromptTranslation = null;
+            state.aiPromptAdaptation = null;
             state.values = { ...template.defaults };
             state.resources = defaultResourceSelections(template);
             state.samplingMode = 'recommended';
@@ -1420,6 +1443,7 @@ async function ensureDraft() {
     state.draft = payload.draft;
     state.aiPromptContext = payload.ai_prompt_context || null;
     state.aiPromptTranslation = payload.ai_prompt_translation || null;
+    state.aiPromptAdaptation = payload.ai_prompt_adaptation || null;
     syncDraftUrl();
     persistCreateWorkspace();
     renderSourceBanner();
@@ -1439,6 +1463,7 @@ async function saveDraft({ recoverMissing = true } = {}) {
         state.draft = payload.draft;
         state.aiPromptContext = payload.ai_prompt_context || state.aiPromptContext;
         state.aiPromptTranslation = payload.ai_prompt_translation || state.aiPromptTranslation;
+        state.aiPromptAdaptation = payload.ai_prompt_adaptation || state.aiPromptAdaptation;
         persistCreateWorkspace();
         setDraftStatus(`Saved · #${state.draft.id}`, 'saved');
     } catch (error) {
@@ -1446,6 +1471,7 @@ async function saveDraft({ recoverMissing = true } = {}) {
             state.draft = null;
             state.aiPromptContext = null;
             state.aiPromptTranslation = null;
+            state.aiPromptAdaptation = null;
             syncDraftUrl();
             persistCreateWorkspace();
             return saveDraft({ recoverMissing: false });
@@ -1470,24 +1496,47 @@ function renderSourceBanner() {
         elements.sourceInspect.textContent = 'Source';
     } else {
         const operation = state.aiPromptContext?.operation;
-        title.textContent = operation === 'translate' ? 'Translated prompt' : 'AI prompt draft';
+        title.textContent = operation === 'translate'
+            ? 'Translated prompt'
+            : (operation === 'adapt' ? 'Adapted prompt' : 'AI prompt draft');
         detail.textContent = operation === 'translate'
             ? 'Source and translated prompts are stored separately. ComfyUI has not been started.'
-            : 'The generated prompt is editable. ComfyUI has not been started.';
-        elements.sourceInspect.hidden = operation !== 'translate' || !state.aiPromptTranslation;
+            : (operation === 'adapt'
+                ? 'Source and family-adapted prompts are stored separately. ComfyUI has not been started.'
+                : 'The generated prompt is editable. ComfyUI has not been started.');
+        elements.sourceInspect.hidden = !(
+            (operation === 'translate' && state.aiPromptTranslation)
+            || (operation === 'adapt' && state.aiPromptAdaptation)
+        );
         elements.sourceInspect.textContent = 'Compare';
     }
 }
 
 function openPromptProvenance() {
     const translation = state.aiPromptTranslation;
-    if (!translation) return;
-    const sourceLabel = translation.source_language || 'auto-detected';
-    elements.promptProvenanceSummary.textContent = `${sourceLabel} → ${translation.target_language}`;
-    elements.promptSourcePositive.textContent = translation.source.positive_prompt;
-    elements.promptSourceNegative.textContent = translation.source.negative_prompt || '—';
-    elements.promptTranslatedPositive.textContent = translation.translated.positive_prompt;
-    elements.promptTranslatedNegative.textContent = translation.translated.negative_prompt || '—';
+    const adaptation = state.aiPromptAdaptation;
+    if (!translation && !adaptation) return;
+    const provenance = translation || adaptation;
+    const result = translation ? translation.translated : adaptation.adapted;
+    if (translation) {
+        const sourceLabel = translation.source_language || 'auto-detected';
+        elements.promptProvenanceKicker.textContent = 'Saved translation';
+        elements.promptProvenanceTitle.textContent = 'Source and translated prompt';
+        elements.promptProvenanceSummary.textContent = `${sourceLabel} → ${translation.target_language}`;
+        elements.promptResultLabel.textContent = 'Translation';
+    } else {
+        const checkpoint = adaptation.checkpoint_profile
+            ? ` · ${adaptation.checkpoint_profile}`
+            : '';
+        elements.promptProvenanceKicker.textContent = 'Saved family adaptation';
+        elements.promptProvenanceTitle.textContent = 'Source and adapted prompt';
+        elements.promptProvenanceSummary.textContent = `Target: ${adaptation.target_family.toUpperCase()}${checkpoint}`;
+        elements.promptResultLabel.textContent = 'Adaptation';
+    }
+    elements.promptSourcePositive.textContent = provenance.source.positive_prompt;
+    elements.promptSourceNegative.textContent = provenance.source.negative_prompt || '—';
+    elements.promptTranslatedPositive.textContent = result.positive_prompt;
+    elements.promptTranslatedNegative.textContent = result.negative_prompt || '—';
     elements.promptProvenanceDialog.showModal();
 }
 
@@ -1576,6 +1625,16 @@ function renderTranslationScenarios() {
     );
 }
 
+function renderAdaptationScenarios() {
+    const available = renderScenarioOptions(
+        elements.adaptPromptScenario,
+        elements.adaptPromptFamily.value,
+    );
+    elements.adaptPromptSubmit.disabled = (
+        !available.length || !elements.adaptPromptProfile.value
+    );
+}
+
 async function openAIPromptDialog() {
     elements.aiPromptOpen.disabled = true;
     try {
@@ -1597,6 +1656,7 @@ function activateAIPromptDraft(created, statusLabel, toastMessage) {
     state.draft = created.draft;
     state.aiPromptContext = created.ai_prompt_context || null;
     state.aiPromptTranslation = created.ai_prompt_translation || null;
+    state.aiPromptAdaptation = created.ai_prompt_adaptation || null;
     state.values = { ...state.values, ...created.draft.values };
     state.advancedFieldMemory.negative_prompt = state.values.negative_prompt || '';
     renderFields();
@@ -1719,6 +1779,78 @@ async function createTranslatedPromptDraft(event) {
     } finally {
         elements.translatePromptSubmit.textContent = 'Translate to draft';
         renderTranslationScenarios();
+    }
+}
+
+async function openAdaptPromptDialog() {
+    elements.adaptPromptOpen.disabled = true;
+    try {
+        await loadPromptAssistantData();
+        populatePromptFamilies(elements.adaptPromptFamily);
+        populatePromptProfiles(elements.adaptPromptProfile, elements.adaptProfileNote);
+        elements.adaptPromptPositive.value = String(state.values.positive_prompt || '');
+        elements.adaptPromptNegative.value = String(
+            state.values.negative_prompt || state.advancedFieldMemory.negative_prompt || '',
+        );
+        elements.adaptCheckpointProfile.value = '';
+        renderAdaptationScenarios();
+        elements.adaptPromptDialog.showModal();
+        elements.adaptPromptPositive.focus();
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.adaptPromptOpen.disabled = false;
+    }
+}
+
+async function createAdaptedPromptDraft(event) {
+    event.preventDefault();
+    const positivePrompt = elements.adaptPromptPositive.value.trim();
+    if (
+        !positivePrompt || !elements.adaptPromptProfile.value
+        || !elements.adaptPromptScenario.value || !elements.adaptPromptFamily.value
+    ) return;
+    elements.adaptPromptSubmit.disabled = true;
+    elements.adaptPromptSubmit.textContent = 'Adapting…';
+    try {
+        const adapted = await requestJson('/api/ai/adapt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                profile_id: elements.adaptPromptProfile.value,
+                target_family: elements.adaptPromptFamily.value,
+                checkpoint_profile: elements.adaptCheckpointProfile.value.trim() || null,
+                source: {
+                    positive_prompt: positivePrompt,
+                    negative_prompt: elements.adaptPromptNegative.value.trim(),
+                },
+                task: {
+                    family: elements.adaptPromptFamily.value,
+                    scenario: elements.adaptPromptScenario.value,
+                },
+            }),
+        });
+        const created = await requestJson('/api/editor/drafts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                template_id: currentManifest().id,
+                values: state.values,
+                resource_selections: state.resources,
+                ai_prompt_draft_id: adapted.prompt_draft.id,
+            }),
+        });
+        activateAIPromptDraft(
+            created,
+            'Adapted draft',
+            'Family adaptation saved as a new draft. Review it before generation.',
+        );
+        elements.adaptPromptDialog.close();
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.adaptPromptSubmit.textContent = 'Adapt to draft';
+        renderAdaptationScenarios();
     }
 }
 
@@ -2692,6 +2824,10 @@ function bindEvents() {
     elements.translatePromptFamily.addEventListener('change', renderTranslationScenarios);
     elements.translatePromptProfile.addEventListener('change', renderTranslationScenarios);
     elements.translatePromptForm.addEventListener('submit', createTranslatedPromptDraft);
+    elements.adaptPromptOpen.addEventListener('click', openAdaptPromptDialog);
+    elements.adaptPromptFamily.addEventListener('change', renderAdaptationScenarios);
+    elements.adaptPromptProfile.addEventListener('change', renderAdaptationScenarios);
+    elements.adaptPromptForm.addEventListener('submit', createAdaptedPromptDraft);
     elements.resetEditor.addEventListener('click', resetEditor);
     elements.saveNote.addEventListener('click', async () => {
         try {

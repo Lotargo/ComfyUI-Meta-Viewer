@@ -72,6 +72,42 @@ def portrait_task() -> PromptTask:
 
 
 class OpenCodePromptExecutorTest(unittest.TestCase):
+    def test_execute_raw_supports_a_strict_non_prompt_contract(self) -> None:
+        raw_result = '{"schema_version":"1","subjects":[]}'
+        event_output = json.dumps({"part": {"text": raw_result}})
+        captured = {}
+
+        def fake_run_command(args, *, timeout, cwd=None):
+            workspace = Path(cwd)
+            captured["task"] = (workspace / "cmv-task.md").read_text(
+                encoding="utf-8"
+            )
+            return CommandResult(
+                returncode=0,
+                stdout=event_output,
+                stderr="",
+                elapsed_ms=14,
+            )
+
+        with (
+            patch(
+                "app.ai.execution.opencode.find_executable",
+                return_value="C:/tools/opencode.cmd",
+            ),
+            patch(
+                "app.ai.execution.opencode.run_command",
+                side_effect=fake_run_command,
+            ),
+        ):
+            executed = OpenCodePromptExecutor().execute_raw(
+                profile=opencode_profile(multimodal=False),
+                task_package="# SceneSpec\nReturn the strict SceneSpec object.",
+            )
+
+        self.assertEqual(executed.text, raw_result)
+        self.assertEqual(executed.latency_ms, 14)
+        self.assertIn("Return the strict SceneSpec object.", captured["task"])
+
     def test_execute_uses_isolated_tool_denied_agent_and_task_attachment(self) -> None:
         raw_result = json.dumps({
             "schema_version": "1",

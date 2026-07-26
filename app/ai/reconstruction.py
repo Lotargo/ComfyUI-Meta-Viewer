@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from pydantic import Field
 
 from .execution.direct import DirectPromptExecutionError, DirectPromptExecutor
+from .execution.opencode import OpenCodePromptExecutionError, OpenCodePromptExecutor
 from .execution import ExecutionRouter, PromptExecutionOutcome
 from .job_store import AIJobStore, AIJobStoreError
 from .prompting import (
@@ -69,9 +73,11 @@ class SceneAnalysisService:
         *,
         job_store: AIJobStore | None = None,
         chat_runner=run_openai_compatible_chat,
+        opencode_executor: OpenCodePromptExecutor | None = None,
     ):
         self.job_store = job_store or AIJobStore()
         self.chat_runner = chat_runner
+        self.opencode_executor = opencode_executor or OpenCodePromptExecutor()
 
     def analyze(
         self,
@@ -87,9 +93,13 @@ class SceneAnalysisService:
                 "Scene analysis requires operation='reconstruct'.",
                 code="invalid_reconstruction_operation",
             )
-        if profile.get("kind") != "openai_compatible" or profile.get("multimodal") is not True:
+        is_direct = profile.get("kind") == "openai_compatible"
+        is_opencode = (
+            profile.get("kind") == "cli" and profile.get("cli_type") == "opencode"
+        )
+        if (not is_direct and not is_opencode) or profile.get("multimodal") is not True:
             raise PromptReconstructionError(
-                "Choose an OpenAI-compatible profile marked as multimodal for image analysis.",
+                "Choose an OpenAI-compatible or OpenCode profile marked as multimodal for image analysis.",
                 code="incompatible_vision_profile",
             )
         try:
@@ -103,7 +113,9 @@ class SceneAnalysisService:
             ) from exc
         job = self.job_store.create(
             task=task.model_copy(update={"output_contract": "scene_spec"}),
-            execution_backend="vision-openai-compatible",
+            execution_backend=(
+                "vision-openai-compatible" if is_direct else "vision-opencode"
+            ),
             provider_profile_id=profile.get("id"),
             model_id=profile.get("model"),
             asset_id=asset_id,
@@ -111,21 +123,45 @@ class SceneAnalysisService:
         )
         try:
             self.job_store.mark_running(job.id)
-            response: OpenAICompatibleResponse = self.chat_runner(
-                profile,
-                api_key=api_key,
-                messages=[
-                    {"role": "system", "content": SCENE_ANALYSIS_INSTRUCTIONS},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "Analyze this image into SceneSpec JSON."},
-                            {"type": "image_url", "image_url": {"url": image, "detail": "high"}},
-                        ],
-                    },
-                ],
-            )
-            scene_spec = parse_scene_spec(response.text)
+            if is_direct:
+                response: OpenAICompatibleResponse = self.chat_runner(
+                    profile,
+                    api_key=api_key,
+                    messages=[
+                        {"role": "system", "content": SCENE_ANALYSIS_INSTRUCTIONS},
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Analyze this image into SceneSpec JSON."},
+                                {"type": "image_url", "image_url": {"url": image, "detail": "high"}},
+                            ],
+                        },
+                    ],
+                )
+                response_text = response.text
+                latency_ms = response.latency_ms
+                response_hash = hashlib.sha256(response.text.encode("utf-8")).hexdigest()
+            else:
+                header, encoded = image.split(",", 1)
+                subtype = header.split("/", 1)[1].split(";", 1)[0].lower()
+                suffix = ".jpg" if subtype in {"jpg", "jpeg"} else f".{subtype}"
+                with tempfile.TemporaryDirectory(prefix="cmv-scene-analysis-") as temp_dir:
+                    image_path = Path(temp_dir) / f"source{suffix}"
+                    image_path.write_bytes(base64.b64decode(encoded, validate=True))
+                    raw = self.opencode_executor.execute_raw(
+                        profile=profile,
+                        task_package=(
+                            "# CMV SceneSpec vision analysis\n\n"
+                            + SCENE_ANALYSIS_INSTRUCTIONS
+                            + "\n\nAnalyze the attached image now."
+                        ),
+                        image_path=image_path,
+                        title="ComfyUI Meta Viewer SceneSpec analysis",
+                    )
+                response_text = raw.text
+                latency_ms = raw.latency_ms
+                response_hash = raw.raw_response_sha256
+            scene_spec = parse_scene_spec(response_text)
             composition = scene_spec.composition
             if not (
                 scene_spec.subjects
@@ -138,11 +174,16 @@ class SceneAnalysisService:
                 raise PromptContractError(
                     "The AI returned an empty SceneSpec.",
                     code="empty_scene_spec",
-                    technical_error=response.text[:16_000],
+                    technical_error=response_text[:16_000],
                 )
             self.job_store.save_scene_spec(job.id, scene_spec)
             self.job_store.wait_for_scene_review(job.id)
-        except (AIProviderRequestError, PromptContractError, AIJobStoreError) as exc:
+        except (
+            AIProviderRequestError,
+            OpenCodePromptExecutionError,
+            PromptContractError,
+            AIJobStoreError,
+        ) as exc:
             try:
                 self.job_store.fail(job.id, getattr(exc, "technical_error", None) or str(exc))
             except AIJobStoreError:
@@ -153,7 +194,7 @@ class SceneAnalysisService:
                 stage=(
                     "contract" if isinstance(exc, PromptContractError)
                     else "persistence" if isinstance(exc, AIJobStoreError)
-                    else "transport"
+                    else getattr(exc, "stage", "transport")
                 ),
                 job_id=job.id,
                 technical_error=getattr(exc, "technical_error", None),
@@ -161,8 +202,8 @@ class SceneAnalysisService:
         return SceneAnalysisOutcome(
             job_id=job.id,
             scene_spec=scene_spec,
-            latency_ms=response.latency_ms,
-            raw_response_sha256=hashlib.sha256(response.text.encode("utf-8")).hexdigest(),
+            latency_ms=latency_ms,
+            raw_response_sha256=response_hash,
         )
 
 

@@ -1634,7 +1634,10 @@ function populatePromptProfiles(select, note) {
 
 function populateVisionProfiles(select, note) {
     const profiles = state.aiProfiles.filter((profile) => (
-        profile.kind === 'openai_compatible' && profile.multimodal === true
+        profile.multimodal === true && (
+            profile.kind === 'openai_compatible'
+            || (profile.kind === 'cli' && profile.cli_type === 'opencode')
+        )
     ));
     select.innerHTML = profiles.length
         ? profiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
@@ -1644,7 +1647,7 @@ function populateVisionProfiles(select, note) {
     }
     note.innerHTML = profiles.length
         ? 'The image is sent only during Analyze image.'
-        : 'Add an OpenAI-compatible multimodal profile in <a href="/settings/ai">AI settings</a> first.';
+        : 'Add an OpenAI-compatible or OpenCode multimodal profile in <a href="/settings/ai">AI settings</a> first.';
 }
 
 function compatibleScenarios(familyId) {

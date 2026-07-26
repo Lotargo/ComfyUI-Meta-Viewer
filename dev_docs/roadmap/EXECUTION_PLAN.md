@@ -411,7 +411,7 @@ Adapt вызывается из editor отдельным действием, и
 
 ## 6.5 Reconstruct from image
 
-- [ ] Vision stage создаёт SceneSpec.
+- [x] Vision stage создаёт SceneSpec.
 - [x] SceneSpec хранится в SQLite.
 - [x] SceneSpec можно просмотреть.
 - [x] SceneSpec можно исправить вручную.
@@ -419,7 +419,9 @@ Adapt вызывается из editor отдельным действием, и
 - [x] Повторный render не требует нового vision call.
 - [x] Embedded metadata и AI reconstruction визуально различаются.
 
-Reconstruct разделён на два явных этапа: OpenAI-compatible multimodal profile анализирует Library asset в strict `SceneSpec`, после чего JSON можно исправить и сохранить; отдельный text profile рендерит сохранённый SceneSpec в prompt draft. Editor восстанавливает SceneSpec после reload, сохраняет source asset и не запускает ComfyUI. Повторный render использует `scene_spec_job_id`, поэтому изображение не отправляется vision provider повторно. Vision implementation покрыта contract/API tests, но первый пункт остаётся pending до реального smoke: в текущем окружении настроены только CLI multimodal profiles, а vision stage этого среза намеренно принимает OpenAI-compatible profile.
+Reconstruct разделён на два явных этапа: OpenAI-compatible или OpenCode multimodal profile анализирует Library asset в strict `SceneSpec`, после чего JSON можно исправить и сохранить; отдельный text profile рендерит сохранённый SceneSpec в prompt draft. Editor восстанавливает SceneSpec после reload, сохраняет source asset и не запускает ComfyUI. Повторный render использует `scene_spec_job_id`, поэтому изображение не отправляется vision provider повторно.
+
+**Runtime evidence (2026-07-26):** bundled `cmv-vision-test-garden.jpg` проанализирован реальным сохранённым OpenCode multimodal profile `opencode/mimo-v2.5-free`. Vision job `3` за 46.25 s создал strict `landscape_environment` SceneSpec с subjects, composition и explicit uncertain details. Сохранённый SceneSpec затем без image attachment отрендерен тем же OpenCode host в нормализованный PromptResult как отдельный job `4` за 35.19 s. Оба ответа прошли строгие contracts без JSON repair или Markdown normalization.
 
 ## 6.6 Remix
 
@@ -654,7 +656,7 @@ Reconstruct разделён на два явных этапа: OpenAI-compatibl
 - [x] Подключить Generate prompt к editor draft.
 - [x] Подключить Translate как отдельную операцию.
 - [x] Подключить Adapt как отдельную операцию.
-- [ ] Подключить Reconstruct через editable SceneSpec. **Implemented; compatible vision-profile smoke pending.**
+- [x] Подключить Reconstruct через editable SceneSpec.
 - [ ] Проверить Remix end-to-end.
 
 ## Явно отложено

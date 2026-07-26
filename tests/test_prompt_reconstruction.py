@@ -224,6 +224,57 @@ class PromptReconstructionTest(unittest.TestCase):
             "failed",
         )
 
+    def test_opencode_vision_analysis_uses_isolated_image_attachment(self) -> None:
+        captured = {}
+
+        class FakeOpenCodeExecutor:
+            @staticmethod
+            def execute_raw(**kwargs):
+                image_path = Path(kwargs["image_path"])
+                captured["profile"] = kwargs["profile"]
+                captured["task_package"] = kwargs["task_package"]
+                captured["image_exists"] = image_path.is_file()
+                captured["image_bytes"] = image_path.read_bytes()
+                return type("Raw", (), {
+                    "text": (
+                        '{"schema_version":"1","recommended_scenario":"product_object",'
+                        '"subjects":[{"kind":"clear glass bottle","position":"center",'
+                        '"attributes":{},"confidence":0.98}],'
+                        '"composition":{"shot":"product close-up","camera_angle":"eye level",'
+                        '"background":"warm beige"},"visible_text":[],'
+                        '"uncertain_details":[]}'
+                    ),
+                    "latency_ms": 23,
+                    "raw_response_sha256": "b" * 64,
+                })()
+
+        service = SceneAnalysisService(
+            job_store=self.store,
+            chat_runner=lambda *_args, **_kwargs: self.fail(
+                "OpenAI transport must not run for OpenCode vision analysis."
+            ),
+            opencode_executor=FakeOpenCodeExecutor(),
+        )
+        outcome = service.analyze(
+            profile={
+                "id": "opencode-vision",
+                "kind": "cli",
+                "cli_type": "opencode",
+                "model": "provider/vision-model",
+                "multimodal": True,
+            },
+            task=self.task,
+            image_data_url="data:image/png;base64,iVBORw0KGgo=",
+        )
+
+        snapshot = self.store.get(outcome.job_id)
+        self.assertEqual(snapshot.job.execution_backend, "vision-opencode")
+        self.assertEqual(snapshot.job.status.value, "waiting_for_review")
+        self.assertTrue(captured["image_exists"])
+        self.assertEqual(captured["image_bytes"], b"\x89PNG\r\n\x1a\n")
+        self.assertIn("SceneSpec", captured["task_package"])
+        self.assertEqual(outcome.raw_response_sha256, "b" * 64)
+
 
 if __name__ == "__main__":
     unittest.main()

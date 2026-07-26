@@ -71,6 +71,14 @@ class OpenCodePromptExecutionResult:
         }
 
 
+@dataclass(frozen=True)
+class OpenCodeRawExecutionResult:
+    text: str
+    latency_ms: int
+    raw_response_sha256: str
+    response_normalizations: tuple[str, ...] = ()
+
+
 class OpenCodePromptExecutor:
     """Execute a PromptTask through an authenticated OpenCode CLI profile.
 
@@ -93,7 +101,6 @@ class OpenCodePromptExecutor:
         bundle: InstructionBundle | None = None,
     ) -> OpenCodePromptExecutionResult:
         self._validate_profile(profile)
-        timeout_seconds = self._resolve_timeout(profile)
         cleaned_input = self._validate_user_input(user_input)
         validated_image = self._validate_image_path(image_path)
         if validated_image is not None and profile.get("multimodal") is not True:
@@ -120,6 +127,60 @@ class OpenCodePromptExecutor:
                 stage="compile",
             )
 
+        raw_execution = self.execute_raw(
+            profile=profile,
+            task_package=self._render_task_package(bundle, cleaned_input),
+            image_path=validated_image,
+            title="ComfyUI Meta Viewer prompt smoke",
+        )
+        try:
+            result = parse_prompt_result(raw_execution.text)
+        except PromptContractError as exc:
+            raise OpenCodePromptExecutionError(
+                str(exc),
+                code=exc.code,
+                stage="contract",
+                technical_error=exc.technical_error,
+            ) from exc
+
+        return OpenCodePromptExecutionResult(
+            result=result,
+            bundle=bundle,
+            latency_ms=raw_execution.latency_ms,
+            raw_response_sha256=raw_execution.raw_response_sha256,
+            response_normalizations=raw_execution.response_normalizations,
+        )
+
+    def execute_raw(
+        self,
+        *,
+        profile: dict[str, Any],
+        task_package: str,
+        image_path: str | Path | None = None,
+        title: str = "ComfyUI Meta Viewer structured task",
+    ) -> OpenCodeRawExecutionResult:
+        self._validate_profile(profile)
+        timeout_seconds = self._resolve_timeout(profile)
+        if not isinstance(task_package, str) or not task_package.strip():
+            raise OpenCodePromptExecutionError(
+                "The OpenCode task package cannot be empty.",
+                code="invalid_input",
+                stage="input",
+            )
+        if len(task_package) > 500_000:
+            raise OpenCodePromptExecutionError(
+                "The OpenCode task package is too large.",
+                code="input_too_large",
+                stage="input",
+            )
+        validated_image = self._validate_image_path(image_path)
+        if validated_image is not None and profile.get("multimodal") is not True:
+            raise OpenCodePromptExecutionError(
+                "This OpenCode profile is not marked as multimodal.",
+                code="incompatible_format",
+                stage="input",
+            )
+
         executable = find_executable("opencode", profile.get("executable"))
         if executable is None:
             raise OpenCodePromptExecutionError(
@@ -134,7 +195,7 @@ class OpenCodePromptExecutor:
                 self._write_isolated_config(workspace)
                 task_file = workspace / "cmv-task.md"
                 task_file.write_text(
-                    self._render_task_package(bundle, cleaned_input),
+                    task_package.strip() + "\n",
                     encoding="utf-8",
                     newline="\n",
                 )
@@ -162,7 +223,7 @@ class OpenCodePromptExecutor:
                     "--agent",
                     OPENCODE_AGENT_NAME,
                     "--title",
-                    "ComfyUI Meta Viewer prompt smoke",
+                    title,
                     prompt,
                     *file_args,
                 ]
@@ -216,19 +277,8 @@ class OpenCodePromptExecutor:
             )
 
         normalized_text, response_normalizations = self._normalize_response(raw_text)
-        try:
-            result = parse_prompt_result(normalized_text)
-        except PromptContractError as exc:
-            raise OpenCodePromptExecutionError(
-                str(exc),
-                code=exc.code,
-                stage="contract",
-                technical_error=exc.technical_error,
-            ) from exc
-
-        return OpenCodePromptExecutionResult(
-            result=result,
-            bundle=bundle,
+        return OpenCodeRawExecutionResult(
+            text=normalized_text,
             latency_ms=command.elapsed_ms,
             raw_response_sha256=hashlib.sha256(raw_text.encode("utf-8")).hexdigest(),
             response_normalizations=response_normalizations,

@@ -151,7 +151,7 @@ def ai_adaptation_error(error: PromptAdaptationError):
 
 @ai_blueprint.errorhandler(PromptReconstructionError)
 def ai_reconstruction_error(error: PromptReconstructionError):
-    status = 502 if error.stage in {"transport", "contract"} else 422
+    status = 502 if error.stage in {"transport", "host", "contract"} else 422
     return jsonify({
         "error": str(error),
         "code": error.code,

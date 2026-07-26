@@ -23,6 +23,7 @@ from .opencode import (
     OpenCodePromptExecutionError,
     OpenCodePromptExecutionResult,
     OpenCodePromptExecutor,
+    OpenCodeRawExecutionResult,
 )
 from .opencode_judge import (
     OpenCodeIntentJudgeExecutionError,
@@ -54,6 +55,7 @@ __all__ = [
     "OpenCodePromptExecutionError",
     "OpenCodePromptExecutionResult",
     "OpenCodePromptExecutor",
+    "OpenCodeRawExecutionResult",
     "OpenCodeAgentHostAdapter",
     "OpenCodeIntentJudgeExecutionError",
     "OpenCodeIntentJudgeExecutionResult",

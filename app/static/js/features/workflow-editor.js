@@ -72,6 +72,9 @@ const elements = {
     importOpen: byId('import-template-open'),
     importDialog: byId('template-import-dialog'),
     importForm: byId('template-import-form'),
+    importTitle: byId('template-import-title'),
+    importLead: byId('template-import-lead'),
+    importDropZone: byId('template-import-drop-zone'),
     importFile: byId('template-import-file'),
     importName: byId('template-import-name'),
     importAnalysis: byId('template-import-analysis'),
@@ -233,6 +236,7 @@ const state = {
     advancedFieldMemory: {},
     importPlan: null,
     importMapping: null,
+    remappingWorkflowId: null,
     workflows: [],
     editingWorkflowId: null,
     aiCapabilities: [],
@@ -254,6 +258,7 @@ const ADVANCED_FIELD_IDS = new Set([
 
 const CREATE_WORKSPACE_STORAGE_KEY = 'cmv_create_workspace_v1';
 const CREATE_WORKSPACE_VERSION = 1;
+const IMPORT_DIALOG_LEAD = 'Current ComfyUI UI workflows and standard API workflows are mapped automatically. Template JSON bundles and ZIP archives keep their declared mappings.';
 
 function readCreateWorkspace() {
     try {
@@ -2637,7 +2642,7 @@ function renderWorkflowRegistry() {
         const valid = validation.status !== 'invalid';
         const editable = workflow.source === 'user' && valid;
         const removable = workflow.source === 'user';
-        return `<tr data-workflow-id="${escapeHtml(workflow.id)}"><td><strong>${escapeHtml(workflow.name)}</strong><small>${escapeHtml(workflow.description || workflow.id)}</small></td><td>${escapeHtml(workflow.category)} · ${escapeHtml(workflow.media_type)}</td><td>${escapeHtml((workflow.ecosystems || []).join(', ') || 'Unknown')}</td><td>${escapeHtml(workflow.loader_family)}</td><td>${escapeHtml(workflow.source === 'user' ? 'Imported' : 'Built-in')}</td><td><span class="workflow-status-badge ${escapeHtml(validation.status)}">${escapeHtml(workflowStatusLabel(validation.status))}</span><small title="${escapeHtml(validation.reason)}">${escapeHtml(validation.reason)}</small></td><td>${escapeHtml(formatValidationDate(validation.last_validated_at))}<small>${validation.inventory_fingerprint ? `Inventory ${escapeHtml(validation.inventory_fingerprint.slice(0, 8))}` : 'No inventory fingerprint'}</small></td><td>Schema ${escapeHtml(workflow.manifest_version)}<small>Template ${escapeHtml(workflow.template_version)}</small></td><td><span class="workflow-management-actions"><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="open"${valid ? '' : ' disabled'}>Open</button><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="revalidate"${valid ? '' : ' disabled'}>Check</button>${editable ? '<button class="btn btn-ghost btn-sm" type="button" data-workflow-action="edit">Edit</button>' : ''}${removable ? '<button class="btn btn-danger btn-sm" type="button" data-workflow-action="delete">Delete</button>' : ''}</span></td></tr>`;
+        return `<tr data-workflow-id="${escapeHtml(workflow.id)}"><td><strong>${escapeHtml(workflow.name)}</strong><small>${escapeHtml(workflow.description || workflow.id)}</small></td><td>${escapeHtml(workflow.category)} · ${escapeHtml(workflow.media_type)}</td><td>${escapeHtml((workflow.ecosystems || []).join(', ') || 'Unknown')}</td><td>${escapeHtml(workflow.loader_family)}</td><td>${escapeHtml(workflow.source === 'user' ? 'Imported' : 'Built-in')}</td><td><span class="workflow-status-badge ${escapeHtml(validation.status)}">${escapeHtml(workflowStatusLabel(validation.status))}</span><small title="${escapeHtml(validation.reason)}">${escapeHtml(validation.reason)}</small></td><td>${escapeHtml(formatValidationDate(validation.last_validated_at))}<small>${validation.inventory_fingerprint ? `Inventory ${escapeHtml(validation.inventory_fingerprint.slice(0, 8))}` : 'No inventory fingerprint'}</small></td><td>Schema ${escapeHtml(workflow.manifest_version)}<small>Template ${escapeHtml(workflow.template_version)}</small></td><td><span class="workflow-management-actions"><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="open"${valid ? '' : ' disabled'}>Open</button><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="revalidate"${valid ? '' : ' disabled'}>Check</button>${editable ? '<button class="btn btn-ghost btn-sm" type="button" data-workflow-action="remap">Map</button><button class="btn btn-ghost btn-sm" type="button" data-workflow-action="edit">Edit</button>' : ''}${removable ? '<button class="btn btn-danger btn-sm" type="button" data-workflow-action="delete">Delete</button>' : ''}</span></td></tr>`;
     }).join('');
     elements.workflowManageEmpty.hidden = workflows.length > 0;
 }
@@ -2693,6 +2698,85 @@ function openWorkflowMetadata(templateId) {
     elements.workflowMetadataName.value = workflow.name;
     elements.workflowMetadataDescription.value = workflow.description || '';
     elements.workflowMetadataDialog.showModal();
+}
+
+function resetImportDialogMode() {
+    state.remappingWorkflowId = null;
+    state.importPlan = null;
+    state.importMapping = null;
+    elements.importForm.reset();
+    elements.importTitle.textContent = 'Import workflow';
+    elements.importLead.textContent = IMPORT_DIALOG_LEAD;
+    elements.importDropZone.hidden = false;
+    elements.importName.hidden = false;
+    elements.importName.textContent = 'No file selected';
+    elements.importDisplayName.disabled = false;
+    elements.importId.disabled = false;
+    elements.importDescription.disabled = false;
+    elements.importSubmit.textContent = 'Import';
+    elements.importSubmit.disabled = true;
+    elements.importAnalysis.hidden = true;
+    elements.importFields.hidden = true;
+    elements.importMapping.hidden = true;
+}
+
+function renderImportPlan(plan, mapping, { remap = false, preserveMetadata = false } = {}) {
+    state.importPlan = plan;
+    state.importMapping = mapping || defaultImportMapping(plan);
+    const manifest = plan.manifest;
+    if (!preserveMetadata) {
+        elements.importDisplayName.value = manifest.name || '';
+        elements.importId.value = manifest.id || '';
+        elements.importDescription.value = manifest.description || '';
+    }
+    elements.importFields.hidden = false;
+    elements.importAnalysis.hidden = false;
+    const fieldCount = plan.mappings.filter((item) => item.kind === 'field').length;
+    const resourceCount = plan.mappings.filter((item) => item.kind === 'resource').length;
+    const format = {
+        api_workflow: 'ComfyUI API workflow',
+        ui_workflow: 'ComfyUI UI workflow',
+        registered_workflow: 'Registered workflow',
+        template_bundle: 'Template bundle',
+    }[plan.source_format] || 'Workflow';
+    const warnings = (plan.warnings || []).length
+        ? `<ul>${plan.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul>`
+        : '';
+    const readyMessage = remap
+        ? 'The updated mappings are ready to save.'
+        : 'The workflow is ready to register.';
+    elements.importAnalysis.innerHTML = `<strong>${escapeHtml(format)} · ${escapeHtml(manifest.loader_family)}</strong><span>${fieldCount} editor bindings and ${resourceCount} model bindings detected. ${plan.ready ? readyMessage : 'Manual mapping is required before registration.'}</span>${warnings}`;
+    elements.importAnalysis.classList.toggle('error', !plan.ready);
+    renderImportMapping(plan);
+    elements.importMappingApply.textContent = plan.ready ? 'Mappings applied' : 'Apply mappings';
+    elements.importSubmit.disabled = !plan.ready;
+}
+
+async function openWorkflowRemap(templateId) {
+    const workflow = state.workflows.find((item) => item.id === templateId);
+    if (!workflow || workflow.source !== 'user') return;
+    resetImportDialogMode();
+    state.remappingWorkflowId = templateId;
+    elements.importTitle.textContent = `Remap ${workflow.name}`;
+    elements.importLead.textContent = 'Review semantic fields, model roles, and the primary output without replacing the saved workflow graph.';
+    elements.importDropZone.hidden = true;
+    elements.importName.hidden = true;
+    elements.importDisplayName.disabled = true;
+    elements.importId.disabled = true;
+    elements.importDescription.disabled = true;
+    elements.importSubmit.textContent = 'Save mappings';
+    elements.importAnalysis.hidden = false;
+    elements.importAnalysis.innerHTML = '<strong>Loading saved workflow…</strong><span>Reconstructing the current mapping selections.</span>';
+    elements.workflowManageDialog.close();
+    elements.importDialog.showModal();
+    try {
+        const payload = await requestJson(`/api/editor/workflows/${encodeURIComponent(templateId)}/mapping`);
+        renderImportPlan(payload.plan, payload.mapping, { remap: true });
+    } catch (error) {
+        elements.importAnalysis.classList.add('error');
+        elements.importAnalysis.innerHTML = `<strong>Cannot remap this workflow</strong><span>${escapeHtml(error.message)}</span>`;
+        showToast(error.message, 'error');
+    }
 }
 
 async function saveWorkflowMetadata(event) {
@@ -2752,6 +2836,8 @@ function handleWorkflowManagementAction(event) {
         revalidateWorkflow(templateId);
     } else if (button.dataset.workflowAction === 'edit') {
         openWorkflowMetadata(templateId);
+    } else if (button.dataset.workflowAction === 'remap') {
+        openWorkflowRemap(templateId);
     } else if (button.dataset.workflowAction === 'delete') {
         deleteManagedWorkflow(templateId);
     }
@@ -2759,6 +2845,10 @@ function handleWorkflowManagementAction(event) {
 
 async function importTemplate(event) {
     event.preventDefault();
+    if (state.remappingWorkflowId) {
+        await saveWorkflowRemap();
+        return;
+    }
     const file = elements.importFile.files?.[0];
     if (!file) return;
     elements.importSubmit.disabled = true;
@@ -2786,6 +2876,30 @@ async function importTemplate(event) {
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
+        elements.importSubmit.disabled = !state.importPlan?.ready;
+    }
+}
+
+async function saveWorkflowRemap() {
+    const templateId = state.remappingWorkflowId;
+    if (!templateId || !state.importPlan?.ready) return;
+    elements.importSubmit.disabled = true;
+    try {
+        const template = await requestJson(`/api/editor/workflows/${encodeURIComponent(templateId)}/mapping`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mapping: state.importMapping || {} }),
+        });
+        const index = state.templates.findIndex((item) => item.manifest.id === templateId);
+        if (index >= 0) state.templates[index] = template;
+        else state.templates.push(template);
+        if (currentManifest()?.id === templateId) selectTemplate(template);
+        elements.importDialog.close();
+        resetImportDialogMode();
+        await loadWorkflowRegistry();
+        showToast(`Saved mappings for ${template.manifest.name}. Revalidate it before running.`, 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
         elements.importSubmit.disabled = !state.importPlan?.ready;
     }
 }
@@ -2835,7 +2949,7 @@ function renderImportMapping(plan) {
     const outputOptions = plan.candidates.outputs || [];
     const samplerOptions = plan.candidates.samplers || [];
     const controls = [];
-    if (plan.source_format === 'api_workflow') {
+    if (['api_workflow', 'ui_workflow', 'registered_workflow'].includes(plan.source_format)) {
         controls.push(mappingSelect('Sampler pipeline', 'sampler_node_id', samplerOptions, mapping.sampler_node_id, {
             placeholder: samplerOptions.length > 1 ? 'Choose sampler…' : 'Automatic',
         }));
@@ -2904,13 +3018,13 @@ function readImportMapping() {
 }
 
 async function analyzeTemplateImport(mappingOverrides = null) {
+    const registeredId = state.remappingWorkflowId;
     const file = elements.importFile.files?.[0];
-    const isRemap = mappingOverrides !== null;
     state.importPlan = null;
     elements.importSubmit.disabled = true;
     elements.importFields.hidden = true;
     elements.importAnalysis.classList.remove('error');
-    if (!file) {
+    if (!registeredId && !file) {
         elements.importAnalysis.hidden = true;
         elements.importMapping.hidden = true;
         return;
@@ -2918,38 +3032,26 @@ async function analyzeTemplateImport(mappingOverrides = null) {
 
     elements.importAnalysis.hidden = false;
     elements.importAnalysis.innerHTML = '<strong>Analyzing workflow…</strong><span>Detecting semantic fields, model slots, and output nodes.</span>';
-    const form = new FormData();
-    form.append('file', file);
-    if (mappingOverrides) form.append('mapping', JSON.stringify(mappingOverrides));
     try {
-        const plan = await requestJson('/api/editor/templates/import/analyze', { method: 'POST', body: form });
-        state.importPlan = plan;
-        state.importMapping = mappingOverrides || defaultImportMapping(plan);
-        const manifest = plan.manifest;
-        if (!isRemap) {
-            elements.importDisplayName.value = manifest.name || '';
-            elements.importId.value = manifest.id || '';
-            elements.importDescription.value = manifest.description || '';
+        if (registeredId) {
+            const payload = await requestJson(`/api/editor/workflows/${encodeURIComponent(registeredId)}/mapping`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mapping: mappingOverrides || state.importMapping || {} }),
+            });
+            renderImportPlan(payload.plan, payload.mapping, { remap: true, preserveMetadata: true });
+        } else {
+            const form = new FormData();
+            form.append('file', file);
+            if (mappingOverrides) form.append('mapping', JSON.stringify(mappingOverrides));
+            const plan = await requestJson('/api/editor/templates/import/analyze', { method: 'POST', body: form });
+            renderImportPlan(plan, mappingOverrides || defaultImportMapping(plan), {
+                preserveMetadata: mappingOverrides !== null,
+            });
         }
-        elements.importFields.hidden = false;
-        const fieldCount = plan.mappings.filter((item) => item.kind === 'field').length;
-        const resourceCount = plan.mappings.filter((item) => item.kind === 'resource').length;
-        const format = {
-            api_workflow: 'ComfyUI API workflow',
-            ui_workflow: 'ComfyUI UI workflow',
-            template_bundle: 'Template bundle',
-        }[plan.source_format] || 'Workflow';
-        const warnings = (plan.warnings || []).length
-            ? `<ul>${plan.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul>`
-            : '';
-        elements.importAnalysis.innerHTML = `<strong>${escapeHtml(format)} · ${escapeHtml(manifest.loader_family)}</strong><span>${fieldCount} editor bindings and ${resourceCount} model bindings detected. ${plan.ready ? 'The workflow is ready to register.' : 'Manual mapping is required before registration.'}</span>${warnings}`;
-        elements.importAnalysis.classList.toggle('error', !plan.ready);
-        renderImportMapping(plan);
-        elements.importMappingApply.textContent = plan.ready ? 'Mappings applied' : 'Apply mappings';
-        elements.importSubmit.disabled = !plan.ready;
     } catch (error) {
         elements.importAnalysis.classList.add('error');
-        elements.importAnalysis.innerHTML = `<strong>Cannot import this file</strong><span>${escapeHtml(error.message)}</span>`;
+        elements.importAnalysis.innerHTML = `<strong>${registeredId ? 'Cannot update these mappings' : 'Cannot import this file'}</strong><span>${escapeHtml(error.message)}</span>`;
         elements.importMapping.hidden = true;
     }
 }
@@ -3001,7 +3103,10 @@ function bindEvents() {
     elements.runtimeConnect.addEventListener('click', openRuntimeDrawer);
     elements.runtimeClose.addEventListener('click', closeRuntimeDrawer);
     elements.runtimeBackdrop.addEventListener('click', closeRuntimeDrawer);
-    elements.importOpen.addEventListener('click', () => elements.importDialog.showModal());
+    elements.importOpen.addEventListener('click', () => {
+        resetImportDialogMode();
+        elements.importDialog.showModal();
+    });
     elements.workflowManageOpen.addEventListener('click', () => loadWorkflowRegistry({ open: true }));
     elements.workflowManageSearch.addEventListener('input', renderWorkflowRegistry);
     elements.workflowManageSource.addEventListener('change', renderWorkflowRegistry);

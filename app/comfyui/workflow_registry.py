@@ -10,7 +10,12 @@ from typing import Any
 from pydantic import ValidationError
 
 from .sampling_options import apply_builtin_sampling_options
-from .workflow_import import WorkflowImportPlan, analyze_api_workflow, unwrap_api_workflow
+from .workflow_import import (
+    WorkflowImportPlan,
+    analyze_api_workflow,
+    mapping_overrides_from_manifest,
+    unwrap_api_workflow,
+)
 from .workflow_models import (
     WorkflowTemplate,
     WorkflowTemplateManifest,
@@ -164,6 +169,91 @@ class WorkflowTemplateRegistry:
                 f"Cannot delete workflow template: {exc}",
                 code="template_storage_error",
             ) from exc
+
+    def analyze_registered_mapping(
+        self,
+        template_id: str,
+        *,
+        mapping_overrides: dict[str, Any] | None = None,
+    ) -> tuple[WorkflowImportPlan, dict[str, Any]]:
+        template = self._user_template(template_id)
+        mapping = (
+            mapping_overrides
+            if mapping_overrides is not None
+            else mapping_overrides_from_manifest(template.workflow, template.manifest)
+        )
+        try:
+            analyzed = analyze_api_workflow(
+                f"{template.manifest.id}.json",
+                template.workflow,
+                mapping_overrides=mapping,
+                source_format="registered_workflow",
+            )
+        except ValueError as exc:
+            raise WorkflowTemplateError(
+                f"Invalid workflow mapping: {exc}",
+                code="invalid_workflow_mapping",
+            ) from exc
+        manifest = analyzed.manifest.model_copy(update={
+            "id": template.manifest.id,
+            "name": template.manifest.name,
+            "description": template.manifest.description,
+            "version": template.manifest.version,
+            "workflow": template.manifest.workflow,
+            "preview": template.manifest.preview,
+            "supported_ecosystems": template.manifest.supported_ecosystems,
+            "capability_notes": template.manifest.capability_notes,
+            "limitation_notes": template.manifest.limitation_notes,
+        })
+        return WorkflowImportPlan(
+            source_format=analyzed.source_format,
+            manifest=manifest,
+            workflow=analyzed.workflow,
+            mappings=analyzed.mappings,
+            candidates=analyzed.candidates,
+            warnings=analyzed.warnings,
+            ready=analyzed.ready,
+        ), mapping
+
+    def remap_user_template(
+        self,
+        template_id: str,
+        *,
+        mapping_overrides: dict[str, Any],
+    ) -> WorkflowTemplate:
+        plan, _mapping = self.analyze_registered_mapping(
+            template_id,
+            mapping_overrides=mapping_overrides,
+        )
+        if not plan.ready:
+            raise WorkflowTemplateError(
+                "This workflow still needs manual mapping: " + " ".join(plan.warnings),
+                code="workflow_mapping_required",
+            )
+        template = self._user_template(template_id)
+        manifest = self._validate_manifest({
+            **plan.manifest.model_dump(mode="json"),
+            "version": self._next_patch_version(template.manifest.version),
+        })
+        template_dir = self._user_template_dir(template_id)
+        self._write_json(template_dir / "manifest.json", manifest.model_dump(mode="json"))
+        return self._load_from_manifest(template_dir / "manifest.json", source="user")
+
+    def _user_template(self, template_id: str) -> WorkflowTemplate:
+        template = self.get(template_id)
+        if template.source != "user":
+            raise WorkflowTemplateError(
+                "Built-in workflow mappings cannot be changed.",
+                code="builtin_template_read_only",
+            )
+        return template
+
+    @staticmethod
+    def _next_patch_version(version: str) -> str:
+        parts = str(version).split(".")
+        if len(parts) == 3 and all(part.isdigit() for part in parts):
+            return f"{parts[0]}.{parts[1]}.{int(parts[2]) + 1}"
+        return "1.0.1"
 
     def _user_template_dir(self, template_id: str) -> Path:
         if self.user_root is None:

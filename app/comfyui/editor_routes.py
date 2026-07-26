@@ -379,6 +379,30 @@ def editor_workflow_revalidate(template_id: str):
     })
 
 
+@editor_blueprint.route(
+    "/api/editor/workflows/<template_id>/mapping",
+    methods=["GET", "POST", "PUT"],
+)
+def editor_workflow_mapping(template_id: str):
+    registry = _registry()
+    mapping = None if request.method == "GET" else _json_mapping()
+    if request.method == "PUT":
+        template = registry.remap_user_template(
+            template_id,
+            mapping_overrides=mapping or {},
+        )
+        _registry_status_store().delete(template_id)
+        return jsonify(_template_payload(template, _inventory()))
+    plan, resolved_mapping = registry.analyze_registered_mapping(
+        template_id,
+        mapping_overrides=mapping,
+    )
+    return jsonify({
+        "plan": plan.api_dict(),
+        "mapping": resolved_mapping,
+    })
+
+
 @editor_blueprint.route("/api/editor/templates/import", methods=["POST"])
 def editor_template_import():
     uploaded, data = _uploaded_template_data()
@@ -450,6 +474,23 @@ def _mapping_overrides() -> dict[str, Any] | None:
             code="invalid_workflow_mapping",
         )
     return payload
+
+
+def _json_mapping() -> dict[str, Any]:
+    payload = _json_object()
+    unexpected = set(payload) - {"mapping"}
+    if unexpected:
+        raise WorkflowTemplateError(
+            "Unsupported workflow mapping fields: " + ", ".join(sorted(unexpected)),
+            code="invalid_workflow_mapping",
+        )
+    mapping = payload.get("mapping")
+    if not isinstance(mapping, dict):
+        raise WorkflowTemplateError(
+            "Workflow mapping must be a JSON object.",
+            code="invalid_workflow_mapping",
+        )
+    return mapping
 
 
 @editor_blueprint.route("/api/editor/drafts", methods=["POST"])

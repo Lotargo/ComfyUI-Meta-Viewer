@@ -255,13 +255,15 @@
 - [x] Поиск и фильтрация.
 - [x] Открытие workflow в editor.
 - [x] Переименование и изменение description.
-- [ ] Повторное открытие mapping wizard.
+- [x] Повторное открытие mapping wizard.
 - [x] Revalidate against current ComfyUI.
 - [ ] Duplicate.
 - [ ] Export.
 - [x] Delete imported template.
 - [ ] Restore built-in template.
 - [x] Удаление template не затрагивает models, nodes и ComfyUI files.
+
+Для imported workflows mapping wizard повторно открывается из management table с восстановленными sampler/prompt/output selections, manual model roles и field visibility. Preview не изменяет сохранённый manifest; apply атомарно заменяет semantic contract, повышает patch-version и сбрасывает runtime validation до явного revalidate.
 
 **Gate:** Task 09 не закрывается без удобного управления импортированными templates и повторной проверки после изменений ComfyUI.
 

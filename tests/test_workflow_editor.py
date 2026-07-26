@@ -242,6 +242,80 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
             "manual",
         )
 
+    def test_registered_workflow_mapping_can_be_reopened_and_replaced(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry = WorkflowTemplateRegistry(user_root=temp_dir)
+            workflow = registry.get("core-image").workflow
+            workflow = {
+                **workflow,
+                "1": {
+                    "class_type": "AcmeModelLoader",
+                    "inputs": {"model_name": "acme-model.gguf"},
+                },
+                "8": {**workflow["5"], "inputs": dict(workflow["5"]["inputs"])},
+                "9": {
+                    "class_type": "SaveImage",
+                    "inputs": {"filename_prefix": "Alternate", "images": ["6", 0]},
+                },
+            }
+            data = json.dumps(workflow).encode("utf-8")
+            initial_mapping = {
+                "sampler_node_id": "8",
+                "positive_binding": "2:text",
+                "negative_binding": "__none__",
+                "output_node_id": "9",
+                "model_roles": {"1:model_name": "diffusion_model_gguf"},
+                "field_options": {"width": {"hidden": True}},
+            }
+            registry.import_bundle(
+                "remappable.json",
+                data,
+                mapping_overrides=initial_mapping,
+                manifest_overrides={
+                    "id": "remappable-workflow",
+                    "name": "Remappable workflow",
+                    "description": "Keep this description.",
+                },
+            )
+
+            reopened, restored_mapping = registry.analyze_registered_mapping(
+                "remappable-workflow"
+            )
+
+            self.assertTrue(reopened.ready)
+            self.assertEqual(restored_mapping["sampler_node_id"], "8")
+            self.assertEqual(restored_mapping["negative_binding"], "__none__")
+            self.assertEqual(restored_mapping["output_node_id"], "9")
+            self.assertEqual(
+                restored_mapping["model_roles"],
+                {"1:model_name": "diffusion_model_gguf"},
+            )
+            self.assertTrue(restored_mapping["field_options"]["width"]["hidden"])
+
+            updated = registry.remap_user_template(
+                "remappable-workflow",
+                mapping_overrides={
+                    **restored_mapping,
+                    "sampler_node_id": "5",
+                    "negative_binding": "3:text",
+                    "output_node_id": "7",
+                    "field_options": {
+                        **restored_mapping["field_options"],
+                        "width": {"advanced": True, "hidden": False},
+                    },
+                },
+            )
+
+            fields = {field.id: field for field in updated.manifest.fields}
+            self.assertEqual(updated.manifest.id, "remappable-workflow")
+            self.assertEqual(updated.manifest.name, "Remappable workflow")
+            self.assertEqual(updated.manifest.description, "Keep this description.")
+            self.assertEqual(updated.manifest.version, "1.0.1")
+            self.assertEqual(updated.manifest.output_nodes, ["7"])
+            self.assertEqual(fields["seed"].bindings[0].node_id, "5")
+            self.assertEqual(fields["negative_prompt"].bindings[0].node_id, "3")
+            self.assertFalse(fields["width"].hidden)
+
     def test_manual_model_role_registers_unknown_loader(self) -> None:
         registry = WorkflowTemplateRegistry(user_root="unused")
         workflow = registry.get("core-image").workflow
@@ -1191,6 +1265,48 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertEqual(updated.status_code, 200)
         self.assertEqual(updated.get_json()["manifest"]["name"], "Renamed workflow")
 
+        mapping_response = self.client.get(
+            "/api/editor/workflows/managed-workflow/mapping"
+        )
+        self.assertEqual(mapping_response.status_code, 200)
+        mapping_payload = mapping_response.get_json()
+        self.assertTrue(mapping_payload["plan"]["ready"])
+        self.assertEqual(mapping_payload["mapping"]["sampler_node_id"], "5")
+        remapped_mapping = mapping_payload["mapping"]
+        remapped_mapping["field_options"]["width"]["hidden"] = True
+
+        previewed = self.client.post(
+            "/api/editor/workflows/managed-workflow/mapping",
+            json={"mapping": remapped_mapping},
+        )
+        self.assertEqual(previewed.status_code, 200)
+        preview_width = next(
+            field
+            for field in previewed.get_json()["plan"]["manifest"]["fields"]
+            if field["id"] == "width"
+        )
+        self.assertTrue(preview_width["hidden"])
+
+        remapped = self.client.put(
+            "/api/editor/workflows/managed-workflow/mapping",
+            json={"mapping": remapped_mapping},
+        )
+        self.assertEqual(remapped.status_code, 200)
+        self.assertEqual(remapped.get_json()["manifest"]["version"], "1.0.1")
+        remapped_width = next(
+            field
+            for field in remapped.get_json()["manifest"]["fields"]
+            if field["id"] == "width"
+        )
+        self.assertTrue(remapped_width["hidden"])
+        managed_after_remap = next(
+            item
+            for item in self.client.get("/api/editor/workflows").get_json()["workflows"]
+            if item["id"] == "managed-workflow"
+        )
+        self.assertEqual(managed_after_remap["validation"]["status"], "warning")
+        self.assertIsNone(managed_after_remap["validation"]["last_validated_at"])
+
         deleted = self.client.delete("/api/editor/templates/managed-workflow")
         self.assertEqual(deleted.status_code, 200)
         self.assertFalse(
@@ -1208,11 +1324,14 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
             json={"name": "Changed"},
         )
         deleted = self.client.delete("/api/editor/templates/core-image")
+        remapped = self.client.get("/api/editor/workflows/core-image/mapping")
 
         self.assertEqual(edited.status_code, 422)
         self.assertEqual(edited.get_json()["code"], "builtin_template_read_only")
         self.assertEqual(deleted.status_code, 422)
         self.assertEqual(deleted.get_json()["code"], "builtin_template_read_only")
+        self.assertEqual(remapped.status_code, 422)
+        self.assertEqual(remapped.get_json()["code"], "builtin_template_read_only")
 
     @patch("app.comfyui.editor_routes._inventory")
     def test_bootstrap_filters_resources_for_standard_and_gguf_slots(self, inventory_mock) -> None:

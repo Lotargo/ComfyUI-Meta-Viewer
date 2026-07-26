@@ -64,6 +64,90 @@ def unwrap_api_workflow(payload: Any) -> dict[str, Any] | None:
     return None
 
 
+def mapping_overrides_from_manifest(
+    workflow: dict[str, Any],
+    manifest: WorkflowTemplateManifest,
+) -> dict[str, Any]:
+    """Rebuild mapping-wizard selections from a registered manifest."""
+
+    fields = {field.id: field for field in manifest.fields}
+
+    def first_binding(field_id: str) -> str:
+        field = fields.get(field_id)
+        if field is None or not field.bindings:
+            return ""
+        if len(field.bindings) > 1:
+            # Multi-input prompt encoders are reconstructed more faithfully by
+            # the graph traversal than by selecting one input in the wizard.
+            return ""
+        binding = field.bindings[0]
+        return f"{binding.node_id}:{binding.input}"
+
+    sampler_candidates = {
+        node_id
+        for node_id, node in workflow.items()
+        if node.get("class_type") in SAMPLER_NODE_TYPES
+    }
+    sampler_node_id = ""
+    for field_id in ("seed", "steps", "cfg", "sampler", "scheduler", "denoise"):
+        field = fields.get(field_id)
+        if field is None:
+            continue
+        matching = next(
+            (
+                binding.node_id
+                for binding in field.bindings
+                if binding.node_id in sampler_candidates
+            ),
+            None,
+        )
+        if matching is not None:
+            sampler_node_id = matching
+            break
+
+    role_by_type = {
+        "checkpoint": "checkpoint",
+        "diffusion_model": "diffusion_model",
+        "diffusion_model_gguf": "diffusion_model_gguf",
+        "text_encoder": "text_encoder",
+        "text_encoder_gguf": "text_encoder_gguf",
+        "vae": "vae",
+        "lora": "lora",
+        "locon": "lora",
+        "dora": "lora",
+    }
+    unknown_inputs = {item["value"] for item in _unknown_model_inputs(workflow)}
+    model_roles: dict[str, str] = {}
+    for slot in manifest.resource_slots.values():
+        binding = slot.binding
+        if binding.kind != "node_input" or not binding.node_id or not binding.input:
+            continue
+        binding_key = f"{binding.node_id}:{binding.input}"
+        if binding_key not in unknown_inputs:
+            continue
+        role = next(
+            (role_by_type[item.value] for item in slot.accepts if item.value in role_by_type),
+            None,
+        )
+        if role is not None:
+            model_roles[binding_key] = role
+
+    return {
+        "sampler_node_id": sampler_node_id,
+        "positive_binding": first_binding("positive_prompt"),
+        "negative_binding": first_binding("negative_prompt") or "__none__",
+        "output_node_id": manifest.output_nodes[0] if manifest.output_nodes else "",
+        "model_roles": model_roles,
+        "field_options": {
+            field.id: {
+                "advanced": field.advanced,
+                "hidden": field.hidden,
+            }
+            for field in manifest.fields
+        },
+    }
+
+
 def analyze_api_workflow(
     filename: str,
     workflow: dict[str, Any],

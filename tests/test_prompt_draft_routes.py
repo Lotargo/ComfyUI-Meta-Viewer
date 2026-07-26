@@ -15,6 +15,7 @@ from app.ai.prompting import (
     PromptTask,
     PromptResult,
 )
+from app.ai.translation import PromptText, PromptTranslationStore
 from app.main import app
 
 
@@ -246,11 +247,164 @@ class PromptDraftRoutesTest(unittest.TestCase):
         self.assertNotIn("multi_character", pony)
         self.assertEqual(pony["product_object"], "limited")
 
+    def test_translate_creates_new_editor_draft_and_preserves_source(self) -> None:
+        captured = {}
+        profile = {
+            "id": "saved-translator",
+            "kind": "openai_compatible",
+            "name": "Saved translator",
+            "model": "translation-model",
+        }
+
+        class StubProfileStore:
+            @staticmethod
+            def list():
+                return {
+                    "profiles": [],
+                    "defaults": {"text_profile_id": profile["id"]},
+                }
+
+            @staticmethod
+            def get(profile_id):
+                self.assertEqual(profile_id, profile["id"])
+                return profile
+
+            @staticmethod
+            def resolve_api_key(resolved_profile):
+                self.assertIs(resolved_profile, profile)
+                return "server-side-translation-secret"
+
+        class StubTranslationService:
+            @staticmethod
+            def translate(**kwargs):
+                captured.update(kwargs)
+                translated = PromptResult(
+                    positive_prompt="a quiet glass house in the northern forest",
+                    negative_prompt="text, watermark",
+                )
+                store = AIJobStore()
+                job = store.create(
+                    task=kwargs["task"],
+                    execution_backend="openai_compatible",
+                    provider_profile_id=profile["id"],
+                    model_id=profile["model"],
+                    user_input="translation request",
+                )
+                store.save_draft(
+                    job.id,
+                    PromptDraft(
+                        positive_prompt=translated.positive_prompt,
+                        negative_prompt=translated.negative_prompt,
+                        source_kind=PromptDraftSource.TRANSLATION,
+                        source_payload={
+                            "source": kwargs["source"].model_dump(mode="json"),
+                            "target_language": kwargs["target_language"],
+                        },
+                        versions={"family": "1", "operation": "1"},
+                    ),
+                )
+                store.complete(job.id, result=translated)
+                translation = PromptTranslationStore().save(
+                    job_id=job.id,
+                    source=kwargs["source"],
+                    translated=PromptText(
+                        positive_prompt=translated.positive_prompt,
+                        negative_prompt=translated.negative_prompt,
+                    ),
+                    source_language=kwargs["source_language"],
+                    target_language=kwargs["target_language"],
+                )
+                return SimpleNamespace(
+                    execution=SimpleNamespace(job_id=job.id),
+                    translation=translation,
+                )
+
+        with (
+            patch("app.ai.routes._store", return_value=StubProfileStore()),
+            patch(
+                "app.ai.routes.PromptTranslationService",
+                return_value=StubTranslationService(),
+            ),
+        ):
+            response = self.client.post(
+                "/api/ai/translate",
+                json={
+                    "source_language": "ru",
+                    "target_language": "en",
+                    "source": {
+                        "positive_prompt": "тихий стеклянный дом в северном лесу",
+                        "negative_prompt": "текст, водяной знак",
+                    },
+                    "task": {
+                        "family": "sdxl",
+                        "scenario": "architecture_interior",
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(payload["job"]["task"]["operation"], "translate")
+        self.assertEqual(payload["context"]["operation"], "translate")
+        self.assertEqual(
+            payload["translation"]["source"]["positive_prompt"],
+            "тихий стеклянный дом в северном лесу",
+        )
+        self.assertEqual(
+            payload["translation"]["translated"]["positive_prompt"],
+            "a quiet glass house in the northern forest",
+        )
+        self.assertEqual(captured["api_key"], "server-side-translation-secret")
+        self.assertNotIn("server-side-translation-secret", response.get_data(as_text=True))
+
+        prompt_draft_id = payload["prompt_draft"]["id"]
+        workflow = self.client.post(
+            "/api/editor/drafts",
+            json={
+                "template_id": "core-image",
+                "ai_prompt_draft_id": prompt_draft_id,
+            },
+        )
+        self.assertEqual(workflow.status_code, 201)
+        workflow_payload = workflow.get_json()
+        workflow_draft = workflow_payload["draft"]
+        self.assertEqual(workflow_draft["status"], "editing")
+        self.assertEqual(workflow_payload["ai_prompt_context"]["operation"], "translate")
+        self.assertEqual(
+            workflow_payload["ai_prompt_translation"]["source"]["positive_prompt"],
+            "тихий стеклянный дом в северном лесу",
+        )
+        self.assertEqual(
+            workflow_draft["values"]["positive_prompt"],
+            "a quiet glass house in the northern forest",
+        )
+        self.assertEqual(workflow_draft["values"]["negative_prompt"], "text, watermark")
+
+        reloaded = self.client.get(f"/api/editor/drafts/{workflow_draft['id']}")
+        self.assertEqual(reloaded.status_code, 200)
+        self.assertEqual(
+            reloaded.get_json()["ai_prompt_context"]["operation"],
+            "translate",
+        )
+        stored_translation = PromptTranslationStore().get(payload["job"]["id"])
+        self.assertEqual(stored_translation.source_language, "ru")
+        self.assertEqual(stored_translation.target_language, "en")
+
+        conn = database.get_conn()
+        try:
+            run_count = conn.execute("SELECT COUNT(*) FROM workflow_runs").fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(run_count, 0)
+
     def test_editor_exposes_ai_prompt_draft_controls(self) -> None:
         response = self.client.get("/editor")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'id="ai-prompt-open"', response.data)
         self.assertIn(b'id="ai-prompt-dialog"', response.data)
+        self.assertIn(b'id="translate-prompt-open"', response.data)
+        self.assertIn(b'id="translate-prompt-dialog"', response.data)
+        self.assertIn(b'id="prompt-provenance-dialog"', response.data)
         self.assertIn(b'Generation stays manual', response.data)
 
 

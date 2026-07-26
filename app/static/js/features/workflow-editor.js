@@ -112,6 +112,24 @@ const elements = {
     aiPromptProfile: byId('ai-prompt-profile'),
     aiPromptProfileNote: byId('ai-profile-note'),
     aiPromptSubmit: byId('ai-prompt-submit'),
+    translatePromptOpen: byId('translate-prompt-open'),
+    translatePromptDialog: byId('translate-prompt-dialog'),
+    translatePromptForm: byId('translate-prompt-form'),
+    translatePromptPositive: byId('translate-prompt-positive'),
+    translatePromptNegative: byId('translate-prompt-negative'),
+    translateSourceLanguage: byId('translate-source-language'),
+    translateTargetLanguage: byId('translate-target-language'),
+    translatePromptFamily: byId('translate-prompt-family'),
+    translatePromptScenario: byId('translate-prompt-scenario'),
+    translatePromptProfile: byId('translate-prompt-profile'),
+    translateProfileNote: byId('translate-profile-note'),
+    translatePromptSubmit: byId('translate-prompt-submit'),
+    promptProvenanceDialog: byId('prompt-provenance-dialog'),
+    promptProvenanceSummary: byId('prompt-provenance-summary'),
+    promptSourcePositive: byId('prompt-source-positive'),
+    promptSourceNegative: byId('prompt-source-negative'),
+    promptTranslatedPositive: byId('prompt-translated-positive'),
+    promptTranslatedNegative: byId('prompt-translated-negative'),
     toastContainer: byId('toast-container'),
     resetEditor: byId('reset-editor'),
     saveNote: byId('save-note'),
@@ -192,6 +210,8 @@ const state = {
     aiCapabilities: [],
     aiProfiles: [],
     aiDefaultProfileId: null,
+    aiPromptContext: null,
+    aiPromptTranslation: null,
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -234,6 +254,10 @@ function persistCreateWorkspace() {
     createWorkspace.templates[manifest.id] = {
         template_version: manifest.version,
         draft: state.draft ? { ...state.draft } : null,
+        ai_prompt_context: state.aiPromptContext ? { ...state.aiPromptContext } : null,
+        ai_prompt_translation: state.aiPromptTranslation
+            ? structuredClone(state.aiPromptTranslation)
+            : null,
         values: { ...state.values },
         resources: { ...state.resources },
         ui: {
@@ -263,6 +287,12 @@ function restoreTemplateWorkspace(template, saved) {
         Object.entries(saved?.resources || {}).filter(([slotId]) => slotIds.has(slotId)),
     );
     state.draft = saved?.draft?.template_id === manifest.id ? { ...saved.draft } : null;
+    state.aiPromptContext = state.draft && saved?.ai_prompt_context
+        ? { ...saved.ai_prompt_context }
+        : null;
+    state.aiPromptTranslation = state.draft && saved?.ai_prompt_translation
+        ? structuredClone(saved.ai_prompt_translation)
+        : null;
     state.values = { ...template.defaults, ...savedValues };
     state.resources = {
         ...defaultResourceSelections(template),
@@ -510,6 +540,8 @@ async function bootstrap() {
             const registered = state.templates.find((item) => item.manifest.id === draftPayload.draft.template_id);
             if (registered) {
                 state.draft = draftPayload.draft;
+                state.aiPromptContext = draftPayload.ai_prompt_context || null;
+                state.aiPromptTranslation = draftPayload.ai_prompt_translation || null;
                 state.values = { ...registered.defaults, ...draftPayload.draft.values };
                 state.resources = { ...draftPayload.draft.resource_selections };
                 selectTemplate(registered, { preserveDraft: true });
@@ -547,6 +579,8 @@ function selectTemplate(template, { preserveDraft = false } = {}) {
             restoreTemplateWorkspace(template, saved);
         } else {
             state.draft = null;
+            state.aiPromptContext = null;
+            state.aiPromptTranslation = null;
             state.values = { ...template.defaults };
             state.resources = defaultResourceSelections(template);
             state.samplingMode = 'recommended';
@@ -1384,6 +1418,8 @@ async function ensureDraft() {
         }),
     });
     state.draft = payload.draft;
+    state.aiPromptContext = payload.ai_prompt_context || null;
+    state.aiPromptTranslation = payload.ai_prompt_translation || null;
     syncDraftUrl();
     persistCreateWorkspace();
     renderSourceBanner();
@@ -1401,11 +1437,15 @@ async function saveDraft({ recoverMissing = true } = {}) {
             body: JSON.stringify({ values: state.values, resource_selections: state.resources }),
         });
         state.draft = payload.draft;
+        state.aiPromptContext = payload.ai_prompt_context || state.aiPromptContext;
+        state.aiPromptTranslation = payload.ai_prompt_translation || state.aiPromptTranslation;
         persistCreateWorkspace();
         setDraftStatus(`Saved · #${state.draft.id}`, 'saved');
     } catch (error) {
         if (recoverMissing && error.code === 'workflow_draft_not_found') {
             state.draft = null;
+            state.aiPromptContext = null;
+            state.aiPromptTranslation = null;
             syncDraftUrl();
             persistCreateWorkspace();
             return saveDraft({ recoverMissing: false });
@@ -1426,11 +1466,37 @@ function renderSourceBanner() {
     if (fromAsset) {
         title.textContent = 'Remix draft';
         detail.textContent = 'The prompt and source were imported from the library.';
+        elements.sourceInspect.hidden = false;
+        elements.sourceInspect.textContent = 'Source';
     } else {
-        title.textContent = 'AI prompt draft';
-        detail.textContent = 'The generated prompt is editable. ComfyUI has not been started.';
+        const operation = state.aiPromptContext?.operation;
+        title.textContent = operation === 'translate' ? 'Translated prompt' : 'AI prompt draft';
+        detail.textContent = operation === 'translate'
+            ? 'Source and translated prompts are stored separately. ComfyUI has not been started.'
+            : 'The generated prompt is editable. ComfyUI has not been started.';
+        elements.sourceInspect.hidden = operation !== 'translate' || !state.aiPromptTranslation;
+        elements.sourceInspect.textContent = 'Compare';
     }
-    elements.sourceInspect.hidden = !fromAsset;
+}
+
+function openPromptProvenance() {
+    const translation = state.aiPromptTranslation;
+    if (!translation) return;
+    const sourceLabel = translation.source_language || 'auto-detected';
+    elements.promptProvenanceSummary.textContent = `${sourceLabel} → ${translation.target_language}`;
+    elements.promptSourcePositive.textContent = translation.source.positive_prompt;
+    elements.promptSourceNegative.textContent = translation.source.negative_prompt || '—';
+    elements.promptTranslatedPositive.textContent = translation.translated.positive_prompt;
+    elements.promptTranslatedNegative.textContent = translation.translated.negative_prompt || '—';
+    elements.promptProvenanceDialog.showModal();
+}
+
+function inspectDraftSource() {
+    if (state.draft?.source_asset_id) {
+        inspectSourceWorkflow();
+        return;
+    }
+    openPromptProvenance();
 }
 
 function suggestedPromptFamily() {
@@ -1446,45 +1512,76 @@ function supportedPromptProfile(profile) {
         || (profile.kind === 'cli' && profile.cli_type === 'opencode');
 }
 
-function renderAIScenarios() {
-    const family = state.aiCapabilities.find((item) => item.id === elements.aiPromptFamily.value);
-    const available = (family?.scenarios || []).filter((item) => ['supported', 'limited', 'experimental'].includes(item.status));
-    elements.aiPromptScenario.innerHTML = available.map((item) => {
+async function loadPromptAssistantData() {
+    const [capabilities, profiles] = await Promise.all([
+        requestJson('/api/ai/prompt-capabilities'),
+        requestJson('/api/ai/profiles'),
+    ]);
+    state.aiCapabilities = capabilities.families || [];
+    state.aiProfiles = (profiles.profiles || []).filter((profile) => (
+        profile.has_credentials !== false && supportedPromptProfile(profile)
+    ));
+    state.aiDefaultProfileId = profiles.defaults?.text_profile_id || null;
+}
+
+function populatePromptFamilies(select) {
+    select.innerHTML = state.aiCapabilities.map((family) => (
+        `<option value="${escapeHtml(family.id)}">${escapeHtml(family.id.toUpperCase())}</option>`
+    )).join('');
+    const suggested = suggestedPromptFamily();
+    if (state.aiCapabilities.some((family) => family.id === suggested)) select.value = suggested;
+}
+
+function populatePromptProfiles(select, note) {
+    select.innerHTML = state.aiProfiles.length
+        ? state.aiProfiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
+        : '<option value="">No ready text profiles</option>';
+    if (state.aiProfiles.some((profile) => profile.id === state.aiDefaultProfileId)) {
+        select.value = state.aiDefaultProfileId;
+    }
+    note.innerHTML = state.aiProfiles.length
+        ? 'The selected profile returns the same normalized prompt contract.'
+        : 'Add a usable text profile in <a href="/settings/ai">AI settings</a> first.';
+}
+
+function compatibleScenarios(familyId) {
+    const family = state.aiCapabilities.find((item) => item.id === familyId);
+    return (family?.scenarios || []).filter((item) => (
+        ['supported', 'limited', 'experimental'].includes(item.status)
+    ));
+}
+
+function renderScenarioOptions(select, familyId) {
+    const available = compatibleScenarios(familyId);
+    select.innerHTML = available.map((item) => {
         const label = item.id.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
         const suffix = item.status === 'supported' ? '' : ` · ${item.status}`;
         return `<option value="${escapeHtml(item.id)}">${escapeHtml(label + suffix)}</option>`;
     }).join('');
+    return available;
+}
+
+function renderAIScenarios() {
+    const available = renderScenarioOptions(elements.aiPromptScenario, elements.aiPromptFamily.value);
     elements.aiPromptSubmit.disabled = !available.length || !elements.aiPromptProfile.value;
+}
+
+function renderTranslationScenarios() {
+    const available = renderScenarioOptions(
+        elements.translatePromptScenario,
+        elements.translatePromptFamily.value,
+    );
+    elements.translatePromptSubmit.disabled = (
+        !available.length || !elements.translatePromptProfile.value
+    );
 }
 
 async function openAIPromptDialog() {
     elements.aiPromptOpen.disabled = true;
     try {
-        const [capabilities, profiles] = await Promise.all([
-            requestJson('/api/ai/prompt-capabilities'),
-            requestJson('/api/ai/profiles'),
-        ]);
-        state.aiCapabilities = capabilities.families || [];
-        state.aiProfiles = (profiles.profiles || []).filter((profile) => (
-            profile.has_credentials !== false && supportedPromptProfile(profile)
-        ));
-        state.aiDefaultProfileId = profiles.defaults?.text_profile_id || null;
-        elements.aiPromptFamily.innerHTML = state.aiCapabilities.map((family) => (
-            `<option value="${escapeHtml(family.id)}">${escapeHtml(family.id.toUpperCase())}</option>`
-        )).join('');
-        const suggested = suggestedPromptFamily();
-        if (state.aiCapabilities.some((family) => family.id === suggested)) {
-            elements.aiPromptFamily.value = suggested;
-        }
-        elements.aiPromptProfile.innerHTML = state.aiProfiles.length
-            ? state.aiProfiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
-            : '<option value="">No ready text profiles</option>';
-        if (state.aiProfiles.some((profile) => profile.id === state.aiDefaultProfileId)) {
-            elements.aiPromptProfile.value = state.aiDefaultProfileId;
-        }
-        elements.aiPromptProfileNote.innerHTML = state.aiProfiles.length
-            ? 'The selected profile returns the same normalized prompt contract.'
-            : 'Add a usable text profile in <a href="/settings/ai">AI settings</a> first.';
+        await loadPromptAssistantData();
+        populatePromptFamilies(elements.aiPromptFamily);
+        populatePromptProfiles(elements.aiPromptProfile, elements.aiPromptProfileNote);
         elements.aiPromptInput.value = String(state.values.positive_prompt || '');
         renderAIScenarios();
         elements.aiPromptDialog.showModal();
@@ -1494,6 +1591,20 @@ async function openAIPromptDialog() {
     } finally {
         elements.aiPromptOpen.disabled = false;
     }
+}
+
+function activateAIPromptDraft(created, statusLabel, toastMessage) {
+    state.draft = created.draft;
+    state.aiPromptContext = created.ai_prompt_context || null;
+    state.aiPromptTranslation = created.ai_prompt_translation || null;
+    state.values = { ...state.values, ...created.draft.values };
+    state.advancedFieldMemory.negative_prompt = state.values.negative_prompt || '';
+    renderFields();
+    renderSourceBanner();
+    setDraftStatus(`${statusLabel} · #${state.draft.id}`, 'saved');
+    syncDraftUrl();
+    persistCreateWorkspace();
+    showToast(toastMessage, 'success');
 }
 
 async function createAIPromptDraft(event) {
@@ -1525,21 +1636,89 @@ async function createAIPromptDraft(event) {
                 ai_prompt_draft_id: generated.prompt_draft.id,
             }),
         });
-        state.draft = created.draft;
-        state.values = { ...state.values, ...created.draft.values };
-        state.advancedFieldMemory.negative_prompt = state.values.negative_prompt || '';
-        renderFields();
-        renderSourceBanner();
-        setDraftStatus(`AI draft · #${state.draft.id}`, 'saved');
-        syncDraftUrl();
-        persistCreateWorkspace();
+        activateAIPromptDraft(
+            created,
+            'AI draft',
+            'AI prompt draft created. Review it before generation.',
+        );
         elements.aiPromptDialog.close();
-        showToast('AI prompt draft created. Review it before generation.', 'success');
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
         elements.aiPromptSubmit.textContent = 'Create draft';
         renderAIScenarios();
+    }
+}
+
+async function openTranslatePromptDialog() {
+    elements.translatePromptOpen.disabled = true;
+    try {
+        await loadPromptAssistantData();
+        populatePromptFamilies(elements.translatePromptFamily);
+        populatePromptProfiles(elements.translatePromptProfile, elements.translateProfileNote);
+        elements.translatePromptPositive.value = String(state.values.positive_prompt || '');
+        elements.translatePromptNegative.value = String(
+            state.values.negative_prompt || state.advancedFieldMemory.negative_prompt || '',
+        );
+        renderTranslationScenarios();
+        elements.translatePromptDialog.showModal();
+        elements.translatePromptPositive.focus();
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.translatePromptOpen.disabled = false;
+    }
+}
+
+async function createTranslatedPromptDraft(event) {
+    event.preventDefault();
+    const positivePrompt = elements.translatePromptPositive.value.trim();
+    const targetLanguage = elements.translateTargetLanguage.value.trim();
+    if (
+        !positivePrompt || !targetLanguage || !elements.translatePromptProfile.value
+        || !elements.translatePromptScenario.value
+    ) return;
+    elements.translatePromptSubmit.disabled = true;
+    elements.translatePromptSubmit.textContent = 'Translating…';
+    try {
+        const translated = await requestJson('/api/ai/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                profile_id: elements.translatePromptProfile.value,
+                source_language: elements.translateSourceLanguage.value.trim() || null,
+                target_language: targetLanguage,
+                source: {
+                    positive_prompt: positivePrompt,
+                    negative_prompt: elements.translatePromptNegative.value.trim(),
+                },
+                task: {
+                    family: elements.translatePromptFamily.value,
+                    scenario: elements.translatePromptScenario.value,
+                },
+            }),
+        });
+        const created = await requestJson('/api/editor/drafts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                template_id: currentManifest().id,
+                values: state.values,
+                resource_selections: state.resources,
+                ai_prompt_draft_id: translated.prompt_draft.id,
+            }),
+        });
+        activateAIPromptDraft(
+            created,
+            'Translated draft',
+            'Translation saved as a new draft. Review it before generation.',
+        );
+        elements.translatePromptDialog.close();
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.translatePromptSubmit.textContent = 'Translate to draft';
+        renderTranslationScenarios();
     }
 }
 
@@ -2504,11 +2683,15 @@ function bindEvents() {
         input.addEventListener('input', renderImportManifestPreview);
     });
     elements.importForm.addEventListener('submit', importTemplate);
-    elements.sourceInspect.addEventListener('click', inspectSourceWorkflow);
+    elements.sourceInspect.addEventListener('click', inspectDraftSource);
     elements.aiPromptOpen.addEventListener('click', openAIPromptDialog);
     elements.aiPromptFamily.addEventListener('change', renderAIScenarios);
     elements.aiPromptProfile.addEventListener('change', renderAIScenarios);
     elements.aiPromptForm.addEventListener('submit', createAIPromptDraft);
+    elements.translatePromptOpen.addEventListener('click', openTranslatePromptDialog);
+    elements.translatePromptFamily.addEventListener('change', renderTranslationScenarios);
+    elements.translatePromptProfile.addEventListener('change', renderTranslationScenarios);
+    elements.translatePromptForm.addEventListener('submit', createTranslatedPromptDraft);
     elements.resetEditor.addEventListener('click', resetEditor);
     elements.saveNote.addEventListener('click', async () => {
         try {

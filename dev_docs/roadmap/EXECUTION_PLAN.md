@@ -395,10 +395,10 @@
 
 ## 6.3 Translate
 
-- [ ] Translation является отдельной операцией.
-- [ ] Source и translated prompt сохраняются раздельно.
-- [ ] Translation не выполняет family adaptation без явного запроса.
-- [ ] Пользователь видит результат до запуска workflow.
+- [x] Translation является отдельной операцией.
+- [x] Source и translated prompt сохраняются раздельно.
+- [x] Translation не выполняет family adaptation без явного запроса.
+- [x] Пользователь видит результат до запуска workflow.
 
 ## 6.4 Adapt
 
@@ -648,7 +648,7 @@
 Начинается только после стабильного Slice A.
 
 - [x] Подключить Generate prompt к editor draft.
-- [ ] Подключить Translate как отдельную операцию.
+- [x] Подключить Translate как отдельную операцию.
 - [ ] Подключить Adapt как отдельную операцию.
 - [ ] Подключить Reconstruct через editable SceneSpec.
 - [ ] Проверить Remix end-to-end.

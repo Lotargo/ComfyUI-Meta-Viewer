@@ -11,6 +11,7 @@ from app import database
 from app.ai.job_store import AIJobStore
 from app.ai.remix import RemixPromptSource, RemixRequest, RemixService
 from app.ai.resources import ModelResourceCatalog
+from app.ai.translation import PromptTranslationStore
 from app.config_store import ConfigStore
 from app.media import media_type_for_path
 from app.paths import portable_filename
@@ -48,6 +49,26 @@ def _config_store() -> ConfigStore:
 
 def _workflow_store() -> WorkflowStore:
     return WorkflowStore()
+
+
+def _workflow_draft_payload(draft) -> dict[str, Any]:
+    payload: dict[str, Any] = {"draft": draft.model_dump(mode="json")}
+    if draft.ai_prompt_draft_id is None:
+        return payload
+    store = AIJobStore()
+    prompt_draft = store.get_draft(draft.ai_prompt_draft_id)
+    job = store.get(prompt_draft.job_id).job
+    payload.update({
+        "ai_prompt_draft": prompt_draft.model_dump(mode="json"),
+        "ai_prompt_context": store.draft_context(
+            prompt_draft, job
+        ).model_dump(mode="json"),
+    })
+    if job.task.operation.value == "translate":
+        payload["ai_prompt_translation"] = PromptTranslationStore().get(
+            job.id
+        ).model_dump(mode="json")
+    return payload
 
 
 def _run_payloads(runs: list[WorkflowRun]) -> list[dict[str, Any]]:
@@ -352,7 +373,8 @@ def editor_create_draft():
     if ai_prompt_draft_id is not None:
         prompt_draft = AIJobStore().get_draft(int(ai_prompt_draft_id)).draft
         values["positive_prompt"] = prompt_draft.positive_prompt
-        values["negative_prompt"] = prompt_draft.negative_prompt
+        if any(field.id == "negative_prompt" for field in template.manifest.fields):
+            values["negative_prompt"] = prompt_draft.negative_prompt
     draft = _workflow_store().create_draft(
         template_id=template.manifest.id,
         template_version=template.manifest.version,
@@ -361,7 +383,7 @@ def editor_create_draft():
         source_asset_id=_optional_positive_int(payload.get("source_asset_id"), "source_asset_id"),
         ai_prompt_draft_id=_optional_positive_int(ai_prompt_draft_id, "ai_prompt_draft_id"),
     )
-    return jsonify({"draft": draft.model_dump(mode="json")}), 201
+    return jsonify(_workflow_draft_payload(draft)), 201
 
 
 @editor_blueprint.route("/api/editor/drafts/<int:draft_id>", methods=["GET", "PATCH"])
@@ -387,10 +409,9 @@ def editor_draft(draft_id: int):
                 current=draft.resource_selections,
             ) if "resource_selections" in payload else None,
         )
-    return jsonify({
-        "draft": draft.model_dump(mode="json"),
-        "template": _template_payload(template, _inventory()),
-    })
+    response_payload = _workflow_draft_payload(draft)
+    response_payload["template"] = _template_payload(template, _inventory())
+    return jsonify(response_payload)
 
 
 @editor_blueprint.route("/api/editor/drafts/<int:draft_id>/preview", methods=["POST"])

@@ -204,7 +204,7 @@
 ## 3.1 Import pipeline
 
 - [x] Импорт API workflow JSON.
-- [ ] Импорт UI workflow JSON, если возможно преобразование или извлечение API graph.
+- [x] Импорт UI workflow JSON, если возможно преобразование или извлечение API graph.
 - [ ] Импорт ZIP bundle с manifest и workflow.
 - [x] Определение standard loader nodes.
 - [x] Определение prompt encoder nodes.
@@ -215,7 +215,7 @@
 - [ ] Обнаружение нескольких независимых pipelines.
 - [x] Обнаружение неизвестных custom loaders.
 
-Обычный API graph теперь анализируется до записи, получает schema-v2 manifest с сохранёнными field/resource bindings и регистрируется как user template. Несколько sampler/output candidates и неизвестные loader inputs раскрываются в mapping wizard; UI workflow JSON пока требует повторного экспорта в API format.
+Обычный API graph теперь анализируется до записи, получает schema-v2 manifest с сохранёнными field/resource bindings и регистрируется как user template. Современный UI workflow JSON детерминированно преобразуется из `nodes`, `links` и widget metadata; для старых positional-only файлов используются node contracts подключённого ComfyUI из `/object_info`, а без достаточной схемы импорт останавливается с явной диагностикой. Bypass и reroute links разрешаются до исходного executable node. Несколько sampler/output candidates и неизвестные loader inputs раскрываются в mapping wizard.
 
 ## 3.2 Mapping wizard
 

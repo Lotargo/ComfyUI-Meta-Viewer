@@ -2934,7 +2934,11 @@ async function analyzeTemplateImport(mappingOverrides = null) {
         elements.importFields.hidden = false;
         const fieldCount = plan.mappings.filter((item) => item.kind === 'field').length;
         const resourceCount = plan.mappings.filter((item) => item.kind === 'resource').length;
-        const format = plan.source_format === 'api_workflow' ? 'ComfyUI API workflow' : 'Template bundle';
+        const format = {
+            api_workflow: 'ComfyUI API workflow',
+            ui_workflow: 'ComfyUI UI workflow',
+            template_bundle: 'Template bundle',
+        }[plan.source_format] || 'Workflow';
         const warnings = (plan.warnings || []).length
             ? `<ul>${plan.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul>`
             : '';

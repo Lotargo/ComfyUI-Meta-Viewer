@@ -68,6 +68,8 @@ def analyze_api_workflow(
     filename: str,
     workflow: dict[str, Any],
     mapping_overrides: dict[str, Any] | None = None,
+    *,
+    source_format: str = "api_workflow",
 ) -> WorkflowImportPlan:
     nodes = workflow
     mapping = mapping_overrides or {}
@@ -170,7 +172,11 @@ def analyze_api_workflow(
         "loader_family": loader_family,
         "component_policy": component_policy,
         "workflow": "workflow.json",
-        "description": "Imported from a ComfyUI API workflow.",
+        "description": (
+            "Imported from a ComfyUI UI workflow."
+            if source_format == "ui_workflow"
+            else "Imported from a ComfyUI API workflow."
+        ),
         "capability_notes": [
             "Standard semantic bindings were detected from graph connections and node inputs."
         ],
@@ -183,7 +189,7 @@ def analyze_api_workflow(
         "output_nodes": output_nodes or [next(iter(nodes))],
     })
     return WorkflowImportPlan(
-        source_format="api_workflow",
+        source_format=source_format,
         manifest=manifest,
         workflow=workflow,
         mappings=mappings,

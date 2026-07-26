@@ -17,6 +17,11 @@ from .workflow_models import (
     migrate_workflow_manifest,
 )
 from .workflow_registry_status import WorkflowRegistryStatusStore
+from .workflow_ui_conversion import (
+    UIWorkflowConversionError,
+    convert_ui_workflow,
+    unwrap_ui_workflow,
+)
 
 
 BUILTIN_TEMPLATE_ROOT = Path(__file__).resolve().parent / "workflow_templates"
@@ -211,6 +216,7 @@ class WorkflowTemplateRegistry:
         data: bytes,
         *,
         mapping_overrides: dict[str, Any] | None = None,
+        object_info: dict[str, Any] | None = None,
     ) -> WorkflowImportPlan:
         self._validate_import_data(data)
         suffix = Path(filename or "template.json").suffix.lower()
@@ -229,10 +235,31 @@ class WorkflowTemplateRegistry:
             return self._bundle_plan(manifest_data, workflow_data, source_format="template_bundle")
         workflow_data = unwrap_api_workflow(payload)
         if workflow_data is None:
+            ui_workflow = unwrap_ui_workflow(payload)
+            if ui_workflow is not None:
+                try:
+                    conversion = convert_ui_workflow(ui_workflow, object_info=object_info)
+                    plan = analyze_api_workflow(
+                        filename,
+                        conversion.workflow,
+                        mapping_overrides=mapping_overrides,
+                        source_format="ui_workflow",
+                    )
+                except UIWorkflowConversionError as exc:
+                    raise WorkflowTemplateError(str(exc), code=exc.code) from exc
+                return WorkflowImportPlan(
+                    source_format=plan.source_format,
+                    manifest=plan.manifest,
+                    workflow=plan.workflow,
+                    mappings=plan.mappings,
+                    candidates=plan.candidates,
+                    warnings=[*conversion.warnings, *plan.warnings],
+                    ready=plan.ready,
+                )
             if isinstance(payload, dict) and isinstance(payload.get("nodes"), list):
                 raise WorkflowTemplateError(
-                    "This is a ComfyUI UI workflow. Export it in API format for automatic mapping; UI graph conversion will be added with the mapping wizard.",
-                    code="ui_workflow_requires_api_format",
+                    "This looks like a ComfyUI UI workflow, but its links array is missing.",
+                    code="invalid_ui_workflow",
                 )
             raise WorkflowTemplateError(
                 "JSON does not contain a ComfyUI API graph or a template bundle.",
@@ -258,6 +285,7 @@ class WorkflowTemplateRegistry:
         *,
         manifest_overrides: dict[str, str] | None = None,
         mapping_overrides: dict[str, Any] | None = None,
+        object_info: dict[str, Any] | None = None,
     ) -> WorkflowTemplate:
         if self.user_root is None:
             raise WorkflowTemplateError(
@@ -268,6 +296,7 @@ class WorkflowTemplateRegistry:
             filename,
             data,
             mapping_overrides=mapping_overrides,
+            object_info=object_info,
         )
         if not plan.ready:
             raise WorkflowTemplateError(

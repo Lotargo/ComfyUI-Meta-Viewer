@@ -36,6 +36,10 @@ from app.comfyui.workflow_registry_status import (
 )
 from app.comfyui.sampling_options import CORE_SAMPLER_OPTIONS, CORE_SCHEDULER_OPTIONS
 from app.comfyui.workflow_store import WorkflowStore
+from app.comfyui.workflow_ui_conversion import (
+    convert_ui_workflow,
+    ui_workflow_needs_object_info,
+)
 from app.config_store import ConfigStore
 from app.main import app
 
@@ -348,14 +352,234 @@ class WorkflowTemplateRegistryTest(unittest.TestCase):
             "lora_name",
         )
 
-    def test_ui_workflow_explains_api_format_requirement(self) -> None:
+    def test_ui_workflow_is_converted_to_api_graph_and_registered(self) -> None:
+        ui_workflow = {
+            "last_node_id": 7,
+            "last_link_id": 9,
+            "nodes": [
+                {
+                    "id": 1,
+                    "type": "CheckpointLoaderSimple",
+                    "mode": 0,
+                    "inputs": [
+                        {"name": "ckpt_name", "type": "COMBO", "link": None, "widget": {"name": "ckpt_name"}},
+                    ],
+                    "widgets_values": ["models/base-xl.safetensors"],
+                },
+                {
+                    "id": 2,
+                    "type": "CLIPTextEncode",
+                    "mode": 0,
+                    "inputs": [
+                        {"name": "clip", "type": "CLIP", "link": 1},
+                        {"name": "text", "type": "STRING", "link": None, "widget": {"name": "text"}},
+                    ],
+                    "widgets_values": ["A lighthouse above stormy water"],
+                },
+                {
+                    "id": 3,
+                    "type": "CLIPTextEncode",
+                    "mode": 0,
+                    "inputs": [
+                        {"name": "clip", "type": "CLIP", "link": 2},
+                        {"name": "text", "type": "STRING", "link": None, "widget": {"name": "text"}},
+                    ],
+                    "widgets_values": ["blurry"],
+                },
+                {
+                    "id": 4,
+                    "type": "EmptyLatentImage",
+                    "mode": 0,
+                    "inputs": [
+                        {"name": "width", "type": "INT", "link": None, "widget": {"name": "width"}},
+                        {"name": "height", "type": "INT", "link": None, "widget": {"name": "height"}},
+                        {"name": "batch_size", "type": "INT", "link": None, "widget": {"name": "batch_size"}},
+                    ],
+                    "widgets_values": [1024, 1024, 1],
+                },
+                {
+                    "id": 5,
+                    "type": "KSampler",
+                    "mode": 0,
+                    "inputs": [
+                        {"name": "model", "type": "MODEL", "link": 3},
+                        {"name": "positive", "type": "CONDITIONING", "link": 4},
+                        {"name": "negative", "type": "CONDITIONING", "link": 5},
+                        {"name": "latent_image", "type": "LATENT", "link": 6},
+                        {"name": "seed", "type": "INT", "link": None, "widget": {"name": "seed"}},
+                        {"name": "steps", "type": "INT", "link": None, "widget": {"name": "steps"}},
+                        {"name": "cfg", "type": "FLOAT", "link": None, "widget": {"name": "cfg"}},
+                        {"name": "sampler_name", "type": "COMBO", "link": None, "widget": {"name": "sampler_name"}},
+                        {"name": "scheduler", "type": "COMBO", "link": None, "widget": {"name": "scheduler"}},
+                        {"name": "denoise", "type": "FLOAT", "link": None, "widget": {"name": "denoise"}},
+                    ],
+                    "widgets_values": [42, "randomize", 28, 7.0, "dpmpp_2m", "karras", 1.0],
+                },
+                {
+                    "id": 6,
+                    "type": "VAEDecode",
+                    "mode": 0,
+                    "inputs": [
+                        {"name": "samples", "type": "LATENT", "link": 7},
+                        {"name": "vae", "type": "VAE", "link": 8},
+                    ],
+                    "widgets_values": [],
+                },
+                {
+                    "id": 7,
+                    "type": "SaveImage",
+                    "mode": 0,
+                    "inputs": [
+                        {"name": "images", "type": "IMAGE", "link": 9},
+                        {"name": "filename_prefix", "type": "STRING", "link": None, "widget": {"name": "filename_prefix"}},
+                    ],
+                    "widgets_values": ["CMV/UI import"],
+                },
+            ],
+            "links": [
+                [1, 1, 1, 2, 0, "CLIP"],
+                [2, 1, 1, 3, 0, "CLIP"],
+                [3, 1, 0, 5, 0, "MODEL"],
+                [4, 2, 0, 5, 1, "CONDITIONING"],
+                [5, 3, 0, 5, 2, "CONDITIONING"],
+                [6, 4, 0, 5, 3, "LATENT"],
+                [7, 5, 0, 6, 0, "LATENT"],
+                [8, 1, 2, 6, 1, "VAE"],
+                [9, 6, 0, 7, 0, "IMAGE"],
+            ],
+            "version": 0.4,
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry = WorkflowTemplateRegistry(user_root=temp_dir)
+            data = json.dumps(ui_workflow).encode("utf-8")
+            self.assertFalse(ui_workflow_needs_object_info(ui_workflow))
+            plan = registry.analyze_import("ui-workflow.json", data)
+            template = registry.import_bundle("ui-workflow.json", data)
+
+            self.assertTrue(plan.ready)
+            self.assertEqual(plan.source_format, "ui_workflow")
+            self.assertEqual(plan.workflow["5"]["inputs"]["seed"], 42)
+            self.assertEqual(plan.workflow["5"]["inputs"]["steps"], 28)
+            self.assertEqual(plan.workflow["5"]["inputs"]["cfg"], 7.0)
+            self.assertTrue(any("frontend-only widget" in item for item in plan.warnings))
+            self.assertEqual(template.manifest.description, "Imported from a ComfyUI UI workflow.")
+            self.assertEqual(template.workflow, plan.workflow)
+
+    def test_ui_workflow_without_input_metadata_is_rejected_safely(self) -> None:
         registry = WorkflowTemplateRegistry(user_root="unused")
-        data = json.dumps({"nodes": [], "links": []}).encode("utf-8")
+        ui_workflow = {
+            "nodes": [{
+                "id": 1,
+                "type": "KSampler",
+                "inputs": [],
+                "widgets_values": [42, "randomize", 20],
+            }],
+            "links": [],
+        }
+        data = json.dumps(ui_workflow).encode("utf-8")
+
+        self.assertTrue(ui_workflow_needs_object_info(ui_workflow))
 
         with self.assertRaises(WorkflowTemplateError) as caught:
-            registry.analyze_import("ui-workflow.json", data)
+            registry.analyze_import("old-ui-workflow.json", data)
 
-        self.assertEqual(caught.exception.code, "ui_workflow_requires_api_format")
+        self.assertEqual(caught.exception.code, "ui_workflow_missing_input_metadata")
+
+    def test_ui_workflow_uses_runtime_node_contract_for_legacy_widgets(self) -> None:
+        result = convert_ui_workflow(
+            {
+                "nodes": [{
+                    "id": 5,
+                    "type": "KSampler",
+                    "inputs": [],
+                    "widgets_values": [42, "randomize", 20, 6.5],
+                }],
+                "links": [],
+            },
+            object_info={
+                "KSampler": {
+                    "input": {
+                        "required": {
+                            "model": ["MODEL"],
+                            "seed": ["INT", {"default": 0}],
+                            "steps": ["INT", {"default": 20}],
+                            "cfg": ["FLOAT", {"default": 7.0}],
+                        }
+                    }
+                }
+            },
+        )
+
+        self.assertEqual(
+            result.workflow["5"]["inputs"],
+            {"seed": 42, "steps": 20, "cfg": 6.5},
+        )
+        self.assertTrue(any("frontend-only widget" in item for item in result.warnings))
+
+    def test_ui_workflow_resolves_reroute_and_bypassed_node_links(self) -> None:
+        result = convert_ui_workflow({
+            "nodes": [
+                {
+                    "id": 1,
+                    "type": "CheckpointLoaderSimple",
+                    "inputs": [{
+                        "name": "ckpt_name",
+                        "type": "COMBO",
+                        "link": None,
+                        "widget": {"name": "ckpt_name"},
+                    }],
+                    "widgets_values": ["base.safetensors"],
+                },
+                {
+                    "id": 2,
+                    "type": "Reroute",
+                    "inputs": [{"name": "", "type": "*", "link": 1}],
+                    "widgets_values": [],
+                },
+                {
+                    "id": 3,
+                    "type": "LoraLoader",
+                    "mode": 4,
+                    "inputs": [
+                        {"name": "model", "type": "MODEL", "link": 2},
+                        {"name": "clip", "type": "CLIP", "link": 3},
+                    ],
+                    "widgets_values": [],
+                },
+                {
+                    "id": 4,
+                    "type": "ModelConsumer",
+                    "inputs": [{"name": "model", "type": "MODEL", "link": 4}],
+                    "widgets_values": [],
+                },
+                {
+                    "id": 5,
+                    "type": "PrimitiveNode",
+                    "inputs": [],
+                    "widgets_values": ["shared prompt"],
+                },
+                {
+                    "id": 6,
+                    "type": "TextConsumer",
+                    "inputs": [{"name": "text", "type": "STRING", "link": 5}],
+                    "widgets_values": [],
+                },
+            ],
+            "links": [
+                [1, 1, 0, 2, 0, "MODEL"],
+                [2, 2, 0, 3, 0, "MODEL"],
+                [3, 1, 1, 3, 1, "CLIP"],
+                [4, 3, 0, 4, 0, "MODEL"],
+                [5, 5, 0, 6, 0, "STRING"],
+            ],
+        })
+
+        self.assertNotIn("2", result.workflow)
+        self.assertNotIn("3", result.workflow)
+        self.assertNotIn("5", result.workflow)
+        self.assertEqual(result.workflow["4"]["inputs"]["model"], ["1", 0])
+        self.assertEqual(result.workflow["6"]["inputs"]["text"], "shared prompt")
 
     def test_invalid_user_template_is_listed_without_breaking_valid_templates(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

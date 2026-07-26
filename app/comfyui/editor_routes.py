@@ -40,6 +40,7 @@ from .workflow_registry_status import (
     validate_registry_template,
 )
 from .workflow_store import WorkflowStore, WorkflowStoreError
+from .workflow_ui_conversion import ui_workflow_needs_object_info, unwrap_ui_workflow
 
 
 editor_blueprint = Blueprint("workflow_editor", __name__)
@@ -390,6 +391,7 @@ def editor_template_import():
             if key in request.form
         },
         mapping_overrides=_mapping_overrides(),
+        object_info=_ui_workflow_object_info(uploaded.filename, data),
     )
     return jsonify(_template_payload(template, _inventory())), 201
 
@@ -401,6 +403,7 @@ def editor_template_import_analyze():
         uploaded.filename,
         data,
         mapping_overrides=_mapping_overrides(),
+        object_info=_ui_workflow_object_info(uploaded.filename, data),
     ).api_dict())
 
 
@@ -412,6 +415,22 @@ def _uploaded_template_data():
             code="missing_template_bundle",
         )
     return uploaded, uploaded.stream.read(MAX_TEMPLATE_BUNDLE_BYTES + 1)
+
+
+def _ui_workflow_object_info(filename: str, data: bytes) -> dict[str, Any] | None:
+    if Path(filename or "").suffix.lower() != ".json":
+        return None
+    try:
+        payload = json.loads(data.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    ui_workflow = unwrap_ui_workflow(payload)
+    if ui_workflow is None or not ui_workflow_needs_object_info(ui_workflow):
+        return None
+    try:
+        return client_from_store(_config_store()).get_object_info()
+    except ComfyUIClientError:
+        return None
 
 
 def _mapping_overrides() -> dict[str, Any] | None:

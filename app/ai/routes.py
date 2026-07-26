@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request
+from pydantic import ValidationError
 
 from .adaptation import PromptAdaptationService
 from .cli import (
@@ -13,10 +14,11 @@ from .cli import (
     list_cli_models,
     probe_cli,
 )
-from .execution import ExecutionRouter
+from .execution import ExecutionRouter, ExecutionRouterError
 from .job_store import AIJobStore, AIJobStoreError
 from .profiles import AIProfileStore, AIProfileStoreError
 from .prompting import PromptFamily, PromptOperation, PromptScenario, PromptTask, SceneSpec
+from .prompting.registry import FAMILY_PROFILES, SCENARIO_MANIFESTS
 from .ranking import AIRank, AIRankingError, AIRankingService, AIRatingStore
 from .reconstruction import PromptReconstructionService
 from .remix import RemixPromptSource, RemixRequest, RemixService
@@ -73,6 +75,27 @@ def cli_error(error: CLIIntegrationError):
 def ai_job_error(error: AIJobStoreError):
     status = 404 if "does not exist" in str(error) else 422
     return jsonify({"error": str(error), "code": "ai_job_store_error"}), status
+
+
+@ai_blueprint.errorhandler(ExecutionRouterError)
+def ai_execution_error(error: ExecutionRouterError):
+    status = 502 if error.stage in {"transport", "contract"} else 422
+    return jsonify({
+        "error": str(error),
+        "code": error.code,
+        "stage": error.stage,
+        "job_id": error.job_id,
+        "technical_error": error.technical_error,
+    }), status
+
+
+@ai_blueprint.errorhandler(ValidationError)
+def ai_validation_error(error: ValidationError):
+    first = error.errors()[0] if error.errors() else {"msg": str(error)}
+    return jsonify({
+        "error": first.get("msg", str(error)),
+        "code": "invalid_prompt_task",
+    }), 422
 
 
 @ai_blueprint.errorhandler(AIRankingError)
@@ -207,6 +230,67 @@ def ai_prompt_draft(draft_id: int):
         "draft": draft.model_dump(mode="json"),
         "context": store.draft_context(draft, job).model_dump(mode="json"),
     })
+
+
+@ai_blueprint.route("/api/ai/prompt-capabilities", methods=["GET"])
+def ai_prompt_capabilities():
+    families = []
+    for family, profile in FAMILY_PROFILES.items():
+        scenarios = []
+        for scenario, status in profile.capabilities.items():
+            manifest = SCENARIO_MANIFESTS.get(scenario)
+            if manifest is None or not manifest.supports_family(family):
+                continue
+            scenarios.append({
+                "id": scenario.value,
+                "status": status.value,
+            })
+        families.append({
+            "id": family.value,
+            "version": profile.version,
+            "scenarios": scenarios,
+        })
+    return jsonify({"families": families})
+
+
+@ai_blueprint.route("/api/ai/generate", methods=["POST"])
+def ai_generate():
+    payload = _json_object()
+    profile_store = _store()
+    profile_id = payload.get("profile_id")
+    if profile_id is None:
+        profile_id = profile_store.list()["defaults"].get("text_profile_id")
+    if not isinstance(profile_id, str) or not profile_id.strip():
+        raise AIProfileStoreError(
+            "Choose an AI text profile before creating a prompt.",
+            code="missing_profile",
+        )
+    profile = profile_store.get(profile_id)
+    task_data = payload.get("task") or {}
+    if not isinstance(task_data, dict):
+        raise AIProfileStoreError("task dictionary is required.")
+    task = PromptTask.model_validate({**task_data, "operation": "generate"})
+    user_input = payload.get("user_input", "")
+
+    outcome = ExecutionRouter().execute(
+        profile=profile,
+        api_key=profile_store.resolve_api_key(profile),
+        task=task,
+        user_input=user_input,
+    )
+    snapshot = _job_store().get(outcome.job_id)
+    if not snapshot.drafts:
+        raise AIJobStoreError(
+            f"AI job {outcome.job_id} completed without a prompt draft."
+        )
+    prompt_draft = snapshot.drafts[-1]
+    return jsonify({
+        "job": snapshot.job.model_dump(mode="json"),
+        "prompt_draft": prompt_draft.model_dump(mode="json"),
+        "context": _job_store().draft_context(
+            prompt_draft, snapshot.job
+        ).model_dump(mode="json"),
+    }), 201
 
 
 @ai_blueprint.route("/api/ai/translate", methods=["POST"])
@@ -366,4 +450,3 @@ def ai_rating(image_id: int):
         rank_override = payload.get("rank_override")
         rating = store.set_manual_override(image_id, rank_override)
     return jsonify({"rating": rating.model_dump(mode="json")})
-

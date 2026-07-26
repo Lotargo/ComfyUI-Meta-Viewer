@@ -102,6 +102,16 @@ const elements = {
     sourceSummary: byId('source-workflow-summary'),
     sourceReport: byId('source-workflow-report'),
     sourceJson: byId('source-workflow-json'),
+    aiPromptOpen: byId('ai-prompt-open'),
+    aiPromptSummary: byId('ai-prompt-summary'),
+    aiPromptDialog: byId('ai-prompt-dialog'),
+    aiPromptForm: byId('ai-prompt-form'),
+    aiPromptInput: byId('ai-prompt-input'),
+    aiPromptFamily: byId('ai-prompt-family'),
+    aiPromptScenario: byId('ai-prompt-scenario'),
+    aiPromptProfile: byId('ai-prompt-profile'),
+    aiPromptProfileNote: byId('ai-profile-note'),
+    aiPromptSubmit: byId('ai-prompt-submit'),
     toastContainer: byId('toast-container'),
     resetEditor: byId('reset-editor'),
     saveNote: byId('save-note'),
@@ -179,6 +189,9 @@ const state = {
     importMapping: null,
     workflows: [],
     editingWorkflowId: null,
+    aiCapabilities: [],
+    aiProfiles: [],
+    aiDefaultProfileId: null,
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -1404,7 +1417,130 @@ async function saveDraft({ recoverMissing = true } = {}) {
 }
 
 function renderSourceBanner() {
-    elements.sourceBanner.hidden = !state.draft?.source_asset_id;
+    const fromAsset = Boolean(state.draft?.source_asset_id);
+    const fromAI = Boolean(state.draft?.ai_prompt_draft_id);
+    elements.sourceBanner.hidden = !fromAsset && !fromAI;
+    if (!fromAsset && !fromAI) return;
+    const title = elements.sourceBanner.querySelector('strong');
+    const detail = elements.sourceBanner.querySelector('span');
+    if (fromAsset) {
+        title.textContent = 'Remix draft';
+        detail.textContent = 'The prompt and source were imported from the library.';
+    } else {
+        title.textContent = 'AI prompt draft';
+        detail.textContent = 'The generated prompt is editable. ComfyUI has not been started.';
+    }
+    elements.sourceInspect.hidden = !fromAsset;
+}
+
+function suggestedPromptFamily() {
+    const ecosystems = currentManifest()?.supported_ecosystems || [];
+    if (ecosystems.some((item) => String(item).startsWith('flux'))) return 'flux';
+    if (ecosystems.some((item) => ['sdxl', 'illustrious'].includes(item))) return 'sdxl';
+    if (ecosystems.includes('pony')) return 'pony';
+    return 'sdxl';
+}
+
+function supportedPromptProfile(profile) {
+    return profile.kind === 'openai_compatible'
+        || (profile.kind === 'cli' && profile.cli_type === 'opencode');
+}
+
+function renderAIScenarios() {
+    const family = state.aiCapabilities.find((item) => item.id === elements.aiPromptFamily.value);
+    const available = (family?.scenarios || []).filter((item) => ['supported', 'limited', 'experimental'].includes(item.status));
+    elements.aiPromptScenario.innerHTML = available.map((item) => {
+        const label = item.id.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+        const suffix = item.status === 'supported' ? '' : ` · ${item.status}`;
+        return `<option value="${escapeHtml(item.id)}">${escapeHtml(label + suffix)}</option>`;
+    }).join('');
+    elements.aiPromptSubmit.disabled = !available.length || !elements.aiPromptProfile.value;
+}
+
+async function openAIPromptDialog() {
+    elements.aiPromptOpen.disabled = true;
+    try {
+        const [capabilities, profiles] = await Promise.all([
+            requestJson('/api/ai/prompt-capabilities'),
+            requestJson('/api/ai/profiles'),
+        ]);
+        state.aiCapabilities = capabilities.families || [];
+        state.aiProfiles = (profiles.profiles || []).filter((profile) => (
+            profile.has_credentials !== false && supportedPromptProfile(profile)
+        ));
+        state.aiDefaultProfileId = profiles.defaults?.text_profile_id || null;
+        elements.aiPromptFamily.innerHTML = state.aiCapabilities.map((family) => (
+            `<option value="${escapeHtml(family.id)}">${escapeHtml(family.id.toUpperCase())}</option>`
+        )).join('');
+        const suggested = suggestedPromptFamily();
+        if (state.aiCapabilities.some((family) => family.id === suggested)) {
+            elements.aiPromptFamily.value = suggested;
+        }
+        elements.aiPromptProfile.innerHTML = state.aiProfiles.length
+            ? state.aiProfiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
+            : '<option value="">No ready text profiles</option>';
+        if (state.aiProfiles.some((profile) => profile.id === state.aiDefaultProfileId)) {
+            elements.aiPromptProfile.value = state.aiDefaultProfileId;
+        }
+        elements.aiPromptProfileNote.innerHTML = state.aiProfiles.length
+            ? 'The selected profile returns the same normalized prompt contract.'
+            : 'Add a usable text profile in <a href="/settings/ai">AI settings</a> first.';
+        elements.aiPromptInput.value = String(state.values.positive_prompt || '');
+        renderAIScenarios();
+        elements.aiPromptDialog.showModal();
+        elements.aiPromptInput.focus();
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.aiPromptOpen.disabled = false;
+    }
+}
+
+async function createAIPromptDraft(event) {
+    event.preventDefault();
+    const userInput = elements.aiPromptInput.value.trim();
+    if (!userInput || !elements.aiPromptProfile.value || !elements.aiPromptScenario.value) return;
+    elements.aiPromptSubmit.disabled = true;
+    elements.aiPromptSubmit.textContent = 'Creating…';
+    try {
+        const generated = await requestJson('/api/ai/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                profile_id: elements.aiPromptProfile.value,
+                user_input: userInput,
+                task: {
+                    family: elements.aiPromptFamily.value,
+                    scenario: elements.aiPromptScenario.value,
+                },
+            }),
+        });
+        const created = await requestJson('/api/editor/drafts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                template_id: currentManifest().id,
+                values: state.values,
+                resource_selections: state.resources,
+                ai_prompt_draft_id: generated.prompt_draft.id,
+            }),
+        });
+        state.draft = created.draft;
+        state.values = { ...state.values, ...created.draft.values };
+        state.advancedFieldMemory.negative_prompt = state.values.negative_prompt || '';
+        renderFields();
+        renderSourceBanner();
+        setDraftStatus(`AI draft · #${state.draft.id}`, 'saved');
+        syncDraftUrl();
+        persistCreateWorkspace();
+        elements.aiPromptDialog.close();
+        showToast('AI prompt draft created. Review it before generation.', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.aiPromptSubmit.textContent = 'Create draft';
+        renderAIScenarios();
+    }
 }
 
 async function previewWorkflow({ openDialog = true } = {}) {
@@ -2369,6 +2505,10 @@ function bindEvents() {
     });
     elements.importForm.addEventListener('submit', importTemplate);
     elements.sourceInspect.addEventListener('click', inspectSourceWorkflow);
+    elements.aiPromptOpen.addEventListener('click', openAIPromptDialog);
+    elements.aiPromptFamily.addEventListener('change', renderAIScenarios);
+    elements.aiPromptProfile.addEventListener('change', renderAIScenarios);
+    elements.aiPromptForm.addEventListener('submit', createAIPromptDraft);
     elements.resetEditor.addEventListener('click', resetEditor);
     elements.saveNote.addEventListener('click', async () => {
         try {

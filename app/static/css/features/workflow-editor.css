@@ -6843,3 +6843,60 @@
     object-position: center;
     transform: none;
 }
+
+/* AI prompt generation remains a separate, review-first editor action. */
+
+.ai-prompt-open {
+    min-height: 42px;
+    padding: 0 14px;
+    border: 1px solid rgba(167, 193, 188, .24);
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(118, 155, 148, .22), rgba(70, 91, 100, .18));
+    color: #e5ecea;
+    font: 650 12px/1 var(--font-sans);
+    cursor: pointer;
+}
+
+.ai-prompt-open:hover {
+    border-color: rgba(167, 193, 188, .4);
+    background: linear-gradient(135deg, rgba(128, 168, 160, .3), rgba(78, 103, 113, .24));
+}
+
+.ai-prompt-open:disabled { opacity: .55; cursor: wait; }
+
+.quick-control-note {
+    color: #83908e;
+    font-size: 10.5px;
+    line-height: 1.45;
+}
+
+.ai-prompt-dialog > form { width: min(680px, calc(100vw - 32px)); }
+
+.ai-prompt-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 22px 24px;
+}
+
+.ai-prompt-fields label { display: grid; gap: 7px; }
+.ai-prompt-fields label > span { color: var(--text); font-size: 12px; font-weight: 700; }
+.ai-prompt-fields label > small { color: var(--text-muted); font-size: 10.5px; line-height: 1.45; }
+.ai-prompt-fields textarea,
+.ai-prompt-fields select {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface2);
+    color: var(--text);
+}
+.ai-prompt-fields textarea { min-height: 132px; padding: 12px; resize: vertical; }
+.ai-prompt-fields select { min-height: 42px; padding: 0 36px 0 11px; }
+.ai-prompt-source,
+.ai-prompt-profile { grid-column: 1 / -1; }
+
+@media (max-width: 620px) {
+    .ai-prompt-fields { grid-template-columns: 1fr; padding: 18px; }
+    .ai-prompt-source,
+    .ai-prompt-profile { grid-column: auto; }
+}

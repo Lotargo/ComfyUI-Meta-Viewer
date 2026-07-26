@@ -88,7 +88,7 @@
   **Implemented; product integration pending.** Compiler, contracts, persistence и adapters существуют, но должны быть замкнуты на editor drafts и проверены одинаковым PromptTask через direct и agent-host execution.
 
 - [ ] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)  
-  **Active integration phase.** Remix и backend foundations существуют; Generate, Translate, Adapt, editable SceneSpec, Reconstruct и опциональный AI rating должны стать законченными пользовательскими потоками.
+  **Active integration phase.** Generate создаёт связанный редактируемый editor draft без автоматического запуска; Translate, Adapt, editable SceneSpec, Reconstruct, Remix end-to-end и опциональный AI rating ещё должны стать законченными пользовательскими потоками.
 
 ### ComfyUI
 
@@ -117,6 +117,7 @@
 - [x] Разрешать неоднозначные bindings через mapping wizard с manifest preview.
 - [x] Добавить workflow management modal/table и revalidation statuses.
 - [x] Связывать ComfyUI errors с конкретными editor fields.
+- [x] Подключить Generate prompt к editor draft без автоматического запуска generation.
 - [ ] После стабилизации contracts подключить AI operations к drafts.
 
 AI rating, полностью автоматический model importer и desktop packaging в текущий рабочий срез не входят.

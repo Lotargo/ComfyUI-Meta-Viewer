@@ -3,6 +3,8 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from app import database
 from app.ai.job_store import AIJobStore, PromptDraft, PromptDraftSource
@@ -127,6 +129,129 @@ class PromptDraftRoutesTest(unittest.TestCase):
         response = self.client.post(f"/api/ai/jobs/{self.job.id}/cancel")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["job"]["status"], "cancelled")
+
+    def test_generate_creates_reviewable_prompt_draft_without_workflow_run(self) -> None:
+        captured = {}
+        profile = {
+            "id": "saved-text-profile",
+            "kind": "openai_compatible",
+            "name": "Saved text profile",
+            "model": "prompt-model",
+            "base_url": "https://provider.example/v1",
+            "api_key_source": "system",
+            "multimodal": False,
+            "timeout_seconds": 30,
+            "extra_body": {},
+        }
+
+        class StubProfileStore:
+            @staticmethod
+            def list():
+                return {
+                    "profiles": [],
+                    "defaults": {"text_profile_id": profile["id"]},
+                }
+
+            @staticmethod
+            def get(profile_id):
+                self.assertEqual(profile_id, profile["id"])
+                return profile
+
+            @staticmethod
+            def resolve_api_key(resolved_profile):
+                self.assertIs(resolved_profile, profile)
+                return "resolved-server-side-secret"
+
+        class StubRouter:
+            @staticmethod
+            def execute(**kwargs):
+                captured.update(kwargs)
+                store = AIJobStore()
+                job = store.create(
+                    task=kwargs["task"],
+                    execution_backend="openai_compatible",
+                    provider_profile_id=profile["id"],
+                    model_id=profile["model"],
+                    user_input=kwargs["user_input"],
+                )
+                store.save_draft(
+                    job.id,
+                    PromptDraft(
+                        positive_prompt="A quiet glass house at blue hour",
+                        negative_prompt="blurry, flat light",
+                        source_kind=PromptDraftSource.USER_TEXT,
+                        source_payload={"user_input": kwargs["user_input"]},
+                        versions={"family": "1", "operation": "1"},
+                    ),
+                )
+                store.wait_for_review(
+                    job.id,
+                    result=PromptResult(
+                        positive_prompt="A quiet glass house at blue hour",
+                        negative_prompt="blurry, flat light",
+                    ),
+                )
+                return SimpleNamespace(job_id=job.id)
+
+        with (
+            patch("app.ai.routes._store", return_value=StubProfileStore()),
+            patch("app.ai.routes.ExecutionRouter", return_value=StubRouter()),
+        ):
+            generated = self.client.post(
+                "/api/ai/generate",
+                json={
+                    "user_input": "тихий стеклянный дом в сосновом лесу",
+                    "task": {"family": "flux", "scenario": "architecture_interior"},
+                },
+            )
+
+        self.assertEqual(generated.status_code, 201)
+        generated_payload = generated.get_json()
+        self.assertEqual(generated_payload["job"]["task"]["operation"], "generate")
+        self.assertEqual(generated_payload["job"]["status"], "waiting_for_review")
+        self.assertEqual(generated_payload["context"]["family"], "flux")
+        self.assertEqual(captured["api_key"], "resolved-server-side-secret")
+        self.assertNotIn("resolved-server-side-secret", generated.get_data(as_text=True))
+
+        prompt_draft_id = generated_payload["prompt_draft"]["id"]
+        workflow = self.client.post(
+            "/api/editor/drafts",
+            json={
+                "template_id": "core-flux",
+                "ai_prompt_draft_id": prompt_draft_id,
+            },
+        )
+        self.assertEqual(workflow.status_code, 201)
+        workflow_draft = workflow.get_json()["draft"]
+        self.assertEqual(workflow_draft["status"], "editing")
+        self.assertEqual(workflow_draft["ai_prompt_draft_id"], prompt_draft_id)
+        self.assertEqual(
+            workflow_draft["values"]["positive_prompt"],
+            "A quiet glass house at blue hour",
+        )
+
+        conn = database.get_conn()
+        try:
+            run_count = conn.execute("SELECT COUNT(*) FROM workflow_runs").fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(run_count, 0)
+
+    def test_prompt_capabilities_exclude_unsupported_scenarios(self) -> None:
+        response = self.client.get("/api/ai/prompt-capabilities")
+        self.assertEqual(response.status_code, 200)
+        families = {item["id"]: item for item in response.get_json()["families"]}
+        pony = {item["id"]: item["status"] for item in families["pony"]["scenarios"]}
+        self.assertNotIn("graphic_design_text", pony)
+        self.assertNotIn("multi_character", pony)
+        self.assertEqual(pony["product_object"], "limited")
+
+    def test_editor_exposes_ai_prompt_draft_controls(self) -> None:
+        response = self.client.get("/editor")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'id="ai-prompt-open"', response.data)
+        self.assertIn(b'id="ai-prompt-dialog"', response.data)
+        self.assertIn(b'Generation stays manual', response.data)
 
 
 if __name__ == "__main__":

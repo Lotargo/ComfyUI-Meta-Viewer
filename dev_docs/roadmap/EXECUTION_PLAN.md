@@ -371,27 +371,27 @@
 
 ## 6.1 Shared editor draft contract
 
-- [ ] Editor draft может ссылаться на PromptTask.
-- [ ] Editor draft хранит positive prompt.
-- [ ] Editor draft хранит negative prompt отдельно.
-- [ ] Editor draft хранит source text или SceneSpec.
-- [ ] Editor draft хранит family.
-- [ ] Editor draft хранит scenario.
-- [ ] Editor draft хранит modifiers.
-- [ ] Editor draft хранит execution backend metadata.
-- [ ] Editor draft хранит versions profiles/manifests/contracts.
-- [ ] Editor draft хранит выбранный workflow template отдельно от prompt scenario.
-- [ ] Draft переживает reload и restart.
-- [ ] Manual edits создают новую revision или явно сохраняются без потери исходного AI result.
+- [x] Editor draft может ссылаться на PromptTask.
+- [x] Editor draft хранит positive prompt.
+- [x] Editor draft хранит negative prompt отдельно.
+- [x] Editor draft хранит source text или SceneSpec.
+- [x] Editor draft хранит family.
+- [x] Editor draft хранит scenario.
+- [x] Editor draft хранит modifiers.
+- [x] Editor draft хранит execution backend metadata.
+- [x] Editor draft хранит versions profiles/manifests/contracts.
+- [x] Editor draft хранит выбранный workflow template отдельно от prompt scenario.
+- [x] Draft переживает reload и restart.
+- [x] Manual edits создают новую revision или явно сохраняются без потери исходного AI result.
 
 ## 6.2 Generate prompt
 
-- [ ] Пользователь вводит исходное описание.
-- [ ] Выбирает family или получает совместимое предложение от выбранного workflow.
-- [ ] Выбирает scenario из capability resolver.
-- [ ] Получает PromptResult.
-- [ ] Результат открывается в editor draft.
-- [ ] Generation не запускается автоматически.
+- [x] Пользователь вводит исходное описание.
+- [x] Выбирает family или получает совместимое предложение от выбранного workflow.
+- [x] Выбирает scenario из capability resolver.
+- [x] Получает PromptResult.
+- [x] Результат открывается в editor draft.
+- [x] Generation не запускается автоматически.
 
 ## 6.3 Translate
 
@@ -647,7 +647,7 @@
 
 Начинается только после стабильного Slice A.
 
-- [ ] Подключить Generate prompt к editor draft.
+- [x] Подключить Generate prompt к editor draft.
 - [ ] Подключить Translate как отдельную операцию.
 - [ ] Подключить Adapt как отдельную операцию.
 - [ ] Подключить Reconstruct через editable SceneSpec.

@@ -393,6 +393,14 @@
 - [x] Результат открывается в editor draft.
 - [x] Generation не запускается автоматически.
 
+При переносе PromptResult в workflow draft непустой AI negative prompt заменяет
+значение поля шаблона. Если AI корректно вернул пустую строку, editor сохраняет
+уже заданный пользователем negative prompt или default совместимого template;
+для workflows без negative input поле не создаётся. Реальный запуск `core-image`
+26 июля 2026 года подтвердил, что negative prompt попал в отдельный
+`CLIPTextEncode`, использовался как negative conditioning KSampler и сохранился
+в metadata импортированного результата.
+
 ## 6.3 Translate
 
 - [x] Translation является отдельной операцией.

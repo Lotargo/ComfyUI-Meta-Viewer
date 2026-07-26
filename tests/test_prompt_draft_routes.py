@@ -205,7 +205,7 @@ class PromptDraftRoutesTest(unittest.TestCase):
                 "/api/ai/generate",
                 json={
                     "user_input": "тихий стеклянный дом в сосновом лесу",
-                    "task": {"family": "flux", "scenario": "architecture_interior"},
+                    "task": {"family": "sdxl", "scenario": "architecture_interior"},
                 },
             )
 
@@ -213,7 +213,7 @@ class PromptDraftRoutesTest(unittest.TestCase):
         generated_payload = generated.get_json()
         self.assertEqual(generated_payload["job"]["task"]["operation"], "generate")
         self.assertEqual(generated_payload["job"]["status"], "waiting_for_review")
-        self.assertEqual(generated_payload["context"]["family"], "flux")
+        self.assertEqual(generated_payload["context"]["family"], "sdxl")
         self.assertEqual(captured["api_key"], "resolved-server-side-secret")
         self.assertNotIn("resolved-server-side-secret", generated.get_data(as_text=True))
 
@@ -221,7 +221,7 @@ class PromptDraftRoutesTest(unittest.TestCase):
         workflow = self.client.post(
             "/api/editor/drafts",
             json={
-                "template_id": "core-flux",
+                "template_id": "core-image",
                 "ai_prompt_draft_id": prompt_draft_id,
             },
         )
@@ -233,6 +233,10 @@ class PromptDraftRoutesTest(unittest.TestCase):
             workflow_draft["values"]["positive_prompt"],
             "A quiet glass house at blue hour",
         )
+        self.assertEqual(
+            workflow_draft["values"]["negative_prompt"],
+            "blurry, flat light",
+        )
 
         conn = database.get_conn()
         try:
@@ -240,6 +244,83 @@ class PromptDraftRoutesTest(unittest.TestCase):
         finally:
             conn.close()
         self.assertEqual(run_count, 0)
+
+    def test_empty_ai_negative_preserves_workflow_negative_value_when_supported(self) -> None:
+        job = self.store.create(
+            task=PromptTask(
+                family=PromptFamily.SDXL,
+                operation=PromptOperation.GENERATE,
+                scenario=PromptScenario.ARCHITECTURE_INTERIOR,
+            ),
+            execution_backend="openai_compatible",
+            provider_profile_id="editor-profile",
+            model_id="editor-model",
+            user_input="quiet reading nook",
+        )
+        prompt_draft = self.store.save_draft(
+            job.id,
+            PromptDraft(
+                positive_prompt="A quiet reading nook beside a rainy window",
+                negative_prompt="",
+                source_kind=PromptDraftSource.USER_TEXT,
+                source_payload={"user_input": "quiet reading nook"},
+                versions={"family": "1", "operation": "1"},
+            ),
+        )
+
+        default_negative = self.client.post(
+            "/api/editor/drafts",
+            json={
+                "template_id": "core-image",
+                "ai_prompt_draft_id": prompt_draft.id,
+            },
+        )
+        self.assertEqual(default_negative.status_code, 201)
+        self.assertEqual(
+            default_negative.get_json()["draft"]["values"]["negative_prompt"],
+            "low quality, blurry, artifacts",
+        )
+
+        existing_negative = self.client.post(
+            "/api/editor/drafts",
+            json={
+                "template_id": "core-image",
+                "values": {"negative_prompt": "watermark, duplicated furniture"},
+                "ai_prompt_draft_id": prompt_draft.id,
+            },
+        )
+        self.assertEqual(existing_negative.status_code, 201)
+        self.assertEqual(
+            existing_negative.get_json()["draft"]["values"]["negative_prompt"],
+            "watermark, duplicated furniture",
+        )
+
+        explicitly_disabled = self.client.post(
+            "/api/editor/drafts",
+            json={
+                "template_id": "core-image",
+                "values": {"negative_prompt": ""},
+                "ai_prompt_draft_id": prompt_draft.id,
+            },
+        )
+        self.assertEqual(explicitly_disabled.status_code, 201)
+        self.assertEqual(
+            explicitly_disabled.get_json()["draft"]["values"]["negative_prompt"],
+            "",
+        )
+
+        unsupported = self.client.post(
+            "/api/editor/drafts",
+            json={
+                "template_id": "core-flux",
+                "ai_prompt_draft_id": prompt_draft.id,
+            },
+        )
+        self.assertEqual(unsupported.status_code, 201)
+        self.assertNotIn(
+            "negative_prompt",
+            unsupported.get_json()["draft"]["values"],
+        )
 
     def test_prompt_capabilities_exclude_unsupported_scenarios(self) -> None:
         response = self.client.get("/api/ai/prompt-capabilities")

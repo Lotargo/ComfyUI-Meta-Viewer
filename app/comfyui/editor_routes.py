@@ -383,7 +383,10 @@ def editor_create_draft():
     if ai_prompt_draft_id is not None:
         prompt_draft = AIJobStore().get_draft(int(ai_prompt_draft_id)).draft
         values["positive_prompt"] = prompt_draft.positive_prompt
-        if any(field.id == "negative_prompt" for field in template.manifest.fields):
+        if (
+            prompt_draft.negative_prompt
+            and any(field.id == "negative_prompt" for field in template.manifest.fields)
+        ):
             values["negative_prompt"] = prompt_draft.negative_prompt
     draft = _workflow_store().create_draft(
         template_id=template.manifest.id,

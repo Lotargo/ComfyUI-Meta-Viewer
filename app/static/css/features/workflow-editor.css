@@ -1003,6 +1003,66 @@
 .run-state-icon.failed { background: var(--red); }
 .run-state-icon.cancelled { background: var(--text-muted); }
 
+.run-diagnostic {
+    margin: 0 14px 12px;
+    padding: 12px 14px;
+    display: grid;
+    gap: 10px;
+    border: 1px solid color-mix(in srgb, var(--red) 45%, var(--border));
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--red-dim) 78%, var(--surface));
+}
+
+.run-diagnostic-copy {
+    display: grid;
+    gap: 4px;
+}
+
+.run-diagnostic-kicker {
+    color: color-mix(in srgb, var(--red) 72%, white);
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.run-diagnostic-copy strong { font-size: 11px; }
+.run-diagnostic-copy p { margin: 0; color: var(--text-muted); font-size: 9px; line-height: 1.5; }
+.run-diagnostic-copy .run-diagnostic-action { color: var(--text); }
+
+.run-diagnostic-technical summary {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 8.5px;
+}
+
+.run-diagnostic-technical pre {
+    max-height: 220px;
+    margin: 8px 0 0;
+    padding: 10px;
+    overflow: auto;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 8px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+.runtime-field-error {
+    border-color: color-mix(in srgb, var(--red) 70%, var(--border)) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 16%, transparent) !important;
+}
+
+.runtime-field-error-message {
+    margin-top: 6px;
+    display: block;
+    color: color-mix(in srgb, var(--red) 72%, white);
+    font-size: 8.5px;
+    line-height: 1.4;
+}
+
 @keyframes run-spin { to { transform: rotate(360deg); } }
 
 .run-ribbon-main > div {

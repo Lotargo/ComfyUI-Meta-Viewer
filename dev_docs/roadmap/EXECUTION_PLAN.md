@@ -328,37 +328,37 @@
 
 ## 5.1 Preflight before queue
 
-- [ ] Проверить runtime online.
-- [ ] Проверить required node types.
-- [ ] Проверить required model resources.
-- [ ] Проверить unresolved semantic slots.
-- [ ] Проверить basic architecture/ecosystem compatibility.
+- [x] Проверить runtime online.
+- [x] Проверить required node types.
+- [x] Проверить required model resources.
+- [x] Проверить unresolved semantic slots.
+- [x] Проверить basic architecture/ecosystem compatibility.
 - [ ] Проверить required input files.
-- [ ] Проверить ranges известных editable parameters.
-- [ ] Разделить missing nodes, missing resources и compatibility issues.
-- [ ] Повторять preflight непосредственно перед каждым run.
+- [x] Проверить ranges известных editable parameters.
+- [x] Разделить missing nodes, missing resources и compatibility issues.
+- [x] Повторять preflight непосредственно перед каждым run.
 
 ## 5.2 Runtime error normalization
 
-- [ ] Сохранять raw ComfyUI error.
-- [ ] Извлекать node ID.
-- [ ] Извлекать class type.
-- [ ] Извлекать input name.
-- [ ] Извлекать expected/received type, если доступно.
-- [ ] Отличать missing file от incompatible tensor/model type.
-- [ ] Отличать invalid parameter от execution failure.
-- [ ] Отличать out-of-memory от workflow incompatibility.
-- [ ] Отличать cancellation от failure.
+- [x] Сохранять raw ComfyUI error.
+- [x] Извлекать node ID.
+- [x] Извлекать class type.
+- [x] Извлекать input name.
+- [x] Извлекать expected/received type, если доступно.
+- [x] Отличать missing file от incompatible tensor/model type.
+- [x] Отличать invalid parameter от execution failure.
+- [x] Отличать out-of-memory от workflow incompatibility.
+- [x] Отличать cancellation от failure.
 
 ## 5.3 Editor guidance
 
-- [ ] Связать node/input с manifest field.
-- [ ] Автоматически открыть `More settings`, если проблема находится там.
-- [ ] Подсветить проблемное поле.
-- [ ] Прокрутить к проблемному полю.
-- [ ] Показать краткое пользовательское объяснение.
-- [ ] Показать рекомендуемое действие без автоматического изменения workflow.
-- [ ] Оставить raw technical details в раскрываемом блоке.
+- [x] Связать node/input с manifest field.
+- [x] Автоматически открыть `More settings`, если проблема находится там.
+- [x] Подсветить проблемное поле.
+- [x] Прокрутить к проблемному полю.
+- [x] Показать краткое пользовательское объяснение.
+- [x] Показать рекомендуемое действие без автоматического изменения workflow.
+- [x] Оставить raw technical details в раскрываемом блоке.
 - [ ] Не занижать художественный rating из-за technical error.
 
 **Gate:** расширять основной editor всеми возможными node parameters запрещено. Новое поле добавляется только при наличии manifest binding и подтверждённого пользовательского сценария.

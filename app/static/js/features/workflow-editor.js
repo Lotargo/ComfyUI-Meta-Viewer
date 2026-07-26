@@ -48,6 +48,11 @@ const elements = {
     runStateDetail: byId('run-state-detail'),
     runProgress: byId('run-progress-bar'),
     cancelRun: byId('cancel-run'),
+    runDiagnostic: byId('run-diagnostic'),
+    runDiagnosticTitle: byId('run-diagnostic-title'),
+    runDiagnosticMessage: byId('run-diagnostic-message'),
+    runDiagnosticAction: byId('run-diagnostic-action'),
+    runDiagnosticRaw: byId('run-diagnostic-raw'),
     resultGrid: byId('result-grid'),
     resultsEmpty: byId('results-empty'),
     resultsRefresh: byId('results-refresh'),
@@ -451,6 +456,7 @@ function setDraftStatus(label, mode = '') {
 }
 
 function markDirty() {
+    clearRuntimeDiagnostic();
     state.previewReady = false;
     elements.generateFromPreview.disabled = true;
     updateValidation(null);
@@ -515,6 +521,7 @@ async function bootstrap() {
 }
 
 function selectTemplate(template, { preserveDraft = false } = {}) {
+    clearRuntimeDiagnostic();
     if (state.selected && state.selected.manifest.id !== template.manifest.id) {
         persistCreateWorkspace();
     }
@@ -1494,6 +1501,95 @@ function dependencyCards(report) {
     `;
 }
 
+function clearRuntimeDiagnostic() {
+    elements.runDiagnostic.hidden = true;
+    document.querySelectorAll('[data-runtime-invalid]').forEach((control) => {
+        control.removeAttribute('aria-invalid');
+        control.removeAttribute('data-runtime-invalid');
+    });
+    document.querySelectorAll('.runtime-field-error').forEach((target) => {
+        target.classList.remove('runtime-field-error');
+    });
+    document.querySelectorAll('[data-runtime-error]').forEach((message) => message.remove());
+}
+
+function runtimeFieldTarget(fieldId) {
+    const selector = `[data-field-id="${CSS.escape(fieldId)}"]`;
+    const control = document.querySelector(selector)
+        || document.querySelector(`[data-advanced-toggle="${CSS.escape(fieldId)}"]`);
+    if (control) {
+        return {
+            control,
+            container: control.closest('.editor-field, .advanced-range-control, .advanced-toggle-control'),
+        };
+    }
+    if (fieldId === 'width' || fieldId === 'height') {
+        return {
+            control: fieldId === 'width' ? elements.customWidth : elements.customHeight,
+            container: elements.aspectQuickControl,
+        };
+    }
+    if (fieldId === 'batch_size') {
+        return {
+            control: elements.batchQuickControl?.querySelector('button'),
+            container: elements.batchQuickControl,
+        };
+    }
+    return { control: null, container: null };
+}
+
+function runtimeResourceTarget(slotId) {
+    const container = document.querySelector(`.resource-card[data-slot="${CSS.escape(slotId)}"]`);
+    return {
+        control: container?.querySelector('select, input, button') || null,
+        container,
+    };
+}
+
+function showRuntimeDiagnostic(diagnostic) {
+    if (!diagnostic || typeof diagnostic !== 'object') return;
+    clearRuntimeDiagnostic();
+    const nodeLocation = [
+        diagnostic.class_type,
+        diagnostic.node_id ? `node ${diagnostic.node_id}` : '',
+        diagnostic.input_name ? `input ${diagnostic.input_name}` : '',
+    ].filter(Boolean).join(' · ');
+    elements.runDiagnosticTitle.textContent = diagnostic.message || 'ComfyUI could not complete the workflow.';
+    elements.runDiagnosticMessage.textContent = nodeLocation || 'The workflow stopped during execution.';
+    elements.runDiagnosticAction.textContent = diagnostic.suggested_action || 'Review the settings and retry.';
+    elements.runDiagnosticRaw.textContent = JSON.stringify(diagnostic.raw || diagnostic, null, 2);
+    elements.runDiagnostic.hidden = false;
+
+    let firstTarget = null;
+    const decorated = new Set();
+    for (const target of diagnostic.editor_targets || []) {
+        if (target.advanced && target.kind === 'field') elements.advancedDialog.open = true;
+        if (target.advanced && target.kind === 'resource') elements.additionalSettings.open = true;
+        const resolved = target.kind === 'resource'
+            ? runtimeResourceTarget(target.id)
+            : runtimeFieldTarget(target.id);
+        if (!resolved.container) continue;
+        firstTarget ||= resolved.control || resolved.container;
+        resolved.container.classList.add('runtime-field-error');
+        if (resolved.control?.matches('input, textarea, select')) {
+            resolved.control.setAttribute('aria-invalid', 'true');
+            resolved.control.setAttribute('data-runtime-invalid', 'true');
+        }
+        if (decorated.has(resolved.container)) continue;
+        decorated.add(resolved.container);
+        const message = document.createElement('small');
+        message.className = 'runtime-field-error-message';
+        message.dataset.runtimeError = 'true';
+        message.textContent = diagnostic.message;
+        resolved.container.appendChild(message);
+    }
+    const focusTarget = firstTarget || elements.runDiagnostic;
+    window.requestAnimationFrame(() => {
+        focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstTarget?.focus?.({ preventScroll: true });
+    });
+}
+
 async function generateWorkflow() {
     if (!state.inventory.online) {
         openRuntimeDrawer();
@@ -1514,6 +1610,7 @@ async function generateWorkflow() {
     }
     elements.generateButton.disabled = true;
     elements.generateFromPreview.disabled = true;
+    clearRuntimeDiagnostic();
     try {
         const payload = await requestJson(`/api/editor/drafts/${state.draft.id}/run`, { method: 'POST' });
         state.currentRun = payload.run;
@@ -1524,6 +1621,7 @@ async function generateWorkflow() {
         showToast('Workflow queued in ComfyUI.', 'success');
     } catch (error) {
         if (error.data?.dependencies) updateValidation(error.data.dependencies);
+        if (error.data?.diagnostic) showRuntimeDiagnostic(error.data.diagnostic);
         showToast(error.message, 'error');
         elements.generateFromPreview.disabled = !state.previewReady;
         updateGenerateAvailability();
@@ -1544,7 +1642,7 @@ async function pollCurrentRun() {
         if (['completed', 'failed', 'cancelled'].includes(state.currentRun.status)) {
             await loadRuns();
             if (state.currentRun.status === 'completed') showToast('Generation imported into the local library.', 'success');
-            if (state.currentRun.status === 'failed') showToast('ComfyUI reported a failed workflow.', 'error');
+            if (state.currentRun.status === 'failed') showToast(state.currentRun.error?.message || 'ComfyUI reported a failed workflow.', 'error');
             return;
         }
     } catch (error) {
@@ -1570,6 +1668,8 @@ function renderRunRibbon(run) {
     const progress = run.status === 'completed' ? 100 : Math.max(4, Math.min(99, Number(run.progress || 0) * 100));
     elements.runProgress.style.width = `${progress}%`;
     elements.cancelRun.hidden = ['completed', 'failed', 'cancelled'].includes(run.status);
+    if (run.status === 'failed' && run.error) showRuntimeDiagnostic(run.error);
+    else if (run.status !== 'failed') clearRuntimeDiagnostic();
     if (['completed', 'failed', 'cancelled'].includes(run.status)) {
         elements.generateFromPreview.disabled = !state.previewReady;
     }

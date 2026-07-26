@@ -169,6 +169,40 @@ class ComfyUIClientTest(unittest.TestCase):
         self.assertEqual(job["status"], "completed")
         self.assertEqual(job["workflow"]["prompt"], workflow)
 
+    def test_job_history_fallback_extracts_execution_error(self) -> None:
+        client = ComfyUIClient(host="127.0.0.1", port=8188)
+        history = {
+            "prompt-failed": {
+                "prompt": [7, "prompt-failed", {}, {}, []],
+                "outputs": {},
+                "status": {
+                    "status_str": "error",
+                    "messages": [[
+                        "execution_error",
+                        {
+                            "node_id": "5",
+                            "node_type": "KSampler",
+                            "exception_message": "CUDA out of memory",
+                            "exception_type": "RuntimeError",
+                        },
+                    ]],
+                },
+            }
+        }
+        with patch.object(
+            client,
+            "_request_json",
+            side_effect=[
+                ComfyUIClientError("not found", status=404),
+                history,
+            ],
+        ):
+            job = client.get_job("prompt-failed")
+
+        self.assertEqual(job["status"], "failed")
+        self.assertEqual(job["execution_error"]["node_id"], "5")
+        self.assertEqual(job["execution_error"]["exception_message"], "CUDA out of memory")
+
 
 class ComfyUIManagerTest(unittest.TestCase):
     def setUp(self) -> None:

@@ -83,6 +83,12 @@ Editor использует один template-aware evaluator для bootstrap o
 
 LoRA повторно оценивается относительно выбранного checkpoint при каждом preview/run. Любое изменение resource selection сбрасывает готовность предыдущего preview, поэтому смена checkpoint не может использовать устаревший compatibility result.
 
+## Runtime error diagnostics
+
+Ошибки queue validation и terminal ComfyUI jobs проходят единый normalizer. Он сохраняет исходный payload и отдельно извлекает category, node ID, class type, input name и доступные expected/received types. Категории различают missing resource, invalid input, incompatible workflow components, out-of-memory, cancellation и прочий execution failure.
+
+Node/input сопоставляется только с declarative field/resource bindings активного manifest. Editor раскрывает advanced section для соответствующей настройки, подсвечивает и фокусирует target, показывает краткое объяснение и рекомендуемое действие; полный raw payload остаётся в раскрываемом блоке `Technical details`. Для OOM без конкретного input показываются безопасные targets `batch_size`, `width` и `height`, но значения не меняются автоматически.
+
 ## Editor persistence и imported result
 
 `WorkflowDraft` сохраняет template identity/version, field values, resource selections, optional `source_asset_id` и `ai_prompt_draft_id`, status и timestamps. Смена template создаёт или открывает отдельное workspace state; запуск не является побочным эффектом создания draft.

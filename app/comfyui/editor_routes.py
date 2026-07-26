@@ -175,7 +175,11 @@ def workflow_editor_error(error: Exception):
         status = 404
     elif code == "template_id_conflict":
         status = 409
-    return jsonify({"error": str(error), "code": code}), status
+    payload = {"error": str(error), "code": code}
+    details = getattr(error, "details", None)
+    if isinstance(details, dict):
+        payload.update(details)
+    return jsonify(payload), status
 
 
 @editor_blueprint.errorhandler(ComfyUIClientError)
@@ -436,6 +440,7 @@ def editor_run(draft_id: int):
     service = WorkflowExecutionService(
         store=store,
         client=client_from_store(_config_store(), timeout=10.0),
+        registry=_registry(),
     )
     run = service.queue(draft=draft, template=template, workflow=workflow)
     return jsonify({
@@ -462,6 +467,7 @@ def editor_run_status(run_id: int):
     service = WorkflowExecutionService(
         store=_workflow_store(),
         client=client_from_store(_config_store(), timeout=10.0),
+        registry=_registry(),
     )
     run = service.refresh(run_id)
     return jsonify({"run": _run_payloads([run])[0]})
@@ -472,6 +478,7 @@ def editor_cancel_run(run_id: int):
     service = WorkflowExecutionService(
         store=_workflow_store(),
         client=client_from_store(_config_store(), timeout=10.0),
+        registry=_registry(),
     )
     run = service.cancel(run_id)
     return jsonify({"run": _run_payloads([run])[0]})

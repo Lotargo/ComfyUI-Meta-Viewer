@@ -16,12 +16,14 @@ from app.ai.resources import (
     ModelResourceCatalog,
     ResourceType,
 )
+from app.comfyui.client import ComfyUIClientError
 from app.comfyui.workflow_compiler import (
     WorkflowCompiler,
     WorkflowCompilerError,
     WorkflowDependencyValidator,
     default_field_values,
 )
+from app.comfyui.workflow_errors import normalize_comfyui_error
 from app.comfyui.workflow_execution import WorkflowExecutionService
 from app.comfyui.workflow_models import RuntimeInventory, WorkflowTemplateManifest
 from app.comfyui.workflow_registry import WorkflowTemplateError, WorkflowTemplateRegistry
@@ -794,6 +796,8 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertIn('id="template-manifest-preview"', html)
         self.assertIn('id="workflow-management-dialog"', html)
         self.assertIn('id="workflow-management-body"', html)
+        self.assertIn('id="run-diagnostic"', html)
+        self.assertIn('id="run-diagnostic-raw"', html)
         self.assertIn("Check dependencies and preview graph", html)
         self.assertNotIn("Manifest controls", html)
 
@@ -1070,6 +1074,59 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         self.assertTrue(payload["dependencies"]["missing_nodes"])
         self.assertTrue(payload["dependencies"]["missing_resources"])
 
+    @patch("app.comfyui.editor_routes.client_from_store")
+    @patch("app.comfyui.editor_routes._inventory")
+    def test_rejected_prompt_maps_comfyui_input_to_resource_slot(
+        self,
+        inventory_mock,
+        client_mock,
+    ) -> None:
+        inventory_mock.return_value = self.inventory
+        client_mock.return_value.queue_prompt.side_effect = ComfyUIClientError(
+            "prompt rejected",
+            status=400,
+            payload={
+                "error": {"type": "prompt_outputs_failed_validation"},
+                "node_errors": {
+                    "1": {
+                        "class_type": "CheckpointLoaderSimple",
+                        "errors": [{
+                            "type": "value_not_in_list",
+                            "message": "Value not in list",
+                            "extra_info": {
+                                "input_name": "ckpt_name",
+                                "input_config": [["models/other.safetensors"], {}],
+                                "received_value": "models/base-xl.safetensors",
+                            },
+                        }],
+                    }
+                },
+            },
+        )
+        draft = WorkflowStore().create_draft(
+            template_id="core-image",
+            template_version="1.0.0",
+            values=default_field_values(self.template),
+            resource_selections={"checkpoint": "models/base-xl.safetensors"},
+        )
+
+        response = self.client.post(f"/api/editor/drafts/{draft.id}/run")
+
+        self.assertEqual(response.status_code, 422)
+        payload = response.get_json()
+        self.assertEqual(payload["code"], "comfyui_prompt_rejected")
+        diagnostic = payload["diagnostic"]
+        self.assertEqual(diagnostic["category"], "missing_resource")
+        self.assertEqual(diagnostic["node_id"], "1")
+        self.assertEqual(diagnostic["input_name"], "ckpt_name")
+        self.assertEqual(diagnostic["expected_type"], "choice (1 allowed value)")
+        self.assertEqual(diagnostic["received_type"], "str")
+        self.assertEqual(
+            diagnostic["editor_targets"],
+            [{"kind": "resource", "id": "checkpoint", "label": "Checkpoint", "advanced": False}],
+        )
+        self.assertIn("node_errors", diagnostic["raw"])
+
     def test_run_results_exclude_assets_deleted_from_library(self) -> None:
         store = WorkflowStore()
         draft = store.create_draft(
@@ -1154,6 +1211,20 @@ class FakeCompletedClient:
         return PNG_1X1
 
 
+class FakeFailedClient:
+    def get_job(self, prompt_id):
+        return {
+            "status": "failed",
+            "execution_error": {
+                "node_id": "4",
+                "node_type": "EmptyLatentImage",
+                "exception_message": "invalid width",
+                "exception_type": "invalid_input_type",
+                "input_name": "width",
+            },
+        }
+
+
 class WorkflowExecutionTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -1184,6 +1255,64 @@ class WorkflowExecutionTest(unittest.TestCase):
         self.assertIsNotNone(detail)
         self.assertEqual(detail.media_type, "image")
         self.assertEqual(detail.embedded_metadata["generation"]["template_id"], "core-image")
+
+    def test_failed_run_persists_normalized_field_diagnostic_and_raw_error(self) -> None:
+        store = WorkflowStore()
+        template = WorkflowTemplateRegistry().get("core-image")
+        draft = store.create_draft(
+            template_id=template.manifest.id,
+            template_version=template.manifest.version,
+            values=default_field_values(template),
+            resource_selections={"checkpoint": "models/base-xl.safetensors"},
+        )
+        run = store.create_run(draft_id=draft.id, prompt_id="prompt-failed", client_id="client-1")
+
+        failed = WorkflowExecutionService(store=store, client=FakeFailedClient()).refresh(run.id)
+
+        self.assertEqual(failed.status, "failed")
+        self.assertEqual(failed.error["category"], "invalid_input")
+        self.assertEqual(failed.error["node_id"], "4")
+        self.assertEqual(failed.error["input_name"], "width")
+        self.assertEqual(failed.error["editor_targets"][0]["id"], "width")
+        self.assertTrue(failed.error["editor_targets"][0]["advanced"])
+        self.assertEqual(failed.error["raw"]["exception_message"], "invalid width")
+
+    def test_out_of_memory_diagnostic_recommends_batch_and_resolution_fields(self) -> None:
+        template = WorkflowTemplateRegistry().get("core-image")
+
+        diagnostic = normalize_comfyui_error(
+            {
+                "node_id": "5",
+                "node_type": "KSampler",
+                "exception_message": "CUDA out of memory",
+                "exception_type": "RuntimeError",
+            },
+            template=template,
+        )
+
+        self.assertEqual(diagnostic["category"], "out_of_memory")
+        self.assertEqual(
+            [target["id"] for target in diagnostic["editor_targets"]],
+            ["batch_size", "width", "height"],
+        )
+        self.assertIn("Reduce", diagnostic["suggested_action"])
+
+    def test_runtime_error_categories_distinguish_incompatibility_cancellation_and_failure(self) -> None:
+        cases = [
+            (
+                {"type": "return_type_mismatch", "message": "Return type mismatch between linked nodes"},
+                "failed",
+                "workflow_incompatible",
+            ),
+            ({"message": "Interrupted by user"}, "cancelled", "cancelled"),
+            ({"exception_message": "Custom node crashed"}, "failed", "execution_failure"),
+        ]
+
+        for raw, status, expected in cases:
+            with self.subTest(expected=expected):
+                diagnostic = normalize_comfyui_error(raw, status=status)
+                self.assertEqual(diagnostic["category"], expected)
+                self.assertEqual(diagnostic["raw"], raw)
 
 
 if __name__ == "__main__":

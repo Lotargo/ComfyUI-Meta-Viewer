@@ -128,7 +128,23 @@ class ComfyUIClient:
             item = history[prompt_id]
             status_info = item.get("status", {}) if isinstance(item, dict) else {}
             status_str = status_info.get("status_str")
-            status = "completed" if status_str == "success" else "failed"
+            execution_error = None
+            was_interrupted = False
+            messages = status_info.get("messages", []) if isinstance(status_info, dict) else []
+            for entry in messages:
+                if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+                    continue
+                event_name, event_data = entry[0], entry[1]
+                if event_name == "execution_error" and isinstance(event_data, dict):
+                    execution_error = event_data
+                elif event_name == "execution_interrupted":
+                    was_interrupted = True
+            if status_str == "success":
+                status = "completed"
+            elif was_interrupted:
+                status = "cancelled"
+            else:
+                status = "failed"
             prompt_record = item.get("prompt") if isinstance(item, dict) else None
             executed_workflow = (
                 prompt_record[2]
@@ -142,6 +158,7 @@ class ComfyUIClient:
                 "status": status,
                 "outputs": item.get("outputs", {}),
                 "execution_status": status_info,
+                "execution_error": execution_error,
                 "workflow": {"prompt": executed_workflow} if executed_workflow else None,
             }
 

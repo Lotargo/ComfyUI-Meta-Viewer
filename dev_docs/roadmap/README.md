@@ -96,7 +96,7 @@
   **Implemented; runtime matrix pending.** Нужны реальные проверки Windows Portable, venv installations, managed/external modes, crash, port conflict и process cleanup.
 
 - [ ] [09. Workflow templates and editor](comfyui/09_WORKFLOW_TEMPLATES_AND_EDITOR.md)  
-  **Current primary workstream.** Редактор, loader contracts, resource filtering, API workflow registration, mapping wizard, registry statuses и management table реализованы; остаются UI workflow conversion, remap/duplicate/export operations и field-level error diagnostics.
+  **Current primary workstream.** Редактор, loader contracts, resource filtering, API workflow registration, mapping wizard, registry statuses, management table и field-level runtime diagnostics реализованы; остаются UI workflow conversion и remap/duplicate/export operations.
 
 ### Desktop
 
@@ -116,7 +116,7 @@
 - [x] Регистрировать imported API workflows и сохранять автоматически найденные mappings.
 - [x] Разрешать неоднозначные bindings через mapping wizard с manifest preview.
 - [x] Добавить workflow management modal/table и revalidation statuses.
-- [ ] Связывать ComfyUI errors с конкретными editor fields.
+- [x] Связывать ComfyUI errors с конкретными editor fields.
 - [ ] После стабилизации contracts подключить AI operations к drafts.
 
 AI rating, полностью автоматический model importer и desktop packaging в текущий рабочий срез не входят.

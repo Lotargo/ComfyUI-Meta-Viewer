@@ -14,21 +14,37 @@ from app.media import (
     temporary_media_file,
 )
 
-from .client import ComfyUIClient
+from .client import ComfyUIClient, ComfyUIClientError
+from .workflow_errors import normalize_comfyui_error
 from .workflow_models import WorkflowDraft, WorkflowRun, WorkflowTemplate
-from .workflow_store import WorkflowStore
+from .workflow_registry import WorkflowTemplateError, WorkflowTemplateRegistry
+from .workflow_store import WorkflowStore, WorkflowStoreError
 
 
 class WorkflowExecutionError(RuntimeError):
-    def __init__(self, message: str, *, code: str = "workflow_execution_error"):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "workflow_execution_error",
+        details: dict[str, Any] | None = None,
+    ):
         self.code = code
+        self.details = details or {}
         super().__init__(message)
 
 
 class WorkflowExecutionService:
-    def __init__(self, *, store: WorkflowStore, client: ComfyUIClient):
+    def __init__(
+        self,
+        *,
+        store: WorkflowStore,
+        client: ComfyUIClient,
+        registry: WorkflowTemplateRegistry | None = None,
+    ):
         self.store = store
         self.client = client
+        self.registry = registry or WorkflowTemplateRegistry()
 
     def queue(
         self,
@@ -38,24 +54,35 @@ class WorkflowExecutionService:
         workflow: dict[str, Any],
     ) -> WorkflowRun:
         client_id = str(uuid.uuid4())
-        response = self.client.queue_prompt(
-            workflow,
-            client_id=client_id,
-            extra_data={
-                "comfy_meta_viewer": {
-                    "draft_id": draft.id,
-                    "template_id": template.manifest.id,
-                    "template_version": template.manifest.version,
-                },
-                "extra_pnginfo": {
-                    "cmv_template": {
-                        "id": template.manifest.id,
-                        "version": template.manifest.version,
+        try:
+            response = self.client.queue_prompt(
+                workflow,
+                client_id=client_id,
+                extra_data={
+                    "comfy_meta_viewer": {
+                        "draft_id": draft.id,
+                        "template_id": template.manifest.id,
+                        "template_version": template.manifest.version,
                     },
-                    "cmv_draft_id": draft.id,
+                    "extra_pnginfo": {
+                        "cmv_template": {
+                            "id": template.manifest.id,
+                            "version": template.manifest.version,
+                        },
+                        "cmv_draft_id": draft.id,
+                    },
                 },
-            },
-        )
+            )
+        except ComfyUIClientError as exc:
+            diagnostic = normalize_comfyui_error(
+                exc.payload if isinstance(exc.payload, dict) else {"message": str(exc)},
+                template=template,
+            )
+            raise WorkflowExecutionError(
+                diagnostic["message"],
+                code="comfyui_prompt_rejected",
+                details={"diagnostic": diagnostic},
+            ) from exc
         return self.store.create_run(
             draft_id=draft.id,
             prompt_id=str(response["prompt_id"]),
@@ -86,18 +113,20 @@ class WorkflowExecutionService:
                 current_node=self._current_node(job),
             )
         if remote_status in {"failed", "error"}:
+            diagnostic = self._normalized_error(run, job, status="failed")
             return self.store.update_run(
                 run.id,
                 status="failed",
                 progress=1.0,
-                error=self._execution_error(job),
+                error=diagnostic,
             )
         if remote_status in {"cancelled", "canceled", "interrupted"}:
+            diagnostic = self._normalized_error(run, job, status="cancelled")
             return self.store.update_run(
                 run.id,
                 status="cancelled",
                 progress=1.0,
-                error=self._execution_error(job),
+                error=diagnostic,
             )
         if remote_status not in {"completed", "success"}:
             return run
@@ -133,7 +162,31 @@ class WorkflowExecutionService:
             run.id,
             status="cancelled",
             progress=1.0,
-            error={"message": "Cancelled by the user."},
+            error=self._normalized_error(
+                run,
+                {"error": {"message": "Cancelled by the user."}},
+                status="cancelled",
+            ),
+        )
+
+    def _normalized_error(
+        self,
+        run: WorkflowRun,
+        job: dict[str, Any],
+        *,
+        status: str,
+    ) -> dict[str, Any]:
+        template: WorkflowTemplate | None = None
+        try:
+            draft = self.store.get_draft(run.draft_id)
+            template = self.registry.get(draft.template_id)
+        except (WorkflowStoreError, WorkflowTemplateError):
+            # A removed user template must not hide the original runtime error.
+            template = None
+        return normalize_comfyui_error(
+            self._execution_error(job),
+            template=template,
+            status=status,
         )
 
     @staticmethod

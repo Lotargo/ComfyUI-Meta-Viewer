@@ -1,52 +1,169 @@
 # Development Roadmap
 
-Эта директория хранит направление развития ComfyUI Meta Viewer, а не бесконечный список условий для «идеального» релиза.
+Эта директория хранит архитектурные документы, подтверждённый технический baseline и рабочий путь к первому публичному релизу ComfyUI Meta Viewer.
 
-Главная цель сейчас — выпустить рабочую и понятную версию v1. Дополнительные шаблоны, редкие окружения и глубокие стресс-проверки не должны блокировать публикацию уже полезного приложения.
+Roadmap должен сохранять память о выполненной работе, но не превращать каждую будущую идею и редкую проверку в обязательный blocker релиза.
+
+## С чего продолжать
+
+Открыть [v1 Execution Plan](EXECUTION_PLAN.md) и начать с **Gate 1.1: подтвердить свежий GitHub Actions run после исправления Poetry dependency mismatch**.
+
+Текущая последовательность:
+
+1. CI на Windows, Linux и macOS.
+2. Clean install и запуск приложения.
+3. Короткий Viewer/Library smoke.
+4. Один end-to-end ComfyUI run на текущем `main`.
+5. Обновление публичного README и release tag.
+
+Новые templates, расширение AI rating и desktop packaging до этого не являются текущим рабочим срезом.
 
 ## Рабочие документы
 
-- [Короткий план релиза v1](EXECUTION_PLAN.md) — единственный текущий список обязательных задач.
-- [Workflow template and resource baseline](WORKFLOW_TEMPLATE_BASELINE.md) — проверенный снимок built-in templates, bindings и канонической resource taxonomy.
-- Документы `00–10` — архитектурные требования и идеи дальнейшего развития. Они не являются обязательным чеклистом перед первым релизом.
+- [v1 Execution Plan](EXECUTION_PLAN.md) — выполненные крупные блоки, текущие release gates и следующий рабочий шаг.
+- [Workflow template and resource baseline](WORKFLOW_TEMPLATE_BASELINE.md) — проверенный снимок built-in templates, manifest v2, bindings, taxonomy и runtime evidence.
+- Документы `00–10` — архитектурные требования отдельных подсистем и идеи дальнейшего развития.
 
-## Принцип release-first
+## Значение статусов
 
-Задача считается блокирующей релиз только тогда, когда без неё пользователь не может установить приложение, открыть библиотеку, просмотреть метаданные или выполнить основной сценарий с ComfyUI.
+- **Completed** — основная реализация закончена и подтверждена кодом, тестами или runtime evidence.
+- **Release verification** — подсистема реализована; перед v1 нужен только короткий пользовательский smoke, а не новая фаза разработки.
+- **Post-v1** — полезное расширение или полная compatibility matrix, которая не блокирует первый релиз.
 
-Проверки отдельных контейнеров, редких путей, длительных reconnect-сценариев, всех возможных моделей и каждого AI-провайдера выполняются по мере необходимости или после релиза. Они не должны возвращать уже работающую подсистему в состояние «не готово».
+## Текущий статус проекта
 
-## Текущий объём v1
+### 00. Cross-platform foundation
 
-В первый публичный релиз входят:
+**Status: Release verification.**
 
-- локальный просмотр и индексация изображений и видео;
-- извлечение и отображение метаданных ComfyUI;
-- библиотека с виртуальной организацией файлов;
-- запуск приложения на поддерживаемых версиях Python;
-- один подтверждённый полный сценарий генерации через ComfyUI;
-- понятная инструкция установки и список известных ограничений.
+Path abstractions, platform actions и fallback behavior реализованы. Перед v1 достаточно подтвердить CI на трёх runner OS и clean install на основной release-платформе. Полная ручная матрица Unicode, UNC и всех platform actions остаётся post-v1, если CI не выявит конкретную ошибку.
 
-## Рабочий протокол
+### 01. Database and index reset
 
-- Логические и проверенные срезы коммитятся самостоятельно; незавершённая работа не отмечается как готовая.
-- Runtime integration и end-to-end generation подтверждаются реальным запуском ComfyUI, когда это требуется сценарием.
-- Browser automation используется для коротких и однозначных smoke checks, но не подменяет полноценный визуальный QA.
-- Детальная ручная UI-проверка остаётся pending, пока пользователь её не подтвердил.
+**Status: Completed.**
+
+Factory Reset, отдельный reset индекса, повторная индексация и сохранность исходных files реализованы. Перед релизом остаётся короткий smoke, что reset/reindex не удаляет media.
+
+### 02. Source monitoring and cloud directories
+
+**Status: Release verification.**
+
+Watcher и periodic reconciliation foundation реализованы. Для v1 нужен обычный source-directory smoke. Длительные reconnect, temporarily unavailable drives и массовая cloud-sync матрица перенесены после релиза.
+
+### 03. Media library, albums and favorites
+
+**Status: Completed.**
+
+Library, albums, favorites, ratings, tags, notes, bulk selection и раздельные виды удаления реализованы. Перед тегом проверяется только persistence одной базовой операции после restart.
+
+### 04. Unified media assets and video
+
+**Status: Release verification.**
+
+Images и videos используют общую asset model, browsing и technical metadata. Перед v1 проверяется по одному реальному image/video asset и понятное поведение при отсутствии FFmpeg. Полная container matrix не блокирует релиз.
+
+### 05. AI provider layer
+
+**Status: Completed for v1 scope.**
+
+Сохранённые OpenAI-compatible и CLI profiles, Keyring/env credentials, normalized errors и capability-based adapters реализованы. Полная parity всех transports не нужна для выпуска основной Viewer/ComfyUI functionality.
+
+### 06. Prompt skills research
+
+**Status: Completed baseline; further research is Post-v1.**
+
+Flux-like, SDXL и Pony family profiles и основные scenario manifests существуют. Дополнительные operation benchmarks, repeat-run statistics и checkpoint-specific capability profiles развиваются после релиза.
+
+### 06A. Prompt profile and agent execution architecture
+
+**Status: Completed.**
+
+PromptTask, SceneSpec, PromptResult, compiler contracts, persistence и execution adapters реализованы и подключены к editor drafts. Reconstruct и Adapt имеют реальный runtime evidence.
+
+### 07. Translation, remix and AI ranking
+
+**Status: Core operations completed; rating automation is Post-v1.**
+
+Generate, Translate, Adapt, Reconstruct и Remix создают persisted editable drafts и не запускают generation автоматически. Source/result, revisions и lineage сохраняются.
+
+Manual AI rating foundation также реализована: отдельные technical states, nullable artistic rank, ручной запуск, override/delete и Library filters. Global/per-run opt-in и расширенная provider-policy matrix не блокируют v1.
+
+### 08. Runtime integration and process control
+
+**Status: Release verification.**
+
+Runtime setup, inventory, preflight, queue/run state, cancellation foundation, result import и normalized errors реализованы. Перед v1 нужен один повторный end-to-end run на текущем `main`. Полная матрица Portable/venv/external/port conflict/crash остаётся post-v1.
+
+### 09. Workflow templates and editor
+
+**Status: Completed.**
+
+Реализованы:
+
+- manifest v2 и semantic resource slots;
+- checkpoint-contained, separate-components, GGUF, reference, two-stage и video templates;
+- resource compatibility filtering и preflight;
+- API/UI workflow import;
+- mapping wizard и registry statuses;
+- management table, revalidation, remap, duplicate, export и delete;
+- field-level ComfyUI error diagnostics;
+- draft/run persistence и imported-result provenance.
+
+Технический состав и runtime evidence подробно зафиксированы в [WORKFLOW_TEMPLATE_BASELINE.md](WORKFLOW_TEMPLATE_BASELINE.md).
+
+### 10. Desktop packaging and installers
+
+**Status: Post-v1.**
+
+Desktop shell, bundled runtime, installers, signing и auto-update начинаются после стабилизации и публикации Python/local-web версии. Они не должны использоваться как условие первого релиза.
+
+## Уже подтверждённые end-to-end сценарии
+
+В ходе разработки получен реальный runtime evidence для:
+
+- `core-image` с отдельным negative conditioning и импортом результата;
+- Reconstruct: image → persisted SceneSpec → prompt render без повторного vision call;
+- Remix через Windows Portable ComfyUI с ручным Run и сохранённым lineage;
+- Pony/SDXL GGUF quality generation в 832×1216;
+- Flux-family GGUF generation;
+- workflow import/remap/duplicate/export lifecycle.
+
+Эти доказательства не следует обнулять. Перед v1 выполняется один короткий regression run на текущем commit, а не повтор всей исторической матрицы.
+
+## Границы первого релиза
+
+В v1 входят:
+
+- локальный запуск приложения;
+- индексирование пользовательских директорий;
+- Viewer и metadata extraction;
+- image/video Library и виртуальная организация;
+- подключение ComfyUI;
+- manifest-driven editor и базовые built-in workflows;
+- один подтверждённый основной generation path;
+- AI prompt drafts как дополнительная функция;
+- честная документация известных ограничений.
 
 ## После v1
 
-В последующие версии можно развивать:
+Без блокировки первого релиза продолжаются:
 
-- дополнительные workflow templates и loader strategies;
-- расширенный импорт пользовательских workflows;
-- GGUF и редкие наборы custom nodes;
-- полную матрицу окружений Windows, Linux и macOS;
-- длительные watcher, cloud-sync и reconnect stress tests;
-- дополнительные AI operations, benchmarks и AI rating;
-- desktop installers и автоматическое обновление.
+- дополнительные inpaint, ControlNet, pose, upscale, refiner и video workflows;
+- полная поддержка редких custom loaders и multiple independent pipelines;
+- автоматический model importer/registration wizard;
+- полные cross-platform и ComfyUI installation matrices;
+- длительные watcher/cloud/reconnect stress tests;
+- расширенные prompt benchmarks и transport parity;
+- global/per-run AI rating automation;
+- desktop packaging и auto-update.
 
-Эти пункты остаются важными, но больше не изображают обязательную месячную работу перед первым релизом.
+## Рабочий протокол
+
+- Коммитить логически завершённые и проверенные срезы напрямую в `main`.
+- Не возвращать завершённую подсистему в общий статус «не готово» из-за post-v1 edge cases.
+- Реальный ComfyUI run требуется для end-to-end gate, но не для каждого unit-level изменения.
+- Browser automation используется для коротких однозначных smoke checks и не заменяет полноценный визуальный review.
+- Новый release blocker добавляется только при наличии конкретного воспроизводимого дефекта.
 
 ## Архитектурные документы
 

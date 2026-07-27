@@ -6,7 +6,7 @@ Roadmap должен сохранять память о выполненной �
 
 ## С чего продолжать
 
-Открыть [v1 Execution Plan](EXECUTION_PLAN.md) и начать с **Gate 1.1: подтвердить свежий GitHub Actions run после исправления Poetry dependency mismatch**.
+Открыть [v1 Execution Plan](EXECUTION_PLAN.md) и переходить к **созданию release tag `v1.0.0`**.
 
 Текущая последовательность:
 

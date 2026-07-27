@@ -304,6 +304,15 @@ The app will be available at **http://localhost:7860**
 
 ---
 
+## Known Limitations
+
+- **Custom Nodes & Workflows**: Standard built-in workflow templates cover checkpoint-contained, Flux separate-components, Pony/SDXL GGUF, reference, and video pipelines. Highly customized third-party node workflows can be imported using the mapping wizard, but complex multi-pipeline graphs may require manual node binding or mapping adjustment.
+- **Desktop Installers**: Standalone desktop installers (`.exe` / `.dmg` / `AppImage`), electron/tauri packaging, and auto-update are scheduled for Post-v1. Currently, the application runs as a local Python web application.
+- **FFmpeg Dependency**: Basic image viewing, metadata extraction, and library management work out-of-the-box without extra tools. Video thumbnail preview and technical stream metadata extraction require `ffmpeg` / `ffprobe` binaries on your system `PATH`.
+- **Platform Support**: Primary release platform is Windows; cross-platform validation is performed via GitHub Actions CI for Linux and macOS.
+
+---
+
 ## Tech Stack
 
 | Layer | Technology | Purpose |

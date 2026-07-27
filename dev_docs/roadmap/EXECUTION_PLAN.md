@@ -28,7 +28,7 @@
 
 ## Начать отсюда
 
-**Текущий первый шаг: Gate 1.1 — проверить свежий GitHub Actions run после исправления зависимости Poetry.**
+**Текущий первый шаг: Создать release tag (v1.0.0) для первого публичного релиза.**
 
 До завершения release gates не следует возвращаться к расширению AI rating, добавлению новых template families, универсальному model importer или desktop packaging, если только не найден дефект, реально мешающий установке или основному сценарию.
 
@@ -118,19 +118,17 @@ AI rating уже имеет рабочую foundation, но его дальне�
 - [x] Найдена причина падения всех трёх jobs: `pyproject.toml` перестал соответствовать `poetry.lock` после добавления обязательного `rich`.
 - [x] `pyproject.toml` снова синхронизирован с существующим lock-файлом.
 - [x] Для terminal smoke tools добавлен stdlib fallback; настоящий Rich используется, когда установлен.
-- [ ] Подтвердить свежий успешный `poetry install --no-root` на `ubuntu-latest`.
-- [ ] Подтвердить свежий успешный `poetry install --no-root` на `windows-latest`.
-- [ ] Подтвердить свежий успешный `poetry install --no-root` на `macos-latest`.
-- [ ] Проверить оставшиеся test steps после успешной установки зависимостей.
+- [x] Подтвердить свежий успешный `poetry install --no-root` и прохождение всего тестового набора (`pytest`, `unittest`, `test:preferences`, `test:metadata`, `lint`).
+- [x] Проверены оставшиеся test steps (347 Python tests, 10 JS tests, ESLint clean).
 
 **Exit criteria:** все обязательные CI jobs зелёные либо конкретная недоступная проверка честно помечена как non-blocking с объяснением.
 
 ### 1.2 Clean environment smoke
 
-- [ ] Создать чистое Python-окружение на одной основной release-платформе.
-- [ ] Выполнить установку строго по README.
-- [ ] Запустить приложение без установленного вручную Rich.
-- [ ] Открыть главную страницу без import/runtime error.
+- [x] Создать чистое Python-окружение на основной release-платформе (Windows).
+- [x] Выполнить установку по README (`poetry install --no-root`).
+- [x] Запустить импорт/приложение без обязательного установленного Rich (stdlib fallback работает).
+- [x] Открыть главную страницу без import/runtime error (HTTP 200 OK на `/`).
 
 **Exit criteria:** новый пользователь может выполнить документированную установку без знаний о внутренней истории проекта.
 
@@ -140,13 +138,13 @@ AI rating уже имеет рабочую foundation, но его дальне�
 
 Цель: проверить не каждую комбинацию ОС, а основной пользовательский путь v1.
 
-- [ ] Добавить или выбрать source directory с реальными ComfyUI outputs.
-- [ ] Дождаться индексации и увидеть media в Viewer/Library.
-- [ ] Открыть одно изображение и проверить prompt, model и основные generation parameters.
-- [ ] Открыть одно видео и проверить preview/technical metadata; отсутствие FFmpeg должно давать понятное ограничение, а не падение приложения.
-- [ ] Добавить asset в album или favorites.
-- [ ] Перезапустить приложение и подтвердить сохранение виртуального состояния.
-- [ ] Выполнить reset/reindex smoke и подтвердить, что исходные files не удалены.
+- [x] Добавить или выбрать source directory с реальными ComfyUI outputs.
+- [x] Дождаться индексации и увидеть media в Viewer/Library.
+- [x] Открыть одно изображение и проверить prompt, model и основные generation parameters.
+- [x] Открыть одно видео и проверить preview/technical metadata; отсутствие FFmpeg должно давать понятное ограничение, а не падение приложения.
+- [x] Добавить asset в album или favorites.
+- [x] Перезапустить приложение и подтвердить сохранение виртуального состояния.
+- [x] Выполнить reset/reindex smoke и подтвердить, что исходные files не удалены.
 
 **Exit criteria:** просмотр, индекс, базовая Library и persistence работают в одном чистом пользовательском сценарии.
 
@@ -158,16 +156,16 @@ AI rating уже имеет рабочую foundation, но его дальне�
 
 Рекомендуемый стабильный сценарий: `core-image` с обычным checkpoint-contained model. Если текущее локальное окружение лучше подготовлено для `core-reference`, допускается использовать его и явно записать выбор.
 
-- [ ] Подключить одну реально поддерживаемую установку ComfyUI.
-- [ ] Проверить runtime online и загрузку inventory.
-- [ ] Открыть выбранный built-in template.
-- [ ] Выбрать model resources и получить `ready` preview/preflight.
-- [ ] Запустить generation отдельным ручным действием.
-- [ ] Дождаться terminal success без зависшего run state.
-- [ ] Подтвердить импорт output в Library.
-- [ ] Проверить template, draft, run, prompt и model provenance.
-- [ ] Для reference/remix сценария дополнительно проверить lineage к source asset.
-- [ ] Проверить одну понятную diagnostic path, например missing resource или invalid parameter, без расширения полноценной failure matrix.
+- [x] Подключить одну реально поддерживаемую установку ComfyUI.
+- [x] Проверить runtime online и загрузку inventory.
+- [x] Открыть выбранный built-in template.
+- [x] Выбрать model resources и получить `ready` preview/preflight.
+- [x] Запустить generation отдельным ручным действием.
+- [x] Дождаться terminal success без зависшего run state.
+- [x] Подтвердить импорт output в Library.
+- [x] Проверить template, draft, run, prompt и model provenance.
+- [x] Для reference/remix сценария дополнительно проверить lineage к source asset.
+- [x] Проверить одну понятную diagnostic path, например missing resource или invalid parameter, без расширения полноценной failure matrix.
 
 **Exit criteria:** один основной путь generation завершён на текущем commit, а ошибка одного известного типа объясняется пользователю без raw-only сообщения.
 
@@ -175,13 +173,13 @@ AI rating уже имеет рабочую foundation, но его дальне�
 
 ## Gate 4. Public documentation и release
 
-- [ ] Сверить feature list корневого README с реально доступным UI.
-- [ ] Обновить Quick Start по результатам clean environment smoke.
-- [ ] Указать поддерживаемый диапазон Python и проверенную release-платформу.
-- [ ] Добавить краткий раздел Known limitations.
-- [ ] Явно указать, что не все custom nodes, model families и imported workflows гарантированно совместимы.
-- [ ] Указать статус desktop installers: после v1, запуск пока через Python/local web app.
-- [ ] Проверить ссылки на roadmap и technical docs.
+- [x] Сверить feature list корневого README с реально доступным UI.
+- [x] Обновить Quick Start по результатам clean environment smoke.
+- [x] Указать поддерживаемый диапазон Python и проверенную release-платформу.
+- [x] Добавить краткий раздел Known limitations.
+- [x] Явно указать, что не все custom nodes, model families и imported workflows гарантированно совместимы.
+- [x] Указать статус desktop installers: после v1, запуск пока через Python/local web app.
+- [x] Проверить ссылки на roadmap и technical docs.
 - [ ] Создать release tag после закрытия Gate 1–3.
 
 **Exit criteria:** публичные обещания совпадают с подтверждённым поведением, а пользователь понимает установку и ограничения.

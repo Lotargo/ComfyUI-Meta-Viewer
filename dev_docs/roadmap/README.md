@@ -1,108 +1,67 @@
 # Development Roadmap
 
-Эта директория содержит архитектурные технические задания и подробную карту их интеграции в ComfyUI Meta Viewer.
+Эта директория хранит направление развития ComfyUI Meta Viewer, а не бесконечный список условий для «идеального» релиза.
 
-Проект перешёл из фазы добавления отдельных возможностей в фазу сложной продуктовой интеграции. Поэтому верхнеуровневого списка из нескольких галочек больше недостаточно: наличие backend-класса, API route или страницы ещё не означает, что пользовательский сценарий завершён и проверен.
+Главная цель сейчас — выпустить рабочую и понятную версию v1. Дополнительные шаблоны, редкие окружения и глубокие стресс-проверки не должны блокировать публикацию уже полезного приложения.
 
-## Основные документы
+## Рабочий документ
 
-- [Detailed execution roadmap](EXECUTION_PLAN.md) — текущая последовательность разработки, зависимости, gates и детализированные чеклисты.
-- Документы `00–10` — архитектурные требования и критерии готовности отдельных подсистем.
+- [Короткий план релиза v1](EXECUTION_PLAN.md) — единственный текущий список обязательных задач.
+- Документы `00–10` — архитектурные требования и идеи дальнейшего развития. Они не являются обязательным чеклистом перед первым релизом.
 
-## Как теперь отмечается выполнение
+## Принцип release-first
 
-- `[x]` означает, что весь связанный документ реализован, интегрирован и проверен по его критериям готовности.
-- `[ ]` означает, что остаётся реализация, интеграция, практическая проверка или подтверждение на целевых окружениях.
-- Статус `implemented` в пояснении означает, что существенная часть кода уже существует, но верхнеуровневая задача пока не закрыта.
-- Детальный прогресс отмечается в [EXECUTION_PLAN.md](EXECUTION_PLAN.md), а не новой преждевременной галочкой в этом файле.
+Задача считается блокирующей релиз только тогда, когда без неё пользователь не может установить приложение, открыть библиотеку, просмотреть метаданные или выполнить основной сценарий с ComfyUI.
 
-## Текущий критический путь
+Проверки отдельных контейнеров, редких путей, длительных reconnect-сценариев, всех возможных моделей и каждого AI-провайдера выполняются по мере необходимости или после релиза. Они не должны возвращать уже работающую подсистему в состояние «не готово».
 
-1. Workflow template contracts и resource taxonomy.
-2. Базовые templates для разных способов загрузки моделей.
-3. Импорт, регистрация и управление пользовательскими workflows.
-4. Model compatibility, preflight и понятная диагностика ComfyUI errors.
-5. Интеграция Generate, Translate, Adapt, Reconstruct и Remix с editor drafts.
-6. Практические prompt и end-to-end проверки.
-7. Опциональный AI rating.
-8. Release verification.
-9. Desktop packaging.
+## Текущий объём v1
 
-## Общие принципы
+В первый публичный релиз входят:
 
-- Приложение остаётся локальным и однопользовательским.
-- Windows, Linux и macOS считаются равноправными целевыми платформами.
-- Физические файлы не перемещаются ради альбомов, избранного и другой виртуальной организации.
-- Облачные хранилища подключаются как обычные локальные директории, которыми управляет установленный desktop-клиент.
-- ComfyUI интегрируется через стандартные структуры установки, локальный процесс и его API.
-- Meta Viewer не пытается заменить ComfyUI Manager и не обещает запуск любого неизвестного model file.
-- Prompt scenario и workflow template являются разными сущностями.
-- AI-операции создают редактируемый draft и не запускают генерацию автоматически.
-- Основной editor остаётся простым; технические параметры раскрываются только при применимости или конкретной ошибке.
-- AI rating является отдельной опциональной функцией и не блокирует основной сценарий.
-- Для спорных или быстро меняющихся решений исполнитель сверяется с актуальными источниками и реальными API, а не полагается только на память модели.
+- локальный просмотр и индексация изображений и видео;
+- извлечение и отображение метаданных ComfyUI;
+- библиотека с виртуальной организацией файлов;
+- запуск приложения на поддерживаемых версиях Python;
+- один подтверждённый полный сценарий генерации через ComfyUI;
+- понятная инструкция установки и список известных ограничений.
 
-## Status dashboard
+## После v1
+
+В последующие версии можно развивать:
+
+- дополнительные workflow templates и loader strategies;
+- расширенный импорт пользовательских workflows;
+- GGUF и редкие наборы custom nodes;
+- полную матрицу окружений Windows, Linux и macOS;
+- длительные watcher, cloud-sync и reconnect stress tests;
+- дополнительные AI operations, benchmarks и AI rating;
+- desktop installers и автоматическое обновление.
+
+Эти пункты остаются важными, но больше не изображают обязательную месячную работу перед первым релизом.
+
+## Архитектурные документы
 
 ### Core
 
-- [ ] [00. Cross-platform foundation](core/00_CROSS_PLATFORM_FOUNDATION.md)  
-  **Implemented; verification pending.** Нужна подтверждённая матрица Windows, Linux и macOS, включая Unicode paths, picker fallback и platform actions.
-
-- [x] [01. Database and index reset](core/01_DATABASE_AND_INDEX_RESET.md)  
-  **Completed.** Физический reset, Factory Reset, отдельная конфигурация источников и повторная индексация реализованы.
-
-- [ ] [02. Source monitoring and cloud directories](core/02_SOURCE_MONITORING_AND_CLOUD_DIRECTORIES.md)  
-  **Implemented; stress verification pending.** Нужны реальные массовые sync/reconnect проверки, временно недоступные диски и длительная работа watcher/reconcile.
+- [00. Cross-platform foundation](core/00_CROSS_PLATFORM_FOUNDATION.md)
+- [01. Database and index reset](core/01_DATABASE_AND_INDEX_RESET.md)
+- [02. Source monitoring and cloud directories](core/02_SOURCE_MONITORING_AND_CLOUD_DIRECTORIES.md)
 
 ### Library
 
-- [x] [03. Media library, albums and favorites](library/03_MEDIA_LIBRARY_ALBUMS_AND_FAVORITES.md)  
-  **Completed.** Отдельная Library, albums, favorites, tags, notes, ratings, bulk actions и различимые виды удаления реализованы.
-
-- [ ] [04. Unified media assets and video](library/04_UNIFIED_MEDIA_ASSETS_AND_VIDEO.md)  
-  **Implemented; media matrix pending.** Нужны проверки FFmpeg/no-FFmpeg, разных video containers, poster failures и сохранения virtual relations.
+- [03. Media library, albums and favorites](library/03_MEDIA_LIBRARY_ALBUMS_AND_FAVORITES.md)
+- [04. Unified media assets and video](library/04_UNIFIED_MEDIA_ASSETS_AND_VIDEO.md)
 
 ### AI
 
-- [ ] [05. AI provider layer](ai/05_AI_PROVIDER_LAYER.md)  
-  **Implemented; integration and environment verification pending.** Профили, Keyring/env credentials, CLI adapters и normalized errors существуют, но нужны реальные provider/OS checks и полное использование в editor operations.
+- [05. AI provider layer](ai/05_AI_PROVIDER_LAYER.md)
+- [06. Prompt skills research](ai/06_PROMPT_SKILLS_RESEARCH.md)
+- [06A. Prompt profile and agent execution architecture](ai/06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md)
+- [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)
 
-- [ ] [06. Prompt skills research](ai/06_PROMPT_SKILLS_RESEARCH.md)  
-  **Partially verified.** Базовые Flux-like, SDXL и Pony profiles существуют, но остаются operation benchmarks, multimodal tests, независимые SDXL/Pony проверки и checkpoint capability profiles.
+### ComfyUI and desktop
 
-- [ ] [06A. Prompt profile and agent execution architecture](ai/06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md)  
-  **Implemented; product integration pending.** Compiler, contracts, persistence и adapters существуют, но должны быть замкнуты на editor drafts и проверены одинаковым PromptTask через direct и agent-host execution.
-
-- [ ] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)  
-  **Active integration phase.** Remix и backend foundations существуют; Generate, Translate, Adapt, editable SceneSpec, Reconstruct и опциональный AI rating должны стать законченными пользовательскими потоками.
-
-### ComfyUI
-
-- [ ] [08. Runtime integration and process control](comfyui/08_RUNTIME_INTEGRATION_AND_PROCESS_CONTROL.md)  
-  **Implemented; runtime matrix pending.** Нужны реальные проверки Windows Portable, venv installations, managed/external modes, crash, port conflict и process cleanup.
-
-- [ ] [09. Workflow templates and editor](comfyui/09_WORKFLOW_TEMPLATES_AND_EDITOR.md)  
-  **Current primary workstream.** Редактор и registry foundation существуют, но остаются разные loader strategies, GGUF, resource-slot filtering, импорт с mapping, workflow management UI и field-level error diagnostics.
-
-### Desktop
-
-- [ ] [10. Desktop packaging and installers](desktop/10_DESKTOP_PACKAGING_AND_INSTALLERS.md)  
-  **Deferred.** Начинается только после завершения основной интеграции и release verification.
-
-## Ближайший рабочий срез
-
-Подробные пункты находятся в разделах `Current execution slice`, `Phase 2`, `Phase 3`, `Phase 4` и `Phase 6` файла [EXECUTION_PLAN.md](EXECUTION_PLAN.md).
-
-Основной фокус:
-
-- [ ] Инвентаризировать существующие workflow templates.
-- [ ] Утвердить resource taxonomy.
-- [ ] Разделить checkpoint-contained, separate-components и GGUF templates.
-- [ ] Фильтровать resources по semantic slots.
-- [ ] Регистрировать imported workflows и сохранять mappings.
-- [ ] Добавить workflow management modal/table.
-- [ ] Связывать ComfyUI errors с конкретными editor fields.
-- [ ] После стабилизации contracts подключить AI operations к drafts.
-
-AI rating, полностью автоматический model importer и desktop packaging в текущий рабочий срез не входят.
+- [08. Runtime integration and process control](comfyui/08_RUNTIME_INTEGRATION_AND_PROCESS_CONTROL.md)
+- [09. Workflow templates and editor](comfyui/09_WORKFLOW_TEMPLATES_AND_EDITOR.md)
+- [10. Desktop packaging and installers](desktop/10_DESKTOP_PACKAGING_AND_INSTALLERS.md)

@@ -1749,8 +1749,18 @@ function activateAIPromptDraft(created, statusLabel, toastMessage) {
     showToast(toastMessage, 'success');
 }
 
+function isCancelSubmitter(event) {
+    if (!event || !event.submitter) return false;
+    const val = (event.submitter.value || event.submitter.getAttribute?.('value') || '').toLowerCase();
+    return val === 'cancel' || event.submitter.classList.contains('workspace-icon-button');
+}
+
 async function createAIPromptDraft(event) {
     event.preventDefault();
+    if (isCancelSubmitter(event)) {
+        elements.aiPromptDialog.close();
+        return;
+    }
     const userInput = elements.aiPromptInput.value.trim();
     if (!userInput || !elements.aiPromptProfile.value || !elements.aiPromptScenario.value) return;
     elements.aiPromptSubmit.disabled = true;
@@ -1814,6 +1824,10 @@ async function openTranslatePromptDialog() {
 
 async function createTranslatedPromptDraft(event) {
     event.preventDefault();
+    if (isCancelSubmitter(event)) {
+        elements.translatePromptDialog.close();
+        return;
+    }
     const positivePrompt = elements.translatePromptPositive.value.trim();
     const targetLanguage = elements.translateTargetLanguage.value.trim();
     if (
@@ -1917,6 +1931,10 @@ function renderAdaptCheckpointNote() {
 
 async function createAdaptedPromptDraft(event) {
     event.preventDefault();
+    if (isCancelSubmitter(event)) {
+        elements.adaptPromptDialog.close();
+        return;
+    }
     const positivePrompt = elements.adaptPromptPositive.value.trim();
     if (
         !positivePrompt || !elements.adaptPromptProfile.value
@@ -2042,6 +2060,10 @@ async function analyzeReconstructionScene() {
 
 async function createReconstructedPromptDraft(event) {
     event.preventDefault();
+    if (isCancelSubmitter(event)) {
+        elements.reconstructPromptDialog.close();
+        return;
+    }
     if (!state.aiSceneSpecJobId || !elements.reconstructRenderProfile.value) return;
     let sceneSpec;
     try {
@@ -2924,6 +2946,10 @@ function handleWorkflowManagementAction(event) {
 
 async function importTemplate(event) {
     event.preventDefault();
+    if (isCancelSubmitter(event)) {
+        elements.importDialog.close();
+        return;
+    }
     if (state.remappingWorkflowId) {
         await saveWorkflowRemap();
         return;
@@ -3156,6 +3182,21 @@ async function inspectSourceWorkflow() {
 
 function bindEvents() {
     bindAccordionFlyouts();
+    document.querySelectorAll('dialog').forEach((dialog) => {
+        dialog.querySelectorAll('button[value="cancel"], button[aria-label^="Close"]').forEach((btn) => {
+            btn.setAttribute('type', 'button');
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                dialog.close();
+            });
+        });
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) {
+                dialog.close();
+            }
+        });
+    });
     elements.categoryTabs.addEventListener('click', (event) => {
         const button = event.target.closest('[data-category]');
         if (!button || button.dataset.category === currentManifest()?.category) return;

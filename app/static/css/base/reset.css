@@ -32,9 +32,13 @@ button {
     color: inherit;
 }
 
-input {
+textarea {
     font: inherit;
     color: inherit;
+}
+
+textarea::-webkit-resizer {
+    background-color: transparent;
 }
 
 a {

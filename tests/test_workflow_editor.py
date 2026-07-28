@@ -1871,6 +1871,45 @@ class WorkflowExecutionTest(unittest.TestCase):
                 self.assertEqual(diagnostic["category"], expected)
                 self.assertEqual(diagnostic["raw"], raw)
 
+    def test_editor_dialog_cancel_buttons_have_type_button(self) -> None:
+        with app.test_client() as client:
+            res = client.get("/editor")
+            self.assertEqual(res.status_code, 200)
+            html = res.get_data(as_text=True)
+
+        from html.parser import HTMLParser
+
+        class DialogCancelButtonParser(HTMLParser):
+            def __init__(self) -> None:
+                super().__init__()
+                self.in_dialog = False
+                self.dialog_id = ""
+                self.cancel_buttons: list[tuple[str, dict[str, str]]] = []
+
+            def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                attr_dict = {k: v or "" for k, v in attrs}
+                if tag == "dialog":
+                    self.in_dialog = True
+                    self.dialog_id = attr_dict.get("id", "")
+                elif tag == "button" and self.in_dialog:
+                    if attr_dict.get("value") == "cancel":
+                        self.cancel_buttons.append((self.dialog_id, attr_dict))
+
+            def handle_endtag(self, tag: str) -> None:
+                if tag == "dialog":
+                    self.in_dialog = False
+
+        parser = DialogCancelButtonParser()
+        parser.feed(html)
+        self.assertGreater(len(parser.cancel_buttons), 0)
+
+        for dialog_id, attrs in parser.cancel_buttons:
+            self.assertEqual(
+                attrs.get("type"),
+                "button",
+                f"Button with value='cancel' in dialog #{dialog_id} lacks type='button'",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

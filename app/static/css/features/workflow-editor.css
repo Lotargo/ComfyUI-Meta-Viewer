@@ -6887,7 +6887,7 @@
 
 .ai-prompt-dialog > form,
 .translate-prompt-dialog > form,
-.adapt-prompt-dialog > form { width: min(680px, calc(100vw - 32px)); }
+.adapt-prompt-dialog > form { width: min(580px, calc(100vw - 32px)); }
 
 .reconstruct-prompt-dialog > form { width: min(940px, calc(100vw - 32px)); }
 
@@ -6915,8 +6915,8 @@
 .ai-prompt-fields {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
-    padding: 22px 24px;
+    gap: 14px;
+    padding: 18px 22px;
 }
 
 .ai-prompt-fields label { display: grid; gap: 7px; }
@@ -6925,13 +6925,24 @@
 .ai-prompt-fields textarea,
 .ai-prompt-fields input,
 .ai-prompt-fields select {
+    box-sizing: border-box;
     width: 100%;
+    max-width: 100%;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--surface2);
+    background-clip: padding-box;
     color: var(--text);
 }
-.ai-prompt-fields textarea { min-height: 132px; padding: 12px; resize: vertical; }
+.ai-prompt-fields textarea {
+    min-height: 132px;
+    padding: 12px;
+    overflow: auto;
+    resize: vertical;
+}
+.ai-prompt-fields textarea::-webkit-resizer {
+    background-color: transparent;
+}
 .ai-prompt-fields input,
 .ai-prompt-fields select { min-height: 42px; padding: 0 36px 0 11px; }
 .translate-prompt-fields .ai-prompt-source textarea,

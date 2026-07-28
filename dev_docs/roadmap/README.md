@@ -26,8 +26,11 @@
 5. Интеграция Generate, Translate, Adapt, Reconstruct и Remix с editor drafts.
 6. Практические prompt и end-to-end проверки.
 7. Опциональный AI rating.
-8. Release verification.
-9. Desktop packaging.
+8. **Приоритетные практические задачи**:
+   - Дополнительные типы Workflow Templates (Img2Img, Inpaint, ControlNet/Pose, Upscale, Video).
+   - UI Мастер локального добавления моделей (Phase 4.3).
+   - Расширение AI Agent Hosts (Claude Code, Antigravity CLI).
+9. **Desktop packaging**: создаётся в самую последнюю очередь только после завершения всех функциональных задач, проверок и явного одобрения пользователя.
 
 ## Общие принципы
 
@@ -101,34 +104,16 @@
 ### Desktop
 
 - [ ] [10. Desktop packaging and installers](desktop/10_DESKTOP_PACKAGING_AND_INSTALLERS.md)  
-  **Deferred.** Начинается только после завершения основной интеграции и release verification.
+  **Deferred.** Начинается в самый последний момент после завершения всех функциональных фич, проверок и явного одобрения пользователя.
 
 ## Ближайший рабочий срез
 
 Подробные пункты находятся в разделах `Current execution slice`, `Phase 2`, `Phase 3`, `Phase 4` и `Phase 6` файла [EXECUTION_PLAN.md](EXECUTION_PLAN.md).
 
-Основной фокус:
+Основной фокус (приоритетные практические задачи):
 
-- [x] Инвентаризировать существующие workflow templates.
-- [x] Утвердить resource taxonomy.
-- [x] Разделить checkpoint-contained, separate-components и GGUF templates.
-- [x] Фильтровать resources по semantic slots.
-- [x] Регистрировать imported API workflows и сохранять автоматически найденные mappings.
-- [x] Преобразовывать поддерживаемые UI workflow JSON в API graph перед регистрацией.
-- [x] Разрешать неоднозначные bindings через mapping wizard с manifest preview.
-- [x] Добавить workflow management modal/table и revalidation statuses.
-- [x] Повторно открывать mapping wizard для зарегистрированных пользовательских workflows.
-- [x] Дублировать и экспортировать зарегистрированные workflows через management table.
-- [x] Связывать ComfyUI errors с конкретными editor fields.
-- [x] Подключить Generate prompt к editor draft без автоматического запуска generation.
-- [x] Подключить Translate как отдельную операцию с сохранением source/result.
-- [x] Подключить Adapt как отдельную family-aware операцию с сохранением source/result.
-- [x] Подключить Reconstruct через editable persisted SceneSpec и повторный render без vision call.
-- [x] Подключить Remix с выбором persisted prompt source и compatible workflow, сохраняя lineage.
-- [x] После стабилизации contracts подключить AI operations к drafts.
-- [x] Отделить AI rank от technical evaluation statuses и user stars.
-- [x] Добавить ручной AI rating для Library asset через сохранённый multimodal profile.
-- [x] Добавить override/delete и отдельные Library filters по AI rank/status.
-- [x] Добавить global/per-run opt-in и проверить AI rating на реальных provider policies.
+- [ ] Дополнительные типы Workflow Templates (Img2Img, Inpaint, ControlNet/Pose, Upscale, Video).
+- [ ] UI Мастер локального добавления и регистрации моделей (Phase 4.3).
+- [ ] Расширение AI Agent Hosts (Claude Code и Antigravity CLI adapters).
 
-Полностью автоматический model importer и desktop packaging в текущий рабочий срез не входят.
+Desktop packaging в текущий рабочий срез не входит и отложен до полного завершения функционала и прямого одобрения пользователя.

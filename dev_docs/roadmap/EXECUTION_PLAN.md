@@ -666,7 +666,7 @@ browser smoke диалога остаётся pending: доступный headle
 
 # Current execution slice
 
-Следующий рабочий срез должен быть ограничен задачами ниже. Не следует одновременно начинать AI rating, desktop packaging и расширенный model importer.
+Следующий рабочий срез ограничен приоритетными практической задачами ниже. Создание desktop-приложения (Phase 10) явно отложено и будет выполняться в самую последнюю очередь — только после полной реализации функционала, проведения всех проверок и получения прямого одобрения пользователя.
 
 ## Slice A. Template and compatibility foundation
 
@@ -707,6 +707,12 @@ browser smoke диалога остаётся pending: доступный headle
 - [x] Добавить global opt-in и per-run opt-in после определения run lifecycle hook.
 - [x] Проверить SFW, policy rejection и отличающуюся local policy на реальных profiles.
 
+## Slice E. Priority practical features (Текущий приоритетный срез)
+
+- [ ] Дополнительные типы Workflow Templates (Img2Img, Inpaint, ControlNet/Pose, Upscale, Video).
+- [ ] UI Мастер локального добавления и регистрации моделей (Phase 4.3).
+- [ ] Расширение AI Agent Hosts (Claude Code и Antigravity CLI adapters).
+
 ## Явно отложено
 
 - [ ] Полностью автоматическое определение и перемещение любой скачанной модели.
@@ -714,4 +720,4 @@ browser smoke диалога остаётся pending: доступный headle
 - [ ] Полная замена ComfyUI Manager.
 - [ ] Автоматический подбор VAE/CLIP без проверяемого manifest или metadata source.
 - [x] AI rating не начинался до завершения основной AI-to-editor интеграции.
-- [ ] Desktop packaging до release verification.
+- [ ] Desktop packaging (выполняется в самую последнюю очередь только после завершения всех фич, всех проверок и явного одобрения пользователя).

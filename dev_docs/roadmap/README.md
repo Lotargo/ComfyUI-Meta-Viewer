@@ -87,8 +87,8 @@
 - [ ] [06A. Prompt profile and agent execution architecture](ai/06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md)  
   **Implemented; product integration pending.** Compiler, contracts, persistence и adapters существуют, но должны быть замкнуты на editor drafts и проверены одинаковым PromptTask через direct и agent-host execution.
 
-- [ ] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)
-  **Active AI rating phase.** Generate, отдельный Translate, family-aware Adapt, Reconstruct через persisted editable SceneSpec и Remix с выбором source/workflow создают связанные editor drafts без автоматического запуска. Для опционального AI rating реализованы nullable artistic rank, раздельные technical statuses, безопасный выбор сохранённого multimodal profile, ручной запуск/override/delete и Library filters; остаются global/per-run opt-in, интерактивная UI-проверка и реальные provider-policy checks.
+- [x] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)
+  **Completed.** Перевод, family-aware адаптация, реконструкция через SceneSpec, Remix и опциональный AI rating с nullable artistic rank, раздельными техническими статусами, глобальным/per-run opt-in, сохранёнными мультимодальными профилями, policy rejection safety и фильтрами библиотеки реализованы и проверены.
 
 ### ComfyUI
 
@@ -129,6 +129,6 @@
 - [x] Отделить AI rank от technical evaluation statuses и user stars.
 - [x] Добавить ручной AI rating для Library asset через сохранённый multimodal profile.
 - [x] Добавить override/delete и отдельные Library filters по AI rank/status.
-- [ ] Добавить global/per-run opt-in и проверить AI rating на реальных provider policies.
+- [x] Добавить global/per-run opt-in и проверить AI rating на реальных provider policies.
 
 Полностью автоматический model importer и desktop packaging в текущий рабочий срез не входят.

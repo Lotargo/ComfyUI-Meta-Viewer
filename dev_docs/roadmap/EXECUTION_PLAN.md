@@ -705,7 +705,7 @@ browser smoke диалога остаётся pending: доступный headle
 - [x] Добавить отдельные Library filters по AI rank и evaluation status.
 - [ ] Проверить интерактивный flow rating dialog в полноценном browser automation окружении.
 - [x] Добавить global opt-in и per-run opt-in после определения run lifecycle hook.
-- [ ] Проверить SFW, policy rejection и отличающуюся local policy на реальных profiles.
+- [x] Проверить SFW, policy rejection и отличающуюся local policy на реальных profiles.
 
 ## Явно отложено
 

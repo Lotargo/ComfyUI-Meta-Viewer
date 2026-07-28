@@ -25,14 +25,15 @@ class WorkflowStore:
         resource_selections: dict[str, Any],
         source_asset_id: int | None = None,
         ai_prompt_draft_id: int | None = None,
+        auto_rate: bool = False,
     ) -> WorkflowDraft:
         conn = database.get_conn()
         try:
             cursor = conn.execute(
                 """INSERT INTO workflow_drafts (
                     template_id, template_version, values_json,
-                    resource_selections_json, source_asset_id, ai_prompt_draft_id
-                ) VALUES (?, ?, ?, ?, ?, ?)""",
+                    resource_selections_json, source_asset_id, ai_prompt_draft_id, auto_rate
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (
                     template_id,
                     template_version,
@@ -40,6 +41,7 @@ class WorkflowStore:
                     self._json(resource_selections),
                     source_asset_id,
                     ai_prompt_draft_id,
+                    1 if auto_rate else 0,
                 ),
             )
             draft_id = int(cursor.lastrowid)
@@ -77,6 +79,7 @@ class WorkflowStore:
         values: dict[str, Any] | None = None,
         resource_selections: dict[str, Any] | None = None,
         status: str | None = None,
+        auto_rate: bool | None = None,
     ) -> WorkflowDraft:
         assignments: list[str] = []
         params: list[Any] = []
@@ -89,6 +92,9 @@ class WorkflowStore:
         if status is not None:
             assignments.append("status=?")
             params.append(status)
+        if auto_rate is not None:
+            assignments.append("auto_rate=?")
+            params.append(1 if auto_rate else 0)
         if not assignments:
             return self.get_draft(draft_id)
         assignments.append("updated_at=datetime('now')")
@@ -121,13 +127,14 @@ class WorkflowStore:
         draft_id: int,
         prompt_id: str,
         client_id: str,
+        auto_rate: bool = False,
     ) -> WorkflowRun:
         conn = database.get_conn()
         try:
             cursor = conn.execute(
-                """INSERT INTO workflow_runs (draft_id, prompt_id, client_id)
-                VALUES (?, ?, ?)""",
-                (draft_id, prompt_id, client_id),
+                """INSERT INTO workflow_runs (draft_id, prompt_id, client_id, auto_rate)
+                VALUES (?, ?, ?, ?)""",
+                (draft_id, prompt_id, client_id, 1 if auto_rate else 0),
             )
             run_id = int(cursor.lastrowid)
             conn.execute(
@@ -269,6 +276,7 @@ class WorkflowStore:
 
     @classmethod
     def _draft_from_row(cls, row: sqlite3.Row) -> WorkflowDraft:
+        keys = row.keys()
         return WorkflowDraft(
             id=int(row["id"]),
             template_id=row["template_id"],
@@ -277,6 +285,7 @@ class WorkflowStore:
             resource_selections=cls._parse_json(row["resource_selections_json"], {}),
             source_asset_id=row["source_asset_id"],
             ai_prompt_draft_id=row["ai_prompt_draft_id"],
+            auto_rate=bool(row["auto_rate"]) if "auto_rate" in keys else False,
             status=row["status"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
@@ -284,12 +293,14 @@ class WorkflowStore:
 
     @classmethod
     def _run_from_row(cls, row: sqlite3.Row) -> WorkflowRun:
+        keys = row.keys()
         return WorkflowRun(
             id=int(row["id"]),
             draft_id=int(row["draft_id"]),
             prompt_id=row["prompt_id"],
             client_id=row["client_id"],
             status=row["status"],
+            auto_rate=bool(row["auto_rate"]) if "auto_rate" in keys else False,
             progress=row["progress"],
             queue_position=row["queue_position"],
             current_node=row["current_node"],

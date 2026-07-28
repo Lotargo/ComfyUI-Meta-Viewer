@@ -43,6 +43,7 @@ def _default_config() -> dict[str, Any]:
             "defaults": {
                 "text_profile_id": None,
                 "multimodal_profile_id": None,
+                "rating_auto_enabled": False,
             },
         },
         "comfyui": {

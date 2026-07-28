@@ -305,6 +305,7 @@ def init_db() -> None:
                 resource_selections_json TEXT NOT NULL DEFAULT '{}',
                 source_asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
                 ai_prompt_draft_id INTEGER REFERENCES ai_prompt_drafts(id) ON DELETE SET NULL,
+                auto_rate INTEGER NOT NULL DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'editing'
                     CHECK (status IN ('editing', 'queued', 'completed', 'failed', 'cancelled')),
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -318,6 +319,7 @@ def init_db() -> None:
                 client_id TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'queued'
                     CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+                auto_rate INTEGER NOT NULL DEFAULT 0,
                 progress REAL,
                 queue_position INTEGER,
                 current_node TEXT,
@@ -402,6 +404,8 @@ def init_db() -> None:
             "ALTER TABLE ai_prompt_drafts ADD COLUMN updated_at TEXT",
             "ALTER TABLE images ADD COLUMN derived_from_asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL",
             "ALTER TABLE ai_prompt_adaptations ADD COLUMN protected_triggers_json TEXT NOT NULL DEFAULT '[]'",
+            "ALTER TABLE workflow_drafts ADD COLUMN auto_rate INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE workflow_runs ADD COLUMN auto_rate INTEGER NOT NULL DEFAULT 0",
         )
         for migration in migrations:
             try:

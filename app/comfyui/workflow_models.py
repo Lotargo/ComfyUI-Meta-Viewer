@@ -346,6 +346,7 @@ class WorkflowDraft(StrictModel):
     resource_selections: dict[str, Any]
     source_asset_id: int | None = None
     ai_prompt_draft_id: int | None = None
+    auto_rate: bool = False
     status: Literal["editing", "queued", "completed", "failed", "cancelled"]
     created_at: str
     updated_at: str
@@ -357,6 +358,7 @@ class WorkflowRun(StrictModel):
     prompt_id: str
     client_id: str
     status: Literal["queued", "running", "completed", "failed", "cancelled"]
+    auto_rate: bool = False
     progress: float | None = None
     queue_position: int | None = None
     current_node: str | None = None

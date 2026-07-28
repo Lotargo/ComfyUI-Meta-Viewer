@@ -550,6 +550,7 @@ def editor_create_draft():
         resource_selections=resources,
         source_asset_id=_optional_positive_int(payload.get("source_asset_id"), "source_asset_id"),
         ai_prompt_draft_id=_optional_positive_int(ai_prompt_draft_id, "ai_prompt_draft_id"),
+        auto_rate=bool(payload.get("auto_rate")) if "auto_rate" in payload else False,
     )
     return jsonify(_workflow_draft_payload(draft)), 201
 
@@ -561,7 +562,7 @@ def editor_draft(draft_id: int):
     template = _registry().get(draft.template_id)
     if request.method == "PATCH":
         payload = _json_object()
-        unexpected = set(payload) - {"values", "resource_selections"}
+        unexpected = set(payload) - {"values", "resource_selections", "auto_rate"}
         if unexpected:
             raise WorkflowCompilerError(
                 "Unsupported draft fields: " + ", ".join(sorted(unexpected)),
@@ -576,6 +577,7 @@ def editor_draft(draft_id: int):
                 payload.get("resource_selections"),
                 current=draft.resource_selections,
             ) if "resource_selections" in payload else None,
+            auto_rate=bool(payload["auto_rate"]) if "auto_rate" in payload else None,
         )
     response_payload = _workflow_draft_payload(draft)
     response_payload["template"] = _template_payload(template, _inventory())
@@ -606,6 +608,7 @@ def editor_preview(draft_id: int):
 
 @editor_blueprint.route("/api/editor/drafts/<int:draft_id>/run", methods=["POST"])
 def editor_run(draft_id: int):
+    payload = request.get_json(silent=True) or {}
     store = _workflow_store()
     draft = store.get_draft(draft_id)
     template = _registry().get(draft.template_id)
@@ -631,7 +634,8 @@ def editor_run(draft_id: int):
         client=client_from_store(_config_store(), timeout=10.0),
         registry=_registry(),
     )
-    run = service.queue(draft=draft, template=template, workflow=workflow)
+    auto_rate = bool(payload.get("auto_rate")) if "auto_rate" in payload else draft.auto_rate
+    run = service.queue(draft=draft, template=template, workflow=workflow, auto_rate=auto_rate)
     return jsonify({
         "run": run.model_dump(mode="json"),
         "dependencies": report.api_dict(),

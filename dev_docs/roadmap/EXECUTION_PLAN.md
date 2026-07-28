@@ -71,9 +71,9 @@
 - [ ] Добавить browser smoke test Library.
 - [ ] Добавить browser smoke test AI settings.
 - [ ] Добавить browser smoke test Create/editor.
-- [ ] Проверить, что reset index не затрагивает исходные файлы.
-- [ ] Проверить, что удаление виртуального album не затрагивает assets.
-- [ ] Проверить, что Remix создаёт draft и не запускает generation.
+- [x] Проверить, что reset index не затрагивает исходные файлы.
+- [x] Проверить, что удаление виртуального album не затрагивает assets.
+- [x] Проверить, что Remix создаёт draft и не запускает generation.
 
 **Gate:** следующие фазы можно начинать без полного закрытия Phase 0, но перед крупным refactor должны существовать fixtures и хотя бы минимальные smoke tests затрагиваемой области.
 
@@ -522,8 +522,8 @@ negative conditioning. Только отдельное ручное действ
 ## 8.1 Product behavior
 
 - [x] AI rating выключен по умолчанию.
-- [ ] AI rating можно включить глобально.
-- [ ] AI rating можно включить для отдельного run.
+- [x] AI rating можно включить глобально.
+- [x] AI rating можно включить для отдельного run.
 - [x] AI rating можно запустить вручную для выбранного asset.
 - [x] Отсутствие AI profile не мешает generation.
 - [x] Отказ provider не мешает сохранению результата.
@@ -704,7 +704,7 @@ browser smoke диалога остаётся pending: доступный headle
 - [x] Добавить ручной запуск, rank override и удаление rating для Library asset.
 - [x] Добавить отдельные Library filters по AI rank и evaluation status.
 - [ ] Проверить интерактивный flow rating dialog в полноценном browser automation окружении.
-- [ ] Добавить global opt-in и per-run opt-in после определения run lifecycle hook.
+- [x] Добавить global opt-in и per-run opt-in после определения run lifecycle hook.
 - [ ] Проверить SFW, policy rejection и отличающуюся local policy на реальных profiles.
 
 ## Явно отложено

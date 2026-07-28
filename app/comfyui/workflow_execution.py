@@ -41,10 +41,12 @@ class WorkflowExecutionService:
         store: WorkflowStore,
         client: ComfyUIClient,
         registry: WorkflowTemplateRegistry | None = None,
+        profile_store: Any | None = None,
     ):
         self.store = store
         self.client = client
         self.registry = registry or WorkflowTemplateRegistry()
+        self.profile_store = profile_store
 
     def queue(
         self,
@@ -52,6 +54,7 @@ class WorkflowExecutionService:
         draft: WorkflowDraft,
         template: WorkflowTemplate,
         workflow: dict[str, Any],
+        auto_rate: bool = False,
     ) -> WorkflowRun:
         client_id = str(uuid.uuid4())
         try:
@@ -83,10 +86,12 @@ class WorkflowExecutionService:
                 code="comfyui_prompt_rejected",
                 details={"diagnostic": diagnostic},
             ) from exc
+        effective_auto_rate = auto_rate or draft.auto_rate
         return self.store.create_run(
             draft_id=draft.id,
             prompt_id=str(response["prompt_id"]),
             client_id=client_id,
+            auto_rate=effective_auto_rate,
         )
 
     def refresh(self, run_id: int) -> WorkflowRun:
@@ -145,13 +150,54 @@ class WorkflowExecutionService:
                 )
                 if asset_id is not None:
                     asset_ids.append(asset_id)
-        return self.store.update_run(
+        updated_run = self.store.update_run(
             run.id,
             status="completed",
             progress=1.0,
             output_refs=output_refs,
             output_asset_ids=asset_ids,
         )
+        self._maybe_auto_rate_run(updated_run, draft)
+        return updated_run
+
+    def _maybe_auto_rate_run(self, run: WorkflowRun, draft: WorkflowDraft) -> None:
+        try:
+            from app.ai.profiles import AIProfileStore
+            from app.ai.ranking import AIRankingService
+            profile_store = self.profile_store
+            if profile_store is None:
+                try:
+                    from flask import current_app
+                    config_file = current_app.config.get("CONFIG_FILE")
+                    if config_file:
+                        profile_store = AIProfileStore(config_file, secret_store=current_app.config.get("AI_SECRET_STORE"))
+                except Exception:
+                    pass
+            if profile_store is None:
+                return
+            defaults = profile_store.get_defaults()
+            is_auto = run.auto_rate or draft.auto_rate or bool(defaults.get("rating_auto_enabled"))
+            if not is_auto:
+                return
+            mm_id = defaults.get("multimodal_profile_id")
+            if not mm_id:
+                return
+            try:
+                profile = profile_store.get(mm_id)
+            except Exception:
+                return
+            api_key = profile_store.resolve_api_key(profile) if profile.get("kind") == "openai_compatible" else None
+            prompt_text = str(draft.values.get("prompt") or draft.values.get("positive_prompt") or "")
+            service = AIRankingService()
+            for asset_id in run.output_asset_ids:
+                service.evaluate_asset(
+                    profile=profile,
+                    image_id=asset_id,
+                    prompt_text=prompt_text,
+                    api_key=api_key,
+                )
+        except Exception:
+            pass
 
     def cancel(self, run_id: int) -> WorkflowRun:
         run = self.store.get_run(run_id)

@@ -257,6 +257,10 @@ class AIProfileStore:
                 "secret_store": self.secrets.status().to_dict(),
             }
 
+    def get_defaults(self) -> dict[str, Any]:
+        state = self.get_state()
+        return state.get("defaults", {})
+
     def get(self, profile_id: str) -> dict[str, Any]:
         _, profiles = self._load_profiles()
         profile = next(
@@ -385,7 +389,7 @@ class AIProfileStore:
                     self.secrets.set(profile_id, old_secret)
                 raise
 
-    def set_defaults(self, payload: dict[str, Any]) -> dict[str, str | None]:
+    def set_defaults(self, payload: dict[str, Any]) -> dict[str, Any]:
         with _profile_lock:
             config, profiles = self._load_profiles()
             by_id = {profile["id"]: profile for profile in profiles}
@@ -405,6 +409,8 @@ class AIProfileStore:
                         "The default multimodal profile must be marked as multimodal."
                     )
                 defaults[key] = value
+            if "rating_auto_enabled" in payload:
+                defaults["rating_auto_enabled"] = bool(payload["rating_auto_enabled"])
             config["ai"]["defaults"] = defaults
             self.config.save(config)
             return defaults

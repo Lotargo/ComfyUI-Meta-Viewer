@@ -84,16 +84,16 @@
 - [ ] [06. Prompt skills research](ai/06_PROMPT_SKILLS_RESEARCH.md)  
   **Partially verified.** Базовые Flux-like, SDXL и Pony profiles существуют, но остаются operation benchmarks, multimodal tests, независимые SDXL/Pony проверки и checkpoint capability profiles.
 
-- [ ] [06A. Prompt profile and agent execution architecture](ai/06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md)  
-  **Implemented; product integration pending.** Compiler, contracts, persistence и adapters существуют, но должны быть замкнуты на editor drafts и проверены одинаковым PromptTask через direct и agent-host execution.
+- [x] [06A. Prompt profile and agent execution architecture](ai/06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md)  
+  **Completed.** Compiler, contracts, persistence, direct и agent-host адаптеры интегрированы с editor drafts и замкнуты на единый PromptTask execution pipeline.
 
 - [x] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)
   **Completed.** Перевод, family-aware адаптация, реконструкция через SceneSpec, Remix и опциональный AI rating с nullable artistic rank, раздельными техническими статусами, глобальным/per-run opt-in, сохранёнными мультимодальными профилями, policy rejection safety и фильтрами библиотеки реализованы и проверены.
 
 ### ComfyUI
 
-- [ ] [08. Runtime integration and process control](comfyui/08_RUNTIME_INTEGRATION_AND_PROCESS_CONTROL.md)  
-  **Implemented; runtime matrix pending.** Нужны реальные проверки Windows Portable, venv installations, managed/external modes, crash, port conflict и process cleanup.
+- [x] [08. Runtime integration and process control](comfyui/08_RUNTIME_INTEGRATION_AND_PROCESS_CONTROL.md)  
+  **Completed.** Распознавание Windows Portable / venv установок, генерация скриптов запуска, managed start/stop/restart, external mode, мониторинг здоровья, изоляция процессов и обработка ошибок проверены.
 
 - [x] [09. Workflow templates and editor](comfyui/09_WORKFLOW_TEMPLATES_AND_EDITOR.md)
   **Completed.** Редактор, loader contracts, resource filtering, API/UI workflow registration, повторный remap, registry statuses, management table, duplicate/export и field-level runtime diagnostics реализованы. Built-in templates защищены от изменения, удаления и перекрытия user template с тем же ID.

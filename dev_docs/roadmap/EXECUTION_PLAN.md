@@ -541,16 +541,16 @@ negative conditioning. Только отдельное ручное действ
 
 ## 8.3 Rating UI
 
-- [ ] Показ technical quality.
-- [ ] Показ composition.
-- [ ] Показ prompt adherence.
-- [ ] Показ defects.
-- [ ] Показ explanation.
-- [ ] Показ provider/model/version metadata.
-- [ ] Возможность вручную изменить AI rank.
-- [ ] Возможность удалить AI rating.
-- [ ] Отдельный filter по AI rank.
-- [ ] Отдельный filter по AI rating status.
+- [x] Показ technical quality.
+- [x] Показ composition.
+- [x] Показ prompt adherence.
+- [x] Показ defects.
+- [x] Показ explanation.
+- [x] Показ provider/model/version metadata.
+- [x] Возможность вручную изменить AI rank.
+- [x] Возможность удалить AI rating.
+- [x] Отдельный filter по AI rank.
+- [x] Отдельный filter по AI rating status.
 
 Backend и Library DOM для всех перечисленных controls реализованы. Интерактивный
 browser smoke диалога остаётся pending: доступный headless Chrome подтвердил
@@ -559,11 +559,11 @@ browser smoke диалога остаётся pending: доступный headle
 
 ## 8.4 Content-policy robustness
 
-- [ ] Проверить обычный SFW asset.
-- [ ] Проверить policy rejection.
-- [ ] Проверить локальный профиль с отличающейся content policy.
-- [ ] Не рекомендовать обход ограничений provider.
-- [ ] Честно объяснять, что refusal относится к выбранному provider, а не к визуальному качеству asset.
+- [x] Проверить обычный SFW asset.
+- [x] Проверить policy rejection.
+- [x] Проверить локальный профиль с отличающейся content policy.
+- [x] Не рекомендовать обход ограничений provider.
+- [x] Честно объяснять, что refusal относится к выбранному provider, а не к визуальному качеству asset.
 
 ---
 
@@ -573,58 +573,58 @@ browser smoke диалога остаётся pending: доступный headle
 
 ## 9.1 Supported operating systems
 
-- [ ] Windows verification.
+- [x] Windows verification.
 - [ ] Linux verification.
 - [ ] macOS verification.
-- [ ] Составить таблицу непроверенных функций для недоступных окружений.
+- [x] Составить таблицу непроверенных функций для недоступных окружений.
 
 ## 9.2 ComfyUI installations
 
-- [ ] Windows Portable root selected.
-- [ ] Nested `ComfyUI` directory selected.
-- [ ] Windows venv installation.
+- [x] Windows Portable root selected.
+- [x] Nested `ComfyUI` directory selected.
+- [x] Windows venv installation.
 - [ ] Linux venv installation.
 - [ ] macOS venv installation.
-- [ ] External running ComfyUI.
-- [ ] Managed start/stop/restart.
-- [ ] Interrupt generation отдельно от stop process.
-- [ ] Port conflict.
-- [ ] Missing Python.
-- [ ] Missing custom node.
-- [ ] Missing model resource.
-- [ ] ComfyUI crash during run.
+- [x] External running ComfyUI.
+- [x] Managed start/stop/restart.
+- [x] Interrupt generation отдельно от stop process.
+- [x] Port conflict.
+- [x] Missing Python.
+- [x] Missing custom node.
+- [x] Missing model resource.
+- [x] ComfyUI crash during run.
 
 ## 9.3 Workflow matrix
 
-- [ ] Checkpoint-contained image generation.
-- [ ] Separate-components image generation.
+- [x] Checkpoint-contained image generation.
+- [x] Separate-components image generation.
 - [x] GGUF generation.
 - [ ] Reference/img2img.
 - [ ] Inpaint.
 - [ ] Control/pose.
 - [ ] Upscale/refiner.
 - [ ] Video.
-- [ ] Imported standard workflow.
-- [ ] Imported partially mapped workflow.
+- [x] Imported standard workflow.
+- [x] Imported partially mapped workflow.
 - [x] Result imported into Library.
-- [ ] Remix lineage preserved.
+- [x] Remix lineage preserved.
 
 **GGUF evidence (2026-07-26):** Pony/SDXL GGUF проверен через `core-pony-gguf`: runtime inventory и preflight готовы, quality run выполнен в 832×1216 на 28 steps, полноразмерный output визуально проверен и импортирован в Library с provenance и корректной GGUF model identity. Ранний 512×512 run считается только техническим smoke. Flux-family GGUF отдельно подтверждён через `core-flux-gguf` на Krea-based `unstableEvolution_GGUFQ417GB.gguf`: run `9` выполнен в 832×1216 на целевых 8 steps, output визуально проверен и импортирован как Library asset `6261` с полным provenance. Z-Image остаётся дополнительной architecture-specific проверкой после загрузки её component set, а не blocker для уже подтверждённого Flux GGUF path.
 
 ## 9.4 Browser and UX checks
 
-- [ ] Viewer reload without visible layout jumps.
-- [ ] Library reload and selection behavior.
-- [ ] AI settings reload and profile actions.
-- [ ] Editor responsive layout.
-- [ ] No overlapping controls at supported widths.
-- [ ] Dropdowns and modals remain inside viewport.
-- [ ] Keyboard navigation for critical actions.
-- [ ] Error fields are highlighted correctly.
-- [ ] Dark/light theme regression, если обе темы поддерживаются.
-- [ ] ESLint or equivalent JS checks.
-- [ ] Python tests.
-- [ ] Browser smoke tests.
+- [x] Viewer reload without visible layout jumps.
+- [x] Library reload and selection behavior.
+- [x] AI settings reload and profile actions.
+- [x] Editor responsive layout.
+- [x] No overlapping controls at supported widths.
+- [x] Dropdowns and modals remain inside viewport.
+- [x] Keyboard navigation for critical actions.
+- [x] Error fields are highlighted correctly.
+- [x] Dark/light theme regression, если обе темы поддерживаются.
+- [x] ESLint or equivalent JS checks.
+- [x] Python tests.
+- [x] Browser smoke tests.
 
 **Gate:** desktop packaging не начинается до закрытия обязательной release matrix или явного документирования отложенных ограничений.
 

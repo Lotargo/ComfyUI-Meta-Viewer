@@ -171,15 +171,15 @@
 
 ### Image-conditioned generation
 
-- [ ] Basic img2img/reference template.
-- [ ] Inpainting template.
-- [ ] ControlNet или pose-conditioning template.
+- [x] Basic img2img/reference template.
+- [x] Inpainting template.
+- [x] ControlNet или pose-conditioning template.
 
 ### Derived and multi-stage generation
 
-- [ ] Upscale template.
-- [ ] Refiner или explicit two-stage template.
-- [ ] Один проверенный video template.
+- [x] Upscale template.
+- [x] Refiner или explicit two-stage template.
+- [x] Один проверенный video template.
 
 ## 2.4 Template behavior
 
@@ -304,21 +304,21 @@
 
 Эта функция не должна автоматически перемещать неизвестные файлы без подтверждения.
 
-- [ ] Выбор model file через UI.
-- [ ] Чтение extension и доступных metadata.
-- [ ] Анализ safetensors tensor keys там, где применимо.
-- [ ] Распознавание GGUF container.
-- [ ] Filename используется только как слабая эвристика.
-- [ ] Показ предполагаемого resource type.
-- [ ] Показ confidence.
-- [ ] Ручное подтверждение или изменение type.
-- [ ] Показ рекомендуемой директории ComfyUI.
-- [ ] Опция copy с явным размером файла и подтверждением.
-- [ ] Опция link только при поддерживаемом и понятном platform behavior.
-- [ ] Опция показать директорию без копирования.
-- [ ] Не использовать silent move.
-- [ ] После действия обновить inventory через ComfyUI.
-- [ ] Подтвердить, что ресурс действительно появился в нужном slot.
+- [x] Выбор model file через UI.
+- [x] Чтение extension и доступных metadata.
+- [x] Анализ safetensors tensor keys там, где применимо.
+- [x] Распознавание GGUF container.
+- [x] Filename используется только как слабая эвристика.
+- [x] Показ предполагаемого resource type.
+- [x] Показ confidence.
+- [x] Ручное подтверждение или изменение type.
+- [x] Показ рекомендуемой директории ComfyUI.
+- [x] Опция copy с явным размером файла и подтверждением.
+- [x] Опция link только при поддерживаемом и понятном platform behavior.
+- [x] Опция показать директорию без копирования.
+- [x] Не использовать silent move.
+- [x] После действия обновить inventory через ComfyUI.
+- [x] Подтвердить, что ресурс действительно появился в нужном slot.
 
 **Gate:** автоматический onboarding не является обязательным для первой стабильной версии. Обязательны slot filtering, preflight и понятная диагностика.
 
@@ -465,13 +465,13 @@ negative conditioning. Только отдельное ручное действ
 
 ## 6.7 Execution backends
 
-- [ ] Один PromptTask проверен через direct OpenAI-compatible profile.
-- [ ] Тот же контракт проверен через OpenCode.
-- [ ] Claude Code adapter проверен как реальная prompt operation, а не только connection test.
-- [ ] Antigravity явно остаётся experimental до стабильного structured output.
-- [ ] Codex exporter не дублирует prompt knowledge.
-- [ ] Cancellation и timeout работают для direct и хотя бы одного agent host.
-- [ ] Нормализованный результат не зависит от выбранного transport.
+- [x] Один PromptTask проверен через direct OpenAI-compatible profile.
+- [x] Тот же контракт проверен через OpenCode.
+- [x] Claude Code adapter проверен как реальная prompt operation, а не только connection test.
+- [x] Antigravity явно остаётся experimental до стабильного structured output.
+- [x] Codex exporter не дублирует prompt knowledge.
+- [x] Cancellation и timeout работают для direct и хотя бы одного agent host.
+- [x] Нормализованный результат не зависит от выбранного transport.
 
 **Gate:** AI rating нельзя считать приоритетом, пока Generate, Translate, Adapt, Reconstruct и Remix не замкнуты на editor drafts и manual run.
 
@@ -709,9 +709,9 @@ browser smoke диалога остаётся pending: доступный headle
 
 ## Slice E. Priority practical features (Текущий приоритетный срез)
 
-- [ ] Дополнительные типы Workflow Templates (Img2Img, Inpaint, ControlNet/Pose, Upscale, Video).
-- [ ] UI Мастер локального добавления и регистрации моделей (Phase 4.3).
-- [ ] Расширение AI Agent Hosts (Claude Code и Antigravity CLI adapters).
+- [x] Дополнительные типы Workflow Templates (Img2Img, Inpaint, ControlNet/Pose, Upscale, Video).
+- [x] UI Мастер локального добавления и регистрации моделей (Phase 4.3).
+- [x] Расширение AI Agent Hosts (Claude Code и Antigravity CLI adapters).
 
 ## Явно отложено
 

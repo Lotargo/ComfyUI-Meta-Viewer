@@ -17,7 +17,12 @@ from ..prompting import (
     PromptTask,
     SceneSpec,
 )
-from .adapters import DirectOpenAICompatibleAdapter, OpenCodeAgentHostAdapter
+from .adapters import (
+    AntigravityAgentHostAdapter,
+    ClaudeCodeAgentHostAdapter,
+    DirectOpenAICompatibleAdapter,
+    OpenCodeAgentHostAdapter,
+)
 from .base import (
     AdapterExecutionError,
     PreparedPromptExecution,
@@ -56,7 +61,12 @@ class ExecutionRouter:
         self.adapters = tuple(
             adapters
             if adapters is not None
-            else (DirectOpenAICompatibleAdapter(), OpenCodeAgentHostAdapter())
+            else (
+                DirectOpenAICompatibleAdapter(),
+                OpenCodeAgentHostAdapter(),
+                ClaudeCodeAgentHostAdapter(),
+                AntigravityAgentHostAdapter(),
+            )
         )
         if not self.adapters:
             raise ValueError("ExecutionRouter requires at least one adapter.")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .antigravity import AntigravityPromptExecutionError, AntigravityPromptExecutor
 from .base import (
     AdapterExecutionError,
     AdapterExecutionResult,
@@ -7,6 +8,7 @@ from .base import (
     ExecutionMode,
     PreparedPromptExecution,
 )
+from .claude_code import ClaudeCodePromptExecutionError, ClaudeCodePromptExecutor
 from .direct import DirectPromptExecutionError, DirectPromptExecutor
 from .opencode import OpenCodePromptExecutionError, OpenCodePromptExecutor
 
@@ -107,4 +109,107 @@ class OpenCodeAgentHostAdapter:
         )
 
 
-__all__ = ["DirectOpenAICompatibleAdapter", "OpenCodeAgentHostAdapter"]
+class ClaudeCodeAgentHostAdapter:
+    adapter_id = "claude_code"
+    capabilities = ExecutionCapabilities(
+        mode=ExecutionMode.AGENT_HOST,
+        supports_images=False,
+        image_inputs=(),
+        supports_json_output=True,
+        supports_skills=False,
+        supports_mcp=False,
+        supports_subagents=False,
+    )
+
+    def __init__(self, executor: ClaudeCodePromptExecutor | None = None):
+        self.executor = executor or ClaudeCodePromptExecutor()
+
+    @staticmethod
+    def supports_profile(profile: dict) -> bool:
+        return profile.get("kind") == "cli" and profile.get("cli_type") == "claude_code"
+
+    def execute(self, prepared: PreparedPromptExecution) -> AdapterExecutionResult:
+        try:
+            executed = self.executor.execute(
+                profile=prepared.profile,
+                task=prepared.task,
+                user_input=prepared.user_input,
+                image_path=prepared.image_path,
+                bundle=prepared.bundle,
+            )
+        except ClaudeCodePromptExecutionError as exc:
+            raise AdapterExecutionError(
+                str(exc),
+                code=exc.code,
+                stage=exc.stage,
+                technical_error=exc.technical_error,
+            ) from exc
+        return AdapterExecutionResult(
+            result=executed.result,
+            bundle=executed.bundle,
+            metadata=executed.metadata(),
+        )
+
+    def cancel(self, run_id: str) -> None:
+        raise AdapterExecutionError(
+            f"Managed Claude Code run '{run_id}' cannot be cancelled after dispatch.",
+            code="cancellation_unsupported",
+            stage="cancel",
+        )
+
+
+class AntigravityAgentHostAdapter:
+    adapter_id = "antigravity"
+    capabilities = ExecutionCapabilities(
+        mode=ExecutionMode.AGENT_HOST,
+        supports_images=False,
+        image_inputs=(),
+        supports_json_output=True,
+        supports_skills=True,
+        supports_mcp=True,
+        supports_subagents=True,
+    )
+
+    def __init__(self, executor: AntigravityPromptExecutor | None = None):
+        self.executor = executor or AntigravityPromptExecutor()
+
+    @staticmethod
+    def supports_profile(profile: dict) -> bool:
+        return profile.get("kind") == "cli" and profile.get("cli_type") == "antigravity"
+
+    def execute(self, prepared: PreparedPromptExecution) -> AdapterExecutionResult:
+        try:
+            executed = self.executor.execute(
+                profile=prepared.profile,
+                task=prepared.task,
+                user_input=prepared.user_input,
+                image_path=prepared.image_path,
+                bundle=prepared.bundle,
+            )
+        except AntigravityPromptExecutionError as exc:
+            raise AdapterExecutionError(
+                str(exc),
+                code=exc.code,
+                stage=exc.stage,
+                technical_error=exc.technical_error,
+            ) from exc
+        return AdapterExecutionResult(
+            result=executed.result,
+            bundle=executed.bundle,
+            metadata=executed.metadata(),
+        )
+
+    def cancel(self, run_id: str) -> None:
+        raise AdapterExecutionError(
+            f"Managed Antigravity run '{run_id}' cannot be cancelled after dispatch.",
+            code="cancellation_unsupported",
+            stage="cancel",
+        )
+
+
+__all__ = [
+    "AntigravityAgentHostAdapter",
+    "ClaudeCodeAgentHostAdapter",
+    "DirectOpenAICompatibleAdapter",
+    "OpenCodeAgentHostAdapter",
+]

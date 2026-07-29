@@ -1,0 +1,12 @@
+{
+  "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ""}},
+  "2": {"class_type": "ControlNetLoader", "inputs": {"control_net_name": ""}},
+  "3": {"class_type": "LoadImage", "inputs": {"image": ""}},
+  "4": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["1", 1]}},
+  "5": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["1", 1]}},
+  "6": {"class_type": "ControlNetApply", "inputs": {"strength": 1.0, "conditioning": ["4", 0], "control_net": ["2", 0], "image": ["3", 0]}},
+  "7": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
+  "8": {"class_type": "KSampler", "inputs": {"seed": 0, "steps": 28, "cfg": 7.0, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0, "model": ["1", 0], "positive": ["6", 0], "negative": ["5", 0], "latent_image": ["7", 0]}},
+  "9": {"class_type": "VAEDecode", "inputs": {"samples": ["8", 0], "vae": ["1", 2]}},
+  "10": {"class_type": "SaveImage", "inputs": {"filename_prefix": "CMV/ControlNet", "images": ["9", 0]}}
+}

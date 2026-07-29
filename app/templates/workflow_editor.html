@@ -56,6 +56,7 @@
                 </button>
             </nav>
             <div class="rail-bottom">
+                <button id="model-register-open" class="rail-link" type="button" title="Register local model" aria-label="Register local model"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></button>
                 <button id="manage-workflows-open" class="rail-link" type="button" title="Manage workflows" aria-label="Manage workflows"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="7" cy="6" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="17" cy="18" r="1"/></svg></button>
                 <button id="import-template-open" class="rail-link" type="button" title="Import workflow" aria-label="Import workflow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 21h14"/></svg></button>
             </div>
@@ -545,6 +546,60 @@
             <div class="dialog-footer"><button class="btn btn-secondary" type="button" value="cancel">Close</button></div>
         </form>
     </dialog>
+
+    <dialog id="model-register-dialog" class="editor-dialog model-register-dialog">
+        <form id="model-register-form" method="dialog">
+            <div class="dialog-heading">
+                <div><p class="workspace-kicker">Model onboarding</p><h2>Register local model</h2><p>Inspect safetensors/GGUF headers, verify resource type, and safely add to ComfyUI.</p></div>
+                <button class="workspace-icon-button" type="button" value="cancel" aria-label="Close model registration"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="m6 6 12 12M18 6 6 18"></path></svg></button>
+            </div>
+            <div class="template-import-fields">
+                <label><span>Model file path</span>
+                    <div style="display: flex; gap: 8px;">
+                        <input id="model-register-path" type="text" placeholder="C:\path\to\model.safetensors" required style="flex: 1;">
+                        <button id="model-inspect-btn" type="button" class="btn btn-secondary btn-sm">Inspect</button>
+                    </div>
+                </label>
+                <div id="model-inspect-card" class="model-inspect-card" hidden style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px; margin-top: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <strong id="model-inspect-filename">model.safetensors</strong>
+                        <span id="model-inspect-confidence" class="badge" style="font-size: 11px; padding: 2px 8px; border-radius: 12px;">High confidence</span>
+                    </div>
+                    <div style="font-size: 13px; opacity: 0.85; display: grid; gap: 4px;">
+                        <div>Format: <span id="model-inspect-format">safetensors</span></div>
+                        <div>Architecture: <span id="model-inspect-arch">Flux.1</span></div>
+                        <div>Recommended Folder: <span id="model-inspect-recommended-folder">diffusion_models</span></div>
+                        <div>Target Path: <code id="model-inspect-target-path" style="font-size: 11px;">models/diffusion_models/...</code></div>
+                    </div>
+                </div>
+                <label style="margin-top: 12px;"><span>Target folder</span>
+                    <select id="model-register-target-folder" required>
+                        <option value="checkpoints">checkpoints (Checkpoints)</option>
+                        <option value="diffusion_models">diffusion_models (UNet / Diffusion Models)</option>
+                        <option value="unet">unet (GGUF / UNet)</option>
+                        <option value="text_encoders">text_encoders (Text Encoders)</option>
+                        <option value="clip">clip (CLIP / Text Encoders)</option>
+                        <option value="loras">loras (LoRA adapters)</option>
+                        <option value="vae">vae (VAE)</option>
+                        <option value="controlnet">controlnet (ControlNet)</option>
+                        <option value="upscale_models">upscale_models (Upscale Models)</option>
+                        <option value="embeddings">embeddings (Embeddings)</option>
+                    </select>
+                </label>
+                <label style="margin-top: 12px;"><span>Action</span>
+                    <select id="model-register-action">
+                        <option value="copy">Copy file to ComfyUI directory</option>
+                        <option value="link">Create symbolic link (safest for space)</option>
+                    </select>
+                </label>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-secondary" type="button" value="cancel">Cancel</button>
+                <button id="model-register-submit" class="btn btn-primary" type="submit" disabled>Register model</button>
+            </div>
+        </form>
+    </dialog>
+
 
     <div class="lightbox-overlay create-lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Generation preview">
         <div class="lightbox-top">

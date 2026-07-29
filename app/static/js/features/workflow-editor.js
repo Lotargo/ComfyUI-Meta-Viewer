@@ -3403,8 +3403,107 @@ function bindEvents() {
     });
 }
 
+function initModelRegisterWizard() {
+    const dialog = document.getElementById('model-register-dialog');
+    const openBtn = document.getElementById('model-register-open');
+    const pathInput = document.getElementById('model-register-path');
+    const inspectBtn = document.getElementById('model-inspect-btn');
+    const inspectCard = document.getElementById('model-inspect-card');
+    const filenameEl = document.getElementById('model-inspect-filename');
+    const confidenceEl = document.getElementById('model-inspect-confidence');
+    const formatEl = document.getElementById('model-inspect-format');
+    const archEl = document.getElementById('model-inspect-arch');
+    const recFolderEl = document.getElementById('model-inspect-recommended-folder');
+    const targetPathEl = document.getElementById('model-inspect-target-path');
+    const targetFolderSelect = document.getElementById('model-register-target-folder');
+    const actionSelect = document.getElementById('model-register-action');
+    const submitBtn = document.getElementById('model-register-submit');
+    const form = document.getElementById('model-register-form');
+
+    if (!openBtn || !dialog) return;
+
+    openBtn.addEventListener('click', () => {
+        pathInput.value = '';
+        inspectCard.hidden = true;
+        submitBtn.disabled = true;
+        dialog.showModal();
+        pathInput.focus();
+    });
+
+    inspectBtn.addEventListener('click', async () => {
+        const filePath = pathInput.value.trim();
+        if (!filePath) {
+            showToast('Enter a model file path to inspect.', 'info');
+            return;
+        }
+        inspectBtn.disabled = true;
+        inspectBtn.textContent = 'Inspecting…';
+        try {
+            const res = await requestJson('/api/comfyui/models/inspect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_path: filePath }),
+            });
+            filenameEl.textContent = res.file_name;
+            formatEl.textContent = res.container_format;
+            archEl.textContent = res.detected_architecture;
+            recFolderEl.textContent = res.recommended_folder;
+            targetPathEl.textContent = res.recommended_target_path;
+            confidenceEl.textContent = `${res.confidence} confidence`;
+            confidenceEl.className = `badge confidence-${res.confidence}`;
+            targetFolderSelect.value = res.recommended_folder;
+            inspectCard.hidden = false;
+            submitBtn.disabled = false;
+        } catch (error) {
+            showToast(error.message || 'Inspection failed', 'error');
+            inspectCard.hidden = true;
+            submitBtn.disabled = true;
+        } finally {
+            inspectBtn.disabled = false;
+            inspectBtn.textContent = 'Inspect';
+        }
+    });
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (isCancelSubmitter(event)) {
+            dialog.close();
+            return;
+        }
+        const sourcePath = pathInput.value.trim();
+        const targetFolder = targetFolderSelect.value;
+        const action = actionSelect.value;
+        if (!sourcePath || !targetFolder) return;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Registering…';
+        try {
+            const res = await requestJson('/api/comfyui/models/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source_path: sourcePath,
+                    target_folder: targetFolder,
+                    action,
+                }),
+            });
+            if (res.success) {
+                showToast(`Model registered successfully (${res.action_performed}). Inventory re-indexed.`, 'success');
+                dialog.close();
+                await syncInventory();
+            }
+        } catch (error) {
+            showToast(error.message || 'Registration failed', 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Register model';
+        }
+    });
+}
+
 async function initialize() {
     bindEvents();
+    initModelRegisterWizard();
     initLightboxEvents({ enableContextMenu: false });
     observeDecorativeBackdropWindows();
     loadDecorativeBackdrops();
@@ -3415,3 +3514,4 @@ async function initialize() {
 }
 
 initialize();
+

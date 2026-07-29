@@ -20,6 +20,7 @@ from app.media import media_type_for_path
 from app.paths import portable_filename
 
 from .client import ComfyUIClientError
+from .model_inspector import inspect_model_file, register_model_file
 from .workflow_compiler import (
     WorkflowCompiler,
     WorkflowCompilerError,
@@ -993,4 +994,54 @@ def _workflow_node_types(workflow: dict[str, Any]) -> tuple[set[str], str]:
     return types, "api"
 
 
+@editor_blueprint.post("/api/comfyui/models/inspect")
+def inspect_model_route():
+    body = request.get_json(silent=True) or {}
+    file_path = str(body.get("file_path") or "").strip()
+    if not file_path:
+        return jsonify({"error": "file_path is required."}), 400
+    try:
+        result = inspect_model_file(file_path, store=_config_store())
+        return jsonify({
+            "file_path": result.file_path,
+            "file_name": result.file_name,
+            "file_size_bytes": result.file_size_bytes,
+            "container_format": result.container_format,
+            "detected_resource_type": result.detected_resource_type.value,
+            "detected_architecture": result.detected_architecture.value,
+            "confidence": result.confidence,
+            "recommended_folder": result.recommended_folder,
+            "recommended_target_path": result.recommended_target_path,
+            "metadata": result.metadata,
+            "sample_tensor_keys": result.sample_tensor_keys,
+        })
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@editor_blueprint.post("/api/comfyui/models/register")
+def register_model_route():
+    body = request.get_json(silent=True) or {}
+    source_path = str(body.get("source_path") or "").strip()
+    target_folder = str(body.get("target_folder") or "").strip()
+    action = str(body.get("action") or "copy").strip()
+    if not source_path or not target_folder:
+        return jsonify({"error": "source_path and target_folder are required."}), 400
+    if action not in ("copy", "link"):
+        return jsonify({"error": "action must be 'copy' or 'link'."}), 400
+    try:
+        catalog = ModelResourceCatalog()
+        res = register_model_file(
+            source_path_str=source_path,
+            target_folder=target_folder,
+            action=action,
+            store=_config_store(),
+            catalog=catalog,
+        )
+        return jsonify(res)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 __all__ = ["editor_blueprint"]
+

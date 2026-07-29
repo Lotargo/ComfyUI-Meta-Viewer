@@ -18,6 +18,21 @@ class WorkflowCategory(str, Enum):
     REFERENCE = "reference"
     VIDEO = "video"
     ADVANCED = "advanced"
+    INPAINT = "inpaint"
+    CONTROLNET = "controlnet"
+    UPSCALE = "upscale"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "WorkflowCategory":
+        normalized = str(value).strip().casefold()
+        aliases = {
+            "inpaint": cls.INPAINT,
+            "inpainting": cls.INPAINT,
+            "controlnet": cls.CONTROLNET,
+            "pose": cls.CONTROLNET,
+            "upscale": cls.UPSCALE,
+        }
+        return aliases.get(normalized, cls.ADVANCED)
 
 
 class WorkflowMediaType(str, Enum):

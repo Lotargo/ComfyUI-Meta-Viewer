@@ -297,6 +297,21 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS model_file_hashes (
+                file_path TEXT PRIMARY KEY,
+                file_size INTEGER NOT NULL,
+                file_mtime REAL NOT NULL,
+                sha256 TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS model_recommendations (
+                sha256 TEXT PRIMARY KEY,
+                result_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             CREATE TABLE IF NOT EXISTS workflow_drafts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 template_id TEXT NOT NULL,
@@ -367,6 +382,7 @@ def init_db() -> None:
                 ON ai_prompt_adaptations(target_family);
             CREATE INDEX IF NOT EXISTS idx_model_resources_hash ON model_resources(content_hash);
             CREATE INDEX IF NOT EXISTS idx_model_resources_arch ON model_resources(architecture);
+            CREATE INDEX IF NOT EXISTS idx_model_file_hashes_sha256 ON model_file_hashes(sha256);
             CREATE INDEX IF NOT EXISTS idx_workflow_drafts_template ON workflow_drafts(template_id, id);
             CREATE INDEX IF NOT EXISTS idx_workflow_drafts_source ON workflow_drafts(source_asset_id);
             CREATE INDEX IF NOT EXISTS idx_workflow_runs_draft ON workflow_runs(draft_id, id);

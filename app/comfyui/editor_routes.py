@@ -21,6 +21,10 @@ from app.paths import portable_filename
 
 from .client import ComfyUIClientError
 from .model_inspector import inspect_model_file, register_model_file
+from .model_recommendations import (
+    CivitaiModelRecommendationService,
+    ModelRecommendationError,
+)
 from .workflow_compiler import (
     WorkflowCompiler,
     WorkflowCompilerError,
@@ -288,6 +292,11 @@ def workflow_comfy_error(error: ComfyUIClientError):
         "code": "comfyui_api_error",
         "details": error.payload,
     }), 503 if error.status is None else 502
+
+
+@editor_blueprint.errorhandler(ModelRecommendationError)
+def workflow_model_recommendation_error(error: ModelRecommendationError):
+    return jsonify({"error": str(error), "code": "model_recommendation_error"}), 422
 
 
 @editor_blueprint.errorhandler(ValidationError)
@@ -1041,6 +1050,27 @@ def register_model_route():
         return jsonify(res)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@editor_blueprint.post("/api/editor/models/recommendations")
+def model_recommendations_route():
+    body = _json_object()
+    unexpected = set(body) - {"folder", "name"}
+    if unexpected:
+        raise WorkflowCompilerError(
+            "Unsupported recommendation fields: " + ", ".join(sorted(unexpected)),
+            code="invalid_editor_request",
+        )
+    folder = str(body.get("folder") or "").strip()
+    name = str(body.get("name") or "").strip()
+    if not folder or not name:
+        raise WorkflowCompilerError(
+            "folder and name are required.", code="invalid_editor_request"
+        )
+    return jsonify(CivitaiModelRecommendationService(_config_store()).recommend(
+        folder=folder,
+        name=name,
+    ))
 
 
 __all__ = ["editor_blueprint"]

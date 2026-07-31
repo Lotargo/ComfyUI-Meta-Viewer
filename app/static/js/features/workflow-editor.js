@@ -1406,7 +1406,16 @@ function renderResourceSlot(slotId, slot) {
         ? state.resources[slotId]
         : state.resources[slotId]?.name || '';
     const selectedOption = options.find((option) => option.name === selected);
-    return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<select data-resource-slot="${escapeHtml(slotId)}"><option value="">${slot.required ? 'Select model…' : 'None'}</option>${renderSelectableResourceOptions(options, selected)}</select>${renderResourceCompatibility(selectedOption)}${renderIncompatibleResources(options)}</div>`;
+    const supportsRecommendations = slot.accepts?.some((type) => (
+        ['checkpoint', 'diffusion_model', 'diffusion_model_gguf'].includes(type)
+    ));
+    const recommendationControl = supportsRecommendations ? `
+        <div class="model-recommendation-control">
+            <button class="btn btn-secondary btn-sm" type="button" data-model-recommend="${escapeHtml(slotId)}"${selectedOption ? '' : ' disabled'}>Optimal parameters</button>
+            <small>${selectedOption ? 'Finds commonly used sampling values for this exact local file.' : 'Select a model to look up its parameters.'}</small>
+        </div>
+    ` : '';
+    return `<div class="resource-card" data-slot="${escapeHtml(slotId)}">${head}<select data-resource-slot="${escapeHtml(slotId)}"><option value="">${slot.required ? 'Select model…' : 'None'}</option>${renderSelectableResourceOptions(options, selected)}</select>${recommendationControl}${renderResourceCompatibility(selectedOption)}${renderIncompatibleResources(options)}</div>`;
 }
 
 function renderLora(slotId, selection, index, option = null) {
@@ -1458,6 +1467,72 @@ function bindResourceEvents(container) {
             markDirty();
         });
     });
+    container.querySelectorAll('[data-model-recommend]').forEach((button) => {
+        button.addEventListener('click', () => applyModelRecommendations(button));
+    });
+}
+
+function supportedRecommendationValues(rawValues) {
+    const fields = new Map((currentManifest()?.fields || []).map((field) => [field.id, field]));
+    const applied = {};
+    for (const [id, rawValue] of Object.entries(rawValues || {})) {
+        const field = fields.get(id);
+        if (!field) continue;
+        if (field.kind === 'select') {
+            if (field.options.some((option) => option.value === rawValue)) applied[id] = rawValue;
+            continue;
+        }
+        if (field.kind !== 'number' && field.kind !== 'seed') continue;
+        const value = Number(rawValue);
+        if (!Number.isFinite(value)) continue;
+        const minimum = Number(field.minimum ?? -Infinity);
+        const maximum = Number(field.maximum ?? Infinity);
+        if (value < minimum || value > maximum) continue;
+        const step = Number(field.step ?? 0);
+        const normalized = step > 0 && Number.isFinite(minimum)
+            ? minimum + Math.round((value - minimum) / step) * step
+            : value;
+        applied[id] = Number(normalized.toFixed(3));
+    }
+    return applied;
+}
+
+async function applyModelRecommendations(button) {
+    const slotId = button.dataset.modelRecommend;
+    const selected = state.resources[slotId];
+    const name = typeof selected === 'string' ? selected : selected?.name;
+    const option = state.selected.resource_options?.[slotId]?.find((item) => item.name === name);
+    if (!option?.folder || !name) return;
+
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Finding…';
+    try {
+        const result = await requestJson('/api/editor/models/recommendations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folder: option.folder, name }),
+        });
+        if (!result.matched) {
+            showToast(result.message || 'Model is not listed on Civitai. Configure parameters manually.', 'info');
+            return;
+        }
+        const values = supportedRecommendationValues(result.recommended_values);
+        if (!Object.keys(values).length) {
+            showToast(result.message || 'No compatible sampling values were found for this workflow.', 'info');
+            return;
+        }
+        state.values = { ...state.values, ...values };
+        renderFields();
+        markDirty();
+        const source = result.cached ? 'saved Civitai data' : 'Civitai examples';
+        showToast(`Applied ${Object.keys(values).join(', ')} from ${source}.`, 'success');
+    } catch (error) {
+        showToast(error.message || 'Could not find model parameters.', 'error');
+    } finally {
+        button.disabled = false;
+        button.textContent = originalLabel;
+    }
 }
 
 async function ensureDraft() {
@@ -3403,107 +3478,8 @@ function bindEvents() {
     });
 }
 
-function initModelRegisterWizard() {
-    const dialog = document.getElementById('model-register-dialog');
-    const openBtn = document.getElementById('model-register-open');
-    const pathInput = document.getElementById('model-register-path');
-    const inspectBtn = document.getElementById('model-inspect-btn');
-    const inspectCard = document.getElementById('model-inspect-card');
-    const filenameEl = document.getElementById('model-inspect-filename');
-    const confidenceEl = document.getElementById('model-inspect-confidence');
-    const formatEl = document.getElementById('model-inspect-format');
-    const archEl = document.getElementById('model-inspect-arch');
-    const recFolderEl = document.getElementById('model-inspect-recommended-folder');
-    const targetPathEl = document.getElementById('model-inspect-target-path');
-    const targetFolderSelect = document.getElementById('model-register-target-folder');
-    const actionSelect = document.getElementById('model-register-action');
-    const submitBtn = document.getElementById('model-register-submit');
-    const form = document.getElementById('model-register-form');
-
-    if (!openBtn || !dialog) return;
-
-    openBtn.addEventListener('click', () => {
-        pathInput.value = '';
-        inspectCard.hidden = true;
-        submitBtn.disabled = true;
-        dialog.showModal();
-        pathInput.focus();
-    });
-
-    inspectBtn.addEventListener('click', async () => {
-        const filePath = pathInput.value.trim();
-        if (!filePath) {
-            showToast('Enter a model file path to inspect.', 'info');
-            return;
-        }
-        inspectBtn.disabled = true;
-        inspectBtn.textContent = 'Inspecting…';
-        try {
-            const res = await requestJson('/api/comfyui/models/inspect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ file_path: filePath }),
-            });
-            filenameEl.textContent = res.file_name;
-            formatEl.textContent = res.container_format;
-            archEl.textContent = res.detected_architecture;
-            recFolderEl.textContent = res.recommended_folder;
-            targetPathEl.textContent = res.recommended_target_path;
-            confidenceEl.textContent = `${res.confidence} confidence`;
-            confidenceEl.className = `badge confidence-${res.confidence}`;
-            targetFolderSelect.value = res.recommended_folder;
-            inspectCard.hidden = false;
-            submitBtn.disabled = false;
-        } catch (error) {
-            showToast(error.message || 'Inspection failed', 'error');
-            inspectCard.hidden = true;
-            submitBtn.disabled = true;
-        } finally {
-            inspectBtn.disabled = false;
-            inspectBtn.textContent = 'Inspect';
-        }
-    });
-
-    form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        if (isCancelSubmitter(event)) {
-            dialog.close();
-            return;
-        }
-        const sourcePath = pathInput.value.trim();
-        const targetFolder = targetFolderSelect.value;
-        const action = actionSelect.value;
-        if (!sourcePath || !targetFolder) return;
-
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Registering…';
-        try {
-            const res = await requestJson('/api/comfyui/models/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    source_path: sourcePath,
-                    target_folder: targetFolder,
-                    action,
-                }),
-            });
-            if (res.success) {
-                showToast(`Model registered successfully (${res.action_performed}). Inventory re-indexed.`, 'success');
-                dialog.close();
-                await syncInventory();
-            }
-        } catch (error) {
-            showToast(error.message || 'Registration failed', 'error');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Register model';
-        }
-    });
-}
-
 async function initialize() {
     bindEvents();
-    initModelRegisterWizard();
     initLightboxEvents({ enableContextMenu: false });
     observeDecorativeBackdropWindows();
     loadDecorativeBackdrops();

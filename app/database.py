@@ -1369,8 +1369,22 @@ def get_images_page(
             "size": "i.file_size",
             "type": "i.format",
         }
-        sort_column = sort_by_map.get(sort_by, "i.file_name")
+        if sort_by not in sort_by_map:
+            raise ValueError(f"Invalid sort_by parameter: {sort_by}")
+        if sort_dir.lower() not in {"asc", "desc"}:
+            raise ValueError(f"Invalid sort_dir parameter: {sort_dir}")
+
+        sort_column = sort_by_map[sort_by]
         direction = "DESC" if sort_dir.lower() == "desc" else "ASC"
+
+        # Enforce strict whitelist of columns and directions to prevent any SQL Injection via dynamic order_clause formatting
+        allowed_sort_columns = {"i.file_name", "i.file_mtime", "i.file_size", "i.format"}
+        allowed_directions = {"ASC", "DESC"}
+
+        if sort_column not in allowed_sort_columns:
+            raise ValueError(f"Invalid sort column: {sort_column}")
+        if direction not in allowed_directions:
+            raise ValueError(f"Invalid sort direction: {direction}")
 
         # Determine secondary sort order for stability
         if sort_column == "i.file_name":

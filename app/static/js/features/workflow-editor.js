@@ -2658,14 +2658,14 @@ async function loadRuns() {
                 renderResults();
             }
         }
-    } catch (_) {}
+    } catch (_) { /* cached runs may be corrupt JSON */ }
 
     try {
         const payload = await requestJson('/api/editor/runs?limit=40');
         state.runs = payload.runs || [];
         try {
             localStorage.setItem('cmv_cached_runs', JSON.stringify(state.runs));
-        } catch (_) {}
+        } catch (_) { /* storage may be full or unavailable */ }
         const active = state.runs.find((run) => ['queued', 'running'].includes(run.status));
         if (active && !state.currentRun) {
             state.currentRun = active;
@@ -3720,7 +3720,7 @@ async function initialize() {
                 renderResults();
             }
         }
-    } catch (_) {}
+    } catch (_) { /* cached runs may be corrupt JSON */ }
     loadRuns();
     await loadRuntimeConfig();
     await bootstrap();

@@ -24,6 +24,8 @@ import {
     setSidebarActiveImageId,
     saveState,
     isBrowsableCollection,
+    promptBoxHeight,
+    setPromptBoxHeight,
 } from './state.js';
 import {
     escapeHtml,
@@ -458,7 +460,10 @@ export function updateLightbox() {
                         <span><svg viewBox="0 0 24 24" width="12" height="12" stroke="var(--green)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"></polyline></svg>Positive Prompt</span>
                         <button class="btn btn-sm btn-ghost lb-copy-prompt" style="padding: 2px 6px; font-size: 11px;" data-copy-value="${escapeHtml(pp.positive_prompt).replace(/"/g, '&quot;')}">Copy</button>
                     </div>
-                    <div class="lb-prompt-box">${escapeHtml(pp.positive_prompt)}</div>
+                    <div class="lb-prompt-box" style="height: ${promptBoxHeight}px;">
+                        <div class="lb-prompt-content">${escapeHtml(pp.positive_prompt)}</div>
+                        <div class="lb-resize-handle" data-prompt-type="positive"></div>
+                    </div>
                 </div>
             `;
         }
@@ -469,7 +474,10 @@ export function updateLightbox() {
                         <span><svg viewBox="0 0 24 24" width="12" height="12" stroke="var(--red)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>Negative Prompt</span>
                         <button class="btn btn-sm btn-ghost lb-copy-prompt" style="padding: 2px 6px; font-size: 11px;" data-copy-value="${escapeHtml(pp.negative_prompt).replace(/"/g, '&quot;')}">Copy</button>
                     </div>
-                    <div class="lb-prompt-box">${escapeHtml(pp.negative_prompt)}</div>
+                    <div class="lb-prompt-box" style="height: ${promptBoxHeight}px;">
+                        <div class="lb-prompt-content">${escapeHtml(pp.negative_prompt)}</div>
+                        <div class="lb-resize-handle" data-prompt-type="negative"></div>
+                    </div>
                 </div>
             `;
         }
@@ -547,6 +555,40 @@ export function updateLightbox() {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             copyText(btn.dataset.copyValue || '');
+        });
+    });
+
+    // Attach drag-to-resize listeners for prompt boxes
+    dom.lbMeta.querySelectorAll('.lb-resize-handle').forEach(handle => {
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const promptBox = handle.closest('.lb-prompt-box');
+            if (!promptBox) return;
+
+            const startY = e.clientY;
+            const startHeight = promptBox.offsetHeight;
+            promptBox.classList.add('resizing');
+
+            const onMouseMove = (e) => {
+                const delta = e.clientY - startY;
+                const newHeight = Math.min(600, Math.max(60, startHeight + delta));
+                promptBox.style.height = newHeight + 'px';
+            };
+
+            const onMouseUp = (e) => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                promptBox.classList.remove('resizing');
+                const finalHeight = parseInt(promptBox.style.height, 10);
+                if (Number.isFinite(finalHeight)) {
+                    setPromptBoxHeight(finalHeight);
+                    saveState();
+                }
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
         });
     });
 }

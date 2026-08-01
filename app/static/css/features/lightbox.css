@@ -188,8 +188,6 @@
 /* Meta sections */
 .lb-meta-section {
     margin-bottom: var(--space-lg);
-    resize: vertical;
-    overflow: auto;
 }
 
 .lb-meta-section h4 {
@@ -240,9 +238,36 @@
     line-height: 1.4;
     height: 120px;
     min-height: 60px;
-    resize: vertical;
     overflow-y: auto;
     margin-bottom: var(--space-sm);
+    position: relative;
+}
+
+.lb-prompt-content {
+    height: 100%;
+    overflow-y: auto;
+    padding-bottom: 8px;
+}
+
+.lb-resize-handle {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 8px;
+    cursor: ns-resize;
+    background: transparent;
+    transition: background 0.15s;
+}
+
+.lb-resize-handle:hover,
+.lb-prompt-box.resizing .lb-resize-handle {
+    background: linear-gradient(to bottom, transparent, var(--accent));
+}
+
+.lb-prompt-box.resizing {
+    user-select: none;
+    cursor: ns-resize;
 }
 
 .lb-prompt-label {

@@ -29,10 +29,10 @@ jobs:
         run: python -m pip install poetry
 
       - name: Install Python dependencies
-        run: poetry install --no-root
+        run: poetry install --no-root --with dev
 
       - name: Run Python tests
-        run: poetry run python -m unittest discover -s tests -v
+        run: poetry run python -m pytest tests -q
 
       - uses: actions/setup-node@v6
         with:

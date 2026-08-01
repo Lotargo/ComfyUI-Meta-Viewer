@@ -44,6 +44,11 @@ function ratingFilter(value) {
     return Number.isInteger(value) && value >= 0 && value <= 5 ? value : null;
 }
 
+function promptBoxHeight(value) {
+    if (!Number.isFinite(value)) return 120;
+    return Math.min(600, Math.max(60, Math.round(value)));
+}
+
 function mediaTypeFilter(value) {
     const source = isRecord(value) ? value : {};
     const normalized = {
@@ -71,6 +76,7 @@ export function createDefaultPreferences() {
             albumsViewMode: 'list',
             lightboxMetaOpen: true,
             metadataTab: 'summary',
+            promptBoxHeight: 120,
         },
         sorting: {
             gallery: { key: 'date', direction: 'desc' },
@@ -130,6 +136,7 @@ export function normalizePreferences(value) {
             albumsViewMode: enumValue(layout.albumsViewMode, FOLDER_VIEW_MODES, defaults.layout.albumsViewMode),
             lightboxMetaOpen: booleanValue(layout.lightboxMetaOpen, defaults.layout.lightboxMetaOpen),
             metadataTab: enumValue(layout.metadataTab, META_TABS, defaults.layout.metadataTab),
+            promptBoxHeight: promptBoxHeight(layout.promptBoxHeight),
         },
         sorting: {
             gallery: {

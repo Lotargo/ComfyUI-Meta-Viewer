@@ -161,6 +161,7 @@ export let sidebarWidth = 360;
 export let sidebarCollapsed = false;
 export let lightboxMetaOpen = true;
 export let metadataTab = 'summary';
+export let promptBoxHeight = 120;
 
 export function setSortKey(v) { sortKey = v; }
 export function setSortDir(v) { sortDir = v; }
@@ -183,6 +184,7 @@ export function setSidebarWidth(v) { sidebarWidth = Number.isFinite(v) ? Math.mi
 export function setSidebarCollapsed(v) { sidebarCollapsed = Boolean(v); }
 export function setLightboxMetaOpen(v) { lightboxMetaOpen = Boolean(v); }
 export function setMetadataTab(v) { metadataTab = ['workflow', 'raw'].includes(v) ? v : 'summary'; }
+export function setPromptBoxHeight(v) { promptBoxHeight = Number.isFinite(v) ? Math.min(600, Math.max(60, Math.round(v))) : 120; }
 
 export function setImages(v) {
     if (v === images) return;
@@ -303,6 +305,7 @@ function applyPreferences(preferences) {
     setAlbumsViewMode(preferences.layout.albumsViewMode);
     setLightboxMetaOpen(preferences.layout.lightboxMetaOpen);
     setMetadataTab(preferences.layout.metadataTab);
+    setPromptBoxHeight(preferences.layout.promptBoxHeight);
     setSortKey(preferences.sorting.gallery.key);
     setSortDir(preferences.sorting.gallery.direction);
     setSidebarSortKey(preferences.sorting.images.key);
@@ -339,6 +342,7 @@ export function saveState() {
             albumsViewMode,
             lightboxMetaOpen,
             metadataTab,
+            promptBoxHeight,
         },
         sorting: {
             gallery: { key: sortKey, direction: sortDir },

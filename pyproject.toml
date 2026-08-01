@@ -16,6 +16,9 @@ watchdog = "^6.0"
 send2trash = "^2.1"
 keyring = "^25.7"
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.1"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

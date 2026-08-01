@@ -725,8 +725,15 @@ def get_assets(
         "size": "i.file_size",
         "rating": "COALESCE(i.rating, 0)",
     }
-    sort_column = sort_columns.get(sort_by, sort_columns["date"])
-    direction = "ASC" if sort_dir.lower() == "asc" else "DESC"
+    if sort_by not in sort_columns:
+        raise LibraryError(f"Invalid sort_by column: {sort_by}")
+
+    normalized_dir = sort_dir.upper()
+    if normalized_dir not in ("ASC", "DESC"):
+        raise LibraryError(f"Invalid sort direction: {sort_dir}")
+
+    sort_column = sort_columns[sort_by]
+    direction = normalized_dir
     offset = (page - 1) * per_page
 
     conn = db.get_conn()

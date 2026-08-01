@@ -14,6 +14,7 @@ from typing import Any, Sequence
 from .client import ComfyUIClient, ComfyUIClientError
 from .detector import ComfyUIDetectionResult, detect_comfyui
 from .launcher import generate_launcher_script
+from .validation import validate_extra_args
 
 
 class ComfyUIMode(str, Enum):
@@ -145,10 +146,7 @@ class ComfyUIManager:
 
             cmd = [str(detection.interpreter), str(detection.main_py), "--listen", host, "--port", str(port)]
             if extra_args:
-                if isinstance(extra_args, str):
-                    tokens = shlex.split(extra_args) if extra_args.strip() else []
-                else:
-                    tokens = list(extra_args)
+                tokens = validate_extra_args(extra_args)
                 cmd.extend(tokens)
 
             self._log(f"[CMV] Launching ComfyUI managed process: {' '.join(cmd)}")

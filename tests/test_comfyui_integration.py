@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 from app.comfyui.client import ComfyUIClient, ComfyUIClientError
 from app.comfyui.detector import ComfyUIDetectionResult, detect_comfyui, find_python_interpreter
+from app.comfyui.validation import validate_extra_args
 from app.comfyui.launcher import generate_launcher_script
 from app.comfyui.manager import ComfyUIMode, ComfyUIStatus, ComfyUIManager
 from app.config_store import ConfigStore
@@ -219,6 +220,20 @@ class ComfyUIManagerTest(unittest.TestCase):
         self.temp_dir.cleanup()
 
     @patch("app.comfyui.manager.detect_comfyui")
+    def test_start_managed_with_unsafe_args_raises_value_error(self, mock_detect) -> None:
+        detection = ComfyUIDetectionResult(
+            root_path=self.base_path,
+            comfy_dir=self.base_path,
+            main_py=self.base_path / "main.py",
+            interpreter=Path(sys.executable),
+            is_valid=True,
+        )
+        mock_detect.return_value = detection
+
+        with self.assertRaises(ValueError):
+            self.mgr.start_managed(install_path=self.base_path, extra_args="--lowvram & malicious_command")
+
+    @patch("app.comfyui.manager.detect_comfyui")
     def test_start_and_stop_managed_process(self, mock_detect) -> None:
         detection = ComfyUIDetectionResult(
             root_path=self.base_path,
@@ -298,6 +313,49 @@ class ComfyUIRoutesTest(unittest.TestCase):
         data = resp.get_json()
         self.assertIn("mode", data)
         self.assertIn("status", data)
+
+
+class ComfyUIValidationTest(unittest.TestCase):
+    def test_validate_extra_args_safe(self) -> None:
+        safe_inputs = [
+            "--lowvram --xformers",
+            "--port 8189 --listen 0.0.0.0",
+            ["--device-id", "0,1", "--fp16"],
+            "--output-directory C:\\My\\Safe_Path\\Folder --user-directory /home/user/comfy",
+            "--extra-model-paths-config=extra_model_paths.yaml",
+            None,
+            "",
+            [],
+        ]
+        for inp in safe_inputs:
+            with self.subTest(inp=inp):
+                res = validate_extra_args(inp)
+                self.assertIsInstance(res, list)
+
+    def test_validate_extra_args_unsafe(self) -> None:
+        unsafe_inputs = [
+            "--lowvram & calc.exe",
+            "--lowvram && echo 'pwned'",
+            "--lowvram; rm -rf /",
+            "--lowvram | python -c 'import sys; print(sys.argv)'",
+            "--user-directory `uname -a`",
+            "--output-directory $(whoami)",
+            "--lowvram > out.txt",
+            "--lowvram < in.txt",
+            '--lowvram"extra',  # contains double quote inside the string as part of a token
+            "--lowvram'extra",  # contains single quote inside the string as part of a token
+            ['"--lowvram"'],
+            ["'--lowvram'"],
+            ["--lowvram", "&", "calc.exe"],
+            ["--lowvram", "&&", "echo"],
+            ["--lowvram", ";", "rm"],
+            ["--lowvram", "%OS%"],
+            ["--lowvram", "^"],
+        ]
+        for inp in unsafe_inputs:
+            with self.subTest(inp=inp):
+                with self.assertRaises(ValueError):
+                    validate_extra_args(inp)
 
 
 if __name__ == "__main__":

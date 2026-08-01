@@ -243,7 +243,7 @@ class AIRoutesTest(unittest.TestCase):
         integrations = response.get_json()["integrations"]
         self.assertEqual(
             {item["type"] for item in integrations},
-            {"opencode", "claude", "antigravity"},
+            {"opencode", "claude", "antigravity", "civitai"},
         )
         for item in integrations:
             self.assertNotIn("installed", item)
@@ -290,7 +290,7 @@ class CLIDetectionTest(unittest.TestCase):
         catalog = cli_catalog()
         self.assertEqual(
             {item["type"] for item in catalog},
-            {"opencode", "claude", "antigravity"},
+            {"opencode", "claude", "antigravity", "civitai"},
         )
         for item in catalog:
             self.assertNotIn("installed", item)

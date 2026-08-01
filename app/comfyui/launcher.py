@@ -7,6 +7,15 @@ from pathlib import Path
 from typing import Sequence
 
 from .detector import ComfyUIDetectionResult
+from .validation import validate_extra_args
+
+
+def _safe_bat_quote(arg: str) -> str:
+    if not arg:
+        return '""'
+    if any(c in arg for c in ' ,;=&|<>%^()'):
+        return f'"{arg}"'
+    return arg
 
 
 def generate_launcher_script(
@@ -30,17 +39,14 @@ def generate_launcher_script(
 
     args_list = ["--listen", host, "--port", str(port)]
     if extra_args:
-        if isinstance(extra_args, str):
-            extra_tokens = shlex.split(extra_args) if extra_args.strip() else []
-        else:
-            extra_tokens = list(extra_args)
+        extra_tokens = validate_extra_args(extra_args)
         args_list.extend(extra_tokens)
 
     if is_windows:
         script_path = target_dir / "run_comfyui_cmv.bat"
         py_str = f'"{detection.interpreter}"'
         main_str = f'"{detection.main_py}"'
-        args_str = " ".join(args_list)
+        args_str = " ".join(_safe_bat_quote(a) for a in args_list)
 
         script_content = (
             "@echo off\r\n"

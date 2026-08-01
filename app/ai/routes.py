@@ -9,6 +9,10 @@ from pydantic import ValidationError
 from app import database
 
 from .adaptation import PromptAdaptationError, PromptAdaptationService
+from .enhancement import (
+    PromptEnhancementError,
+    PromptEnhancementService,
+)
 from .cli import (
     CLI_SPECS,
     CLIIntegrationError,
@@ -165,6 +169,12 @@ def ai_translation_error(error: PromptTranslationError):
 @ai_blueprint.errorhandler(PromptAdaptationError)
 def ai_adaptation_error(error: PromptAdaptationError):
     status = 404 if error.code == "adaptation_not_found" else 422
+    return jsonify({"error": str(error), "code": error.code}), status
+
+
+@ai_blueprint.errorhandler(PromptEnhancementError)
+def ai_enhancement_error(error: PromptEnhancementError):
+    status = 404 if error.code == "enhancement_not_found" else 422
     return jsonify({"error": str(error), "code": error.code}), status
 
 
@@ -469,6 +479,50 @@ def ai_adapt():
             prompt_draft, snapshot.job
         ).model_dump(mode="json"),
         "adaptation": outcome.adaptation.model_dump(mode="json"),
+    }), 201
+
+
+@ai_blueprint.route("/api/ai/enhance", methods=["POST"])
+def ai_enhance():
+    payload = _json_object()
+    profile_store, profile = _resolved_text_profile(payload)
+    task_data = payload.get("task") or {}
+    if not isinstance(task_data, dict):
+        raise AIProfileStoreError("task dictionary is required.")
+    task = PromptTask.model_validate({**task_data, "operation": "enhance"})
+    source_data = payload.get("source") or {}
+    source = PromptText.model_validate(source_data)
+
+    checkpoint_profile = payload.get("checkpoint_profile")
+    checkpoint_resource = _adaptation_checkpoint_resource(
+        payload.get("checkpoint_resource_hash"),
+        target_family=task.family,
+    )
+
+    service = PromptEnhancementService()
+    outcome = service.enhance(
+        profile=profile,
+        task=task,
+        source=source,
+        wishes=payload.get("wishes", ""),
+        checkpoint_profile=checkpoint_profile,
+        checkpoint_resource=checkpoint_resource,
+        api_key=profile_store.resolve_api_key(profile),
+        asset_id=payload.get("asset_id"),
+    )
+    snapshot = _job_store().get(outcome.execution.job_id)
+    if not snapshot.drafts:
+        raise AIJobStoreError(
+            f"AI job {outcome.execution.job_id} completed without a prompt draft."
+        )
+    prompt_draft = snapshot.drafts[-1]
+    return jsonify({
+        "job": snapshot.job.model_dump(mode="json"),
+        "prompt_draft": prompt_draft.model_dump(mode="json"),
+        "context": _job_store().draft_context(
+            prompt_draft, snapshot.job
+        ).model_dump(mode="json"),
+        "enhancement": outcome.enhancement.model_dump(mode="json"),
     }), 201
 
 

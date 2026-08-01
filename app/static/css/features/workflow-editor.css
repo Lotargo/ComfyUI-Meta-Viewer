@@ -3494,8 +3494,173 @@
     backdrop-filter: blur(22px);
 }
 
-.prompt-spark { width: 38px; height: 38px; display: grid; place-items: center; color: var(--accent-hover); }
+.prompt-enhance-trigger {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    align-self: center;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--accent-hover);
+    cursor: pointer;
+    transition: color 140ms ease, background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.prompt-enhance-trigger:hover {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    transform: translateY(-1px);
+}
+.prompt-enhance-trigger:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+.prompt-enhance-trigger[aria-expanded="true"] {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.prompt-spark { width: 38px; height: 38px; display: grid; place-items: center; color: inherit; }
 .prompt-spark svg { width: 22px; height: 22px; }
+
+.enhance-popover {
+    position: fixed;
+    z-index: 175;
+    box-sizing: border-box;
+    width: min(380px, calc(100vw - 24px));
+    max-height: min(620px, calc(100vh - 96px));
+    overflow: auto;
+    padding: 16px;
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 14px;
+    background:
+        radial-gradient(circle at 14% -45%, rgba(255, 255, 255, 0.075), transparent 38%),
+        linear-gradient(180deg, color-mix(in srgb, var(--surface2) 72%, transparent), color-mix(in srgb, var(--surface) 92%, var(--bg)));
+    color: var(--text);
+    box-shadow:
+        0 22px 48px rgba(0, 0, 0, 0.38),
+        0 5px 14px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px) saturate(112%);
+}
+
+.enhance-popover-header {
+    margin: -2px -2px 12px;
+    padding-bottom: 11px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.enhance-popover-header h3 {
+    margin: 0;
+    font-family: var(--font-title);
+    font-size: 15px;
+    letter-spacing: -0.015em;
+}
+
+.enhance-popover-header .workspace-kicker { margin-bottom: 3px; }
+
+.enhance-popover-sub {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: 11.5px;
+    line-height: 1.5;
+}
+
+.enhance-popover-close {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.enhance-popover-close:hover {
+    background: var(--surface2);
+    color: var(--text);
+}
+
+.enhance-popover-close svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.enhance-field {
+    display: grid;
+    gap: 7px;
+    margin: 0 0 12px;
+}
+
+.enhance-field > span {
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.enhance-field > small {
+    color: var(--text-muted);
+    font-size: 10.5px;
+    line-height: 1.45;
+}
+
+.enhance-field textarea,
+.enhance-field input,
+.enhance-field select {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface2);
+    background-clip: padding-box;
+    color: var(--text);
+}
+
+.enhance-field textarea {
+    min-height: 74px;
+    padding: 12px;
+    overflow: auto;
+    resize: vertical;
+}
+
+.enhance-field textarea::-webkit-resizer {
+    background-color: transparent;
+}
+
+.enhance-field input,
+.enhance-field select {
+    min-height: 42px;
+    padding: 0 36px 0 11px;
+}
+
+.enhance-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.enhance-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+}
 .editor-fields { min-width: 0; display: block; }
 .editor-fields .editor-field { display: block; }
 .editor-fields .field-label,
@@ -3503,9 +3668,11 @@
 .editor-fields .editor-field textarea {
     width: 100%;
     min-height: 48px;
-    max-height: 104px;
+    max-height: min(38vh, 260px);
     padding: 13px 6px 8px;
     resize: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     border: 0;
     outline: 0;
     background: transparent;

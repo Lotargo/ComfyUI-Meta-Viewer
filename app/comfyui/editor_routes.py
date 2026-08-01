@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from io import BytesIO
 from pathlib import Path
@@ -16,10 +17,17 @@ from app.ai.remix import RemixError, RemixPromptSource, RemixRequest, RemixServi
 from app.ai.resources import ModelResourceCatalog
 from app.ai.translation import PromptTranslationStore
 from app.config_store import ConfigStore
+from app.extractor import make_display_preview_from_bytes
 from app.media import media_type_for_path
 from app.paths import portable_filename
 
 from .client import ComfyUIClientError
+from .civitai_downloader import (
+    CIVITAI_FILTER_TYPES,
+    CivitaiDownloaderError,
+    CivitaiDownloaderService,
+    fetch_civitai_image,
+)
 from .model_inspector import inspect_model_file, register_model_file
 from .model_recommendations import (
     CivitaiModelRecommendationService,
@@ -34,7 +42,7 @@ from .workflow_compiler import (
 )
 from .resource_taxonomy import RESOURCE_MODEL_FOLDERS, inventory_resource_matches
 from .workflow_execution import WorkflowExecutionError, WorkflowExecutionService
-from .workflow_inventory import client_from_store, collect_runtime_inventory
+from .workflow_inventory import cached_runtime_inventory, client_from_store
 from .workflow_models import RuntimeInventory, WorkflowRun, WorkflowTemplate
 from .workflow_registry import (
     MAX_TEMPLATE_BUNDLE_BYTES,
@@ -119,7 +127,7 @@ def _registry_status_store() -> WorkflowRegistryStatusStore:
 
 
 def _inventory() -> RuntimeInventory:
-    return collect_runtime_inventory(
+    return cached_runtime_inventory(
         _config_store(),
         catalog=ModelResourceCatalog(),
     )
@@ -297,6 +305,11 @@ def workflow_comfy_error(error: ComfyUIClientError):
 @editor_blueprint.errorhandler(ModelRecommendationError)
 def workflow_model_recommendation_error(error: ModelRecommendationError):
     return jsonify({"error": str(error), "code": "model_recommendation_error"}), 422
+
+
+@editor_blueprint.errorhandler(CivitaiDownloaderError)
+def workflow_civitai_downloader_error(error: CivitaiDownloaderError):
+    return jsonify({"error": str(error), "code": "civitai_downloader_error"}), 422
 
 
 @editor_blueprint.errorhandler(ValidationError)
@@ -1071,6 +1084,141 @@ def model_recommendations_route():
         folder=folder,
         name=name,
     ))
+
+
+# --------------------------------------------------------------------------
+# Civitai model download manager
+# --------------------------------------------------------------------------
+
+
+def _civitai_downloader() -> CivitaiDownloaderService:
+    return CivitaiDownloaderService(_config_store())
+
+
+@editor_blueprint.get("/api/editor/models/civitai/filters")
+def civitai_downloader_filters():
+    service = _civitai_downloader()
+    return jsonify({
+        "model_types": list(CIVITAI_FILTER_TYPES),
+        "sort_options": [
+            "Most Downloaded",
+            "Most Liked",
+            "Newest",
+            "Highest Rated",
+        ],
+        "folders": service.available_folders(),
+        "folder_for_type": {mt: service.folder_for_type(mt) for mt in CIVITAI_FILTER_TYPES},
+    })
+
+
+@editor_blueprint.post("/api/editor/models/civitai/search")
+def civitai_search_route():
+    body = _json_object()
+    allowed = {"query", "types", "page", "limit", "sort", "nsfw", "cursor"}
+    unexpected = set(body) - allowed
+    if unexpected:
+        raise WorkflowCompilerError(
+            "Unsupported search fields: " + ", ".join(sorted(unexpected)),
+            code="invalid_editor_request",
+        )
+    page = max(1, int(body.get("page") or 1))
+    limit = min(100, max(1, int(body.get("limit") or 20)))
+    return jsonify(_civitai_downloader().search(
+        query=str(body.get("query") or ""),
+        types=str(body.get("types") or ""),
+        page=page,
+        limit=limit,
+        sort=str(body.get("sort") or "Most Downloaded"),
+        nsfw=bool(body.get("nsfw", True)),
+        cursor=str(body.get("cursor") or ""),
+    ))
+
+
+@editor_blueprint.get("/api/editor/models/civitai/details/<int:model_id>")
+def civitai_details_route(model_id: int):
+    return jsonify(_civitai_downloader().details(model_id))
+
+
+@editor_blueprint.get("/api/editor/models/civitai/image")
+def civitai_image_proxy_route():
+    url = str(request.args.get("url") or "")
+    if not url.startswith("https://image.civitai.com/"):
+        raise WorkflowCompilerError(
+            "Only Civitai image URLs are allowed.",
+            code="invalid_editor_request",
+        )
+    thumbnail_dir = Path(current_app.config["THUMBNAIL_FOLDER"])
+    cache_dir = thumbnail_dir / "civitai"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha1(url.encode("utf-8")).hexdigest()
+    cached = next(iter(cache_dir.glob(f"{digest}.*")), None)
+    if cached is not None and cached.is_file() and cached.stat().st_size > 0:
+        return send_file(cached)
+    try:
+        data = fetch_civitai_image(url)
+    except CivitaiDownloaderError as exc:
+        raise WorkflowCompilerError(str(exc), code="civitai_image_error") from exc
+    preview = make_display_preview_from_bytes(data, max_size=640)
+    if preview is None:
+        raise WorkflowCompilerError(
+            "Civitai returned an image that could not be decoded.",
+            code="civitai_image_error",
+        )
+    payload, extension = preview
+    cached = cache_dir / f"{digest}.{extension}"
+    cached.write_bytes(payload)
+    return send_file(cached)
+
+
+@editor_blueprint.post("/api/editor/models/civitai/download")
+def civitai_download_route():
+    body = _json_object()
+    allowed = {
+        "model_id", "model_name", "version_id", "version_name",
+        "folder", "filename", "file_type", "file_size_bytes",
+    }
+    unexpected = set(body) - allowed
+    if unexpected:
+        raise WorkflowCompilerError(
+            "Unsupported download fields: " + ", ".join(sorted(unexpected)),
+            code="invalid_editor_request",
+        )
+    required = {"model_id", "version_id", "folder", "filename"}
+    missing = sorted(required - set(body))
+    if missing:
+        raise WorkflowCompilerError(
+            "Missing download fields: " + ", ".join(missing),
+            code="invalid_editor_request",
+        )
+    return jsonify(_civitai_downloader().start_download(
+        model_id=int(body["model_id"]),
+        model_name=str(body.get("model_name") or ""),
+        version_id=int(body["version_id"]),
+        version_name=str(body.get("version_name") or ""),
+        folder=str(body["folder"]),
+        filename=str(body["filename"]),
+        file_type=str(body.get("file_type") or ""),
+        file_size_bytes=int(body.get("file_size_bytes") or 0),
+    ))
+
+
+@editor_blueprint.get("/api/editor/models/civitai/downloads")
+def civitai_downloads_route():
+    return jsonify({"items": _civitai_downloader().list_downloads()})
+
+
+@editor_blueprint.post("/api/editor/models/civitai/downloads/<int:download_id>/cancel")
+def civitai_cancel_route(download_id: int):
+    if not _civitai_downloader().cancel_download(download_id):
+        raise CivitaiDownloaderError("Download already finished or not found.")
+    return jsonify({"ok": True})
+
+
+@editor_blueprint.delete("/api/editor/models/civitai/downloads/<int:download_id>")
+def civitai_delete_route(download_id: int):
+    if not _civitai_downloader().delete_download(download_id):
+        raise CivitaiDownloaderError("Download record not found.")
+    return jsonify({"ok": True})
 
 
 __all__ = ["editor_blueprint"]

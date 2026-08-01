@@ -53,6 +53,7 @@ def _default_config() -> dict[str, Any]:
             "port": 8188,
             "extra_args": "",
             "auto_start": False,
+            "civitai_api_token": None,
         },
     }
 
@@ -144,6 +145,7 @@ class ConfigStore:
                     "port": int(comfyui.get("port") or 8188),
                     "extra_args": comfyui.get("extra_args") or "",
                     "auto_start": comfyui.get("auto_start") is True,
+                    "civitai_api_token": comfyui.get("civitai_api_token"),
                 },
             }
 
@@ -319,14 +321,17 @@ class ConfigStore:
                 )
 
     def comfyui_settings(self) -> dict[str, Any]:
-        return self.load().get("comfyui", {
+        settings = self.load().get("comfyui", {
             "install_path": None,
             "custom_python": None,
             "host": "127.0.0.1",
             "port": 8188,
             "extra_args": "",
             "auto_start": False,
+            "civitai_api_token": None,
         })
+        settings.setdefault("civitai_api_token", None)
+        return settings
 
     def update_comfyui_settings(
         self,
@@ -337,6 +342,7 @@ class ConfigStore:
         port: int | None = None,
         extra_args: str | None = None,
         auto_start: bool | None = None,
+        civitai_api_token: str | None = None,
     ) -> dict[str, Any]:
         with _config_lock:
             config = self.load()
@@ -353,6 +359,9 @@ class ConfigStore:
                 comfyui["extra_args"] = extra_args.strip()
             if auto_start is not None:
                 comfyui["auto_start"] = bool(auto_start)
+            if civitai_api_token is not None:
+                token = civitai_api_token.strip()
+                comfyui["civitai_api_token"] = token or None
 
             self.save(config)
             return comfyui

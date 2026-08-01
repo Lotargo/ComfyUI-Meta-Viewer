@@ -139,6 +139,18 @@ const elements = {
     adaptPromptProfile: byId('adapt-prompt-profile'),
     adaptProfileNote: byId('adapt-profile-note'),
     adaptPromptSubmit: byId('adapt-prompt-submit'),
+    enhanceTrigger: byId('prompt-enhance-open'),
+    enhancePopover: byId('enhance-popover'),
+    enhancePopoverClose: byId('enhance-popover-close'),
+    enhanceWishes: byId('enhance-wishes'),
+    enhanceFamily: byId('enhance-family'),
+    enhanceScenario: byId('enhance-scenario'),
+    enhanceCheckpointProfile: byId('enhance-checkpoint-profile'),
+    enhanceCheckpointNote: byId('enhance-checkpoint-note'),
+    enhanceProfile: byId('enhance-profile'),
+    enhanceProfileNote: byId('enhance-profile-note'),
+    enhanceCancel: byId('enhance-cancel'),
+    enhanceSubmit: byId('enhance-submit'),
     reconstructPromptOpen: byId('reconstruct-prompt-open'),
     reconstructPromptDialog: byId('reconstruct-prompt-dialog'),
     reconstructPromptForm: byId('reconstruct-prompt-form'),
@@ -205,6 +217,7 @@ const runtimeElements = {
     port: byId('port-input'),
     extraArgs: byId('extra-args-input'),
     customPython: byId('custom-python-input'),
+    civitaiApiToken: byId('civitai-api-token-input'),
     detectionCard: byId('detection-result-card'),
     detectionBadge: byId('detection-badge'),
     detectionSummary: byId('detection-summary'),
@@ -726,6 +739,26 @@ function renderFields() {
     updateAdvancedCount(advanced.length);
     syncQuickControls();
     updateWorkspaceSummary();
+    const composerField = elements.fields.querySelector('textarea[data-field-id]');
+    if (composerField) autosizeTextarea(composerField);
+}
+
+function autosizeTextarea(textarea) {
+    const resize = () => {
+        textarea.style.height = 'auto';
+        textarea.style.height = `${textarea.scrollHeight}px`;
+    };
+    resize();
+    if (!textarea.dataset.autosizeBound) {
+        textarea.dataset.autosizeBound = '1';
+        textarea.addEventListener('input', resize);
+    }
+    return resize;
+}
+
+function resizePromptComposerField() {
+    const field = byId('field-positive_prompt');
+    if (field) autosizeTextarea(field);
 }
 
 function renderFieldSections(fields, indexStart = 1, compact = false) {
@@ -2061,6 +2094,143 @@ async function createAdaptedPromptDraft(event) {
     }
 }
 
+function positionEnhancePopover() {
+    if (!elements.enhancePopover || elements.enhancePopover.hidden || !elements.enhanceTrigger) return;
+    const anchor = elements.enhanceTrigger.getBoundingClientRect();
+    const popover = elements.enhancePopover;
+    const gutter = 10;
+    const edge = 12;
+    popover.style.width = '';
+    const measured = popover.getBoundingClientRect();
+    const preferredLeft = anchor.left;
+    const left = Math.min(
+        Math.max(edge, preferredLeft),
+        Math.max(edge, window.innerWidth - measured.width - edge),
+    );
+    const top = Math.max(
+        edge,
+        Math.min(anchor.top - measured.height - gutter, window.innerHeight - measured.height - edge),
+    );
+    popover.style.left = `${Math.round(left)}px`;
+    popover.style.top = `${Math.round(top)}px`;
+}
+
+function openEnhancePopover() {
+    if (elements.enhanceTrigger.disabled) return;
+    elements.enhanceTrigger.disabled = true;
+    (async () => {
+        try {
+            if (!state.aiCapabilities?.length) await loadPromptAssistantData();
+            populatePromptFamilies(elements.enhanceFamily);
+            populatePromptProfiles(elements.enhanceProfile, elements.enhanceProfileNote);
+            const suggested = suggestedPromptFamily();
+            if (state.aiCapabilities.some((family) => family.id === suggested)) {
+                elements.enhanceFamily.value = suggested;
+            }
+            elements.enhanceWishes.value = '';
+            elements.enhanceCheckpointProfile.value = '';
+            renderEnhanceCheckpointNote();
+            renderEnhanceScenarios();
+            elements.enhancePopover.hidden = false;
+            elements.enhanceTrigger.setAttribute('aria-expanded', 'true');
+            window.requestAnimationFrame(() => {
+                positionEnhancePopover();
+                elements.enhanceWishes.focus();
+            });
+        } catch (error) {
+            showToast(error.message, 'error');
+        } finally {
+            elements.enhanceTrigger.disabled = false;
+        }
+    })();
+}
+
+function closeEnhancePopover() {
+    if (!elements.enhancePopover || elements.enhancePopover.hidden) return;
+    elements.enhancePopover.hidden = true;
+    elements.enhanceTrigger.setAttribute('aria-expanded', 'false');
+}
+
+function renderEnhanceScenarios() {
+    const available = renderScenarioOptions(
+        elements.enhanceScenario,
+        elements.enhanceFamily.value,
+    );
+    elements.enhanceSubmit.disabled = (
+        !available.length || !elements.enhanceProfile.value
+    );
+}
+
+function renderEnhanceCheckpointNote() {
+    const resource = selectedAdaptCheckpointResource();
+    if (!resource) {
+        elements.enhanceCheckpointNote.textContent = 'No catalogued checkpoint is selected; only the optional tested profile will guide enhancement.';
+        return;
+    }
+    const source = String(state.values.positive_prompt || '').toLocaleLowerCase();
+    const present = (resource.trigger_words || []).filter((trigger) => (
+        source.includes(String(trigger).toLocaleLowerCase())
+    ));
+    const name = resource.display_name || friendlyResourceName(resource.name);
+    elements.enhanceCheckpointNote.textContent = present.length
+        ? `${name}: protected source triggers — ${present.join(', ')}.`
+        : `${name}: no trusted catalog triggers were found in the source prompt.`;
+}
+
+async function createEnhancedPromptDraft() {
+    const positivePrompt = String(state.values.positive_prompt || '').trim();
+    if (
+        !positivePrompt || !elements.enhanceProfile.value
+        || !elements.enhanceScenario.value || !elements.enhanceFamily.value
+    ) return;
+    elements.enhanceSubmit.disabled = true;
+    elements.enhanceSubmit.textContent = 'Enhancing…';
+    try {
+        const checkpointResource = selectedAdaptCheckpointResource();
+        const enhanced = await requestJson('/api/ai/enhance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                profile_id: elements.enhanceProfile.value,
+                wishes: elements.enhanceWishes.value.trim(),
+                checkpoint_profile: elements.enhanceCheckpointProfile.value.trim() || null,
+                checkpoint_resource_hash: checkpointResource?.content_hash || null,
+                source: {
+                    positive_prompt: positivePrompt,
+                    negative_prompt: String(
+                        state.values.negative_prompt || state.advancedFieldMemory.negative_prompt || '',
+                    ).trim(),
+                },
+                task: {
+                    family: elements.enhanceFamily.value,
+                    scenario: elements.enhanceScenario.value,
+                },
+            }),
+        });
+        const created = await requestJson('/api/editor/drafts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                template_id: currentManifest().id,
+                values: state.values,
+                resource_selections: state.resources,
+                ai_prompt_draft_id: enhanced.prompt_draft.id,
+            }),
+        });
+        activateAIPromptDraft(
+            created,
+            'Enhanced draft',
+            'Prompt enhanced and applied as a new draft. Review it before generation.',
+        );
+        closeEnhancePopover();
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        elements.enhanceSubmit.textContent = 'Enhance to draft';
+        renderEnhanceScenarios();
+    }
+}
+
 async function openReconstructPromptDialog() {
     if (!state.draft?.source_asset_id && !state.aiSceneSpec) {
         showToast('Open an image from the Viewer with Remix before reconstruction.', 'info');
@@ -2573,6 +2743,7 @@ function runtimeConfigPayload() {
         port: Number(runtimeElements.port.value) || 8188,
         extra_args: runtimeElements.extraArgs.value.trim(),
         custom_python: runtimeElements.customPython.value.trim(),
+        civitai_api_token: runtimeElements.civitaiApiToken.value.trim(),
     };
 }
 
@@ -2584,6 +2755,7 @@ async function loadRuntimeConfig() {
         runtimeElements.port.value = config.port || 8188;
         runtimeElements.extraArgs.value = config.extra_args || '';
         runtimeElements.customPython.value = config.custom_python || '';
+        runtimeElements.civitaiApiToken.value = config.civitai_api_token || '';
         if (config.install_path) detectRuntime(config.install_path, config.custom_python, false);
     } catch (error) {
         console.error('Could not load ComfyUI configuration', error);
@@ -3257,6 +3429,7 @@ async function inspectSourceWorkflow() {
 
 function bindEvents() {
     bindAccordionFlyouts();
+    window.addEventListener('resize', resizePromptComposerField);
     document.querySelectorAll('dialog').forEach((dialog) => {
         dialog.querySelectorAll('button[value="cancel"], button[aria-label^="Close"]').forEach((btn) => {
             btn.setAttribute('type', 'button');
@@ -3334,6 +3507,25 @@ function bindEvents() {
     elements.adaptPromptProfile.addEventListener('change', renderAdaptationScenarios);
     elements.adaptPromptPositive.addEventListener('input', renderAdaptCheckpointNote);
     elements.adaptPromptForm.addEventListener('submit', createAdaptedPromptDraft);
+    elements.enhanceTrigger.addEventListener('click', () => {
+        if (elements.enhancePopover.hidden) openEnhancePopover();
+        else closeEnhancePopover();
+    });
+    elements.enhancePopoverClose.addEventListener('click', closeEnhancePopover);
+    elements.enhanceCancel.addEventListener('click', closeEnhancePopover);
+    elements.enhanceSubmit.addEventListener('click', createEnhancedPromptDraft);
+    elements.enhanceFamily.addEventListener('change', renderEnhanceScenarios);
+    elements.enhanceProfile.addEventListener('change', renderEnhanceScenarios);
+    elements.enhanceCheckpointProfile.addEventListener('input', renderEnhanceCheckpointNote);
+    elements.enhancePopover.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeEnhancePopover();
+    });
+    elements.enhancePopover.addEventListener('focusout', (event) => {
+        if (!elements.enhancePopover.hidden && !elements.enhancePopover.contains(event.relatedTarget)) {
+            closeEnhancePopover();
+        }
+    });
+    window.addEventListener('resize', () => positionEnhancePopover());
     elements.reconstructPromptOpen.addEventListener('click', openReconstructPromptDialog);
     elements.reconstructPromptFamily.addEventListener('change', renderReconstructionScenarios);
     elements.reconstructVisionProfile.addEventListener('change', renderReconstructionScenarios);
@@ -3468,6 +3660,9 @@ function bindEvents() {
         if (document.visibilityState === 'visible') loadRuns();
     });
     window.addEventListener('focus', loadRuns);
+    window.addEventListener('civitai:models-updated', () => {
+        refreshTemplates();
+    });
     window.addEventListener('beforeunload', () => {
         persistCreateWorkspace();
         window.clearTimeout(state.pollTimer);

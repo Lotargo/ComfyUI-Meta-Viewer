@@ -553,7 +553,7 @@ function renderCliCard(entry) {
     }
 
     const actions = createElement('div', 'card-actions');
-    if (integration?.installed) {
+    if (integration?.installed && integration.provider !== false) {
         const createBtn = actionButton('Create profile', () => prepareCliProfile(integration, message));
         if (pending) createBtn.disabled = true;
         actions.append(createBtn);
@@ -1358,6 +1358,7 @@ const DEFAULT_CLI_CATALOG = [
     { type: 'opencode', label: 'OpenCode', multimodal: true, experimental: false, model_discovery: true },
     { type: 'claude', label: 'Claude Code', multimodal: false, experimental: false, model_discovery: false },
     { type: 'antigravity', label: 'Antigravity CLI', multimodal: true, experimental: true, model_discovery: true },
+    { type: 'civitai', label: 'Civitai CLI', multimodal: false, experimental: false, model_discovery: false, provider: false },
 ];
 
 async function loadProfiles() {

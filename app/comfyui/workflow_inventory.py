@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import time
 from pathlib import Path
+from threading import RLock
+from typing import Any
 
 from app.ai.resources import (
     CompatibilityStatus,
@@ -23,6 +26,32 @@ from .workflow_models import RuntimeInventory
 MODEL_SUFFIXES = {
     ".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf", ".onnx"
 }
+
+# Short-lived cache for collect_runtime_inventory(). The slow part is the
+# ComfyUI API round-trip (get_object_info + per-folder list_models). A short
+# TTL plus explicit invalidation on mutations keeps bootstrap fast while
+# ensuring fresh data appears immediately after config/model changes.
+_INVENTORY_CACHE_TTL = 15.0
+_inventory_cache: dict[str, Any] = {"at": 0.0, "data": None}
+_inventory_lock = RLock()
+
+
+def invalidate_runtime_inventory() -> None:
+    with _inventory_lock:
+        _inventory_cache["at"] = 0.0
+        _inventory_cache["data"] = None
+
+
+def cached_runtime_inventory(store: ConfigStore, *, catalog=None) -> RuntimeInventory:
+    with _inventory_lock:
+        cached = _inventory_cache["data"]
+        if cached is not None and time.monotonic() - _inventory_cache["at"] < _INVENTORY_CACHE_TTL:
+            return cached
+    inventory = collect_runtime_inventory(store, catalog=catalog)
+    with _inventory_lock:
+        _inventory_cache["at"] = time.monotonic()
+        _inventory_cache["data"] = inventory
+    return inventory
 
 
 def client_from_store(store: ConfigStore, *, timeout: float = 3.0) -> ComfyUIClient:
@@ -196,6 +225,8 @@ def _infer_architecture(name: str) -> ModelEcosystem:
 
 __all__ = [
     "FOLDER_RESOURCE_TYPES",
+    "cached_runtime_inventory",
     "client_from_store",
     "collect_runtime_inventory",
+    "invalidate_runtime_inventory",
 ]

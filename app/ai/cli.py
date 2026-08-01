@@ -75,6 +75,40 @@ CLI_SPECS: dict[str, dict[str, Any]] = {
             ),
         },
     },
+    "civitai": {
+        "label": "Civitai CLI",
+        "commands": ("civitai",),
+        "version_args": ("version",),
+        "auth_args": ("whoami",),
+        "models_args": None,
+        "multimodal": False,
+        "experimental": False,
+        "provider": False,
+        "install": {
+            "windows": {
+                "label": "Windows (npm)",
+                "command": "npm install -g @civitai/cli",
+                "url": None,
+            },
+            "macos": {
+                "label": "macOS (npm)",
+                "command": "npm install -g @civitai/cli",
+                "url": None,
+            },
+            "linux": {
+                "label": "Linux (npm)",
+                "command": "npm install -g @civitai/cli",
+                "url": None,
+            },
+            "docs_url": "https://developer.civitai.com/site/guide/cli",
+            "path_setup_command": "npm config get prefix",
+            "verify_command": "civitai version",
+            "note": (
+                "After installing, restart the application so it picks up the "
+                "updated PATH, then press Re-check. Downloads require login."
+            ),
+        },
+    },
 }
 
 
@@ -299,6 +333,7 @@ def cli_catalog() -> list[dict[str, Any]]:
             "multimodal": spec["multimodal"],
             "experimental": spec["experimental"],
             "model_discovery": spec["models_args"] is not None,
+            "provider": spec.get("provider", True),
             "install": spec.get("install"),
         })
     return catalog
@@ -350,9 +385,19 @@ def _authentication_status(cli_type: str, executable: str) -> dict[str, Any]:
             "message": "OpenCode is installed but has no configured credentials.",
         }
     if result.returncode == 0:
+        if cli_type == "civitai":
+            return {
+                "status": "available",
+                "message": "Civitai CLI reports an active authenticated session.",
+            }
         return {
             "status": "available",
             "message": "Claude Code reports an active authenticated session.",
+        }
+    if cli_type == "civitai":
+        return {
+            "status": "missing",
+            "message": "Civitai CLI is installed but not logged in. Run 'civitai login' to authorize downloads.",
         }
     detail = output.splitlines()[-1] if output else "Authentication check failed."
     return {"status": "error", "message": detail[:500]}
@@ -374,6 +419,7 @@ def probe_cli(cli_type: str) -> dict[str, Any]:
         "multimodal": spec["multimodal"],
         "experimental": spec["experimental"],
         "model_discovery": spec["models_args"] is not None,
+        "provider": spec.get("provider", True),
     }
     if executable is None:
         ide = detect_ide_installation(cli_type)

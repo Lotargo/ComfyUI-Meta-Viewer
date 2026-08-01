@@ -17,6 +17,7 @@ class PromptOperation(str, Enum):
     RECONSTRUCT = "reconstruct"
     ADAPT = "adapt"
     TRANSLATE = "translate"
+    ENHANCE = "enhance"
 
 
 class PromptScenario(str, Enum):

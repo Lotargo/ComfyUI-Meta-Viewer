@@ -132,7 +132,14 @@ def add_cache_headers(response):
             response.headers["Cache-Control"] = "public, max-age=0"
         else:
             response.headers["Cache-Control"] = "public, max-age=86400"
+    elif request.path.startswith("/api/") and response.content_type:
+        if "application/json" in response.content_type:
+            response.headers["Cache-Control"] = "no-store"
     return response
+
+
+_IMMUTABLE_IMAGE_CACHE = "public, max-age=31536000, immutable"
+_IMMUTABLE_IMAGE_HEADERS = {"Cache-Control": _IMMUTABLE_IMAGE_CACHE}
 
 
 @app.errorhandler(db.DatabaseMaintenanceError)
@@ -759,7 +766,7 @@ def api_thumbnail(image_id: int):
     thumb_path = thumb_dir / f"{image_id}.jpg"
 
     if thumb_path.exists():
-        return Response(thumb_path.read_bytes(), mimetype="image/jpeg")
+        return Response(thumb_path.read_bytes(), mimetype="image/jpeg", headers=_IMMUTABLE_IMAGE_HEADERS)
 
     source = db.get_asset_source_info(image_id)
     if not source:
@@ -794,7 +801,7 @@ def api_thumbnail(image_id: int):
         thumb_dir.mkdir(parents=True, exist_ok=True)
         thumb_path.write_bytes(thumb_data)
         db.update_asset_preview_status(image_id, "ready")
-        return Response(thumb_data, mimetype="image/jpeg")
+        return Response(thumb_data, mimetype="image/jpeg", headers=_IMMUTABLE_IMAGE_HEADERS)
 
     original = db.get_image_original_data(image_id)
     if original:
@@ -802,7 +809,7 @@ def api_thumbnail(image_id: int):
         if thumb_data:
             thumb_dir.mkdir(parents=True, exist_ok=True)
             thumb_path.write_bytes(thumb_data)
-            return Response(thumb_data, mimetype="image/jpeg")
+            return Response(thumb_data, mimetype="image/jpeg", headers=_IMMUTABLE_IMAGE_HEADERS)
         return jsonify({"error": "failed"}), 500
 
     img_path = db.get_image_path(image_id)
@@ -816,7 +823,7 @@ def api_thumbnail(image_id: int):
         return jsonify({"error": "failed"}), 500
     thumb_dir.mkdir(parents=True, exist_ok=True)
     thumb_path.write_bytes(thumb_data)
-    return Response(thumb_data, mimetype="image/jpeg")
+    return Response(thumb_data, mimetype="image/jpeg", headers=_IMMUTABLE_IMAGE_HEADERS)
 
 
 @app.route("/api/preview/<int:image_id>")
@@ -843,9 +850,9 @@ def api_preview(image_id: int):
         preview_path,
         mimetype=preview_mimetype(preview_path),
         conditional=True,
-        max_age=0,
+        max_age=31536000,
     )
-    response.headers["Cache-Control"] = "private, no-cache"
+    response.headers["Cache-Control"] = _IMMUTABLE_IMAGE_CACHE
     return response
 
 
@@ -879,21 +886,23 @@ def api_original(image_id: int):
             direct_passthrough=True,
         )
         response.content_length = int(source.get("file_size") or 0) or None
-        response.headers["Cache-Control"] = "private, no-cache"
+        response.headers["Cache-Control"] = _IMMUTABLE_IMAGE_CACHE
         response.headers["Content-Disposition"] = "inline"
         return response
 
     p = Path(source["path"])
     if not p.is_file():
         return jsonify({"error": "file not found"}), 404
-    return send_file(
+    response = send_file(
         p.resolve(),
         mimetype=mime,
         conditional=True,
         as_attachment=False,
         download_name=source["file_name"],
-        max_age=0,
+        max_age=31536000,
     )
+    response.headers["Cache-Control"] = _IMMUTABLE_IMAGE_CACHE
+    return response
 
 
 @app.route("/api/extract", methods=["POST"])
@@ -1118,6 +1127,9 @@ def main():
     # Start queue background worker
     from .worker import start_worker
     start_worker(storage_path("THUMBNAIL_FOLDER"))
+    from .comfyui.civitai_downloader import start_download_worker, stop_download_worker
+
+    start_download_worker(app.config.get("CONFIG_STORE"))
     from .source_monitor import start_source_monitor, stop_source_monitor
 
     start_source_monitor(runtime_paths)
@@ -1138,6 +1150,7 @@ def main():
         from .worker import stop_worker
 
         stop_worker(wait=True)
+        stop_download_worker(wait=True)
 
 
 if __name__ == "__main__":

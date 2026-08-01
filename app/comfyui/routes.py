@@ -7,6 +7,7 @@ from app.config_store import ConfigStore
 from .detector import detect_comfyui
 from .launcher import generate_launcher_script
 from .manager import ComfyUIMode, comfy_manager
+from .workflow_inventory import invalidate_runtime_inventory
 
 comfyui_blueprint = Blueprint("comfyui", __name__)
 
@@ -35,7 +36,10 @@ def comfyui_config():
         port=payload.get("port"),
         extra_args=payload.get("extra_args"),
         auto_start=payload.get("auto_start"),
+        civitai_api_token=payload.get("civitai_api_token"),
     )
+    updated.pop("civitai_api_token", None)
+    invalidate_runtime_inventory()
     return jsonify(updated)
 
 
@@ -85,6 +89,7 @@ def comfyui_start():
             extra_args=extra_args,
             custom_python=custom_python,
         )
+        invalidate_runtime_inventory()
         return jsonify(info)
     except Exception as exc:
         return jsonify({"error": str(exc), "code": "start_failed"}), 422
@@ -96,6 +101,7 @@ def comfyui_stop():
         return jsonify({"error": "Cannot stop external ComfyUI process", "code": "external_process"}), 400
 
     comfy_manager.stop_managed()
+    invalidate_runtime_inventory()
     return jsonify(comfy_manager.get_info())
 
 
@@ -119,6 +125,7 @@ def comfyui_restart():
             extra_args=extra_args,
             custom_python=custom_python,
         )
+        invalidate_runtime_inventory()
         return jsonify(info)
     except Exception as exc:
         return jsonify({"error": str(exc), "code": "restart_failed"}), 422

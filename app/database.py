@@ -275,6 +275,19 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS ai_prompt_enhancements (
+                job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+                schema_version TEXT NOT NULL DEFAULT '1',
+                family TEXT NOT NULL,
+                checkpoint_profile TEXT,
+                wishes TEXT NOT NULL DEFAULT '',
+                source_positive_prompt TEXT NOT NULL,
+                source_negative_prompt TEXT NOT NULL DEFAULT '',
+                enhanced_positive_prompt TEXT NOT NULL,
+                enhanced_negative_prompt TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             CREATE TABLE IF NOT EXISTS model_resources (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content_hash TEXT UNIQUE NOT NULL,
@@ -308,6 +321,23 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS model_recommendations (
                 sha256 TEXT PRIMARY KEY,
                 result_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS model_downloads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                civitai_model_id INTEGER NOT NULL DEFAULT 0,
+                civitai_model_name TEXT NOT NULL DEFAULT '',
+                civitai_version_id INTEGER NOT NULL,
+                version_name TEXT NOT NULL DEFAULT '',
+                folder TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                file_size_bytes INTEGER NOT NULL DEFAULT 0,
+                downloaded_bytes INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'queued',
+                error TEXT,
+                source_url TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
@@ -383,6 +413,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_model_resources_hash ON model_resources(content_hash);
             CREATE INDEX IF NOT EXISTS idx_model_resources_arch ON model_resources(architecture);
             CREATE INDEX IF NOT EXISTS idx_model_file_hashes_sha256 ON model_file_hashes(sha256);
+            CREATE INDEX IF NOT EXISTS idx_model_downloads_status ON model_downloads(status);
             CREATE INDEX IF NOT EXISTS idx_workflow_drafts_template ON workflow_drafts(template_id, id);
             CREATE INDEX IF NOT EXISTS idx_workflow_drafts_source ON workflow_drafts(source_asset_id);
             CREATE INDEX IF NOT EXISTS idx_workflow_runs_draft ON workflow_runs(draft_id, id);

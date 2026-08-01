@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="/static/css/components/toast.css">
     <link rel="stylesheet" href="/static/css/features/lightbox.css">
     <link rel="stylesheet" href="/static/css/features/workflow-editor.css?v={{ static_version('css/features/workflow-editor.css') }}">
+    <link rel="stylesheet" href="/static/css/features/civitai-downloader.css?v={{ static_version('css/features/civitai-downloader.css') }}">
     <link rel="stylesheet" href="/static/css/base/studio-theme.css?v={{ static_version('css/base/studio-theme.css') }}">
 </head>
 <body class="workflow-editor-body studio-theme">
@@ -31,6 +32,11 @@
             </nav>
         </div>
         <div class="global-header-actions">
+            <button id="civitai-downloader-open" class="runtime-header-control civitai-header-control" type="button" aria-haspopup="dialog" aria-controls="civitai-downloader-dialog" aria-expanded="false">
+                <span class="runtime-header-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m-4-4 4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
+                <span class="runtime-header-copy"><strong id="civitai-downloader-status-text">Models</strong><small id="civitai-downloader-status-detail">Civitai downloads</small></span>
+                <span id="civitai-downloader-badge" class="civitai-header-badge" hidden></span>
+            </button>
             <button id="runtime-open" class="runtime-header-control" type="button" aria-haspopup="dialog" aria-controls="runtime-drawer" aria-expanded="false">
                 <span class="runtime-header-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9h.01M10 9h7M7 15h10"/></svg></span>
                 <span class="runtime-header-copy"><strong id="runtime-status-text">ComfyUI</strong><small id="runtime-status-detail">Checking connection</small></span>
@@ -257,7 +263,9 @@
             <div class="prompt-dock">
                 <div id="validation-summary" class="validation-summary" role="status"><span class="validation-dot neutral"></span><span>Connect ComfyUI when you are ready</span></div>
                 <div class="prompt-composer">
-                    <span class="prompt-spark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg></span>
+                    <button id="prompt-enhance-open" class="prompt-enhance-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="enhance-popover" title="Enhance prompt with AI">
+                        <span class="prompt-spark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg></span>
+                    </button>
                     <div id="editor-fields" class="editor-fields" aria-live="polite" aria-busy="true">
                         <label class="editor-field field-textarea field-positive">
                             <span class="field-label">Describe the image *</span>
@@ -265,6 +273,24 @@
                         </label>
                     </div>
                     <button id="generate-workflow" class="generate-button" type="button" disabled><span id="generate-label">Create</span></button>
+                </div>
+                <div id="enhance-popover" class="enhance-popover" role="dialog" aria-modal="false" aria-labelledby="enhance-popover-title" hidden>
+                    <header class="enhance-popover-header">
+                        <div>
+                            <p class="workspace-kicker">AI assist</p>
+                            <h3 id="enhance-popover-title">Enhance prompt</h3>
+                            <p class="enhance-popover-sub">Tell the AI what to improve. The subject is kept and the wording is strengthened for the target model family.</p>
+                        </div>
+                        <button id="enhance-popover-close" class="enhance-popover-close" type="button" aria-label="Close enhance panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+                    </header>
+                    <label class="enhance-field"><span>What should improve?</span><textarea id="enhance-wishes" rows="3" maxlength="2000" placeholder="More cinematic light, richer fabric detail, keep the character…"></textarea></label>
+                    <div class="enhance-grid">
+                        <label class="enhance-field"><span>Target family</span><select id="enhance-family" required></select></label>
+                        <label class="enhance-field"><span>Scenario</span><select id="enhance-scenario" required></select></label>
+                    </div>
+                    <label class="enhance-field"><span>Checkpoint profile</span><input id="enhance-checkpoint-profile" type="text" maxlength="120" placeholder="Optional tested profile"><small id="enhance-checkpoint-note">Use a known capability profile when the checkpoint needs special prompt rules.</small></label>
+                    <label class="enhance-field"><span>Execution profile</span><select id="enhance-profile" required></select><small id="enhance-profile-note">Profiles are configured on the AI settings page.</small></label>
+                    <div class="enhance-footer"><button id="enhance-cancel" class="btn btn-secondary" type="button">Cancel</button><button id="enhance-submit" class="btn btn-primary" type="button">Enhance to draft</button></div>
                 </div>
                 <p id="generate-help" class="generate-help">The result will be saved to the library automatically.</p>
             </div>
@@ -337,6 +363,7 @@
                             <label class="runtime-field" for="port-input"><span>Port</span><input type="number" id="port-input" value="8188" min="1" max="65535"></label>
                             <label class="runtime-field runtime-field-wide" for="extra-args-input"><span>Extra arguments</span><input type="text" id="extra-args-input" placeholder="--lowvram --preview-method auto"><small>Passed to main.py after validated host and port arguments.</small></label>
                             <label class="runtime-field runtime-field-wide" for="custom-python-input"><span>Custom Python interpreter</span><input type="text" id="custom-python-input" placeholder="Automatic detection"><small>Leave empty for Windows Portable or virtual-environment discovery.</small></label>
+                            <label class="runtime-field runtime-field-wide" for="civitai-api-token-input"><span>Civitai API token</span><input type="password" id="civitai-api-token-input" placeholder="Required for model downloads" autocomplete="off"><small>Create one at civitai.com/user/account → API keys. Used to authenticate model downloads.</small></label>
                             <button id="btn-gen-script" class="btn btn-secondary" type="button">Generate launcher script</button>
                         </details>
                     </form>
@@ -546,6 +573,58 @@
         </form>
     </dialog>
 
+    <dialog id="civitai-downloader-dialog" class="editor-dialog civitai-downloader-dialog" aria-labelledby="civitai-downloader-title">
+        <div class="civitai-dialog-inner">
+            <div class="dialog-heading">
+                <div><p class="workspace-kicker">Model downloader</p><h2 id="civitai-downloader-title">Civitai models</h2><p>Search Civitai, pick a checkpoint or LoRA, and download it straight into your ComfyUI model folders.</p></div>
+                <button id="civitai-dialog-close" class="workspace-icon-button" type="button" aria-label="Close model downloader"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="m6 6 12 12M18 6 6 18"></path></svg></button>
+            </div>
+
+            <form id="civitai-search-form" class="civitai-search-bar">
+                <div class="civitai-search-field">
+                    <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                    <input id="civitai-query" type="search" placeholder="Search models… e.g. Flux, SDXL, Pony LoRA" autocomplete="off">
+                </div>
+                <select id="civitai-type" aria-label="Model type">
+                    <option value="">All types</option>
+                </select>
+                <select id="civitai-sort" aria-label="Sort by">
+                    <option value="Most Downloaded">Most Downloaded</option>
+                    <option value="Most Liked">Most Liked</option>
+                    <option value="Newest">Newest</option>
+                    <option value="Highest Rated">Highest Rated</option>
+                </select>
+                <label class="civitai-nsfw-toggle" title="Include NSFW models">
+                    <input id="civitai-nsfw" type="checkbox" checked>
+                    <span>NSFW</span>
+                </label>
+                <button class="btn btn-primary" type="submit">Search</button>
+            </form>
+
+            <div class="civitai-panel-tabs" role="tablist" aria-label="Downloader panels">
+                <button id="civitai-tab-browse" class="civitai-tab active" type="button" role="tab" aria-selected="true">Browse</button>
+                <button id="civitai-tab-downloads" class="civitai-tab" type="button" role="tab" aria-selected="false">Downloads <span id="civitai-download-count" class="civitai-tab-count" hidden></span></button>
+            </div>
+
+            <div id="civitai-panel-browse" class="civitai-panel" role="tabpanel">
+                <div class="civitai-result-meta"><span id="civitai-result-count"></span><span id="civitai-result-status"></span></div>
+                <div id="civitai-results" class="civitai-results" aria-live="polite"></div>
+                <div id="civitai-empty" class="civitai-empty" hidden>
+                    <p>No results yet.</p><small>Search Civitai to find models to download.</small>
+                </div>
+                <div class="civitai-pagination">
+                    <button id="civitai-prev-page" class="btn btn-ghost btn-sm" type="button" disabled>Previous</button>
+                    <span id="civitai-page-info"></span>
+                    <button id="civitai-next-page" class="btn btn-ghost btn-sm" type="button" disabled>Next</button>
+                </div>
+            </div>
+
+            <div id="civitai-panel-downloads" class="civitai-panel" role="tabpanel" hidden>
+                <div id="civitai-downloads" class="civitai-downloads" aria-live="polite"></div>
+            </div>
+        </div>
+    </dialog>
+
     <div class="lightbox-overlay create-lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Generation preview">
         <div class="lightbox-top">
             <span class="lb-title" id="lb-title"></span>
@@ -577,5 +656,6 @@
 
     <div id="toast-container" class="toast-container" aria-live="polite"></div>
     <script type="module" src="/static/js/features/workflow-editor.js?v={{ static_version('js/features/workflow-editor.js') }}"></script>
+    <script type="module" src="/static/js/features/civitai-downloader.js?v={{ static_version('js/features/civitai-downloader.js') }}"></script>
 </body>
 </html>

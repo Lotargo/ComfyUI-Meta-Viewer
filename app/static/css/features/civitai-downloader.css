@@ -1,0 +1,381 @@
+/* Civitai model downloader dialog — Create editor. */
+
+.civitai-downloader-dialog {
+    width: min(1040px, calc(100vw - 28px));
+    max-height: calc(100vh - 28px);
+    display: block;
+}
+
+.civitai-downloader-dialog:not([open]) {
+    display: none;
+}
+
+.civitai-downloader-dialog::backdrop {
+    background: rgba(3, 6, 8, 0.72);
+    backdrop-filter: blur(4px);
+}
+
+.civitai-dialog-inner {
+    padding: 20px;
+}
+
+.civitai-header-control {
+    min-width: 0;
+}
+
+.civitai-header-badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* --- search bar --- */
+
+.civitai-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+
+.civitai-search-field {
+    position: relative;
+    flex: 1 1 280px;
+    min-width: 200px;
+}
+
+.civitai-search-field svg {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.civitai-search-field input {
+    width: 100%;
+    height: 38px;
+    padding: 0 12px 0 32px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface2);
+    color: var(--text);
+    outline: none;
+}
+
+.civitai-search-field input:focus {
+    border-color: var(--accent);
+}
+
+.civitai-search-bar select {
+    height: 38px;
+    padding: 0 30px 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface2);
+    color: var(--text);
+    outline: none;
+    cursor: pointer;
+}
+
+.civitai-nsfw-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 38px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+/* --- tabs --- */
+
+.civitai-panel-tabs {
+    display: flex;
+    gap: 4px;
+    margin-top: 18px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.civitai-tab {
+    padding: 8px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.civitai-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
+.civitai-tab-count {
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    color: var(--accent-hover);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.civitai-panel {
+    padding: 14px 0 0;
+}
+
+/* --- results --- */
+
+.civitai-result-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    min-height: 18px;
+    margin-bottom: 12px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.civitai-results {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+}
+
+.civitai-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    background: var(--surface2);
+    transition: border-color var(--transition-fast);
+}
+
+.civitai-card:hover {
+    border-color: var(--border);
+}
+
+.civitai-card-thumb {
+    width: 100%;
+    flex: 0 0 auto;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    object-fit: cover;
+    border: 1px solid var(--border-subtle);
+}
+
+.civitai-card-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+
+.civitai-card-title {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.civitai-card-meta {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.civitai-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    flex-wrap: wrap;
+}
+
+.civitai-card-actions select {
+    height: 30px;
+    max-width: 150px;
+    padding: 0 24px 0 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+}
+
+.civitai-card-actions .btn {
+    margin-left: auto;
+}
+
+.civitai-empty {
+    padding: 40px 0;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.civitai-empty p {
+    margin: 0 0 4px;
+    font-size: 14px;
+}
+
+.civitai-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 16px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+/* --- downloads --- */
+
+.civitai-downloads {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.civitai-download-item {
+    padding: 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    background: var(--surface2);
+}
+
+.civitai-download-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.civitai-download-name {
+    margin: 0;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.civitai-download-sub {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.civitai-download-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+
+.civitai-download-track {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.civitai-download-bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--surface);
+    overflow: hidden;
+}
+
+.civitai-download-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--accent);
+    transition: width 0.3s ease;
+}
+
+.civitai-download-bar-fill.status-failed {
+    background: var(--danger, #e5484d);
+}
+
+.civitai-download-bar-fill.status-cancelled {
+    background: var(--text-muted);
+}
+
+.civitai-download-percent {
+    min-width: 74px;
+    text-align: right;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.civitai-download-error {
+    margin: 6px 0 0;
+    color: var(--danger, #e5484d);
+    font-size: 11px;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.civitai-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.civitai-badge.status-queued {
+    background: var(--accent-dim);
+    color: var(--accent-hover);
+}
+
+.civitai-badge.status-downloading {
+    background: var(--accent-dim);
+    color: var(--accent-hover);
+}
+
+.civitai-badge.status-completed {
+    background: color-mix(in srgb, #2fb344 18%, transparent);
+    color: #2fb344;
+}
+
+.civitai-badge.status-failed {
+    background: color-mix(in srgb, #e5484d 18%, transparent);
+    color: #e5484d;
+}
+
+.civitai-badge.status-cancelled {
+    background: var(--surface);
+    color: var(--text-muted);
+}

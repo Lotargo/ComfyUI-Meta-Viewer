@@ -2690,10 +2690,15 @@ function renderResults() {
     if (cards.length > 0) {
         elements.resultGrid.innerHTML = cards.join('');
         elements.resultsEmpty.hidden = true;
+        elements.resultGrid.hidden = false;
     } else if (state.hasFetchedRuns) {
+        elements.resultGrid.innerHTML = '';
         elements.resultsEmpty.hidden = false;
+        elements.resultGrid.hidden = true;
     } else {
+        elements.resultGrid.innerHTML = '';
         elements.resultsEmpty.hidden = true;
+        elements.resultGrid.hidden = true;
     }
 
     elements.resultGrid.querySelectorAll('img, video').forEach((media) => {
@@ -2701,6 +2706,7 @@ function renderResults() {
             media.closest('.result-card')?.remove();
             if (!elements.resultGrid.children.length) {
                 elements.resultsEmpty.hidden = false;
+                elements.resultGrid.hidden = true;
             }
         }, { once: true });
     });

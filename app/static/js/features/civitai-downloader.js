@@ -39,6 +39,7 @@
     let downloads = [];
     let lastKnownCompleted = new Set();
     let pollTimer = null;
+    let initialLoad = true;
     let downloadInFlight = new Set();
 
     /* ------------------------------------------------------------------ utils */
@@ -410,13 +411,20 @@
     }
 
     function notifyNewCompleted() {
+        let hasNew = false;
         for (const row of downloads) {
             if (row.status === "completed" && !lastKnownCompleted.has(row.id)) {
                 lastKnownCompleted.add(row.id);
-                showToast(`${row.civitai_model_name || row.filename} downloaded.`);
-                dispatchModelsUpdated();
+                if (!initialLoad) {
+                    showToast(`${row.civitai_model_name || row.filename} downloaded.`);
+                }
+                hasNew = true;
             }
         }
+        if (hasNew && !initialLoad) {
+            dispatchModelsUpdated();
+        }
+        initialLoad = false;
     }
 
     function updatePolling() {

@@ -712,6 +712,24 @@ class LibraryApiTest(LibraryTestCase):
             400,
         )
 
+    def test_sorting_parameters_are_strictly_validated_against_injection(self) -> None:
+        # 1. Direct library calls with invalid values should raise LibraryError
+        with self.assertRaises(library.LibraryError):
+            library.get_assets(sort_by="; DROP TABLE images;--")
+
+        with self.assertRaises(library.LibraryError):
+            library.get_assets(sort_dir="DESC; --")
+
+        # 2. Flask API client calls with invalid sorting parameters should return 400 Bad Request
+        client = app.test_client()
+        response_sort_by = client.get("/api/library/assets?sort_by=invalid_column")
+        self.assertEqual(response_sort_by.status_code, 400)
+        self.assertIn("library_error", response_sort_by.get_json()["code"])
+
+        response_sort_dir = client.get("/api/library/assets?sort_dir=invalid_dir")
+        self.assertEqual(response_sort_dir.status_code, 400)
+        self.assertIn("library_error", response_sort_dir.get_json()["code"])
+
 
 class LibraryMigrationTest(unittest.TestCase):
     def test_existing_database_is_extended_before_new_indexes_are_created(self) -> None:

@@ -135,12 +135,13 @@ def find_python_interpreter(
             return custom_path, False
 
     is_windows = sys.platform == "win32" or os.name == "nt"
+    py_name = "python.exe" if is_windows else "python"
 
     candidates_portable = [
-        root_path / "python_embeded" / "python.exe",
-        root_path.parent / "python_embeded" / "python.exe",
-        comfy_dir / "python_embeded" / "python.exe",
-        comfy_dir.parent / "python_embeded" / "python.exe",
+        root_path / "python_embeded" / py_name,
+        root_path.parent / "python_embeded" / py_name,
+        comfy_dir / "python_embeded" / py_name,
+        comfy_dir.parent / "python_embeded" / py_name,
     ]
 
     for cand in candidates_portable:

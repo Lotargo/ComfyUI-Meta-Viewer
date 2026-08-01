@@ -7192,3 +7192,26 @@
 }
 
 .model-recommendation-control .btn { flex: 0 0 auto; }
+
+.result-media-error-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #18181b;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-align: center;
+}
+
+.result-media-error-placeholder .error-icon {
+    font-size: 18px;
+}
+
+.result-media-error-placeholder .error-text {
+    font-weight: 550;
+    color: var(--text-muted);
+}

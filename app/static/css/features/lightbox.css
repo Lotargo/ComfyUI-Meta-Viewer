@@ -188,6 +188,8 @@
 /* Meta sections */
 .lb-meta-section {
     margin-bottom: var(--space-lg);
+    resize: vertical;
+    overflow: auto;
 }
 
 .lb-meta-section h4 {
@@ -236,7 +238,9 @@
     white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.4;
-    max-height: 120px;
+    height: 120px;
+    min-height: 60px;
+    resize: vertical;
     overflow-y: auto;
     margin-bottom: var(--space-sm);
 }

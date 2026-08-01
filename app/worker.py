@@ -68,21 +68,17 @@ def _next_asset() -> dict | None:
         if row:
             return dict(row)
 
-        processing_folders = conn.execute(
-            "SELECT id FROM folders WHERE status = 'processing'"
-        ).fetchall()
-        for folder in processing_folders:
-            folder_id = int(folder["id"])
-            unprocessed = conn.execute(
-                """SELECT COUNT(*) AS c FROM images
-                WHERE folder_id = ? AND metadata_json IS NULL AND error IS NULL""",
-                (folder_id,),
-            ).fetchone()
-            if unprocessed and unprocessed["c"] == 0:
-                conn.execute(
-                    "UPDATE folders SET status = 'completed' WHERE id = ?",
-                    (folder_id,),
-                )
+        conn.execute(
+            """UPDATE folders
+            SET status = 'completed'
+            WHERE status = 'processing'
+              AND NOT EXISTS (
+                  SELECT 1 FROM images
+                  WHERE images.folder_id = folders.id
+                    AND images.metadata_json IS NULL
+                    AND images.error IS NULL
+              )"""
+        )
         conn.commit()
 
     return None

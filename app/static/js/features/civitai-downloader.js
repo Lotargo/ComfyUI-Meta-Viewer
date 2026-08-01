@@ -37,9 +37,8 @@
     let searchState = { query: "", types: "", sort: "Most Downloaded", nsfw: true, page: 1, pages: 1, cursor: "", next_cursor: "", using_cursor: false, cursor_stack: [], loading: false };
     let detailsCache = new Map();
     let downloads = [];
-    let lastKnownCompleted = new Set();
+    let activeDownloadIds = new Set();
     let pollTimer = null;
-    let initialLoad = true;
     let downloadInFlight = new Set();
 
     /* ------------------------------------------------------------------ utils */
@@ -413,18 +412,21 @@
     function notifyNewCompleted() {
         let hasNew = false;
         for (const row of downloads) {
-            if (row.status === "completed" && !lastKnownCompleted.has(row.id)) {
-                lastKnownCompleted.add(row.id);
-                if (!initialLoad) {
+            if (row.status === "queued" || row.status === "downloading") {
+                activeDownloadIds.add(row.id);
+            } else if (row.status === "completed") {
+                if (activeDownloadIds.has(row.id)) {
                     showToast(`${row.civitai_model_name || row.filename} downloaded.`);
+                    activeDownloadIds.delete(row.id);
+                    hasNew = true;
                 }
-                hasNew = true;
+            } else if (row.status === "failed" || row.status === "cancelled") {
+                activeDownloadIds.delete(row.id);
             }
         }
-        if (hasNew && !initialLoad) {
+        if (hasNew) {
             dispatchModelsUpdated();
         }
-        initialLoad = false;
     }
 
     function updatePolling() {

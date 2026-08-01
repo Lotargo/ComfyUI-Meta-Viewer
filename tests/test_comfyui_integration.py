@@ -29,7 +29,8 @@ class ComfyUIDetectorTest(unittest.TestCase):
         main_py.write_text("print('comfy')", encoding="utf-8")
 
         # Fake python_embeded
-        py_exe = self.base_path / "python_embeded" / ("python.exe" if sys.platform == "win32" else "python")
+        py_exe = self.base_path / "python_embeded" / "python.exe"
+
         py_exe.parent.mkdir(parents=True, exist_ok=True)
         py_exe.write_text("fake python", encoding="utf-8")
 

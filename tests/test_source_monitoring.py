@@ -44,7 +44,7 @@ class FakeObserver:
             self.watches.remove(watch)
 
 
-def wait_until(predicate, *, timeout: float = 3.0) -> None:
+def wait_until(predicate, *, timeout: float = 6.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if predicate():

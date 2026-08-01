@@ -495,18 +495,24 @@ def update_asset(
                 if clean:
                     clean_tags.setdefault(clean.casefold(), clean)
             conn.execute("DELETE FROM image_tags WHERE image_id = ?", (asset_id,))
-            for name_key, name in clean_tags.items():
-                conn.execute(
+            if clean_tags:
+                # 1. Batch insert tags using executemany
+                conn.executemany(
                     """INSERT INTO tags (name, name_key) VALUES (?, ?)
                     ON CONFLICT(name_key) DO NOTHING""",
-                    (name, name_key),
+                    [(name, name_key) for name_key, name in clean_tags.items()],
                 )
-                tag_id = conn.execute(
-                    "SELECT id FROM tags WHERE name_key = ?", (name_key,)
-                ).fetchone()["id"]
-                conn.execute(
+                # 2. Bulk query tag IDs
+                keys = list(clean_tags.keys())
+                placeholders = ",".join("?" for _ in keys)
+                tag_rows = conn.execute(
+                    f"SELECT id FROM tags WHERE name_key IN ({placeholders})",
+                    keys,
+                ).fetchall()
+                # 3. Batch insert relationships
+                conn.executemany(
                     "INSERT INTO image_tags (image_id, tag_id) VALUES (?, ?)",
-                    (asset_id, tag_id),
+                    [(asset_id, row["id"]) for row in tag_rows],
                 )
             conn.execute(
                 "DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM image_tags)"

@@ -8,11 +8,11 @@ import shutil
 import struct
 from typing import Any, Literal
 
-from app.ai.resources import CompatibilityStatus, ModelEcosystem, ModelResource, ModelResourceCatalog, ResourceType
+from app.ai.resources import ModelEcosystem, ModelResourceCatalog, ResourceType
 from app.config_store import ConfigStore
 from .detector import detect_comfyui
-from .resource_taxonomy import FOLDER_RESOURCE_TYPES, RESOURCE_MODEL_FOLDERS, classify_inventory_resource
-from .workflow_inventory import client_from_store, collect_runtime_inventory, _infer_architecture
+from .resource_taxonomy import FOLDER_RESOURCE_TYPES
+from .workflow_inventory import collect_runtime_inventory, _infer_architecture
 
 
 TARGET_FOLDERS_BY_TYPE: dict[ResourceType, str] = {

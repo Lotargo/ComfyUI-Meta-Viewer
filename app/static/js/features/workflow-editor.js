@@ -2689,15 +2689,15 @@ function renderResults() {
     
     if (cards.length > 0) {
         elements.resultGrid.innerHTML = cards.join('');
-        elements.resultsEmpty.hidden = true;
+        elements.resultsEmpty.classList.remove('show');
         elements.resultGrid.hidden = false;
     } else if (state.hasFetchedRuns) {
         elements.resultGrid.innerHTML = '';
-        elements.resultsEmpty.hidden = false;
+        elements.resultsEmpty.classList.add('show');
         elements.resultGrid.hidden = true;
     } else {
         elements.resultGrid.innerHTML = '';
-        elements.resultsEmpty.hidden = true;
+        elements.resultsEmpty.classList.remove('show');
         elements.resultGrid.hidden = true;
     }
 

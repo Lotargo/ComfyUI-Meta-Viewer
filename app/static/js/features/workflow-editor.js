@@ -237,6 +237,7 @@ const state = {
     values: {},
     resources: {},
     runs: [],
+    hasFetchedRuns: false,
     currentRun: null,
     previewReady: false,
     saveTimer: null,
@@ -2650,14 +2651,28 @@ async function cancelCurrentRun() {
 
 async function loadRuns() {
     try {
+        const cached = localStorage.getItem('cmv_cached_runs');
+        if (cached && (!state.runs || !state.runs.length)) {
+            state.runs = JSON.parse(cached);
+            if (Array.isArray(state.runs) && state.runs.length) {
+                renderResults();
+            }
+        }
+    } catch (_) {}
+
+    try {
         const payload = await requestJson('/api/editor/runs?limit=40');
         state.runs = payload.runs || [];
+        try {
+            localStorage.setItem('cmv_cached_runs', JSON.stringify(state.runs));
+        } catch (_) {}
         const active = state.runs.find((run) => ['queued', 'running'].includes(run.status));
         if (active && !state.currentRun) {
             state.currentRun = active;
             renderRunRibbon(active);
             startRunPolling();
         }
+        state.hasFetchedRuns = true;
         renderResults();
     } catch (error) {
         console.error('Failed to load workflow runs', error);
@@ -2671,12 +2686,22 @@ function renderResults() {
     }
     const nonOutputRuns = state.runs.filter((run) => !(run.output_asset_ids || []).length && ['failed', 'cancelled'].includes(run.status));
     cards.push(...nonOutputRuns.slice(0, 4).map(runHistoryCard));
-    elements.resultGrid.innerHTML = cards.join('');
-    elements.resultsEmpty.hidden = cards.length > 0;
+    
+    if (cards.length > 0) {
+        elements.resultGrid.innerHTML = cards.join('');
+        elements.resultsEmpty.hidden = true;
+    } else if (state.hasFetchedRuns) {
+        elements.resultsEmpty.hidden = false;
+    } else {
+        elements.resultsEmpty.hidden = true;
+    }
+
     elements.resultGrid.querySelectorAll('img, video').forEach((media) => {
         media.addEventListener('error', () => {
             media.closest('.result-card')?.remove();
-            elements.resultsEmpty.hidden = Boolean(elements.resultGrid.children.length);
+            if (!elements.resultGrid.children.length) {
+                elements.resultsEmpty.hidden = false;
+            }
         }, { once: true });
     });
 }
@@ -3663,6 +3688,201 @@ function bindEvents() {
     window.addEventListener('civitai:models-updated', () => {
         refreshTemplates();
     });
+elements.runtimeConnect.addEventListener('click', openRuntimeDrawer);
+    elements.runtimeClose.addEventListener('click', closeRuntimeDrawer);
+    elements.runtimeBackdrop.addEventListener('click', closeRuntimeDrawer);
+    elements.importOpen.addEventListener('click', () => {
+        resetImportDialogMode();
+        elements.importDialog.showModal();
+    });
+    elements.workflowManageOpen.addEventListener('click', () => loadWorkflowRegistry({ open: true }));
+    elements.workflowManageSearch.addEventListener('input', renderWorkflowRegistry);
+    elements.workflowManageSource.addEventListener('change', renderWorkflowRegistry);
+    elements.workflowManageStatus.addEventListener('change', renderWorkflowRegistry);
+    elements.workflowManageBody.addEventListener('click', handleWorkflowManagementAction);
+    elements.workflowRevalidateAll.addEventListener('click', revalidateAllWorkflows);
+    elements.workflowMetadataForm.addEventListener('submit', saveWorkflowMetadata);
+    elements.importFile.addEventListener('change', () => {
+        const file = elements.importFile.files?.[0];
+        elements.importName.textContent = file ? `${file.name} · ${(file.size / 1024).toFixed(1)} KB` : 'No file selected';
+        state.importMapping = null;
+        analyzeTemplateImport();
+    });
+    elements.importMappingApply.addEventListener('click', () => analyzeTemplateImport(readImportMapping()));
+    [elements.importDisplayName, elements.importId, elements.importDescription].forEach((input) => {
+        input.addEventListener('input', renderImportManifestPreview);
+    });
+    elements.importForm.addEventListener('submit', importTemplate);
+    elements.sourceInspect.addEventListener('click', inspectDraftSource);
+    elements.aiPromptOpen.addEventListener('click', openAIPromptDialog);
+    elements.aiPromptFamily.addEventListener('change', renderAIScenarios);
+    elements.aiPromptProfile.addEventListener('change', renderAIScenarios);
+    elements.aiPromptForm.addEventListener('submit', createAIPromptDraft);
+    elements.translatePromptOpen.addEventListener('click', openTranslatePromptDialog);
+    elements.translatePromptFamily.addEventListener('change', renderTranslationScenarios);
+    elements.translatePromptProfile.addEventListener('change', renderTranslationScenarios);
+    elements.translatePromptForm.addEventListener('submit', createTranslatedPromptDraft);
+    elements.adaptPromptOpen.addEventListener('click', openAdaptPromptDialog);
+    elements.adaptPromptFamily.addEventListener('change', renderAdaptationScenarios);
+    elements.adaptPromptProfile.addEventListener('change', renderAdaptationScenarios);
+    elements.adaptPromptPositive.addEventListener('input', renderAdaptCheckpointNote);
+    elements.adaptPromptForm.addEventListener('submit', createAdaptedPromptDraft);
+    elements.enhanceTrigger.addEventListener('click', () => {
+        if (elements.enhancePopover.hidden) openEnhancePopover();
+        else closeEnhancePopover();
+    });
+    elements.enhancePopoverClose.addEventListener('click', closeEnhancePopover);
+    elements.enhanceCancel.addEventListener('click', closeEnhancePopover);
+    elements.enhanceSubmit.addEventListener('click', createEnhancedPromptDraft);
+    elements.enhanceFamily.addEventListener('change', renderEnhanceScenarios);
+    elements.enhanceProfile.addEventListener('change', renderEnhanceScenarios);
+    elements.enhanceCheckpointProfile.addEventListener('input', renderEnhanceCheckpointNote);
+    elements.enhancePopover.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeEnhancePopover();
+    });
+    elements.enhancePopover.addEventListener('focusout', (event) => {
+        if (!elements.enhancePopover.hidden && !elements.enhancePopover.contains(event.relatedTarget)) {
+            closeEnhancePopover();
+        }
+    });
+    window.addEventListener('resize', () => positionEnhancePopover());
+    elements.reconstructPromptOpen.addEventListener('click', openReconstructPromptDialog);
+    elements.reconstructPromptFamily.addEventListener('change', renderReconstructionScenarios);
+    elements.reconstructVisionProfile.addEventListener('change', renderReconstructionScenarios);
+    elements.reconstructRenderProfile.addEventListener('change', renderReconstructionScenarios);
+    elements.reconstructSceneSpec.addEventListener('input', renderReconstructionScenarios);
+    elements.reconstructAnalyze.addEventListener('click', analyzeReconstructionScene);
+    elements.reconstructPromptForm.addEventListener('submit', createReconstructedPromptDraft);
+    elements.resetEditor.addEventListener('click', resetEditor);
+    elements.saveNote.addEventListener('click', async () => {
+        try {
+            await saveDraft();
+            showToast('Draft saved.', 'success');
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    });
+    elements.collapseControls.addEventListener('click', () => {
+        const collapsed = document.body.classList.toggle('controls-collapsed');
+        elements.collapseControls.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        elements.collapseControls.setAttribute('aria-label', collapsed ? 'Expand panel' : 'Collapse panel');
+        elements.editorSidebarToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        elements.editorSidebarToggle.setAttribute('aria-label', collapsed ? 'Expand settings panel' : 'Collapse settings panel');
+        elements.editorSidebarToggle.setAttribute('title', collapsed ? 'Expand settings panel' : 'Collapse settings panel');
+    });
+    elements.editorSidebarToggle.addEventListener('click', () => elements.collapseControls.click());
+    document.querySelectorAll('[data-ui-choice]').forEach((group) => group.addEventListener('click', (event) => {
+        const button = event.target.closest('button');
+        if (!button) return;
+        group.querySelectorAll('button').forEach((item) => item.classList.toggle('active', item === button));
+    }));
+    document.querySelector('[data-aspect-grid]')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-width]');
+        if (!button) return;
+        applyAspectSize(button);
+    });
+    elements.aspectMore?.addEventListener('click', () => {
+        if (elements.aspectPopover.hidden) openAspectPopover();
+        else closeAspectPopover();
+    });
+    elements.aspectPopoverClose?.addEventListener('click', closeAspectPopover);
+    elements.aspectPopover?.addEventListener('click', (event) => {
+        const sizeButton = event.target.closest('[data-width]');
+        if (sizeButton) {
+            applyAspectSize(sizeButton);
+            return;
+        }
+        if (event.target.closest('[data-aspect-custom]')) toggleCustomResolution();
+    });
+    elements.aspectRatioLock?.addEventListener('click', () => {
+        state.aspectRatioLocked = !state.aspectRatioLocked;
+        if (state.aspectRatioLocked && Number(state.values.width) > 0 && Number(state.values.height) > 0) {
+            state.lockedAspectRatio = Number(state.values.width) / Number(state.values.height);
+        }
+        updateCustomResolutionControls();
+    });
+    [
+        [elements.customWidthRange, 'width'],
+        [elements.customHeightRange, 'height'],
+    ].forEach(([input, id]) => {
+        input?.addEventListener('pointerdown', captureLockedAspectRatio);
+        input?.addEventListener('focus', captureLockedAspectRatio);
+        input?.addEventListener('input', () => applyCustomDimension(id, input.value));
+    });
+    [
+        [elements.customWidth, 'width'],
+        [elements.customHeight, 'height'],
+    ].forEach(([input, id]) => {
+        input?.addEventListener('focus', captureLockedAspectRatio);
+        input?.addEventListener('change', () => applyCustomDimension(id, input.value));
+        input?.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            applyCustomDimension(id, input.value);
+            input.blur();
+        });
+    });
+    document.querySelector('[data-batch-grid]')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-batch]');
+        if (!button) return;
+        state.values.batch_size = Number(button.dataset.batch);
+        renderFields();
+        markDirty();
+    });
+    document.querySelector('[data-quick-mode]')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-mode]');
+        if (!button || !currentManifest()?.fields?.some((field) => field.id === 'steps' && !field.hidden)) return;
+        const defaultSteps = Number(state.selected?.defaults?.steps ?? 28);
+        state.values.steps = button.dataset.mode === 'quality' ? Math.max(defaultSteps + 12, 40) : defaultSteps;
+        renderFields();
+        markDirty();
+    });
+    document.addEventListener('pointerdown', (event) => {
+        if (elements.aspectPopover?.hidden) return;
+        if (elements.aspectPopover.contains(event.target) || elements.aspectMore?.contains(event.target)) return;
+        closeAspectPopover();
+    });
+    window.addEventListener('resize', positionAspectPopover);
+    document.querySelector('.controls-scroll')?.addEventListener('scroll', positionAspectPopover, { passive: true });
+    elements.resultsSearch.addEventListener('input', () => {
+        const query = elements.resultsSearch.value.trim().toLowerCase();
+        elements.resultGrid.querySelectorAll('[data-result-search]').forEach((card) => {
+            card.hidden = query && !card.dataset.resultSearch.includes(query);
+        });
+    });
+    runtimeElements.save.addEventListener('click', saveRuntimeConfig);
+    runtimeElements.detect.addEventListener('click', () => detectRuntime());
+    runtimeElements.refresh.addEventListener('click', () => updateRuntimeStatus(true));
+    runtimeElements.start.addEventListener('click', () => runtimeAction('start', runtimeConfigPayload()));
+    runtimeElements.stop.addEventListener('click', () => runtimeAction('stop'));
+    runtimeElements.restart.addEventListener('click', () => runtimeAction('restart', runtimeConfigPayload()));
+    runtimeElements.interrupt.addEventListener('click', () => runtimeAction('interrupt'));
+    runtimeElements.launcher.addEventListener('click', generateLauncher);
+    runtimeElements.clearLogs.addEventListener('click', () => { runtimeElements.logs.innerHTML = '<code>[CMV] Console logs cleared.</code>'; });
+    runtimeElements.refreshLogs.addEventListener('click', fetchRuntimeLogs);
+    document.addEventListener('keydown', (event) => {
+        if (elements.lightbox?.classList.contains('open')) {
+            if (event.key === 'Escape') closeLightbox();
+            else if (event.key === 'ArrowLeft') prevLightbox();
+            else if (event.key === 'ArrowRight') nextLightbox();
+            else return;
+            event.preventDefault();
+            return;
+        }
+        if (event.key === 'Escape' && !elements.aspectPopover?.hidden) {
+            closeAspectPopover();
+            elements.aspectMore?.focus();
+            return;
+        }
+        if (event.key === 'Escape' && !elements.runtimeLayer.hidden) closeRuntimeDrawer();
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') loadRuns();
+    });
+    window.addEventListener('focus', loadRuns);
+    window.addEventListener('civitai:models-updated', () => {
+        refreshTemplates();
+    });
     window.addEventListener('beforeunload', () => {
         persistCreateWorkspace();
         window.clearTimeout(state.pollTimer);
@@ -3677,7 +3897,17 @@ async function initialize() {
     bindEvents();
     initLightboxEvents({ enableContextMenu: false });
     observeDecorativeBackdropWindows();
-    loadDecorativeBackdrops();
+    try {
+        const cached = localStorage.getItem('cmv_cached_runs');
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                state.runs = parsed;
+                renderResults();
+            }
+        }
+    } catch (_) {}
+    loadRuns();
     await loadRuntimeConfig();
     await bootstrap();
     await updateRuntimeStatus();
@@ -3685,4 +3915,3 @@ async function initialize() {
 }
 
 initialize();
-

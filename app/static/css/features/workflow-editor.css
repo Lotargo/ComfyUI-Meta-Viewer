@@ -1298,6 +1298,11 @@
 .run-history-card strong { font-size: 10.5px; }
 .run-history-card span { color: var(--text-muted); font-size: 8.5px; line-height: 1.4; }
 
+.results-empty[hidden],
+.results-empty.hidden {
+    display: none !important;
+}
+
 .results-empty {
     min-height: min(560px, calc(100vh - 170px));
     padding: 50px 24px;

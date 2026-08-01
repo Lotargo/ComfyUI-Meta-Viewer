@@ -2684,7 +2684,7 @@ function renderResults() {
     for (const run of state.runs) {
         for (const assetId of run.output_asset_ids || []) cards.push(resultCard(run, assetId));
     }
-    const nonOutputRuns = state.runs.filter((run) => !(run.output_asset_ids || []).length && ['failed', 'cancelled'].includes(run.status));
+    const nonOutputRuns = state.runs.filter((run) => !(run.output_asset_ids || []).length && ['failed'].includes(run.status));
     cards.push(...nonOutputRuns.slice(0, 4).map(runHistoryCard));
     
     if (cards.length > 0) {

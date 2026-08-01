@@ -5,7 +5,6 @@ import io
 import json
 import re
 import struct
-import sys
 import tempfile
 import xml.etree.ElementTree as ET
 import zlib

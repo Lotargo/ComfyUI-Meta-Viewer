@@ -161,9 +161,9 @@ def list_metadata_filters() -> dict[str, list[dict[str, str]] | list[str]]:
     conn = db.get_conn()
     try:
         rows = conn.execute(
-            f"""SELECT DISTINCT CAST(node.value AS TEXT) AS node_type
+            """SELECT DISTINCT CAST(node.value AS TEXT) AS node_type
             FROM images i,
-                 json_tree({_VALID_METADATA_SQL}, '$.workflow.workflow_nodes') node
+                 json_tree(CASE WHEN json_valid(i.metadata_json) THEN i.metadata_json ELSE '{}' END, '$.workflow.workflow_nodes') node
             WHERE i.media_type = 'image'
               AND node.key = 'class_type'
               AND node.type = 'text'

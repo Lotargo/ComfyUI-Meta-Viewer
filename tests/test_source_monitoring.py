@@ -56,7 +56,7 @@ def wait_until(predicate, *, timeout: float = 3.0) -> None:
 class SourceMonitoringTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.paths = build_runtime_paths(
             {
                 "COMFY_META_DATA_DIR": str(self.root / "data"),

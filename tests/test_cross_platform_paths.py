@@ -27,7 +27,7 @@ from app.paths import (
 class RuntimePathsTest(unittest.TestCase):
     def test_defaults_are_anchored_to_project_root_not_working_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir) / "project root"
+            root = (Path(temp_dir) / "project root").resolve()
             root.mkdir()
             other_cwd = Path(temp_dir) / "other cwd"
             other_cwd.mkdir()
@@ -43,7 +43,7 @@ class RuntimePathsTest(unittest.TestCase):
 
     def test_relative_overrides_support_spaces_and_unicode(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
+            root = Path(temp_dir).resolve()
             paths = build_runtime_paths(
                 {
                     "COMFY_META_DATA_DIR": "данные приложения",
@@ -61,7 +61,7 @@ class RuntimePathsTest(unittest.TestCase):
 
     def test_legacy_upload_override_remains_supported(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
+            root = Path(temp_dir).resolve()
             paths = build_runtime_paths(
                 {"COMFY_META_UPLOAD": "legacy-data"},
                 project_root=root,
@@ -84,7 +84,7 @@ class RuntimePathsTest(unittest.TestCase):
 
     def test_relative_user_paths_use_an_explicit_base(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            base = Path(temp_dir)
+            base = Path(temp_dir).resolve()
             self.assertEqual(
                 normalize_path(Path("folder") / "image.png", base_dir=base),
                 base / "folder" / "image.png",

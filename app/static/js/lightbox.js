@@ -576,7 +576,7 @@ export function updateLightbox() {
                 promptBox.style.height = newHeight + 'px';
             };
 
-            const onMouseUp = (e) => {
+            const onMouseUp = () => {
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
                 promptBox.classList.remove('resizing');

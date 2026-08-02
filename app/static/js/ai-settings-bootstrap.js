@@ -3,6 +3,9 @@ const mainModuleUrl = bootstrapScript?.dataset.aiSettingsMain;
 const originalFetch = window.fetch;
 const pendingRequests = new Set();
 
+const secretStoreStatus = document.getElementById('secret-store-status');
+const openAiFields = document.getElementById('openai-fields');
+
 function trackRequest(request) {
     const tracked = request
         .then(response => response.clone().arrayBuffer().catch(() => undefined))
@@ -75,12 +78,10 @@ function waitForTwoFrames() {
 }
 
 function relocateCredentialStatus() {
-    const status = document.getElementById('secret-store-status');
-    const openAiFields = document.getElementById('openai-fields');
-    if (!status || !openAiFields) return;
+    if (!secretStoreStatus || !openAiFields) return;
 
-    status.classList.add('secret-store-warning');
-    openAiFields.append(status);
+    secretStoreStatus.classList.add('secret-store-warning');
+    openAiFields.append(secretStoreStatus);
 }
 
 async function bootstrap() {

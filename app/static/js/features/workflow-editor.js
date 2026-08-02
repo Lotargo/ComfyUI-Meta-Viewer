@@ -3711,6 +3711,7 @@ async function initialize() {
     bindEvents();
     initLightboxEvents({ enableContextMenu: false });
     observeDecorativeBackdropWindows();
+    await loadDecorativeBackdrops();
     try {
         const cached = localStorage.getItem('cmv_cached_runs');
         if (cached) {

@@ -1364,7 +1364,6 @@ const DEFAULT_CLI_CATALOG = [
 async function loadProfiles() {
     try {
         const prevDataRaw = { profiles, defaults, secretStore };
-        const prevDataStr = JSON.stringify(prevDataRaw);
         
         const data = await requestJson('/api/ai/profiles');
         profiles = data.profiles || [];

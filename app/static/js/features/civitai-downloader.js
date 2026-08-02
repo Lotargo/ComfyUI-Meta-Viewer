@@ -1,13 +1,12 @@
 /* Civitai model downloader — Create editor. */
 (() => {
-    const $ = (id) => document.getElementById(id);
+    const $ = (id) => document.getElementById(id); // eslint-disable-line no-restricted-syntax -- module-load cache helper
 
     const dialog = $("civitai-downloader-dialog");
     if (!dialog) return;
 
     const openBtn = $("civitai-downloader-open");
     const closeBtn = $("civitai-dialog-close");
-    const headerStatusText = $("civitai-downloader-status-text");
     const headerStatusDetail = $("civitai-downloader-status-detail");
     const headerBadge = $("civitai-downloader-badge");
 
@@ -34,12 +33,12 @@
     const downloadsEl = $("civitai-downloads");
 
     let filters = { model_types: [], folders: [], folder_for_type: {} };
-    let searchState = { query: "", types: "", sort: "Most Downloaded", nsfw: true, page: 1, pages: 1, cursor: "", next_cursor: "", using_cursor: false, cursor_stack: [], loading: false };
-    let detailsCache = new Map();
+    const searchState = { query: "", types: "", sort: "Most Downloaded", nsfw: true, page: 1, pages: 1, cursor: "", next_cursor: "", using_cursor: false, cursor_stack: [], loading: false };
+    const detailsCache = new Map();
     let downloads = [];
-    let activeDownloadIds = new Set();
+    const activeDownloadIds = new Set();
     let pollTimer = null;
-    let downloadInFlight = new Set();
+    const downloadInFlight = new Set();
 
     /* ------------------------------------------------------------------ utils */
 
@@ -289,7 +288,7 @@
         button.disabled = true;
         button.textContent = "Queueing…";
         try {
-            const row = await requestJson("/api/editor/models/civitai/download", {
+            await requestJson("/api/editor/models/civitai/download", {
                 method: "POST",
                 body: JSON.stringify({
                     model_id: modelId,
@@ -354,7 +353,6 @@
     function renderDownloadItem(row) {
         const status = row.status;
         const progress = status === "completed" ? 100 : Math.max(0, Number(row.progress) || 0);
-        const cancelled = status === "cancelled";
         const failed = status === "failed";
         const isActive = status === "queued" || status === "downloading";
         const showControls = isActive || failed || status === "completed";

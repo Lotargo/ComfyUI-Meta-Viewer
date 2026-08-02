@@ -56,8 +56,12 @@ def _open_url(request: urllib.request.Request, *, timeout: int):
 
 def _redact(value: str, api_key: str | None = None) -> str:
     sanitized = sanitize_output(value, maximum=16_000)
-    if api_key:
+    if api_key and len(api_key.strip()) >= 4:
         sanitized = sanitized.replace(api_key, "[redacted]")
+        from urllib.parse import quote_plus
+        quoted_key = quote_plus(api_key)
+        if len(quoted_key) >= 4:
+            sanitized = sanitized.replace(quoted_key, "[redacted]")
     return sanitized
 
 
@@ -74,7 +78,8 @@ def _extract_error(body: bytes, api_key: str | None) -> tuple[str, str]:
         elif isinstance(error, str):
             message = error
     except json.JSONDecodeError:
-        pass
+        if len(message) > 1000:
+            message = message[:1000] + " [truncated]"
     return _redact(message, api_key), _redact(code, api_key)
 
 
@@ -112,14 +117,14 @@ def _classify_provider_error(status: int, message: str, provider_code: str) -> s
     return "provider_error"
 
 
-def _response_text(payload: Any) -> str:
+def _response_text(payload: Any, api_key: str | None = None) -> str:
     try:
         content = payload["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
         raise AIProviderRequestError(
             "The provider returned an incompatible response format.",
             code="incompatible_format",
-            technical_error=_redact(json.dumps(payload, ensure_ascii=False)[:16_000]),
+            technical_error=_redact(json.dumps(payload, ensure_ascii=False)[:16_000], api_key),
         ) from exc
     if isinstance(content, str):
         return content.strip()
@@ -218,12 +223,15 @@ def run_openai_compatible_chat(
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        decoded_raw = raw.decode("utf-8", errors="replace")
+        if len(decoded_raw) > 1000:
+            decoded_raw = decoded_raw[:1000] + " [truncated]"
         raise AIProviderRequestError(
             "The provider returned invalid JSON.",
             code="incompatible_format",
-            technical_error=_redact(raw.decode("utf-8", errors="replace"), api_key),
+            technical_error=_redact(decoded_raw, api_key),
         ) from exc
-    result = _response_text(payload)
+    result = _response_text(payload, api_key)
     if not result:
         raise AIProviderRequestError(
             "The provider returned an empty response.", code="incompatible_format"

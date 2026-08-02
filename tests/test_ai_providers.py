@@ -531,5 +531,79 @@ class CLIDetectionTest(unittest.TestCase):
         self.assertEqual(result["response_preview"], "CMV_OK")
 
 
+class AITransportSecurityTest(unittest.TestCase):
+    def test_redact_with_empty_or_short_keys(self):
+        from app.ai.transport import _redact
+        # Test empty key
+        self.assertEqual(_redact("my api_key is secret", ""), "my api_key is secret")
+        self.assertEqual(_redact("my api_key is secret", "   "), "my api_key is secret")
+        # Test short key (< 4 characters)
+        self.assertEqual(_redact("abc", "a"), "abc")
+
+    def test_redact_url_encoded_key(self):
+        from app.ai.transport import _redact
+        api_key = "secret/key+123="
+        text = "https://provider.example/v1?key=secret%2Fkey%2B123%3D"
+        redacted = _redact(text, api_key)
+        self.assertNotIn("secret%2Fkey%2B123%3D", redacted)
+        self.assertIn("[redacted]", redacted)
+
+    def test_extract_error_truncation(self):
+        from app.ai.transport import _extract_error
+        api_key = "top-secret-key-123"
+        # 2000 characters of raw HTML error containing the secret key inside the first 500 chars
+        long_body = ("<p>Gateway Error</p>" * 5) + f" secret: {api_key} " + ("<p>Gateway Error</p>" * 100)
+        message, code = _extract_error(long_body.encode("utf-8"), api_key)
+
+        self.assertTrue(message.endswith(" [truncated]"))
+        self.assertLessEqual(len(message), 1015) # 1000 + length of " [truncated]"
+        self.assertNotIn(api_key, message)
+        self.assertIn("[redacted]", message)
+
+    def test_response_text_redacts_api_key(self):
+        from app.ai.transport import _response_text
+        api_key = "super-secret-key"
+        invalid_payload = {
+            "choices": [],  # incompatible format!
+            "echoed_key": api_key,
+        }
+        with self.assertRaises(AIProviderRequestError) as caught:
+            _response_text(invalid_payload, api_key)
+
+        self.assertNotIn(api_key, caught.exception.technical_error)
+        self.assertIn("[redacted]", caught.exception.technical_error)
+
+    def test_run_openai_compatible_chat_truncation_on_invalid_json(self):
+        from app.ai.transport import run_openai_compatible_chat
+        api_key = "my-secret-key"
+        profile = direct_payload()
+        profile["timeout_seconds"] = 10
+
+        # Simulate provider returning invalid JSON (massive HTML with the secret key inside the first 500 chars)
+        massive_invalid_response = f"secret: {api_key} " + ("<html><body>Gateway Timeout</body></html>" * 50)
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            @staticmethod
+            def read(_maximum):
+                return massive_invalid_response.encode("utf-8")
+
+        with patch("app.ai.transport._open_url", return_value=FakeResponse()):
+            with self.assertRaises(AIProviderRequestError) as caught:
+                run_openai_compatible_chat(profile, api_key=api_key, messages=[{"role": "user", "content": "hello"}])
+
+        tech_err = caught.exception.technical_error
+        self.assertIsNotNone(tech_err)
+        self.assertTrue(tech_err.endswith(" [truncated]"))
+        self.assertLessEqual(len(tech_err), 1015)
+        self.assertNotIn(api_key, tech_err)
+        self.assertIn("[redacted]", tech_err)
+
+
 if __name__ == "__main__":
     unittest.main()

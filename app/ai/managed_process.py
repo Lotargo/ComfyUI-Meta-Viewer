@@ -130,8 +130,10 @@ def _subprocess_options() -> dict[str, Any]:
 def _fallback_terminate_process_tree(process: subprocess.Popen[str]) -> None:
     if os.name == "nt":
         try:
+            system_root = os.environ.get("SystemRoot", "C:\\Windows")
+            taskkill_path = os.path.join(system_root, "System32", "taskkill.exe")
             subprocess.run(
-                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                [taskkill_path, "/PID", str(process.pid), "/T", "/F"],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,

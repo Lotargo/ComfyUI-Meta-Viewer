@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from app.ai.cli import CLIIntegrationError
 from app.ai.execution import opencode as opencode_module
@@ -24,6 +26,52 @@ class ManagedProcessBindingTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "CMV_MANAGED_OK")
+
+    @mock.patch("app.ai.managed_process.os.name", "nt")
+    @mock.patch("app.ai.managed_process.subprocess.CREATE_NO_WINDOW", 0x08000000, create=True)
+    @mock.patch("app.ai.managed_process.subprocess.run")
+    @mock.patch.dict("app.ai.managed_process.os.environ", {"SystemRoot": "C:\\MySystemRoot"})
+    def test_fallback_terminate_process_tree_windows_resolves_taskkill(self, mock_run: mock.MagicMock) -> None:
+        from app.ai.managed_process import _fallback_terminate_process_tree
+        mock_process = mock.MagicMock()
+        mock_process.pid = 1234
+        mock_process.poll.return_value = 0
+
+        _fallback_terminate_process_tree(mock_process)
+
+        expected_path = os.path.join("C:\\MySystemRoot", "System32", "taskkill.exe")
+        mock_run.assert_called_once_with(
+            [expected_path, "/PID", "1234", "/T", "/F"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+            creationflags=0x08000000,
+        )
+
+    @mock.patch("app.ai.managed_process.os.name", "nt")
+    @mock.patch("app.ai.managed_process.subprocess.CREATE_NO_WINDOW", 0x08000000, create=True)
+    @mock.patch("app.ai.managed_process.subprocess.run")
+    @mock.patch.dict("app.ai.managed_process.os.environ", {}, clear=True)
+    def test_fallback_terminate_process_tree_windows_fallback_path(self, mock_run: mock.MagicMock) -> None:
+        from app.ai.managed_process import _fallback_terminate_process_tree
+        mock_process = mock.MagicMock()
+        mock_process.pid = 5678
+        mock_process.poll.return_value = 0
+
+        _fallback_terminate_process_tree(mock_process)
+
+        expected_path = os.path.join("C:\\Windows", "System32", "taskkill.exe")
+        mock_run.assert_called_once_with(
+            [expected_path, "/PID", "5678", "/T", "/F"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+            creationflags=0x08000000,
+        )
 
 
 @unittest.skipUnless(os.name == "nt", "Windows Job Object regression test")

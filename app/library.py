@@ -348,15 +348,23 @@ def remove_assets_from_album(album_id: int, asset_ids: Iterable[int]) -> int:
             "SELECT 1 FROM albums WHERE id = ?", (album_id,)
         ).fetchone() is None:
             raise LibraryNotFoundError("Album not found")
+
         removed = 0
-        for start in range(0, len(ids), 500):
-            chunk = ids[start : start + 500]
-            placeholders = ",".join("?" for _ in chunk)
-            cur = conn.execute(
-                f"DELETE FROM album_images WHERE album_id = ? AND image_id IN ({placeholders})",
-                [album_id, *chunk],
+        if ids:
+            # Using executemany is the standard, clean, and idiomatic DB-API pattern for batch operations.
+            # Unlike dynamic IN clause generation with dynamic placeholders, executemany keeps queries
+            # consistent, avoids SQLite parameter limits, utilizes SQLite's statement caching optimally,
+            # and avoids building dynamically sized query strings in Python.
+            # We track the exact number of removed rows reliably by comparing the connection's total_changes
+            # before and after the executemany call, which is highly robust and avoids relying on cursor.rowcount
+            # which can behave differently across different Python/sqlite3 versions.
+            before = conn.total_changes
+            conn.executemany(
+                "DELETE FROM album_images WHERE album_id = ? AND image_id = ?",
+                [(album_id, image_id) for image_id in ids],
             )
-            removed += cur.rowcount
+            removed = conn.total_changes - before
+
         conn.execute(
             """UPDATE albums SET cover_image_id = NULL, updated_at = datetime('now')
             WHERE id = ? AND cover_image_id NOT IN (

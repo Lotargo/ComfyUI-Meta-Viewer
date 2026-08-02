@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from app import database
-from app.extractor import extract_metadata_from_bytes
+from app.extractor import extract_metadata_from_bytes, _generate_params_from_api
 from app.media import (
     MediaToolUnavailableError,
     VideoProcessingError,
@@ -319,6 +319,11 @@ class WorkflowExecutionService:
             if workflow is not None:
                 embedded["prompt_api_json"] = workflow
                 embedded["workflow"] = workflow
+                # Generate prompt_parameters from workflow if not already extracted from image
+                if not embedded.get("prompt_parameters"):
+                    generated_params = _generate_params_from_api(workflow)
+                    if generated_params:
+                        embedded["prompt_parameters"] = generated_params
             width = extracted.size[0] if extracted.size else 0
             height = extracted.size[1] if extracted.size else 0
             asset_id, _ = database.insert_upload_asset(
@@ -358,6 +363,11 @@ class WorkflowExecutionService:
                 "prompt_api_json": workflow,
                 "workflow": workflow,
             }
+            # Generate prompt_parameters from workflow for videos
+            if workflow is not None:
+                generated_params = _generate_params_from_api(workflow)
+                if generated_params:
+                    embedded["prompt_parameters"] = generated_params
             asset_id, _ = database.insert_upload_asset(
                 filename,
                 data,

@@ -15,4 +15,4 @@ cache/previews
 .pytest_cache
 reports
 dev_docs/screen_editor_example
-node_modules/
+node_modules/*

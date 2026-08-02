@@ -137,6 +137,23 @@ test('media type filters always keep a visible type', () => {
     assert.deepEqual(preferences.filters.mediaTypes, { images: true, videos: true });
 });
 
+test('sort key and direction setter functions', async () => {
+    globalThis.document = { getElementById: () => null };
+    const state = await import(`../app/static/js/state.js?state-setter-test=${Date.now()}`);
+
+    state.setSortKey('name');
+    assert.equal(state.sortKey, 'name');
+
+    state.setSortDir('asc');
+    assert.equal(state.sortDir, 'asc');
+
+    state.setSidebarSortKey('rating');
+    assert.equal(state.sidebarSortKey, 'rating');
+
+    state.setSidebarSortDir('desc');
+    assert.equal(state.sidebarSortDir, 'desc');
+});
+
 test('the global media collection is a persistent navigation target', () => {
     const preferences = normalizePreferences({
         version: PREFERENCES_VERSION,

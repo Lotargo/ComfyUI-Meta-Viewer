@@ -114,385 +114,407 @@ def get_conn() -> sqlite3.Connection:
         raise
 
 
+_INITIAL_SCHEMA_SQL = """
+    CREATE TABLE IF NOT EXISTS folders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'idle',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        recursive INTEGER NOT NULL DEFAULT 0,
+        source_status TEXT NOT NULL DEFAULT 'available',
+        last_error TEXT,
+        revision INTEGER NOT NULL DEFAULT 0,
+        scanned_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        folder_id INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+        rel_path TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        file_size INTEGER DEFAULT 0,
+        file_mtime REAL DEFAULT 0,
+        media_type TEXT NOT NULL DEFAULT 'image',
+        mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+        format TEXT,
+        width INTEGER DEFAULT 0,
+        height INTEGER DEFAULT 0,
+        mode TEXT,
+        duration REAL,
+        frame_rate REAL,
+        codec TEXT,
+        error TEXT,
+        metadata_json TEXT,
+        ai_annotations_json TEXT,
+        preview_status TEXT NOT NULL DEFAULT 'pending',
+        preview_error TEXT,
+        thumbnail_b64 TEXT,
+        original_data BLOB,
+        content_fingerprint TEXT,
+        is_favorite INTEGER NOT NULL DEFAULT 0,
+        rating INTEGER,
+        note TEXT NOT NULL DEFAULT '',
+        indexed_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(folder_id, rel_path)
+    );
+
+    CREATE TABLE IF NOT EXISTS albums (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        cover_image_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS album_images (
+        album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+        image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL DEFAULT 0,
+        added_at TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (album_id, image_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        name_key TEXT NOT NULL UNIQUE
+    );
+
+    CREATE TABLE IF NOT EXISTS image_tags (
+        image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+        tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+        PRIMARY KEY (image_id, tag_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
+        family TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        scenario TEXT NOT NULL,
+        modifiers_json TEXT NOT NULL DEFAULT '[]',
+        checkpoint_profile TEXT,
+        output_contract TEXT NOT NULL,
+        execution_backend TEXT NOT NULL,
+        provider_profile_id TEXT,
+        model_id TEXT,
+        user_input TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'queued'
+            CHECK (status IN (
+                'queued', 'running', 'waiting_for_review',
+                'completed', 'failed', 'cancelled'
+            )),
+        bundle_metadata_json TEXT,
+        technical_error TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        started_at TEXT,
+        completed_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_scene_specs (
+        job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+        schema_version TEXT NOT NULL,
+        scene_spec_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_prompt_drafts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id INTEGER NOT NULL REFERENCES ai_jobs(id) ON DELETE CASCADE,
+        parent_draft_id INTEGER REFERENCES ai_prompt_drafts(id) ON DELETE SET NULL,
+        schema_version TEXT NOT NULL,
+        positive_prompt TEXT NOT NULL DEFAULT '',
+        negative_prompt TEXT NOT NULL DEFAULT '',
+        source_kind TEXT NOT NULL DEFAULT 'user_text',
+        source_payload_json TEXT NOT NULL DEFAULT '{}',
+        versions_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_results (
+        job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+        schema_version TEXT NOT NULL,
+        positive_prompt TEXT NOT NULL,
+        negative_prompt TEXT NOT NULL DEFAULT '',
+        execution_metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_prompt_translations (
+        job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+        schema_version TEXT NOT NULL DEFAULT '1',
+        source_language TEXT,
+        target_language TEXT NOT NULL,
+        source_positive_prompt TEXT NOT NULL,
+        source_negative_prompt TEXT NOT NULL DEFAULT '',
+        translated_positive_prompt TEXT NOT NULL,
+        translated_negative_prompt TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_prompt_adaptations (
+        job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+        schema_version TEXT NOT NULL DEFAULT '2',
+        target_family TEXT NOT NULL,
+        checkpoint_profile TEXT,
+        protected_triggers_json TEXT NOT NULL DEFAULT '[]',
+        source_positive_prompt TEXT NOT NULL,
+        source_negative_prompt TEXT NOT NULL DEFAULT '',
+        adapted_positive_prompt TEXT NOT NULL,
+        adapted_negative_prompt TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_prompt_enhancements (
+        job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+        schema_version TEXT NOT NULL DEFAULT '1',
+        family TEXT NOT NULL,
+        checkpoint_profile TEXT,
+        wishes TEXT NOT NULL DEFAULT '',
+        source_positive_prompt TEXT NOT NULL,
+        source_negative_prompt TEXT NOT NULL DEFAULT '',
+        enhanced_positive_prompt TEXT NOT NULL,
+        enhanced_negative_prompt TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS model_resources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content_hash TEXT UNIQUE NOT NULL,
+        file_path TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        architecture TEXT NOT NULL,
+        prompt_family TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        version TEXT NOT NULL DEFAULT '',
+        preview_url TEXT,
+        metadata_source TEXT NOT NULL DEFAULT 'local',
+        trigger_words_json TEXT NOT NULL DEFAULT '[]',
+        default_strength REAL NOT NULL DEFAULT 1.0,
+        min_strength REAL NOT NULL DEFAULT 0.0,
+        max_strength REAL NOT NULL DEFAULT 2.0,
+        technical_status TEXT NOT NULL DEFAULT 'supported',
+        restriction_reason TEXT,
+        is_available INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS model_file_hashes (
+        file_path TEXT PRIMARY KEY,
+        file_size INTEGER NOT NULL,
+        file_mtime REAL NOT NULL,
+        sha256 TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS model_recommendations (
+        sha256 TEXT PRIMARY KEY,
+        result_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS model_downloads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        civitai_model_id INTEGER NOT NULL DEFAULT 0,
+        civitai_model_name TEXT NOT NULL DEFAULT '',
+        civitai_version_id INTEGER NOT NULL,
+        version_name TEXT NOT NULL DEFAULT '',
+        folder TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        file_size_bytes INTEGER NOT NULL DEFAULT 0,
+        downloaded_bytes INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'queued',
+        error TEXT,
+        source_url TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS workflow_drafts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id TEXT NOT NULL,
+        template_version TEXT NOT NULL,
+        values_json TEXT NOT NULL DEFAULT '{}',
+        resource_selections_json TEXT NOT NULL DEFAULT '{}',
+        source_asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
+        ai_prompt_draft_id INTEGER REFERENCES ai_prompt_drafts(id) ON DELETE SET NULL,
+        auto_rate INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'editing'
+            CHECK (status IN ('editing', 'queued', 'completed', 'failed', 'cancelled')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS workflow_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        draft_id INTEGER NOT NULL REFERENCES workflow_drafts(id) ON DELETE CASCADE,
+        prompt_id TEXT NOT NULL UNIQUE,
+        client_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued'
+            CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+        auto_rate INTEGER NOT NULL DEFAULT 0,
+        progress REAL,
+        queue_position INTEGER,
+        current_node TEXT,
+        error_json TEXT,
+        output_refs_json TEXT NOT NULL DEFAULT '[]',
+        output_asset_ids_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        started_at TEXT,
+        completed_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_ratings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+        job_id INTEGER REFERENCES ai_jobs(id) ON DELETE SET NULL,
+        rank TEXT,
+        rank_override TEXT,
+        status TEXT NOT NULL DEFAULT 'rated',
+        technical_quality REAL,
+        composition REAL,
+        prompt_adherence REAL,
+        defects_json TEXT NOT NULL DEFAULT '[]',
+        explanation TEXT NOT NULL DEFAULT '',
+        execution_backend TEXT NOT NULL DEFAULT '',
+        provider_profile_id TEXT,
+        model_id TEXT,
+        evaluation_version TEXT NOT NULL DEFAULT '1',
+        schema_version TEXT NOT NULL DEFAULT '1',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(image_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
+    CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
+    CREATE INDEX IF NOT EXISTS idx_album_images_image ON album_images(image_id);
+    CREATE INDEX IF NOT EXISTS idx_image_tags_tag ON image_tags(tag_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
+    CREATE INDEX IF NOT EXISTS idx_ai_prompt_drafts_job ON ai_prompt_drafts(job_id, id);
+    CREATE INDEX IF NOT EXISTS idx_ai_prompt_translations_language
+        ON ai_prompt_translations(target_language);
+    CREATE INDEX IF NOT EXISTS idx_ai_prompt_adaptations_family
+        ON ai_prompt_adaptations(target_family);
+    CREATE INDEX IF NOT EXISTS idx_model_resources_hash ON model_resources(content_hash);
+    CREATE INDEX IF NOT EXISTS idx_model_resources_arch ON model_resources(architecture);
+    CREATE INDEX IF NOT EXISTS idx_model_file_hashes_sha256 ON model_file_hashes(sha256);
+    CREATE INDEX IF NOT EXISTS idx_model_downloads_status ON model_downloads(status);
+    CREATE INDEX IF NOT EXISTS idx_workflow_drafts_template ON workflow_drafts(template_id, id);
+    CREATE INDEX IF NOT EXISTS idx_workflow_drafts_source ON workflow_drafts(source_asset_id);
+    CREATE INDEX IF NOT EXISTS idx_workflow_runs_draft ON workflow_runs(draft_id, id);
+    CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status);
+    CREATE INDEX IF NOT EXISTS idx_ai_ratings_image ON ai_ratings(image_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_ratings_rank ON ai_ratings(rank);
+"""
+
+_COLUMN_MIGRATIONS = (
+    "ALTER TABLE images ADD COLUMN original_data BLOB",
+    "ALTER TABLE folders ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'",
+    "ALTER TABLE folders ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE folders ADD COLUMN recursive INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE folders ADD COLUMN source_status TEXT NOT NULL DEFAULT 'available'",
+    "ALTER TABLE folders ADD COLUMN last_error TEXT",
+    "ALTER TABLE folders ADD COLUMN revision INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE images ADD COLUMN content_fingerprint TEXT",
+    "ALTER TABLE images ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE images ADD COLUMN rating INTEGER",
+    "ALTER TABLE images ADD COLUMN note TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE images ADD COLUMN indexed_at TEXT",
+    "ALTER TABLE images ADD COLUMN media_type TEXT NOT NULL DEFAULT 'image'",
+    "ALTER TABLE images ADD COLUMN mime_type TEXT NOT NULL DEFAULT 'application/octet-stream'",
+    "ALTER TABLE images ADD COLUMN duration REAL",
+    "ALTER TABLE images ADD COLUMN frame_rate REAL",
+    "ALTER TABLE images ADD COLUMN codec TEXT",
+    "ALTER TABLE images ADD COLUMN ai_annotations_json TEXT",
+    "ALTER TABLE images ADD COLUMN preview_status TEXT NOT NULL DEFAULT 'pending'",
+    "ALTER TABLE images ADD COLUMN preview_error TEXT",
+    "ALTER TABLE ai_prompt_drafts ADD COLUMN parent_draft_id INTEGER REFERENCES ai_prompt_drafts(id) ON DELETE SET NULL",
+    "ALTER TABLE ai_prompt_drafts ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'user_text'",
+    "ALTER TABLE ai_prompt_drafts ADD COLUMN source_payload_json TEXT NOT NULL DEFAULT '{}'",
+    "ALTER TABLE ai_prompt_drafts ADD COLUMN updated_at TEXT",
+    "ALTER TABLE images ADD COLUMN derived_from_asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL",
+    "ALTER TABLE ai_prompt_adaptations ADD COLUMN protected_triggers_json TEXT NOT NULL DEFAULT '[]'",
+    "ALTER TABLE workflow_drafts ADD COLUMN auto_rate INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE workflow_runs ADD COLUMN auto_rate INTEGER NOT NULL DEFAULT 0",
+)
+
+_LATE_INDEXES_SQL = """
+    CREATE INDEX IF NOT EXISTS idx_images_favorite ON images(is_favorite);
+    CREATE INDEX IF NOT EXISTS idx_images_fingerprint ON images(content_fingerprint);
+    CREATE INDEX IF NOT EXISTS idx_images_media_type ON images(media_type);
+    CREATE INDEX IF NOT EXISTS idx_images_derived_from ON images(derived_from_asset_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
+"""
+
+
+def _create_initial_tables_and_indexes(conn: sqlite3.Connection) -> None:
+    conn.executescript(_INITIAL_SCHEMA_SQL)
+
+
+def _apply_column_migrations(conn: sqlite3.Connection) -> None:
+    for migration in _COLUMN_MIGRATIONS:
+        try:
+            conn.execute(migration)
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
+
+
+def _apply_data_migrations(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "UPDATE images SET indexed_at = COALESCE(indexed_at, created_at, datetime('now'))"
+    )
+    conn.execute(
+        """UPDATE ai_prompt_drafts SET
+            updated_at = COALESCE(updated_at, created_at, datetime('now'))"""
+    )
+    conn.execute(
+        """UPDATE images SET
+            media_type = COALESCE(NULLIF(media_type, ''), 'image'),
+            mime_type = CASE
+                WHEN LOWER(file_name) LIKE '%.png' THEN 'image/png'
+                WHEN LOWER(file_name) LIKE '%.jpg' THEN 'image/jpeg'
+                WHEN LOWER(file_name) LIKE '%.jpeg' THEN 'image/jpeg'
+                WHEN LOWER(file_name) LIKE '%.webp' THEN 'image/webp'
+                WHEN LOWER(file_name) LIKE '%.bmp' THEN 'image/bmp'
+                WHEN LOWER(file_name) LIKE '%.tiff' THEN 'image/tiff'
+                ELSE COALESCE(NULLIF(mime_type, ''), 'application/octet-stream')
+            END,
+            preview_status = CASE
+                WHEN preview_status = 'pending' AND (metadata_json IS NOT NULL OR error IS NOT NULL)
+                THEN 'ready'
+                ELSE COALESCE(NULLIF(preview_status, ''), 'pending')
+            END"""
+    )
+
+
+def _create_late_indexes(conn: sqlite3.Connection) -> None:
+    conn.executescript(_LATE_INDEXES_SQL)
+
+
 def init_db() -> None:
     Path(get_db_path()).parent.mkdir(parents=True, exist_ok=True)
     conn = get_conn()
     try:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS folders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                path TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL DEFAULT '',
-                status TEXT NOT NULL DEFAULT 'idle',
-                enabled INTEGER NOT NULL DEFAULT 1,
-                recursive INTEGER NOT NULL DEFAULT 0,
-                source_status TEXT NOT NULL DEFAULT 'available',
-                last_error TEXT,
-                revision INTEGER NOT NULL DEFAULT 0,
-                scanned_at TEXT DEFAULT (datetime('now')),
-                created_at TEXT DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS images (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                folder_id INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
-                rel_path TEXT NOT NULL,
-                file_name TEXT NOT NULL,
-                file_size INTEGER DEFAULT 0,
-                file_mtime REAL DEFAULT 0,
-                media_type TEXT NOT NULL DEFAULT 'image',
-                mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
-                format TEXT,
-                width INTEGER DEFAULT 0,
-                height INTEGER DEFAULT 0,
-                mode TEXT,
-                duration REAL,
-                frame_rate REAL,
-                codec TEXT,
-                error TEXT,
-                metadata_json TEXT,
-                ai_annotations_json TEXT,
-                preview_status TEXT NOT NULL DEFAULT 'pending',
-                preview_error TEXT,
-                thumbnail_b64 TEXT,
-                original_data BLOB,
-                content_fingerprint TEXT,
-                is_favorite INTEGER NOT NULL DEFAULT 0,
-                rating INTEGER,
-                note TEXT NOT NULL DEFAULT '',
-                indexed_at TEXT DEFAULT (datetime('now')),
-                created_at TEXT DEFAULT (datetime('now')),
-                UNIQUE(folder_id, rel_path)
-            );
-
-            CREATE TABLE IF NOT EXISTS albums (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
-                cover_image_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
-                created_at TEXT DEFAULT (datetime('now')),
-                updated_at TEXT DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS album_images (
-                album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-                image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
-                position INTEGER NOT NULL DEFAULT 0,
-                added_at TEXT DEFAULT (datetime('now')),
-                PRIMARY KEY (album_id, image_id)
-            );
-
-            CREATE TABLE IF NOT EXISTS tags (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                name_key TEXT NOT NULL UNIQUE
-            );
-
-            CREATE TABLE IF NOT EXISTS image_tags (
-                image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
-                tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-                PRIMARY KEY (image_id, tag_id)
-            );
-
-            CREATE TABLE IF NOT EXISTS ai_jobs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
-                family TEXT NOT NULL,
-                operation TEXT NOT NULL,
-                scenario TEXT NOT NULL,
-                modifiers_json TEXT NOT NULL DEFAULT '[]',
-                checkpoint_profile TEXT,
-                output_contract TEXT NOT NULL,
-                execution_backend TEXT NOT NULL,
-                provider_profile_id TEXT,
-                model_id TEXT,
-                user_input TEXT NOT NULL DEFAULT '',
-                status TEXT NOT NULL DEFAULT 'queued'
-                    CHECK (status IN (
-                        'queued', 'running', 'waiting_for_review',
-                        'completed', 'failed', 'cancelled'
-                    )),
-                bundle_metadata_json TEXT,
-                technical_error TEXT,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-                started_at TEXT,
-                completed_at TEXT
-            );
-
-            CREATE TABLE IF NOT EXISTS ai_scene_specs (
-                job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
-                schema_version TEXT NOT NULL,
-                scene_spec_json TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS ai_prompt_drafts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                job_id INTEGER NOT NULL REFERENCES ai_jobs(id) ON DELETE CASCADE,
-                parent_draft_id INTEGER REFERENCES ai_prompt_drafts(id) ON DELETE SET NULL,
-                schema_version TEXT NOT NULL,
-                positive_prompt TEXT NOT NULL DEFAULT '',
-                negative_prompt TEXT NOT NULL DEFAULT '',
-                source_kind TEXT NOT NULL DEFAULT 'user_text',
-                source_payload_json TEXT NOT NULL DEFAULT '{}',
-                versions_json TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS ai_results (
-                job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
-                schema_version TEXT NOT NULL,
-                positive_prompt TEXT NOT NULL,
-                negative_prompt TEXT NOT NULL DEFAULT '',
-                execution_metadata_json TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS ai_prompt_translations (
-                job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
-                schema_version TEXT NOT NULL DEFAULT '1',
-                source_language TEXT,
-                target_language TEXT NOT NULL,
-                source_positive_prompt TEXT NOT NULL,
-                source_negative_prompt TEXT NOT NULL DEFAULT '',
-                translated_positive_prompt TEXT NOT NULL,
-                translated_negative_prompt TEXT NOT NULL DEFAULT '',
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS ai_prompt_adaptations (
-                job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
-                schema_version TEXT NOT NULL DEFAULT '2',
-                target_family TEXT NOT NULL,
-                checkpoint_profile TEXT,
-                protected_triggers_json TEXT NOT NULL DEFAULT '[]',
-                source_positive_prompt TEXT NOT NULL,
-                source_negative_prompt TEXT NOT NULL DEFAULT '',
-                adapted_positive_prompt TEXT NOT NULL,
-                adapted_negative_prompt TEXT NOT NULL DEFAULT '',
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS ai_prompt_enhancements (
-                job_id INTEGER PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
-                schema_version TEXT NOT NULL DEFAULT '1',
-                family TEXT NOT NULL,
-                checkpoint_profile TEXT,
-                wishes TEXT NOT NULL DEFAULT '',
-                source_positive_prompt TEXT NOT NULL,
-                source_negative_prompt TEXT NOT NULL DEFAULT '',
-                enhanced_positive_prompt TEXT NOT NULL,
-                enhanced_negative_prompt TEXT NOT NULL DEFAULT '',
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS model_resources (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content_hash TEXT UNIQUE NOT NULL,
-                file_path TEXT NOT NULL,
-                resource_type TEXT NOT NULL,
-                architecture TEXT NOT NULL,
-                prompt_family TEXT NOT NULL,
-                display_name TEXT NOT NULL,
-                version TEXT NOT NULL DEFAULT '',
-                preview_url TEXT,
-                metadata_source TEXT NOT NULL DEFAULT 'local',
-                trigger_words_json TEXT NOT NULL DEFAULT '[]',
-                default_strength REAL NOT NULL DEFAULT 1.0,
-                min_strength REAL NOT NULL DEFAULT 0.0,
-                max_strength REAL NOT NULL DEFAULT 2.0,
-                technical_status TEXT NOT NULL DEFAULT 'supported',
-                restriction_reason TEXT,
-                is_available INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS model_file_hashes (
-                file_path TEXT PRIMARY KEY,
-                file_size INTEGER NOT NULL,
-                file_mtime REAL NOT NULL,
-                sha256 TEXT NOT NULL,
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS model_recommendations (
-                sha256 TEXT PRIMARY KEY,
-                result_json TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS model_downloads (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                civitai_model_id INTEGER NOT NULL DEFAULT 0,
-                civitai_model_name TEXT NOT NULL DEFAULT '',
-                civitai_version_id INTEGER NOT NULL,
-                version_name TEXT NOT NULL DEFAULT '',
-                folder TEXT NOT NULL,
-                filename TEXT NOT NULL,
-                file_size_bytes INTEGER NOT NULL DEFAULT 0,
-                downloaded_bytes INTEGER NOT NULL DEFAULT 0,
-                status TEXT NOT NULL DEFAULT 'queued',
-                error TEXT,
-                source_url TEXT NOT NULL DEFAULT '',
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS workflow_drafts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                template_id TEXT NOT NULL,
-                template_version TEXT NOT NULL,
-                values_json TEXT NOT NULL DEFAULT '{}',
-                resource_selections_json TEXT NOT NULL DEFAULT '{}',
-                source_asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
-                ai_prompt_draft_id INTEGER REFERENCES ai_prompt_drafts(id) ON DELETE SET NULL,
-                auto_rate INTEGER NOT NULL DEFAULT 0,
-                status TEXT NOT NULL DEFAULT 'editing'
-                    CHECK (status IN ('editing', 'queued', 'completed', 'failed', 'cancelled')),
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS workflow_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                draft_id INTEGER NOT NULL REFERENCES workflow_drafts(id) ON DELETE CASCADE,
-                prompt_id TEXT NOT NULL UNIQUE,
-                client_id TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'queued'
-                    CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
-                auto_rate INTEGER NOT NULL DEFAULT 0,
-                progress REAL,
-                queue_position INTEGER,
-                current_node TEXT,
-                error_json TEXT,
-                output_refs_json TEXT NOT NULL DEFAULT '[]',
-                output_asset_ids_json TEXT NOT NULL DEFAULT '[]',
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-                started_at TEXT,
-                completed_at TEXT
-            );
-
-            CREATE TABLE IF NOT EXISTS ai_ratings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
-                job_id INTEGER REFERENCES ai_jobs(id) ON DELETE SET NULL,
-                rank TEXT,
-                rank_override TEXT,
-                status TEXT NOT NULL DEFAULT 'rated',
-                technical_quality REAL,
-                composition REAL,
-                prompt_adherence REAL,
-                defects_json TEXT NOT NULL DEFAULT '[]',
-                explanation TEXT NOT NULL DEFAULT '',
-                execution_backend TEXT NOT NULL DEFAULT '',
-                provider_profile_id TEXT,
-                model_id TEXT,
-                evaluation_version TEXT NOT NULL DEFAULT '1',
-                schema_version TEXT NOT NULL DEFAULT '1',
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-                UNIQUE(image_id)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
-            CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
-            CREATE INDEX IF NOT EXISTS idx_album_images_image ON album_images(image_id);
-            CREATE INDEX IF NOT EXISTS idx_image_tags_tag ON image_tags(tag_id);
-            CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
-            CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
-            CREATE INDEX IF NOT EXISTS idx_ai_prompt_drafts_job ON ai_prompt_drafts(job_id, id);
-            CREATE INDEX IF NOT EXISTS idx_ai_prompt_translations_language
-                ON ai_prompt_translations(target_language);
-            CREATE INDEX IF NOT EXISTS idx_ai_prompt_adaptations_family
-                ON ai_prompt_adaptations(target_family);
-            CREATE INDEX IF NOT EXISTS idx_model_resources_hash ON model_resources(content_hash);
-            CREATE INDEX IF NOT EXISTS idx_model_resources_arch ON model_resources(architecture);
-            CREATE INDEX IF NOT EXISTS idx_model_file_hashes_sha256 ON model_file_hashes(sha256);
-            CREATE INDEX IF NOT EXISTS idx_model_downloads_status ON model_downloads(status);
-            CREATE INDEX IF NOT EXISTS idx_workflow_drafts_template ON workflow_drafts(template_id, id);
-            CREATE INDEX IF NOT EXISTS idx_workflow_drafts_source ON workflow_drafts(source_asset_id);
-            CREATE INDEX IF NOT EXISTS idx_workflow_runs_draft ON workflow_runs(draft_id, id);
-            CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status);
-            CREATE INDEX IF NOT EXISTS idx_ai_ratings_image ON ai_ratings(image_id);
-            CREATE INDEX IF NOT EXISTS idx_ai_ratings_rank ON ai_ratings(rank);
-        """)
+        _create_initial_tables_and_indexes(conn)
         _migrate_ai_job_review_status(conn)
         _migrate_ai_rating_nullable_rank(conn)
         _normalize_ai_rating_statuses(conn)
-        migrations = (
-            "ALTER TABLE images ADD COLUMN original_data BLOB",
-            "ALTER TABLE folders ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'",
-            "ALTER TABLE folders ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
-            "ALTER TABLE folders ADD COLUMN recursive INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE folders ADD COLUMN source_status TEXT NOT NULL DEFAULT 'available'",
-            "ALTER TABLE folders ADD COLUMN last_error TEXT",
-            "ALTER TABLE folders ADD COLUMN revision INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE images ADD COLUMN content_fingerprint TEXT",
-            "ALTER TABLE images ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE images ADD COLUMN rating INTEGER",
-            "ALTER TABLE images ADD COLUMN note TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE images ADD COLUMN indexed_at TEXT",
-            "ALTER TABLE images ADD COLUMN media_type TEXT NOT NULL DEFAULT 'image'",
-            "ALTER TABLE images ADD COLUMN mime_type TEXT NOT NULL DEFAULT 'application/octet-stream'",
-            "ALTER TABLE images ADD COLUMN duration REAL",
-            "ALTER TABLE images ADD COLUMN frame_rate REAL",
-            "ALTER TABLE images ADD COLUMN codec TEXT",
-            "ALTER TABLE images ADD COLUMN ai_annotations_json TEXT",
-            "ALTER TABLE images ADD COLUMN preview_status TEXT NOT NULL DEFAULT 'pending'",
-            "ALTER TABLE images ADD COLUMN preview_error TEXT",
-            "ALTER TABLE ai_prompt_drafts ADD COLUMN parent_draft_id INTEGER REFERENCES ai_prompt_drafts(id) ON DELETE SET NULL",
-            "ALTER TABLE ai_prompt_drafts ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'user_text'",
-            "ALTER TABLE ai_prompt_drafts ADD COLUMN source_payload_json TEXT NOT NULL DEFAULT '{}'",
-            "ALTER TABLE ai_prompt_drafts ADD COLUMN updated_at TEXT",
-            "ALTER TABLE images ADD COLUMN derived_from_asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL",
-            "ALTER TABLE ai_prompt_adaptations ADD COLUMN protected_triggers_json TEXT NOT NULL DEFAULT '[]'",
-            "ALTER TABLE workflow_drafts ADD COLUMN auto_rate INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE workflow_runs ADD COLUMN auto_rate INTEGER NOT NULL DEFAULT 0",
-        )
-        for migration in migrations:
-            try:
-                conn.execute(migration)
-            except sqlite3.OperationalError as exc:
-                if "duplicate column name" not in str(exc).lower():
-                    raise
-        conn.execute(
-            "UPDATE images SET indexed_at = COALESCE(indexed_at, created_at, datetime('now'))"
-        )
-        conn.execute(
-            """UPDATE ai_prompt_drafts SET
-                updated_at = COALESCE(updated_at, created_at, datetime('now'))"""
-        )
-        conn.execute(
-            """UPDATE images SET
-                media_type = COALESCE(NULLIF(media_type, ''), 'image'),
-                mime_type = CASE
-                    WHEN LOWER(file_name) LIKE '%.png' THEN 'image/png'
-                    WHEN LOWER(file_name) LIKE '%.jpg' THEN 'image/jpeg'
-                    WHEN LOWER(file_name) LIKE '%.jpeg' THEN 'image/jpeg'
-                    WHEN LOWER(file_name) LIKE '%.webp' THEN 'image/webp'
-                    WHEN LOWER(file_name) LIKE '%.bmp' THEN 'image/bmp'
-                    WHEN LOWER(file_name) LIKE '%.tiff' THEN 'image/tiff'
-                    ELSE COALESCE(NULLIF(mime_type, ''), 'application/octet-stream')
-                END,
-                preview_status = CASE
-                    WHEN preview_status = 'pending' AND (metadata_json IS NOT NULL OR error IS NOT NULL)
-                    THEN 'ready'
-                    ELSE COALESCE(NULLIF(preview_status, ''), 'pending')
-                END"""
-        )
-        conn.executescript("""
-            CREATE INDEX IF NOT EXISTS idx_images_favorite ON images(is_favorite);
-            CREATE INDEX IF NOT EXISTS idx_images_fingerprint ON images(content_fingerprint);
-            CREATE INDEX IF NOT EXISTS idx_images_media_type ON images(media_type);
-            CREATE INDEX IF NOT EXISTS idx_images_derived_from ON images(derived_from_asset_id);
-            CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
-            CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
-        """)
+        _apply_column_migrations(conn)
+        _apply_data_migrations(conn)
+        _create_late_indexes(conn)
         conn.commit()
     finally:
         conn.close()

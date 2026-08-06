@@ -16,6 +16,7 @@ watchdog = "^6.0"
 send2trash = "^2.1"
 keyring = "^25.7"
 telethon = "^1.44"
+qrcode = "^8.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.1"

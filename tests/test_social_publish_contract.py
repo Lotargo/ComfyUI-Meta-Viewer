@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import unittest
+from unittest import mock
 
 from pydantic import ValidationError
 
@@ -167,7 +169,7 @@ class SocialRoutesTest(unittest.TestCase):
     def test_publish_returns_501_until_implemented(self) -> None:
         response = self.client.post(
             "/api/social/publish",
-            json=_payload(),
+            json=_payload(provider="instagram"),
         )
         self.assertEqual(response.status_code, 501)
         self.assertEqual(response.get_json()["code"], "not_implemented")
@@ -191,6 +193,40 @@ class SocialRoutesTest(unittest.TestCase):
             json=_payload(),
         )
         self.assertEqual(response.status_code, 404)
+
+    def test_telegram_disabled_by_default(self) -> None:
+        response = self.client.get("/api/social/status")
+        body = response.get_json()["providers"]
+        self.assertIs(body["telegram"]["enabled"], False)
+        self.assertIs(body["vk"]["enabled"], True)
+        self.assertIs(body["instagram"]["enabled"], True)
+
+    def test_telegram_auth_gated_when_disabled(self) -> None:
+        response = self.client.post("/api/social/telegram/auth/start", json={})
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json()["code"], "not_enabled")
+        for path in (
+            "/api/social/telegram/auth/state",
+            "/api/social/telegram/auth/qr.png",
+        ):
+            self.assertEqual(
+                self.client.get(path).status_code,
+                404,
+                f"{path} should be gated",
+            )
+
+    def test_telegram_auth_enabled_via_env(self) -> None:
+        with mock.patch.dict(os.environ, {"SOCIAL_TELEGRAM_ENABLED": "1"}):
+            response = self.client.post("/api/social/telegram/auth/start", json={})
+            # Gate is open; without credentials the flow reports them missing.
+            self.assertNotEqual(response.status_code, 404)
+            body = response.get_json()
+            self.assertEqual(body["code"], "credentials_missing")
+
+    def test_telegram_publish_gated_when_disabled(self) -> None:
+        response = self.client.post("/api/social/publish", json=_payload())
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json()["code"], "not_enabled")
 
 
 if __name__ == "__main__":

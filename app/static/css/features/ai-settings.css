@@ -1092,3 +1092,192 @@ html {
         font-size: 10px;
     }
 }
+
+/* ------------------------------------------------------------------ */
+/* Social accounts                                                     */
+/* ------------------------------------------------------------------ */
+
+.social-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.social-card {
+    display: flex;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--panel-2);
+    transition: border-color 160ms ease;
+}
+
+.social-card:hover {
+    border-color: var(--border);
+}
+
+.social-card-icon {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.social-card-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.social-card-body h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+}
+
+.social-card-description {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-3);
+}
+
+.social-status-line {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--text-2);
+}
+
+.social-status-line.muted {
+    color: var(--text-3);
+}
+
+.social-status-line.connected {
+    color: var(--green);
+}
+
+.social-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.social-card-actions .btn {
+    padding: 8px 14px;
+    font-size: 12px;
+}
+
+.social-soon-tag {
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--border-subtle);
+    color: var(--text-3);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.social-optional-tag {
+    align-self: flex-start;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.social-optional-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--text-2);
+    cursor: pointer;
+}
+
+.social-optional-toggle input {
+    accent-color: var(--accent);
+}
+
+.social-optional-note {
+    color: var(--text-3);
+}
+
+/* Telegram dialog */
+
+.social-dialog {
+    max-width: 420px;
+}
+
+.social-dialog .form-error {
+    margin-top: 14px;
+}
+
+.social-tg-qr-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+}
+
+.social-tg-qr-frame {
+    padding: 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: white;
+    line-height: 0;
+}
+
+.social-tg-qr-frame img {
+    width: 248px;
+    height: 248px;
+    image-rendering: pixelated;
+}
+
+.social-tg-qr-block > p {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-3);
+}
+
+.social-tg-qr-block + .field,
+.social-dialog > .field {
+    margin-top: 16px;
+}
+
+.social-busy {
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--text-3);
+    animation: social-busy-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes social-busy-pulse {
+    0%,
+    100% {
+        opacity: 0.55;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+

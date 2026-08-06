@@ -29,6 +29,7 @@
 | D-009 | 2026-08 | VK: перехват токена через redirect_uri `blank.html` | provisional |
 | D-010 | 2026-08 | VK: user-токен личной стены для новых приложений недоступен → community-токен (группа) как основной путь | accepted |
 | D-011 | 2026-08 | PublishResult: конструктор назван `failure`, а не `failed` (коллизия с полем `failed` в pydantic) | accepted |
+| D-012 | 2026-08 | Telegram исключён из core social export → опциональный адаптер за флагом | accepted |
 
 ## Записи
 
@@ -109,3 +110,10 @@
 - **Почему:** pydantic v2 полем с тем же именем перекрывает/конфликтует с classmethod `failed`: доступ к `PublishResult.failed` кидал `AttributeError`, а `result.failed` на экземпляре возвращал bound method вместо списка → 4 теста `PublishResultTest` падали (`FF.F...........F.`). Переименование устранило все 4.
 - **Альтернативы:** переименовать поле (`failures`) — хуже: JSON-контракт в плане зафиксирован как `"failed"`, его и оставили.
 - **Статус:** accepted (2026-08). Тесты `tests/test_social_publish_contract.py` — 17 passed; полный прогон `pytest tests -q` — 421 passed, 1 pre-existing fail в `tests/test_database_paths.py` (Unix-пути `'/mock/dir/meta.db'` vs Windows `'\\mock\\dir\\meta.db'`, к social-коду отношения не имеет).
+
+### D-012 — Telegram исключён из core social export → опциональный адаптер за флагом
+- **Контекст:** публикация в личный Telegram требует пер-пользовательских `api_id`/`api_hash` (регистрация приложения на my.telegram.org). Ресёрч (2026-08): вшивание общей пары кредов нарушает ToS (п. 2.1, «You must obtain your own api_id»), а официальный механизм наказания для разошедшихся `api_id` — `API_ID_PUBLISHED_FLOOD`; легального zero-credentials-пути нет. Для продукта (fully-local, без регистрации) это делает Telegram несовместимым с core-моделью.
+- **Решение:** Telegram **исключён из core social export**. Код остаётся в репозитории как опциональный адаптер, **скрытый за флагом**: `SOCIAL_TELEGRAM_ENABLED=1` (env) включает адаптер; по умолчанию выключен. При выключенном флаге: `/api/social/status` отдаёт `enabled: false` для telegram (vk/instagram — всегда `true`), все telegram-auth-эндпоинты и `publish` возвращают `404 {code: "not_enabled"}`. В UI карточка Telegram скрыта; тумблер «Show optional adapters (Telegram — registration-required)» (localStorage `social.showOptionalAdapters`) раскрывает её с бейджем «Optional» и disabled-кнопкой Authorize.
+- **Почему:** core-приоритет (2026-08): VK (community-токен из настроек группы, ноль регистрации) и Instagram (instagrapi, логин+пароль+сессия, ноль регистрации) — единственные таргеты, подходящие модели zero-registration. Telegram (bot-токен или user-MTProto с BYOC) — позже, опционально. X/Twitter и Pinterest тоже «registration-required» — в том же бакете, не core.
+- **Альтернативы:** удалить telegram-код из репозитория (отклонено — код рабочий и протестирован, пригодится как optional-адаптер); оставить как есть, без флага (отклонено — карточка вводила в заблуждение, будто Telegram доступен по умолчанию); вшивать креды в репозиторий (отклонено — нарушение ToS + риск API_ID_PUBLISHED_FLOOD).
+- **Статус:** accepted (2026-08). Реализовано: `app/integrations/social/routes.py` (флаг + гейты + `enabled` в status), `app/templates/ai_settings.html` (тумблер), `app/static/js/social-accounts.js` (фильтр карточек, бейдж, localStorage), `app/static/css/features/ai-settings.css`. Тесты `tests/test_social_publish_contract.py` — 4 новых (gating/флаг); полный `pytest tests -q` — 456 passed, 1 pre-existing fail (`test_database_paths.py`). Live-проверка на 7860 (Playwright): карточка Telegram скрыта по умолчанию, раскрывается тумблером с бейджем «Optional», Authorize disabled, API-гейт `404 not_enabled` подтверждён.

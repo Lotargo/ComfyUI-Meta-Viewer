@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI providers — ComfyUI Meta Viewer</title>
+    <title>Integrations — ComfyUI Meta Viewer</title>
     <link rel="preload" href="/static/fonts/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/static/fonts/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yw.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/static/css/fonts.css">
@@ -27,20 +27,24 @@
                 <a class="app-switcher-link" href="/">Viewer</a>
                 <a class="app-switcher-link" href="/library">Library</a>
                 <a class="app-switcher-link" href="/editor">Create</a>
-                <a class="app-switcher-link active" href="/settings/ai" aria-current="page">AI</a>
+                <a class="app-switcher-link active" href="/settings/ai" aria-current="page">Integrations</a>
             </nav>
         </div>
         <div class="global-header-actions">
-            <button id="refresh-all" class="header-primary-action" type="button">Refresh</button>
+            <button id="add-provider" class="header-primary-action header-primary-action-wide" type="button">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+                <span>Add provider</span>
+            </button>
+            <button id="refresh-all" class="header-primary-action" type="button"><span>Refresh</span></button>
         </div>
     </header>
 
     <main class="ai-settings-main">
         <div class="page-head">
             <div class="page-head-copy">
-                <p class="ai-eyebrow">Bring your own provider</p>
-                <h1>AI providers</h1>
-                <p class="page-sub">Connect an OpenAI-compatible endpoint or reuse an authenticated local CLI. API keys never enter the media index.</p>
+                <p class="ai-eyebrow">Everything connects locally</p>
+                <h1>Integrations</h1>
+                <p class="page-sub">Connect an OpenAI-compatible endpoint, reuse an authenticated local CLI, and link the accounts used to publish generated content. Credentials never leave this machine.</p>
             </div>
             <div id="secret-store-status" class="status-pill" role="status">
                 <span class="status-dot"></span>
@@ -49,14 +53,35 @@
             </div>
         </div>
 
-        <section class="settings-section" aria-labelledby="profiles-heading">
+        <div class="integrations-shell">
+            <aside class="integrations-rail" aria-label="Integration categories">
+                <nav class="integrations-rail-nav">
+                    <p class="rail-group-label">Intelligence</p>
+                    <a class="rail-link active" href="#providers" data-pane="providers" aria-current="page">
+                        <span>Provider profiles</span>
+                        <span id="rail-count-providers" class="rail-count" hidden></span>
+                    </a>
+                    <a class="rail-link" href="#cli" data-pane="cli">
+                        <span>Local AI tools</span>
+                        <span id="rail-count-cli" class="rail-count" hidden></span>
+                    </a>
+                    <p class="rail-group-label">Publishing</p>
+                    <a class="rail-link" href="#social" data-pane="social">
+                        <span>Social accounts</span>
+                        <span id="rail-count-social" class="rail-count" hidden></span>
+                    </a>
+                </nav>
+            </aside>
+
+            <div class="integrations-content">
+
+        <section class="settings-section integrations-pane" data-pane="providers" aria-labelledby="profiles-heading">
             <div class="section-heading">
                 <div>
                     <p class="section-kicker">Configured</p>
                     <h2 id="profiles-heading">Provider profiles</h2>
                     <p>Each operation uses the exact model ID and timeout saved in its profile.</p>
                 </div>
-                <button id="add-provider" class="btn btn-primary" type="button">Add provider</button>
             </div>
 
             <div id="default-profile-panel" class="default-profile-panel" hidden>
@@ -82,7 +107,7 @@
             </div>
         </section>
 
-        <section class="settings-section" id="cli-section" aria-labelledby="cli-heading">
+        <section class="settings-section integrations-pane" id="cli-section" data-pane="cli" aria-labelledby="cli-heading" hidden>
             <div class="section-heading">
                 <div>
                     <p class="section-kicker">Existing authorization</p>
@@ -93,7 +118,7 @@
             <div id="cli-grid" class="cli-grid" aria-live="polite"></div>
         </section>
 
-        <section class="settings-section" id="social-section" aria-labelledby="social-heading">
+        <section class="settings-section integrations-pane" id="social-section" data-pane="social" aria-labelledby="social-heading" hidden>
             <div class="section-heading">
                 <div>
                     <p class="section-kicker">Social publishing</p>
@@ -108,13 +133,8 @@
             <div id="social-grid" class="social-grid" aria-live="polite"></div>
         </section>
 
-        <section class="security-note">
-            <div class="security-note-icon" aria-hidden="true">✓</div>
-            <div>
-                <h2>Credential boundary</h2>
-                <p>System-stored API keys are addressed by profile UUID and are never returned by the API. CLI profiles delegate authentication to OpenCode, Claude Code, or Antigravity. Environment-variable profiles store only the variable name.</p>
             </div>
-        </section>
+        </div>
     </main>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

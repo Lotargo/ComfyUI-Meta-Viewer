@@ -179,7 +179,9 @@ class AIRoutesTest(unittest.TestCase):
     def test_profile_api_masks_secrets_and_exposes_settings_page(self):
         page = self.client.get("/settings/ai")
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b"AI providers", page.data)
+        self.assertIn(b">Integrations</h1>", page.data)
+        self.assertIn(b'id="add-provider"', page.data)
+        self.assertIn(b"integrations-rail", page.data)
         self.assertIn(b'id="secret-store-status"', page.data)
         self.assertIn(b'id="profile-model-provider"', page.data)
         self.assertIn(b'id="profile-model-name"', page.data)

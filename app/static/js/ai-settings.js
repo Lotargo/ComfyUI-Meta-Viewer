@@ -261,6 +261,62 @@ function profileKindLabel(profile) {
         || 'Local CLI';
 }
 
+/* ------------------------------------------------------------------ */
+/* Integrations pane routing + rail counts                             */
+/* ------------------------------------------------------------------ */
+
+const RAIL_PANES = ['providers', 'cli', 'social'];
+
+function currentPane() {
+    const hash = window.location.hash.replace('#', '');
+    return RAIL_PANES.includes(hash) ? hash : 'providers';
+}
+
+function activatePane(pane) {
+    const target = RAIL_PANES.includes(pane) ? pane : 'providers';
+    document.querySelectorAll('.integrations-pane').forEach(section => {
+        section.hidden = section.dataset.pane !== target;
+    });
+    document.querySelectorAll('.rail-link').forEach(link => {
+        const active = link.dataset.pane === target;
+        link.classList.toggle('active', active);
+        if (active) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+    });
+}
+
+function updateRailCounts() {
+    const setCount = (id, count) => {
+        const badge = document.getElementById(id);
+        if (!badge) return;
+        badge.textContent = String(count);
+        badge.hidden = count <= 0;
+    };
+    setCount('rail-count-providers', profiles.length);
+    setCount('rail-count-cli', connectedCliTypes.size);
+    let socialCount = 0;
+    if (typeof window.cmvSocialStatus === 'function') {
+        const status = window.cmvSocialStatus();
+        const providers = (status && status.providers) ? status.providers : {};
+        socialCount = Object.keys(providers).filter(name => {
+            const data = providers[name];
+            if (!data) return false;
+            if (data.connected) return true;
+            return !!(data.publisher && data.publisher.connected);
+        }).length;
+    }
+    setCount('rail-count-social', socialCount);
+}
+
+function initPaneRouting() {
+    activatePane(currentPane());
+    window.addEventListener('hashchange', () => {
+        activatePane(currentPane());
+        window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+    window.updateRailCounts = updateRailCounts;
+}
+
 function renderProfiles() {
     elements.profilesGrid.replaceChildren();
     elements.profilesEmpty.hidden = profiles.length > 0;
@@ -314,6 +370,7 @@ function renderProfiles() {
         elements.profilesGrid.append(card);
     });
     renderDefaultSelectors();
+    updateRailCounts();
 }
 
 function renderDefaultSelectors() {
@@ -568,6 +625,7 @@ function renderCliCard(entry) {
 function renderIntegrations() {
     elements.cliGrid.replaceChildren();
     cliCatalog.forEach(entry => elements.cliGrid.append(renderCliCard(entry)));
+    updateRailCounts();
 }
 
 async function connectCli(cliType) {
@@ -1432,7 +1490,8 @@ async function refreshProfiles() {
 document.getElementById('add-provider').addEventListener('click', () => openProfileDialog());
 document.getElementById('empty-add-provider').addEventListener('click', () => openProfileDialog());
 document.getElementById('empty-goto-cli').addEventListener('click', () => {
-    elements.cliSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    activatePane('cli');
+    if (window.location.hash !== '#cli') window.location.hash = 'cli';
 });
 document.getElementById('refresh-all').addEventListener('click', refreshProfiles);
 document.getElementById('close-profile-dialog').addEventListener('click', () => elements.dialog.close());
@@ -1544,6 +1603,7 @@ elements.defaultMultimodal.addEventListener('change', saveDefaults);
 
 readProfilesCache();
 cliCatalog = DEFAULT_CLI_CATALOG;
+initPaneRouting();
 renderSecretStore();
 renderProfiles();
 renderIntegrations();

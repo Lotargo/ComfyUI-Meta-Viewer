@@ -12,16 +12,16 @@
 
 ## Текущее состояние
 
-- Текущая позиция: **этап 1 — не начат**.
-- Продолжить с: этап 1, пункт «Добавить `telethon` в `pyproject.toml`».
-- Последнее обновление: 2026-08-03.
+- Текущая позиция: **этап 1 — завершён**.
+- Продолжить с: этап 2, пункт «`POST /api/social/telegram/auth/start` — запуск QR или phone+code потока».
+- Последнее обновление: 2026-08-05.
 
 ## Этап 1. Каркас интеграций
 
-- [ ] Определить контракт `publish` (сигнатура, модель ошибок `ok/partial/failed`) — см. план, раздел «Публикация: общий контракт»
-- [ ] Добавить `telethon = "^1.44"` в `pyproject.toml`
-- [ ] Создать blueprint `app/integrations/social/` (`telegram.py`, `vk.py`, `instagram.py`, `routes.py`)
-- [ ] Резолвер секретов: keyring (`SystemSecretStore`, service `comfyui-meta-viewer`, username `social:<provider>`)
+- [x] Определить контракт `publish` (сигнатура, модель ошибок `ok/partial/failed`) — см. план, раздел «Публикация: общий контракт»; реализовано в `app/integrations/social/contract.py` (см. D-011 про конструктор `failure`)
+- [x] Добавить `telethon = "^1.44"` в `pyproject.toml`
+- [x] Создать blueprint `app/integrations/social/` (`telegram.py`, `vk.py`, `instagram.py`, `routes.py`)
+- [x] Резолвер секретов: keyring (`SystemSecretStore`, service `comfyui-meta-viewer`, username `social:<provider>`) — `app/integrations/social/secrets.py`
 
 ## Этап 2. Telegram: авторизация (backend)
 

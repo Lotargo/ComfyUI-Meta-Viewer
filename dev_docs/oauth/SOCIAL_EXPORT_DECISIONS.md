@@ -28,6 +28,7 @@
 | D-008 | 2026-08 | Telegram Login SDK (OIDC) отклонён | rejected |
 | D-009 | 2026-08 | VK: перехват токена через redirect_uri `blank.html` | provisional |
 | D-010 | 2026-08 | VK: user-токен личной стены для новых приложений недоступен → community-токен (группа) как основной путь | accepted |
+| D-011 | 2026-08 | PublishResult: конструктор назван `failure`, а не `failed` (коллизия с полем `failed` в pydantic) | accepted |
 
 ## Записи
 
@@ -101,3 +102,10 @@
 - **Почему:** ресёрч (2026-08): (1) dev.vk.com — wall/photos/video для user-токенов «выдаётся в исключительных случаях через запрос в поддержку»; поддержка (фев–мар 2026) систематически отказывает по оферте п.7.2; (2) легаси Implicit Flow деприкейтнут для новых приложений → VK ID (`id.vk.com`) OAuth2+PKCE не выдаёт scopes API-методов; (3) community-токен — официально поддерживаемый путь для стен сообществ, особых прав не требует.
 - **Альтернативы:** запрос прав через поддержку (шанс ≈0); `vkhost.github.io` (не для продукта); VK ID scopes (не дают API-прав).
 - **Статус:** accepted (2026-08). Практическая проверка — чеклист, этап 5.
+
+### D-011 — PublishResult: конструктор `failure`, а не `failed`
+- **Контекст:** модель `PublishResult` имеет поле-список `failed: list[FailedAsset]` и планировались classmethod-конструкторы `ok/partial/failed`.
+- **Решение:** classmethod-конструктор для статуса `failed` назван `failure(...)`, поле осталось `failed`.
+- **Почему:** pydantic v2 полем с тем же именем перекрывает/конфликтует с classmethod `failed`: доступ к `PublishResult.failed` кидал `AttributeError`, а `result.failed` на экземпляре возвращал bound method вместо списка → 4 теста `PublishResultTest` падали (`FF.F...........F.`). Переименование устранило все 4.
+- **Альтернативы:** переименовать поле (`failures`) — хуже: JSON-контракт в плане зафиксирован как `"failed"`, его и оставили.
+- **Статус:** accepted (2026-08). Тесты `tests/test_social_publish_contract.py` — 17 passed; полный прогон `pytest tests -q` — 421 passed, 1 pre-existing fail в `tests/test_database_paths.py` (Unix-пути `'/mock/dir/meta.db'` vs Windows `'\\mock\\dir\\meta.db'`, к social-коду отношения не имеет).

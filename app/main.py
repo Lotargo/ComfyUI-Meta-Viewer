@@ -34,6 +34,7 @@ from .extractor import (
     make_thumbnail_b64,
     scan_paths,
 )
+from .integrations.social import social_blueprint
 from .folder_picker import FolderPickerUnavailable, choose_folder
 from .indexing import index_source_directory
 from .media import (
@@ -81,6 +82,7 @@ app.config["CONFIG_STORE"] = ConfigStore(Path(app.config["CONFIG_FILE"]))
 app.register_blueprint(ai_blueprint)
 app.register_blueprint(comfyui_blueprint)
 app.register_blueprint(editor_blueprint)
+app.register_blueprint(social_blueprint)
 app.jinja_env.auto_reload = True
 
 

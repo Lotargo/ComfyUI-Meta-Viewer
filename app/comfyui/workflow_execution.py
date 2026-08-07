@@ -317,8 +317,10 @@ class WorkflowExecutionService:
             embedded = extracted.model_dump(mode="json")
             embedded["generation"] = provenance
             if workflow is not None:
+                from app.extractor import parse_workflow_json
                 embedded["prompt_api_json"] = workflow
-                embedded["workflow"] = workflow
+                parsed_wf = parse_workflow_json(workflow, None)
+                embedded["workflow"] = parsed_wf if parsed_wf and parsed_wf.get("workflow_nodes") else workflow
                 # Generate prompt_parameters from workflow if not already extracted from image
                 if not embedded.get("prompt_parameters"):
                     generated_params = _generate_params_from_api(workflow)

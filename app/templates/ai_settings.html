@@ -231,10 +231,24 @@
                     <input id="profile-timeout" type="number" min="5" max="600" value="60" required>
                 </label>
 
-                <label class="check-field">
-                    <input id="profile-multimodal" type="checkbox">
-                    <span><strong>Multimodal profile</strong><small>Allow image and video-frame requests.</small></span>
-                </label>
+                <div id="profile-roles-group" class="profile-roles-group field-wide">
+                    <span class="field-label">Profile roles & intended defaults</span>
+                    <small class="roles-hint">Select which profile sections to create or assign this model for:</small>
+                    <div class="profile-roles-grid">
+                        <label class="check-field">
+                            <input id="profile-role-text" type="checkbox" checked>
+                            <span><strong>Text prompt profile</strong><small>For prompt generation & AI expansion.</small></span>
+                        </label>
+                        <label class="check-field">
+                            <input id="profile-role-translator" type="checkbox">
+                            <span><strong>Translator profile</strong><small>For automatic prompt translation.</small></span>
+                        </label>
+                        <label class="check-field">
+                            <input id="profile-role-vision" type="checkbox">
+                            <span><strong>Vision / Multimodal profile</strong><small>Allow image and video-frame requests.</small></span>
+                        </label>
+                    </div>
+                </div>
 
                 <label id="extra-body-field" class="field field-wide">
                     <span>Additional request parameters <em>optional</em></span>

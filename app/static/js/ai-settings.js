@@ -46,7 +46,10 @@ const elements = {
     catalogProviderId: document.getElementById('model-catalog-provider-id'),
     catalogDiscover: document.getElementById('discover-model-catalog'),
     timeout: document.getElementById('profile-timeout'),
-    multimodal: document.getElementById('profile-multimodal'),
+    multimodal: document.getElementById('profile-role-vision'),
+    roleText: document.getElementById('profile-role-text'),
+    roleTranslator: document.getElementById('profile-role-translator'),
+    roleVision: document.getElementById('profile-role-vision'),
     extraBody: document.getElementById('profile-extra-body'),
     openaiFields: document.getElementById('openai-fields'),
     apiKeyField: document.getElementById('api-key-field'),
@@ -1326,14 +1329,20 @@ function openProfileDialog(profile = null, integration = null, models = []) {
         : 'OpenAI-compatible';
     elements.dialogTitle.textContent = profile ? 'Edit provider profile' : 'Add provider profile';
     elements.saveProfile.textContent = profile ? 'Save changes' : 'Save profile';
-    elements.multimodal.disabled = false;
+
+    const visionSupported = isCli ? (integration?.multimodal !== false) : true;
+    if (elements.roleVision) {
+        elements.roleVision.disabled = !visionSupported;
+    }
 
     if (profile) {
         elements.id.value = profile.id;
         elements.name.value = profile.name;
         if (!isOpenCode) elements.model.value = profile.model;
         elements.timeout.value = String(profile.timeout_seconds);
-        elements.multimodal.checked = profile.multimodal;
+        if (elements.roleText) elements.roleText.checked = !profile.multimodal || defaults.text_profile_id === profile.id;
+        if (elements.roleTranslator) elements.roleTranslator.checked = defaults.translator_profile_id === profile.id;
+        if (elements.roleVision) elements.roleVision.checked = profile.multimodal && visionSupported;
         if (!isCli) {
             elements.baseUrl.value = profile.base_url;
             elements.keySource.value = profile.api_key_source;
@@ -1348,9 +1357,14 @@ function openProfileDialog(profile = null, integration = null, models = []) {
         elements.keySource.value = secretStore.available ? 'system' : 'environment';
         elements.apiKey.placeholder = 'Stored securely after save';
         elements.apiKeyHelp.textContent = 'Required for a new system-stored profile.';
+        if (elements.roleText) elements.roleText.checked = true;
+        if (elements.roleTranslator) elements.roleTranslator.checked = false;
+        if (elements.roleVision) elements.roleVision.checked = false;
     } else {
         elements.name.value = integration.label;
-        elements.multimodal.checked = integration.multimodal;
+        if (elements.roleText) elements.roleText.checked = true;
+        if (elements.roleTranslator) elements.roleTranslator.checked = false;
+        if (elements.roleVision) elements.roleVision.checked = visionSupported && Boolean(integration.multimodal);
     }
     if (isOpenCode) {
         configureOpenCodeModelFields(profile?.model || '');
@@ -1396,18 +1410,85 @@ async function submitProfile(event) {
     event.preventDefault();
     elements.formError.hidden = true;
     elements.saveProfile.disabled = true;
+
     try {
-        const payload = profilePayload();
+        const selectedRoles = [];
+        if (elements.roleText?.checked) selectedRoles.push('text');
+        if (elements.roleTranslator?.checked) selectedRoles.push('translator');
+        if (elements.roleVision?.checked && !elements.roleVision.disabled) selectedRoles.push('vision');
+
+        if (selectedRoles.length === 0) {
+            elements.formError.textContent = 'Please select at least one profile role (Text, Translator, or Vision).';
+            elements.formError.hidden = false;
+            elements.saveProfile.disabled = false;
+            return;
+        }
+
+        const basePayload = profilePayload();
         const profileId = elements.id.value;
-        const url = profileId ? `/api/ai/profiles/${profileId}` : '/api/ai/profiles';
-        await requestJson(url, {
-            method: profileId ? 'PATCH' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
+
+        if (profileId) {
+            const patchPayload = {
+                ...basePayload,
+                multimodal: selectedRoles.includes('vision'),
+            };
+            await requestJson(`/api/ai/profiles/${profileId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(patchPayload),
+            });
+            elements.dialog.close();
+            await loadProfiles();
+            showToast('Provider profile updated.');
+            return;
+        }
+
+        const baseName = basePayload.name;
+        const newDefaults = { ...defaults };
+        const roleLabels = { text: 'Text', translator: 'Translator', vision: 'Vision' };
+        let createdCount = 0;
+
+        for (const role of selectedRoles) {
+            const roleName = selectedRoles.length > 1
+                ? `${baseName} (${roleLabels[role]})`
+                : baseName;
+            const rolePayload = {
+                ...basePayload,
+                name: roleName,
+                multimodal: (role === 'vision'),
+            };
+            const created = await requestJson('/api/ai/profiles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(rolePayload),
+            });
+            createdCount += 1;
+            const newProfile = created.profile;
+            if (newProfile?.id) {
+                if (role === 'text') newDefaults.text_profile_id = newProfile.id;
+                if (role === 'translator') newDefaults.translator_profile_id = newProfile.id;
+                if (role === 'vision') newDefaults.multimodal_profile_id = newProfile.id;
+            }
+        }
+
+        try {
+            const defaultRes = await requestJson('/api/ai/defaults', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newDefaults),
+            });
+            defaults = defaultRes.defaults;
+        } catch {
+            // Ignore default assignment failure if any
+        }
+
         elements.dialog.close();
         await loadProfiles();
-        showToast(profileId ? 'Provider profile updated.' : 'Provider profile created.');
+        showToast(
+            createdCount > 1
+                ? `${createdCount} provider profiles created for selected sections.`
+                : 'Provider profile created.'
+        );
     } catch (error) {
         elements.formError.textContent = error instanceof SyntaxError
             ? 'Additional request parameters contain invalid JSON.'

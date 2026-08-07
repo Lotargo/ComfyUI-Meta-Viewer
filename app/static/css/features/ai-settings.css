@@ -964,6 +964,29 @@ html {
     font-size: 11px;
 }
 
+.profile-roles-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.roles-hint {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+
+.profile-roles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 8px);
+    padding: 12px;
+}
+
 .form-error {
     margin-top: 16px;
     padding: 10px 12px;

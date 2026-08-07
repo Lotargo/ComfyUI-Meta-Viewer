@@ -1758,24 +1758,29 @@ function populatePromptFamilies(select) {
     if (state.aiCapabilities.some((family) => family.id === suggested)) select.value = suggested;
 }
 
-function populatePromptProfiles(select, note, preferredDefaultId = null) {
-    select.innerHTML = state.aiProfiles.length
-        ? state.aiProfiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
-        : '<option value="">No ready text profiles</option>';
+function populatePromptProfiles(select, note, preferredDefaultId = null, roleFilter = 'text') {
+    const matchingProfiles = state.aiProfiles.filter((profile) => (
+        !profile.roles || profile.roles.includes(roleFilter)
+    ));
+    select.innerHTML = matchingProfiles.length
+        ? matchingProfiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
+        : `<option value="">No ready ${roleFilter} profiles</option>`;
     const targetId = preferredDefaultId || state.aiDefaultProfileId;
-    if (state.aiProfiles.some((profile) => profile.id === targetId)) {
+    if (matchingProfiles.some((profile) => profile.id === targetId)) {
         select.value = targetId;
     }
-    note.innerHTML = state.aiProfiles.length
+    note.innerHTML = matchingProfiles.length
         ? 'The selected profile returns the same normalized prompt contract.'
         : 'Add a usable text profile in <a href="/settings/ai">AI settings</a> first.';
 }
 
 function populateVisionProfiles(select, note) {
     const profiles = state.aiProfiles.filter((profile) => (
-        profile.multimodal === true && (
-            profile.kind === 'openai_compatible'
-            || (profile.kind === 'cli' && profile.cli_type === 'opencode')
+        profile.multimodal === true &&
+        (!profile.roles || profile.roles.includes('vision')) && (
+            profile.kind === 'openai_compatible' ||
+            (profile.kind === 'cli' && profile.cli_type === 'opencode') ||
+            (profile.kind === 'cli' && profile.cli_type === 'antigravity')
         )
     ));
     select.innerHTML = profiles.length
@@ -1941,6 +1946,7 @@ async function openTranslatePromptDialog() {
             elements.translatePromptProfile,
             elements.translateProfileNote,
             state.aiDefaultTranslatorProfileId,
+            'translator',
         );
         elements.translatePromptPositive.value = String(state.values.positive_prompt || '');
         elements.translatePromptNegative.value = String(

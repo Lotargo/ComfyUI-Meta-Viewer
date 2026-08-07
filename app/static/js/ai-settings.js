@@ -386,11 +386,23 @@ function renderDefaultSelectors() {
         });
         select.value = selected || '';
     };
-    fill(elements.defaultText, () => true, defaults.text_profile_id);
+    fill(
+        elements.defaultText,
+        profile => !profile.roles || profile.roles.includes('text'),
+        defaults.text_profile_id
+    );
     if (elements.defaultTranslator) {
-        fill(elements.defaultTranslator, () => true, defaults.translator_profile_id);
+        fill(
+            elements.defaultTranslator,
+            profile => !profile.roles || profile.roles.includes('translator'),
+            defaults.translator_profile_id
+        );
     }
-    fill(elements.defaultMultimodal, profile => profile.multimodal, defaults.multimodal_profile_id);
+    fill(
+        elements.defaultMultimodal,
+        profile => profile.multimodal && (!profile.roles || profile.roles.includes('vision')),
+        defaults.multimodal_profile_id
+    );
 }
 
 async function saveDefaults() {
@@ -1340,9 +1352,10 @@ function openProfileDialog(profile = null, integration = null, models = []) {
         elements.name.value = profile.name;
         if (!isOpenCode) elements.model.value = profile.model;
         elements.timeout.value = String(profile.timeout_seconds);
-        if (elements.roleText) elements.roleText.checked = !profile.multimodal || defaults.text_profile_id === profile.id;
-        if (elements.roleTranslator) elements.roleTranslator.checked = defaults.translator_profile_id === profile.id;
-        if (elements.roleVision) elements.roleVision.checked = profile.multimodal && visionSupported;
+        const roles = profile.roles || (profile.multimodal ? ['vision'] : ['text', 'translator']);
+        if (elements.roleText) elements.roleText.checked = roles.includes('text');
+        if (elements.roleTranslator) elements.roleTranslator.checked = roles.includes('translator');
+        if (elements.roleVision) elements.roleVision.checked = visionSupported && roles.includes('vision');
         if (!isCli) {
             elements.baseUrl.value = profile.base_url;
             elements.keySource.value = profile.api_key_source;
@@ -1385,12 +1398,18 @@ function profilePayload() {
             ? modelName
             : `${provider}/${modelName}`;
     }
+    const roles = [];
+    if (elements.roleText?.checked) roles.push('text');
+    if (elements.roleTranslator?.checked) roles.push('translator');
+    if (elements.roleVision?.checked && !elements.roleVision.disabled) roles.push('vision');
+
     const payload = {
         kind: elements.kind.value,
         name: elements.name.value.trim(),
         model,
         timeout_seconds: Number(elements.timeout.value),
         multimodal: elements.multimodal.checked,
+        roles,
     };
     if (payload.kind === 'cli') {
         payload.cli_type = elements.cliType.value;
@@ -1431,6 +1450,7 @@ async function submitProfile(event) {
             const patchPayload = {
                 ...basePayload,
                 multimodal: selectedRoles.includes('vision'),
+                roles: selectedRoles,
             };
             await requestJson(`/api/ai/profiles/${profileId}`, {
                 method: 'PATCH',
@@ -1456,6 +1476,7 @@ async function submitProfile(event) {
                 ...basePayload,
                 name: roleName,
                 multimodal: (role === 'vision'),
+                roles: [role],
             };
             const created = await requestJson('/api/ai/profiles', {
                 method: 'POST',

@@ -132,6 +132,20 @@ def _validate_profile(
     if not 5 <= timeout_seconds <= 600:
         raise AIProfileStoreError("Timeout must be between 5 and 600 seconds.")
 
+    raw_roles = payload.get("roles")
+    if isinstance(raw_roles, list):
+        roles = [str(r) for r in raw_roles if str(r) in {"text", "translator", "vision"}]
+    else:
+        roles = []
+
+    if not roles:
+        if payload.get("multimodal") is True:
+            roles = ["vision"]
+        elif "(Translator)" in name or "(translator)" in name or "translator" in name.lower():
+            roles = ["translator"]
+        else:
+            roles = ["text"]
+
     profile: dict[str, Any] = {
         "id": profile_id,
         "kind": kind,
@@ -139,6 +153,7 @@ def _validate_profile(
         "model": model,
         "timeout_seconds": timeout_seconds,
         "multimodal": payload.get("multimodal") is True,
+        "roles": roles,
         "created_at": created_at or _now(),
         "updated_at": _now(),
     }
@@ -197,12 +212,20 @@ class AIProfileStore:
 
     def _load_profiles(self) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         config = self.config.load()
+        defaults = config.get("ai", {}).get("defaults", {})
         profiles: list[dict[str, Any]] = []
         seen: set[str] = set()
         for raw in config["ai"]["profiles"]:
             profile_id = raw.get("id") if isinstance(raw.get("id"), str) else ""
             if not profile_id or profile_id in seen:
                 continue
+            if isinstance(raw, dict) and not raw.get("roles"):
+                if profile_id == defaults.get("translator_profile_id") and profile_id != defaults.get("text_profile_id"):
+                    raw["roles"] = ["translator"]
+                elif profile_id == defaults.get("text_profile_id") and profile_id != defaults.get("translator_profile_id"):
+                    raw["roles"] = ["text"]
+                elif profile_id == defaults.get("multimodal_profile_id"):
+                    raw["roles"] = ["vision"]
             try:
                 profile = _validate_profile(
                     raw,

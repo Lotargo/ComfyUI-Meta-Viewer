@@ -3502,54 +3502,88 @@ function bindEvents() {
             showToast(error.message || String(error), 'error');
         });
     });
+function openResultContextMenu(event, assetId, anchor) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const run = state.runs.find((r) => (r.output_asset_ids || []).map(Number).includes(assetId));
+    const isVideo = run ? runOutputIsVideo(run) : false;
+    const fileName = `Generation #${run?.id || assetId}`;
+
+    showImageContextMenu(event, {
+        imageId: assetId,
+        fileName,
+        sourceUrl: `/api/original/${assetId}`,
+        mediaType: isVideo ? 'video' : 'image',
+        canAccessOriginal: true,
+        hasLocalFile: true,
+        onOpenInViewer: () => openResultLightbox(assetId),
+        onDeleteFile: async () => {
+            const api = await import('../api.js');
+            const deleted = await api.deleteAssetFileById(assetId);
+            if (deleted) await loadRuns();
+        },
+        onRemoveFromIndex: async () => {
+            const api = await import('../api.js');
+            const removed = await api.removeAssetFromIndexById(assetId);
+            if (removed) await loadRuns();
+        },
+        onRenamed: async () => {
+            await loadRuns();
+        },
+        onRatingChanged: async () => {
+            await loadRuns();
+        },
+        extraSections: [
+            [
+                {
+                    label: 'Add to favorites',
+                    icon: 'favorite',
+                    run: async () => {
+                        await requestJson(`/api/images/${assetId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ favorite: true }),
+                        });
+                        showToast('Added to favorites', 'success');
+                        await loadRuns();
+                    },
+                },
+            ],
+            isVideo ? [] : [
+                {
+                    label: 'Create transparent PNG',
+                    icon: 'cutout',
+                    run: async () => {
+                        await openResultLightbox(assetId);
+                        const cutout = await import('./cutout.js');
+                        cutout.openCutoutPanel();
+                    },
+                },
+            ],
+        ],
+        anchor,
+        notify: showToast,
+    });
+}
+
     elements.resultGrid.addEventListener('contextmenu', (event) => {
         const card = event.target.closest('[data-asset-id]') || event.target.closest('[data-open-result]');
         if (!card) return;
+        event.preventDefault();
         const assetIdStr = card.dataset.assetId || card.dataset.openResult || card.querySelector('[data-open-result]')?.dataset.openResult;
         const assetId = Number(assetIdStr);
         if (!assetId) return;
 
-        const run = state.runs.find((r) => (r.output_asset_ids || []).includes(assetId));
-        const isVideo = run ? runOutputIsVideo(run) : false;
-
-        showImageContextMenu(event, {
-            imageId: assetId,
-            fileName: `Generation #${run?.id || assetId}`,
-            sourceUrl: `/api/original/${assetId}`,
-            mediaType: isVideo ? 'video' : 'image',
-            canAccessOriginal: true,
-            hasLocalFile: true,
-            onOpenInViewer: () => openResultLightbox(assetId),
-            onDeleteFile: async () => {
-                const api = await import('../api.js');
-                const deleted = await api.deleteAssetFileById(assetId);
-                if (deleted) await loadRuns();
-            },
-            onRemoveFromIndex: async () => {
-                const api = await import('../api.js');
-                const removed = await api.removeAssetFromIndexById(assetId);
-                if (removed) await loadRuns();
-            },
-            onRenamed: async () => {
-                await loadRuns();
-            },
-            onRatingChanged: async () => {
-                await loadRuns();
-            },
-            anchor: card,
-            notify: showToast,
-        });
+        openResultContextMenu(event, assetId, card);
     });
+
     elements.reconstructSourcePreview?.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
         const assetId = state.draft?.source_asset_id;
         if (!assetId) return;
-        showImageContextMenu(event, {
-            imageId: Number(assetId),
-            sourceUrl: `/api/original/${assetId}`,
-            canAccessOriginal: true,
-            hasLocalFile: true,
-            notify: showToast,
-        });
+
+        openResultContextMenu(event, Number(assetId), elements.reconstructSourcePreview);
     });
     elements.runtimeOpen.addEventListener('click', openRuntimeDrawer);
     elements.runtimeConnect.addEventListener('click', openRuntimeDrawer);

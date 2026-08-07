@@ -43,7 +43,6 @@ const elements = {
     catalogProviders: document.getElementById('model-catalog-providers'),
     catalogStatus: document.getElementById('model-catalog-status'),
     catalogError: document.getElementById('model-catalog-error'),
-    catalogProviderId: document.getElementById('model-catalog-provider-id'),
     catalogDiscover: document.getElementById('discover-model-catalog'),
     timeout: document.getElementById('profile-timeout'),
     multimodal: document.getElementById('profile-role-vision'),
@@ -1211,9 +1210,8 @@ function openCatalogSettings() {
     resetCatalogDraft();
     elements.catalogError.hidden = true;
     elements.catalogError.textContent = '';
-    elements.catalogProviderId.value = '';
     elements.catalogStatus.textContent = (
-        'The complete catalog is requested only when you press Discover all providers.'
+        'The complete catalog is requested only when you press Scan providers.'
     );
     renderCatalogSettings();
     elements.catalogDialog.showModal();
@@ -1254,19 +1252,6 @@ async function discoverCatalogProviders() {
     } finally {
         elements.catalogDiscover.disabled = false;
     }
-}
-
-function addCatalogProvider() {
-    const provider = elements.catalogProviderId.value.trim();
-    if (!provider || provider.length > 100 || /[\s/]/.test(provider)) {
-        elements.catalogError.textContent = 'Enter a provider ID without spaces or slashes.';
-        elements.catalogError.hidden = false;
-        return;
-    }
-    ensureCatalogDraftProvider(provider, true).enabled = true;
-    elements.catalogProviderId.value = '';
-    elements.catalogError.hidden = true;
-    renderCatalogSettings();
 }
 
 function saveCatalogSettings(event) {
@@ -1657,13 +1642,6 @@ document.getElementById('close-model-catalog').addEventListener('click', () => {
 });
 document.getElementById('cancel-model-catalog').addEventListener('click', () => {
     elements.catalogDialog.close();
-});
-document.getElementById('add-model-catalog-provider').addEventListener('click', addCatalogProvider);
-elements.catalogProviderId.addEventListener('keydown', event => {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        addCatalogProvider();
-    }
 });
 elements.catalogDiscover.addEventListener('click', discoverCatalogProviders);
 elements.catalogProviders.addEventListener('change', event => {

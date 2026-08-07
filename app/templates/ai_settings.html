@@ -276,12 +276,8 @@
             </header>
             <p class="catalog-description">Select the providers shown in the profile form. For each provider, show all its models or keep a smaller allowlist.</p>
             <div class="catalog-discovery">
-                <div class="catalog-add-provider">
-                    <input id="model-catalog-provider-id" maxlength="100" placeholder="Provider ID, e.g. deepseek" spellcheck="false" autocomplete="off">
-                    <button id="add-model-catalog-provider" class="btn btn-secondary" type="button">Add provider</button>
-                </div>
-                <button id="discover-model-catalog" class="btn btn-secondary" type="button">Discover all providers</button>
-                <span id="model-catalog-status">The complete catalog is requested only when you press Discover all providers.</span>
+                <button id="discover-model-catalog" class="btn btn-secondary" type="button">Scan providers</button>
+                <span id="model-catalog-status">The complete catalog is requested only when you press Scan providers.</span>
             </div>
             <div id="model-catalog-providers" class="catalog-provider-list"></div>
             <div id="model-catalog-error" class="form-error" role="alert" hidden></div>

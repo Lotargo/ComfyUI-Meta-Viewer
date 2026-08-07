@@ -5,6 +5,7 @@ import {
     openLightbox,
     prevLightbox,
 } from '../lightbox.js';
+import { showImageContextMenu } from '../components/image-context-menu.js';
 
 const byId = (id) => document.getElementById(id);
 
@@ -2743,7 +2744,7 @@ function resultCard(run, assetId) {
     const media = isVideo
         ? `<video src="/api/original/${assetId}" preload="metadata" controls></video>`
         : `<img src="/api/preview/${assetId}" alt="Generated result ${assetId}" loading="lazy" data-open-result="${assetId}">`;
-    return `<article class="result-card" data-result-search="generation ${run.id}"><div class="result-media">${media}<div class="result-card-actions"><button type="button" data-open-result="${assetId}" title="View result" aria-label="View generation ${run.id}">${iconSvg('view')}</button><a href="/api/original/${assetId}" download title="Download">${iconSvg('download')}</a><a href="/library" title="Open in library">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Generation #${run.id}</strong><span>In library</span></div></article>`;
+    return `<article class="result-card" data-result-search="generation ${run.id}" data-asset-id="${assetId}"><div class="result-media">${media}<div class="result-card-actions"><button type="button" data-open-result="${assetId}" title="View result" aria-label="View generation ${run.id}">${iconSvg('view')}</button><a href="/api/original/${assetId}" download title="Download">${iconSvg('download')}</a><a href="/library" title="Open in library">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Generation #${run.id}</strong><span>In library</span></div></article>`;
 }
 
 function runHistoryCard(run) {
@@ -3501,6 +3502,55 @@ function bindEvents() {
             showToast(error.message || String(error), 'error');
         });
     });
+    elements.resultGrid.addEventListener('contextmenu', (event) => {
+        const card = event.target.closest('[data-asset-id]') || event.target.closest('[data-open-result]');
+        if (!card) return;
+        const assetIdStr = card.dataset.assetId || card.dataset.openResult || card.querySelector('[data-open-result]')?.dataset.openResult;
+        const assetId = Number(assetIdStr);
+        if (!assetId) return;
+
+        const run = state.runs.find((r) => (r.output_asset_ids || []).includes(assetId));
+        const isVideo = run ? runOutputIsVideo(run) : false;
+
+        showImageContextMenu(event, {
+            imageId: assetId,
+            fileName: `Generation #${run?.id || assetId}`,
+            sourceUrl: `/api/original/${assetId}`,
+            mediaType: isVideo ? 'video' : 'image',
+            canAccessOriginal: true,
+            hasLocalFile: true,
+            onOpenInViewer: () => openResultLightbox(assetId),
+            onDeleteFile: async () => {
+                const api = await import('../api.js');
+                const deleted = await api.deleteAssetFileById(assetId);
+                if (deleted) await loadRuns();
+            },
+            onRemoveFromIndex: async () => {
+                const api = await import('../api.js');
+                const removed = await api.removeAssetFromIndexById(assetId);
+                if (removed) await loadRuns();
+            },
+            onRenamed: async () => {
+                await loadRuns();
+            },
+            onRatingChanged: async () => {
+                await loadRuns();
+            },
+            anchor: card,
+            notify: showToast,
+        });
+    });
+    elements.reconstructSourcePreview?.addEventListener('contextmenu', (event) => {
+        const assetId = state.draft?.source_asset_id;
+        if (!assetId) return;
+        showImageContextMenu(event, {
+            imageId: Number(assetId),
+            sourceUrl: `/api/original/${assetId}`,
+            canAccessOriginal: true,
+            hasLocalFile: true,
+            notify: showToast,
+        });
+    });
     elements.runtimeOpen.addEventListener('click', openRuntimeDrawer);
     elements.runtimeConnect.addEventListener('click', openRuntimeDrawer);
     elements.runtimeClose.addEventListener('click', closeRuntimeDrawer);
@@ -3709,7 +3759,7 @@ function bindEvents() {
 
 async function initialize() {
     bindEvents();
-    initLightboxEvents({ enableContextMenu: false });
+    initLightboxEvents({ enableContextMenu: true });
     observeDecorativeBackdropWindows();
     await loadDecorativeBackdrops();
     try {

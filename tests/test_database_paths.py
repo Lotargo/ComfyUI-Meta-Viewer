@@ -28,8 +28,8 @@ class TestDatabasePaths(unittest.TestCase):
             path = db.get_db_path()
 
             mock_build.assert_called_once()
-            self.assertEqual(path, "/mock/dir/meta.db")
-            self.assertEqual(db._DB_PATH, "/mock/dir/meta.db")
+            self.assertEqual(path, str(mock_database_path))
+            self.assertEqual(db._DB_PATH, str(mock_database_path))
 
     def test_get_db_path_returns_cached_value(self) -> None:
         db._DB_PATH = "/cached/path/meta.db"

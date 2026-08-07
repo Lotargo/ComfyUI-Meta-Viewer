@@ -81,6 +81,20 @@ def _resolved_text_profile(payload: dict) -> tuple[AIProfileStore, dict]:
     return profile_store, profile_store.get(profile_id)
 
 
+def _resolved_translator_profile(payload: dict) -> tuple[AIProfileStore, dict]:
+    profile_store = _store()
+    profile_id = payload.get("profile_id")
+    if profile_id is None:
+        defaults = profile_store.list()["defaults"]
+        profile_id = defaults.get("translator_profile_id") or defaults.get("text_profile_id")
+    if not isinstance(profile_id, str) or not profile_id.strip():
+        raise AIProfileStoreError(
+            "Choose an AI translator or text profile before running this operation.",
+            code="missing_profile",
+        )
+    return profile_store, profile_store.get(profile_id)
+
+
 def _asset_image_data_url(asset_id: int) -> str:
     source = database.get_asset_source_info(asset_id)
     if source is None:
@@ -400,7 +414,7 @@ def ai_generate():
 @ai_blueprint.route("/api/ai/translate", methods=["POST"])
 def ai_translate():
     payload = _json_object()
-    profile_store, profile = _resolved_text_profile(payload)
+    profile_store, profile = _resolved_translator_profile(payload)
     task_data = payload.get("task") or {}
     if not isinstance(task_data, dict):
         raise AIProfileStoreError("task dictionary is required.")

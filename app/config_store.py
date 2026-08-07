@@ -42,6 +42,7 @@ def _default_config() -> dict[str, Any]:
             "profiles": [],
             "defaults": {
                 "text_profile_id": None,
+                "translator_profile_id": None,
                 "multimodal_profile_id": None,
                 "rating_auto_enabled": False,
             },
@@ -152,9 +153,11 @@ class ConfigStore:
                     "profiles": profiles,
                     "defaults": {
                         "text_profile_id": defaults.get("text_profile_id"),
+                        "translator_profile_id": defaults.get("translator_profile_id"),
                         "multimodal_profile_id": defaults.get(
                             "multimodal_profile_id"
                         ),
+                        "rating_auto_enabled": bool(defaults.get("rating_auto_enabled", False)),
                     },
                 },
                 "comfyui": {

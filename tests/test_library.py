@@ -387,13 +387,12 @@ class LibraryApiTest(LibraryTestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertEqual(payload["affected"], 1)
-        self.assertEqual(payload["removed_ids"], [image_id])
-        self.assertEqual(payload["failures"][0]["id"], uploaded_id)
-        self.assertEqual(payload["failures"][0]["code"], "no_local_file")
+        self.assertEqual(payload["affected"], 2)
+        self.assertEqual(sorted(payload["removed_ids"]), sorted([image_id, uploaded_id]))
+        self.assertEqual(len(payload["failures"]), 0)
         send_to_trash.assert_called_once_with(str(physical.resolve()))
         self.assertIsNone(db.get_image_path(image_id))
-        self.assertIsNotNone(db.get_image_source_info(uploaded_id))
+        self.assertIsNone(db.get_image_source_info(uploaded_id))
         self.assertFalse(self.paths.thumbnails.joinpath(f"{image_id}.jpg").exists())
         self.assertFalse(
             self.paths.previews.joinpath(f"{image_id}-preview.jpg").exists()
@@ -564,7 +563,7 @@ class LibraryApiTest(LibraryTestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("deleteCurrentLightboxFile", lightbox_script)
         self.assertIn(
-            "setLightboxIndex(Math.min(currentIndex, currentImagesArray.length - 1))",
+            "await openLightbox(nextIndex)",
             lightbox_script,
         )
         self.assertIn("lightboxOnly: true", keyboard_script)

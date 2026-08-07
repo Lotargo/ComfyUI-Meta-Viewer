@@ -157,6 +157,16 @@ class AIProfileStoreTest(unittest.TestCase):
         self.store.delete(vision_profile["id"])
         self.assertIsNone(self.store.list()["defaults"]["multimodal_profile_id"])
 
+    def test_translator_profile_defaults(self):
+        translator_profile = self.store.create(direct_payload(name="Translator"))
+        defaults = self.store.set_defaults({
+            "translator_profile_id": translator_profile["id"]
+        })
+        self.assertEqual(defaults["translator_profile_id"], translator_profile["id"])
+        self.assertEqual(self.store.list()["defaults"]["translator_profile_id"], translator_profile["id"])
+        self.store.delete(translator_profile["id"])
+        self.assertIsNone(self.store.list()["defaults"]["translator_profile_id"])
+
 
 class AIRoutesTest(unittest.TestCase):
     def setUp(self):

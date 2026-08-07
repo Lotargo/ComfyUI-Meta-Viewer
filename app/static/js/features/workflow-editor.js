@@ -1746,6 +1746,7 @@ async function loadPromptAssistantData() {
         profile.has_credentials !== false && supportedPromptProfile(profile)
     ));
     state.aiDefaultProfileId = profiles.defaults?.text_profile_id || null;
+    state.aiDefaultTranslatorProfileId = profiles.defaults?.translator_profile_id || null;
     state.aiDefaultMultimodalProfileId = profiles.defaults?.multimodal_profile_id || null;
 }
 
@@ -1757,12 +1758,13 @@ function populatePromptFamilies(select) {
     if (state.aiCapabilities.some((family) => family.id === suggested)) select.value = suggested;
 }
 
-function populatePromptProfiles(select, note) {
+function populatePromptProfiles(select, note, preferredDefaultId = null) {
     select.innerHTML = state.aiProfiles.length
         ? state.aiProfiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
         : '<option value="">No ready text profiles</option>';
-    if (state.aiProfiles.some((profile) => profile.id === state.aiDefaultProfileId)) {
-        select.value = state.aiDefaultProfileId;
+    const targetId = preferredDefaultId || state.aiDefaultProfileId;
+    if (state.aiProfiles.some((profile) => profile.id === targetId)) {
+        select.value = targetId;
     }
     note.innerHTML = state.aiProfiles.length
         ? 'The selected profile returns the same normalized prompt contract.'
@@ -1935,7 +1937,11 @@ async function openTranslatePromptDialog() {
     try {
         await loadPromptAssistantData();
         populatePromptFamilies(elements.translatePromptFamily);
-        populatePromptProfiles(elements.translatePromptProfile, elements.translateProfileNote);
+        populatePromptProfiles(
+            elements.translatePromptProfile,
+            elements.translateProfileNote,
+            state.aiDefaultTranslatorProfileId,
+        );
         elements.translatePromptPositive.value = String(state.values.positive_prompt || '');
         elements.translatePromptNegative.value = String(
             state.values.negative_prompt || state.advancedFieldMemory.negative_prompt || '',

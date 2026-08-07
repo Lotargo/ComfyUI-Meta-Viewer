@@ -248,7 +248,7 @@ class AIProfileStore:
             config, profiles = self._load_profiles()
             profile_ids = {profile["id"] for profile in profiles}
             defaults = dict(config["ai"]["defaults"])
-            for key in ("text_profile_id", "multimodal_profile_id"):
+            for key in ("text_profile_id", "multimodal_profile_id", "translator_profile_id"):
                 if defaults.get(key) not in profile_ids:
                     defaults[key] = None
             return {
@@ -394,7 +394,7 @@ class AIProfileStore:
             config, profiles = self._load_profiles()
             by_id = {profile["id"]: profile for profile in profiles}
             defaults = dict(config["ai"]["defaults"])
-            for key in ("text_profile_id", "multimodal_profile_id"):
+            for key in ("text_profile_id", "multimodal_profile_id", "translator_profile_id"):
                 if key not in payload:
                     continue
                 value = payload[key]

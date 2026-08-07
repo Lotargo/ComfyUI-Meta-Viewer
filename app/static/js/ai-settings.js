@@ -9,6 +9,7 @@ const elements = {
     cliSection: document.getElementById('cli-section'),
     defaultPanel: document.getElementById('default-profile-panel'),
     defaultText: document.getElementById('default-text-profile'),
+    defaultTranslator: document.getElementById('default-translator-profile'),
     defaultMultimodal: document.getElementById('default-multimodal-profile'),
     dialog: document.getElementById('profile-dialog'),
     form: document.getElementById('profile-form'),
@@ -58,7 +59,7 @@ const elements = {
 };
 
 let profiles = [];
-let defaults = { text_profile_id: null, multimodal_profile_id: null };
+let defaults = { text_profile_id: null, multimodal_profile_id: null, translator_profile_id: null };
 let secretStore = { available: false };
 let cliCatalog = [];
 const CONNECTED_CLI_STORAGE_KEY = 'cmv_ai_connected_cli_types_v1';
@@ -348,6 +349,7 @@ function renderProfiles() {
         if (profile.multimodal) appendBadge(badges, 'Multimodal', 'vision');
         if (!profile.has_credentials) appendBadge(badges, 'Credentials unavailable', 'missing');
         if (defaults.text_profile_id === profile.id) appendBadge(badges, 'Default text');
+        if (defaults.translator_profile_id === profile.id) appendBadge(badges, 'Default translator');
         if (defaults.multimodal_profile_id === profile.id) appendBadge(badges, 'Default vision');
         card.append(badges);
 
@@ -382,6 +384,9 @@ function renderDefaultSelectors() {
         select.value = selected || '';
     };
     fill(elements.defaultText, () => true, defaults.text_profile_id);
+    if (elements.defaultTranslator) {
+        fill(elements.defaultTranslator, () => true, defaults.translator_profile_id);
+    }
     fill(elements.defaultMultimodal, profile => profile.multimodal, defaults.multimodal_profile_id);
 }
 
@@ -392,6 +397,7 @@ async function saveDefaults() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 text_profile_id: elements.defaultText.value || null,
+                translator_profile_id: elements.defaultTranslator?.value || null,
                 multimodal_profile_id: elements.defaultMultimodal.value || null,
             }),
         });
@@ -1599,6 +1605,7 @@ elements.dialog.addEventListener('close', () => {
 });
 elements.form.addEventListener('submit', submitProfile);
 elements.defaultText.addEventListener('change', saveDefaults);
+elements.defaultTranslator?.addEventListener('change', saveDefaults);
 elements.defaultMultimodal.addEventListener('change', saveDefaults);
 
 readProfilesCache();

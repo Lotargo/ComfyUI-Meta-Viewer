@@ -39,7 +39,7 @@ import {
     setSidebarActiveImageId,
     isBrowsableCollection,
 } from './state.js';
-import { imageRenderSignature, showLoading, showError, customConfirm } from './utils.js';
+import { imageRenderSignature, showLoading, showError } from './utils.js';
 import { isSupportedMediaFile } from './media-files.js';
 
 const PAGE_SIZE = 50;
@@ -511,19 +511,9 @@ async function renderAfterImageRemoval() {
 export async function removeAssetFromIndexById(imageId) {
     const asset = images.find(item => item.id === imageId)
         || sidebarImages.find(item => item.id === imageId);
-    if (!asset) return false;
 
-    const assetLabel = asset.media_type === 'video' ? 'video' : 'image';
-    const fileName = asset.file_name || asset.file || `this ${assetLabel}`;
-    const isUploadedAsset = asset.has_local_file === false;
-    const title = isUploadedAsset
-        ? `Delete Uploaded ${assetLabel === 'video' ? 'Video' : 'Image'}`
-        : `Remove ${assetLabel === 'video' ? 'Video' : 'Image'} from Index`;
-    const message = isUploadedAsset
-        ? `Delete "${fileName}"? This uploaded original is stored inside the app and will be permanently removed with its metadata and cached previews.`
-        : `Remove "${fileName}" from the index? The physical file will remain on disk and may be indexed again during source reconciliation.`;
-    const ok = await customConfirm(title, message);
-    if (!ok) return false;
+    const assetLabel = asset?.media_type === 'video' ? 'video' : 'image';
+    const isUploadedAsset = asset?.has_local_file === false;
 
     try {
         await fetchJson(`/api/images/${imageId}`, { options: { method: 'DELETE' } });
@@ -543,7 +533,7 @@ export async function deleteAssetFileById(imageId) {
     const asset = images.find(item => item.id === imageId)
         || sidebarImages.find(item => item.id === imageId);
     const assetLabel = asset?.media_type === 'video' ? 'video' : 'image';
-    if (!asset?.has_local_file) {
+    if (asset && !asset.has_local_file) {
         showToast(`This ${assetLabel} has no available physical file`);
         return false;
     }

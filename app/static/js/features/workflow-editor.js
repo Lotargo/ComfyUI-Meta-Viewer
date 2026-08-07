@@ -6,6 +6,7 @@ import {
     prevLightbox,
 } from '../lightbox.js';
 import { showImageContextMenu } from '../components/image-context-menu.js';
+import { initKeyboardShortcuts } from './keyboard.js';
 
 const byId = (id) => document.getElementById(id);
 
@@ -3880,6 +3881,7 @@ function initModelScanSSE() {
 async function initialize() {
     bindEvents();
     initLightboxEvents({ enableContextMenu: true });
+    initKeyboardShortcuts();
     observeDecorativeBackdropWindows();
     await loadDecorativeBackdrops();
     initModelScanSSE();

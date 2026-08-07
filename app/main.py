@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import time
@@ -273,6 +274,8 @@ def api_trash_library_assets():
     for image_id in dict.fromkeys(payload.asset_ids):
         try:
             file_actions.move_image_file_to_trash(image_id)
+        except file_actions.ImageHasNoLocalFileError:
+            pass
         except file_actions.ImageFileActionError as exc:
             failures.append({
                 "id": image_id,
@@ -841,24 +844,16 @@ def api_preview(image_id: int):
             image_id,
             storage_path("PREVIEW_FOLDER"),
         )
-    except PreviewBusyError:
-        response = jsonify({"status": "busy"})
-        response.status_code = 202
-        response.headers["Retry-After"] = "1"
+        response = send_file(
+            preview_path,
+            mimetype=preview_mimetype(preview_path),
+            conditional=True,
+            max_age=31536000,
+        )
+        response.headers["Cache-Control"] = _IMMUTABLE_IMAGE_CACHE
         return response
-    except FileNotFoundError:
-        return jsonify({"error": "not found"}), 404
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
-
-    response = send_file(
-        preview_path,
-        mimetype=preview_mimetype(preview_path),
-        conditional=True,
-        max_age=31536000,
-    )
-    response.headers["Cache-Control"] = _IMMUTABLE_IMAGE_CACHE
-    return response
+    except Exception:
+        return api_original(image_id)
 
 
 MIME_MAP = {

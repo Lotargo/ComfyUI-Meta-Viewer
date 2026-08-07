@@ -1532,7 +1532,7 @@ def get_asset_source_info(asset_id: int) -> dict[str, Any] | None:
                 i.preview_error, i.original_data IS NOT NULL AS has_original_data,
                 f.path AS folder_path
             FROM images i
-            JOIN folders f ON f.id = i.folder_id
+            LEFT JOIN folders f ON f.id = i.folder_id
             WHERE i.id = ?""",
             (asset_id,),
         ).fetchone()
@@ -1598,7 +1598,7 @@ def get_asset_detail(asset_id: int) -> ImageDetail | None:
                 i.original_data IS NULL AS has_local_file,
                 f.path AS folder_path
             FROM images i
-            JOIN folders f ON f.id = i.folder_id
+            LEFT JOIN folders f ON f.id = i.folder_id
             WHERE i.id = ?""",
             (asset_id,),
         ).fetchone()

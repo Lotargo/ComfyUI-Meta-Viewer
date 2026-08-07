@@ -489,23 +489,29 @@ function removeImageFromRuntime(imageId) {
 }
 
 async function renderAfterImageRemoval() {
-    const [updatedAlbums, updatedFolders] = await Promise.all([
-        getAlbums({ force: true }),
-        getFolders({ force: true }),
-    ]);
-    setAlbums(updatedAlbums);
-    setFolders(updatedFolders);
-    const {
-        renderAlbumsList,
-        renderFoldersList,
-        renderSidebar,
-    } = await import('./features/sidebar.js');
-    renderSidebar();
-    await Promise.all([
-        renderAlbumsList(updatedAlbums),
-        renderFoldersList(updatedFolders),
-    ]);
-    await renderCurrentContent();
+    try {
+        const [updatedAlbums, updatedFolders] = await Promise.all([
+            getAlbums({ force: true }),
+            getFolders({ force: true }),
+        ]);
+        setAlbums(updatedAlbums);
+        setFolders(updatedFolders);
+        const {
+            renderAlbumsList,
+            renderFoldersList,
+            renderSidebar,
+        } = await import('./features/sidebar.js');
+        renderSidebar();
+        await Promise.all([
+            renderAlbumsList(updatedAlbums),
+            renderFoldersList(updatedFolders),
+        ]);
+        if (typeof renderCurrentContent === 'function') {
+            await renderCurrentContent();
+        }
+    } catch (e) {
+        console.warn('renderAfterImageRemoval non-critical error:', e);
+    }
 }
 
 export async function removeAssetFromIndexById(imageId) {
@@ -530,14 +536,6 @@ export async function removeAssetFromIndexById(imageId) {
 }
 
 export async function deleteAssetFileById(imageId) {
-    const asset = images.find(item => item.id === imageId)
-        || sidebarImages.find(item => item.id === imageId);
-    const assetLabel = asset?.media_type === 'video' ? 'video' : 'image';
-    if (asset && !asset.has_local_file) {
-        showToast(`This ${assetLabel} has no available physical file`);
-        return false;
-    }
-
     try {
         const result = await fetchJson('/api/library/assets/trash', {
             options: {

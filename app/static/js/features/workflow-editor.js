@@ -2747,6 +2747,7 @@ function resultLightboxAssets() {
         id: Number(assetId),
         media_type: runOutputIsVideo(run) ? 'video' : 'image',
         file_name: `Generation #${run.id}`,
+        has_local_file: true,
     })));
 }
 
@@ -3815,6 +3816,17 @@ function openResultContextMenu(event, assetId, anchor) {
     window.addEventListener('focus', loadRuns);
     window.addEventListener('civitai:models-updated', () => {
         refreshTemplates();
+    });
+    document.addEventListener('lightbox:asset-deleted', (event) => {
+        const assetId = Number(event.detail?.assetId);
+        if (!assetId) return;
+        for (const run of state.runs) {
+            if (run.output_asset_ids) {
+                run.output_asset_ids = run.output_asset_ids.filter((id) => Number(id) !== assetId);
+            }
+        }
+        renderResults();
+        loadRuns();
     });
     window.addEventListener('beforeunload', () => {
         persistCreateWorkspace();

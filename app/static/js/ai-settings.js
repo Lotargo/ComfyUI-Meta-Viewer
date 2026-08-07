@@ -1194,7 +1194,7 @@ function renderCatalogSettings() {
             const load = createElement(
                 'button',
                 'btn btn-secondary catalog-load-provider',
-                knownModels.length ? 'Refresh provider models' : 'Load provider models',
+                'Refresh provider models',
             );
             load.type = 'button';
             load.dataset.action = 'load-provider';
@@ -1223,7 +1223,9 @@ async function loadCatalogProvider(provider) {
         const query = new URLSearchParams({ provider });
         const data = await requestJson(`/api/ai/cli-integrations/opencode/models?${query}`);
         discoveredCatalogModels.set(provider, data.models || []);
-        ensureCatalogDraftProvider(provider, true);
+        const draft = ensureCatalogDraftProvider(provider, true);
+        draft.enabled = true;
+        draft.mode = 'selected';
         elements.catalogStatus.textContent = (
             `${data.models?.length || 0} models loaded for ${provider}; other providers were not requested.`
         );

@@ -473,9 +473,11 @@ def list_cli_models(
             f"{spec['label']} was not found in PATH.", code="cli_unavailable"
         )
     model_args = spec["models_args"]
+    original_provider: str | None = None
     provider_id: str | None = None
     if provider is not None:
-        provider_id = provider.strip()
+        original_provider = provider.strip()
+        provider_id = original_provider
         if cli_type != "opencode":
             raise CLIIntegrationError(
                 "This CLI does not support provider-filtered model discovery."
@@ -489,7 +491,8 @@ def list_cli_models(
         provider_aliases = {
             "zen": "opencode",
             "opencode-zen": "opencode",
-            "go": "opencode-go",
+            "opencode-go": "opencode",
+            "go": "opencode",
         }
         provider_id = provider_aliases.get(provider_id.lower(), provider_id)
     if model_args is None:
@@ -516,6 +519,8 @@ def list_cli_models(
             continue
         if cli_type == "antigravity" and value.lower().startswith(("available", "model")):
             continue
+        if original_provider and original_provider.lower() == "opencode-go" and value.startswith("opencode/"):
+            value = "opencode-go/" + value[len("opencode/"):]
         if value not in models:
             models.append(value)
         if len(models) >= 5_000:
@@ -528,7 +533,7 @@ def list_cli_models(
     return {
         "models": models,
         "providers": providers,
-        "requested_provider": provider_id,
+        "requested_provider": original_provider,
         "source": "cli",
         "message": None,
     }

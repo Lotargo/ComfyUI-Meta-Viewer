@@ -77,7 +77,10 @@ class PromptTranslationTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         database.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_translation_persists_source_and_result_as_separate_prompts(self) -> None:
         source = PromptText(

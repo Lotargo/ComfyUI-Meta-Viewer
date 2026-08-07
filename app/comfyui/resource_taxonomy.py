@@ -10,15 +10,15 @@ from app.ai.resources import ResourceType
 # virtual ``unet_gguf`` and ``clip_gguf`` folder names for its loader choices.
 # Shared folders still need extension-based classification.
 RESOURCE_MODEL_FOLDERS: dict[ResourceType, tuple[str, ...]] = {
-    ResourceType.CHECKPOINT: ("checkpoints",),
+    ResourceType.CHECKPOINT: ("checkpoints", "diffusion_models", "unet", "unet_gguf"),
     ResourceType.LORA: ("loras",),
     ResourceType.LOCON: ("loras",),
     ResourceType.DORA: ("loras",),
     ResourceType.VAE: ("vae",),
     ResourceType.EMBEDDING: ("embeddings",),
-    ResourceType.DIFFUSION_MODEL: ("diffusion_models", "unet"),
-    ResourceType.DIFFUSION_MODEL_GGUF: ("unet_gguf", "diffusion_models", "unet"),
-    ResourceType.TEXT_ENCODER: ("text_encoders", "clip"),
+    ResourceType.DIFFUSION_MODEL: ("diffusion_models", "unet", "unet_gguf", "checkpoints"),
+    ResourceType.DIFFUSION_MODEL_GGUF: ("unet_gguf", "diffusion_models", "unet", "checkpoints"),
+    ResourceType.TEXT_ENCODER: ("text_encoders", "clip", "clip_gguf"),
     ResourceType.TEXT_ENCODER_GGUF: ("clip_gguf", "text_encoders", "clip"),
     ResourceType.CLIP_VISION: ("clip_vision",),
     ResourceType.CONTROLNET: ("controlnet",),
@@ -43,6 +43,15 @@ FOLDER_RESOURCE_TYPES: dict[str, ResourceType] = {
 }
 
 
+def get_container_format(name: str) -> str:
+    suffix = Path(name).suffix.casefold()
+    if suffix == ".safetensors":
+        return "safetensors"
+    if suffix == ".gguf":
+        return "gguf"
+    return "other"
+
+
 def classify_inventory_resource(folder: str, name: str) -> ResourceType | None:
     resource_type = FOLDER_RESOURCE_TYPES.get(folder)
     if resource_type is ResourceType.DIFFUSION_MODEL and Path(name).suffix.casefold() == ".gguf":
@@ -60,5 +69,6 @@ __all__ = [
     "FOLDER_RESOURCE_TYPES",
     "RESOURCE_MODEL_FOLDERS",
     "classify_inventory_resource",
+    "get_container_format",
     "inventory_resource_matches",
 ]

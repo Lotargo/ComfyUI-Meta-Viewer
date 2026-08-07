@@ -50,7 +50,10 @@ class LibraryTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         app.config.update(self.old_app_config)
         db.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def make_image(self, name: str, color: str = "green") -> Path:
         path = self.source / name
@@ -733,7 +736,7 @@ class LibraryApiTest(LibraryTestCase):
 
 class LibraryMigrationTest(unittest.TestCase):
     def test_existing_database_is_extended_before_new_indexes_are_created(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temporary:
             path = Path(temporary) / "legacy.db"
             conn = sqlite3.connect(path)
             conn.executescript(

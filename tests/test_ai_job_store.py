@@ -43,7 +43,10 @@ class AIJobStoreTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         database.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_persists_complete_backend_neutral_execution_state(self) -> None:
         job = self.store.create(

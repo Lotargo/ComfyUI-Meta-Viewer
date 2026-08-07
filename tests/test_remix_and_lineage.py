@@ -54,7 +54,10 @@ class RemixAndLineageTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         database.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_create_remix_draft_from_asset_metadata(self) -> None:
         req = RemixRequest(

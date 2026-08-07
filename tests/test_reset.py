@@ -54,7 +54,10 @@ class ResetTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         db.set_db_path(self.old_db_path)
         app.config.update(self.old_config)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def make_source(self) -> tuple[Path, Path]:
         source = self.root / "source files" / "кириллица 🖼"

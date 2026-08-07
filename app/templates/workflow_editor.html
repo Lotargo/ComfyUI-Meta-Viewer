@@ -79,11 +79,35 @@
                     <section id="resource-section" class="resource-section model-hero" aria-labelledby="resource-heading">
                         <img id="workflow-backdrop" class="mosaic-backdrop model-hero-backdrop" alt="" aria-hidden="true" decoding="async">
                         <div class="model-hero-copy"><span>Current workflow</span><h2 id="template-name">Preparing editor</h2><p id="template-description">Loading local models…</p></div>
-                        <div class="model-hero-switch"><label id="template-heading" for="template-select">Switch workflow</label><select id="template-select" aria-describedby="template-description"><option value="">Loading…</option></select></div>
+                         <div class="model-hero-switch">
+                             <label id="template-switch-label" for="template-select">Switch workflow</label>
+                             <select id="template-select" aria-label="Select workflow template"></select>
+                         </div>
                         <span id="template-meta" class="model-hero-meta">Manifest v1</span>
                         <span id="resource-count" class="control-section-note">Required</span>
                         <h3 id="resource-heading" class="sr-only">Model selection</h3>
-                        <div id="resource-slots" class="resource-slots"></div>
+                         <div id="resource-slots" class="resource-slots"></div>
+                         <div class="model-format-filter-row">
+                             <label id="model-filter-label" for="model-format-filter">Filter models</label>
+                             <select id="model-format-filter" aria-label="Filter models by format or type">
+                                 <option value="all" selected>All models & formats</option>
+                                 <option value="safetensors">Safetensors (.safetensors)</option>
+                                 <option value="gguf">GGUF (.gguf)</option>
+                                 <option value="other">Other formats</option>
+                                 <option value="image">Image models</option>
+                                 <option value="video">Video models</option>
+                             </select>
+                         </div>
+                         <div id="model-scan-progress" class="model-scan-progress-banner hidden">
+                            <div class="scan-spinner-ring"></div>
+                            <div class="scan-progress-info">
+                                <span class="scan-title">Scanning local models & Civitai metadata…</span>
+                                <small id="scan-progress-details" class="scan-details">Preparing scanner…</small>
+                            </div>
+                            <div class="scan-progress-bar-wrap">
+                                <div id="scan-progress-bar" class="scan-progress-bar" style="width: 0%;"></div>
+                            </div>
+                        </div>
                     </section>
 
                     <details id="additional-settings" class="sidebar-accordion additional-settings">
@@ -342,7 +366,10 @@
                 <section class="runtime-section" aria-labelledby="runtime-connection-title">
                     <div class="runtime-section-heading">
                         <div><span>Connection</span><h3 id="runtime-connection-title">Local installation</h3></div>
-                        <button id="btn-save-config" class="btn btn-primary btn-sm" type="button">Save</button>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button id="btn-rescan-models" class="btn btn-secondary btn-sm" type="button" title="Rescan local models & Civitai metadata">Rescan models</button>
+                            <button id="btn-save-config" class="btn btn-primary btn-sm" type="button">Save</button>
+                        </div>
                     </div>
                     <form id="comfyui-config-form" class="runtime-config-form" onsubmit="return false;">
                         <label class="runtime-field runtime-field-wide" for="install-path">

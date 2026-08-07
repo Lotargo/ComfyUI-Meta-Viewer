@@ -11,7 +11,8 @@ const byId = (id) => document.getElementById(id);
 
 const elements = {
     categoryTabs: byId('template-category-tabs'),
-    templateSelect: byId('template-select'),
+    modelFormatFilter: byId('model-format-filter'),
+    btnRescanModels: byId('btn-rescan-models'),
     templateName: byId('template-name'),
     templateMeta: byId('template-meta'),
     templateDescription: byId('template-description'),
@@ -38,12 +39,6 @@ const elements = {
     previewButtonLabel: byId('preview-workflow-label'),
     generateButton: byId('generate-workflow'),
     generateLabel: byId('generate-label'),
-    generateHelp: byId('generate-help'),
-    generateFromPreview: byId('generate-from-preview'),
-    previewDialog: byId('workflow-preview-dialog'),
-    dependencyReport: byId('dependency-report'),
-    workflowJson: byId('workflow-json-preview'),
-    runRibbon: byId('run-ribbon'),
     runStateIcon: byId('run-state-icon'),
     runStateTitle: byId('run-state-title'),
     runStateDetail: byId('run-state-detail'),
@@ -197,6 +192,13 @@ const elements = {
     aspectRatioLock: byId('aspect-ratio-lock'),
     batchQuickControl: byId('batch-quick-control'),
     lightbox: byId('lightbox'),
+    runRibbon: byId('run-ribbon'),
+    generateFromPreview: byId('generate-from-preview'),
+    previewDialog: byId('workflow-preview-dialog'),
+    dependencyReport: byId('dependency-report'),
+    workflowJson: byId('workflow-json-preview'),
+    generateHelp: byId('generate-help'),
+    templateSelect: byId('template-select'),
 };
 
 const runtimeElements = {
@@ -694,9 +696,11 @@ function renderTemplateNavigation() {
         tab.setAttribute('aria-selected', active ? 'true' : 'false');
         tab.hidden = !categories.includes(tab.dataset.category);
     });
-    elements.templateSelect.innerHTML = state.templates
-        .map((item) => `<option value="${escapeHtml(item.manifest.id)}"${item.manifest.id === manifest.id ? ' selected' : ''}>${escapeHtml(friendlyTemplateName(item.manifest))}</option>`)
-        .join('');
+    if (elements.templateSelect) {
+        elements.templateSelect.innerHTML = state.templates
+            .map((item) => `<option value="${escapeHtml(item.manifest.id)}"${item.manifest.id === manifest.id ? ' selected' : ''}>${escapeHtml(friendlyTemplateName(item.manifest))}</option>`)
+            .join('');
+    }
     elements.templateName.textContent = friendlyTemplateName(manifest);
     elements.templateMeta.textContent = `${manifest.media_type} · v${manifest.version} · ${state.selected.source}`;
     elements.templateDescription.textContent = friendlyTemplateDescription(manifest);
@@ -1396,8 +1400,21 @@ function resourceOptionLabel(option) {
     return `${friendlyResourceName(option.name)}${suffix ? ` · ${suffix}` : ''}`;
 }
 
+function filterResourceOptions(options) {
+    if (!state.modelFilter || state.modelFilter === 'all') return options;
+    return options.filter((option) => {
+        if (state.modelFilter === 'safetensors') return option.format === 'safetensors';
+        if (state.modelFilter === 'gguf') return option.format === 'gguf';
+        if (state.modelFilter === 'other') return option.format === 'other';
+        if (state.modelFilter === 'image') return option.media_type === 'image';
+        if (state.modelFilter === 'video') return option.media_type === 'video';
+        return true;
+    });
+}
+
 function renderSelectableResourceOptions(options, selected = '') {
-    const selectable = options.filter((option) => resourceCompatibilityStatus(option) !== 'incompatible');
+    const filtered = filterResourceOptions(options);
+    const selectable = filtered.filter((option) => resourceCompatibilityStatus(option) !== 'incompatible');
     const persistedIncompatible = options.find((option) => (
         option.name === selected && resourceCompatibilityStatus(option) === 'incompatible'
     ));
@@ -3486,9 +3503,26 @@ function bindEvents() {
         const template = state.templates.find((item) => item.manifest.category === button.dataset.category);
         if (template) selectTemplate(template);
     });
-    elements.templateSelect.addEventListener('change', () => {
-        const template = state.templates.find((item) => item.manifest.id === elements.templateSelect.value);
-        if (template) selectTemplate(template);
+     elements.modelFormatFilter?.addEventListener('change', (event) => {
+         state.modelFilter = event.target.value;
+         renderResources();
+     });
+     elements.templateSelect?.addEventListener('change', (event) => {
+         const template = state.templates.find((item) => item.manifest.id === event.target.value);
+         if (template) selectTemplate(template);
+     });
+    elements.btnRescanModels?.addEventListener('click', async () => {
+        if (elements.btnRescanModels) elements.btnRescanModels.disabled = true;
+        showToast('Rescanning local models & Civitai metadata in background…', 'info');
+        const progressBanner = document.getElementById('model-scan-progress');
+        if (progressBanner) progressBanner.classList.remove('hidden');
+        try {
+            await requestJson('/api/editor/models/rescan', { method: 'POST' });
+        } catch (error) {
+            showToast(`Rescan failed: ${error.message || String(error)}`, 'error');
+        } finally {
+            if (elements.btnRescanModels) elements.btnRescanModels.disabled = false;
+        }
     });
     elements.previewButton.addEventListener('click', () => previewWorkflow());
     elements.generateButton.addEventListener('click', generateWorkflow);
@@ -3791,11 +3825,64 @@ function openResultContextMenu(event, assetId, anchor) {
     });
 }
 
+function initModelScanSSE() {
+    if (!window.EventSource) return;
+    const progressBanner = document.getElementById('model-scan-progress');
+    const detailsEl = document.getElementById('scan-progress-details');
+    const progressBar = document.getElementById('scan-progress-bar');
+    if (!progressBanner) return;
+
+    let wasScanning = false;
+    let eventSource = null;
+
+    function connect() {
+        if (eventSource) eventSource.close();
+        eventSource = new EventSource('/api/editor/models/scan_stream');
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.scanning) {
+                    wasScanning = true;
+                    progressBanner.classList.remove('hidden');
+                    const total = data.total_count || 0;
+                    const count = data.scanned_count || 0;
+                    const pct = total > 0 ? Math.min(100, Math.round((count / total) * 100)) : 0;
+                    if (progressBar) progressBar.style.width = `${pct}%`;
+                    if (detailsEl) {
+                        const fileLabel = data.current_file ? ` — ${data.current_file}` : '';
+                        detailsEl.textContent = `Scanned ${count} of ${total} models (${pct}%)${fileLabel}`;
+                    }
+                } else {
+                    if (wasScanning) {
+                        wasScanning = false;
+                        progressBanner.classList.add('hidden');
+                        showToast(`Model scanning complete (${data.scanned_count || 0} models indexed)`, 'success');
+                        bootstrap().catch(() => {});
+                    } else {
+                        progressBanner.classList.add('hidden');
+                    }
+                }
+            } catch (err) {
+                console.error('Model scan SSE error:', err);
+            }
+        };
+
+        eventSource.onerror = () => {
+            eventSource?.close();
+            setTimeout(connect, 6000);
+        };
+    }
+
+    connect();
+}
+
 async function initialize() {
     bindEvents();
     initLightboxEvents({ enableContextMenu: true });
     observeDecorativeBackdropWindows();
     await loadDecorativeBackdrops();
+    initModelScanSSE();
     try {
         const cached = localStorage.getItem('cmv_cached_runs');
         if (cached) {

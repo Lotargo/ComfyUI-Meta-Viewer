@@ -85,6 +85,12 @@ app.register_blueprint(editor_blueprint)
 app.register_blueprint(social_blueprint)
 app.jinja_env.auto_reload = True
 
+try:
+    from app.comfyui.model_scanner import get_model_scanner
+    get_model_scanner(app.config["CONFIG_STORE"]).trigger_rescan()
+except Exception as exc:
+    logging.getLogger(__name__).debug(f"Failed to start initial model scan: {exc}")
+
 
 def static_version(filename: str) -> str:
     try:

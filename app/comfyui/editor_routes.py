@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from flask import Blueprint, current_app, jsonify, render_template, request, send_file
+from flask import Blueprint, Response, current_app, jsonify, render_template, request, send_file, stream_with_context
 from pydantic import ValidationError
 
 from app import database
@@ -40,7 +41,12 @@ from .workflow_compiler import (
     default_field_values,
     evaluate_template_resource,
 )
-from .resource_taxonomy import RESOURCE_MODEL_FOLDERS, inventory_resource_matches
+from .resource_taxonomy import (
+    RESOURCE_MODEL_FOLDERS,
+    get_container_format,
+    inventory_resource_matches,
+)
+from .model_scanner import BackgroundModelScanner, get_model_scanner
 from .workflow_execution import WorkflowExecutionError, WorkflowExecutionService
 from .workflow_inventory import cached_runtime_inventory, client_from_store
 from .workflow_models import RuntimeInventory, WorkflowRun, WorkflowTemplate
@@ -132,6 +138,78 @@ def _inventory() -> RuntimeInventory:
         catalog=ModelResourceCatalog(),
     )
 
+from .workflow_store import WorkflowStore, WorkflowStoreError
+from .workflow_ui_conversion import ui_workflow_needs_object_info, unwrap_ui_workflow
+
+
+editor_blueprint = Blueprint("workflow_editor", __name__)
+
+
+def _config_store() -> ConfigStore:
+    return current_app.config["CONFIG_STORE"]
+
+
+def _workflow_store() -> WorkflowStore:
+    return WorkflowStore()
+
+
+def _workflow_draft_payload(draft) -> dict[str, Any]:
+    payload: dict[str, Any] = {"draft": draft.model_dump(mode="json")}
+    if draft.ai_prompt_draft_id is None:
+        return payload
+    store = AIJobStore()
+    prompt_draft = store.get_draft(draft.ai_prompt_draft_id)
+    job = store.get(prompt_draft.job_id).job
+    payload.update({
+        "ai_prompt_draft": prompt_draft.model_dump(mode="json"),
+        "ai_prompt_context": store.draft_context(
+            prompt_draft, job
+        ).model_dump(mode="json"),
+    })
+    if job.task.operation.value == "translate":
+        payload["ai_prompt_translation"] = PromptTranslationStore().get(
+            job.id
+        ).model_dump(mode="json")
+    elif job.task.operation.value == "adapt":
+        payload["ai_prompt_adaptation"] = PromptAdaptationStore().get(
+            job.id
+        ).model_dump(mode="json")
+    elif job.task.operation.value == "reconstruct":
+        snapshot = store.get(job.id)
+        if snapshot.scene_spec is not None:
+            payload["ai_scene_spec"] = snapshot.scene_spec.model_dump(mode="json")
+            payload["ai_scene_spec_job_id"] = job.id
+    return payload
+
+
+def _run_payloads(runs: list[WorkflowRun]) -> list[dict[str, Any]]:
+    """Serialize runs while exposing only outputs that still exist in Library."""
+    live_asset_ids = database.get_existing_asset_ids(
+        asset_id
+        for run in runs
+        for asset_id in run.output_asset_ids
+    )
+    payloads: list[dict[str, Any]] = []
+    for run in runs:
+        payload = run.model_dump(mode="json")
+        payload["output_asset_ids"] = [
+            asset_id for asset_id in run.output_asset_ids if asset_id in live_asset_ids
+        ]
+        payloads.append(payload)
+    return payloads
+
+
+def _registry() -> WorkflowTemplateRegistry:
+    return WorkflowTemplateRegistry(
+        user_root=Path(current_app.config["UPLOAD_FOLDER"]) / "workflow_templates",
+    )
+
+
+def _registry_status_store() -> WorkflowRegistryStatusStore:
+    return WorkflowRegistryStatusStore(
+        Path(current_app.config["UPLOAD_FOLDER"]) / "workflow_templates",
+    )
+
 
 def _template_payload(template: WorkflowTemplate, inventory: RuntimeInventory) -> dict[str, Any]:
     return {
@@ -176,6 +254,19 @@ def _remix_template_options(source: dict[str, Any]) -> list[dict[str, Any]]:
             "target_family": _prompt_family_for_template(template).value,
         })
     return options
+
+
+
+
+from .workflow_store import WorkflowStore, WorkflowStoreError
+from .workflow_ui_conversion import ui_workflow_needs_object_info, unwrap_ui_workflow
+
+
+editor_blueprint = Blueprint("workflow_editor", __name__)
+
+
+def _config_store() -> ConfigStore:
+    return current_app.config["CONFIG_STORE"]
 
 
 def _prompt_family_for_template(template: WorkflowTemplate) -> PromptFamily:
@@ -227,10 +318,14 @@ def _resource_options(
                 for name in inventory.models.get(folder, []):
                     if not inventory_resource_matches(folder, name, resource_type):
                         continue
+                    lowered_name = name.casefold()
+                    is_video_model = any(kw in lowered_name for kw in ("hunyuan", "animate", "wan", "cogvideo", "svd", "mochi", "ltx"))
                     option = options.setdefault(name, {
                         "name": name,
                         "resource_type": resource_type.value,
                         "folder": folder,
+                        "format": get_container_format(name),
+                        "media_type": "video" if is_video_model else "image",
                     })
                     resource = catalog_resources.get((resource_type.value, name))
                     if resource is not None:
@@ -253,6 +348,8 @@ def _resource_options(
                             ),
                             "compatibility_reason": issue.reason if issue is not None else "",
                         })
+                        if resource.architecture and "video" in resource.architecture.value.lower():
+                            option["media_type"] = "video"
         output[slot_id] = sorted(options.values(), key=lambda item: item["name"].casefold())
     return output
 
@@ -267,6 +364,50 @@ def _json_object() -> dict[str, Any]:
             code="invalid_editor_request",
         )
     return payload
+
+
+@editor_blueprint.route("/api/editor/models/rescan", methods=["POST"])
+def trigger_model_rescan():
+    scanner = get_model_scanner(_config_store())
+    started = scanner.trigger_rescan()
+    return jsonify({
+        "status": "started" if started else "already_running",
+        "message": "Background model rescan started" if started else "Scan is already in progress",
+    })
+
+
+@editor_blueprint.route("/api/editor/models/scan_status", methods=["GET"])
+def get_model_scan_status():
+    scanner = get_model_scanner(_config_store())
+    return jsonify(scanner.get_status())
+
+
+@editor_blueprint.route("/api/editor/models/scan_stream", methods=["GET"])
+def model_scan_stream():
+    """SSE stream for background model scan progress."""
+    def generate():
+        scanner = get_model_scanner(_config_store())
+        last_count = -1
+        last_scanning = None
+        last_file = None
+        while True:
+            status = scanner.get_status()
+            current_count = status["scanned_count"]
+            current_scanning = status["scanning"]
+            current_file = status["current_file"]
+            if (
+                current_count != last_count
+                or current_scanning != last_scanning
+                or current_file != last_file
+            ):
+                last_count = current_count
+                last_scanning = current_scanning
+                last_file = current_file
+                yield f"data: {json.dumps(status)}\n\n"
+                if not current_scanning and current_count > 0:
+                    break
+            time.sleep(0.15)
+    return Response(stream_with_context(generate()), mimetype="text/event-stream")
 
 
 @editor_blueprint.errorhandler(WorkflowTemplateError)

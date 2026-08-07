@@ -119,7 +119,10 @@ class LazyUploadTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         db.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def fetch_upload_rows(self) -> list[sqlite3.Row]:
         conn = sqlite3.connect(self.db_path)

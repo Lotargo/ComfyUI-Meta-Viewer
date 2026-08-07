@@ -1129,7 +1129,10 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         database.set_db_path(self.old_db_path)
         app.config["UPLOAD_FOLDER"] = self.old_upload_folder
         app.config["CONFIG_STORE"] = self.old_config_store
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_editor_page_uses_beginner_path_and_separate_advanced_settings(self) -> None:
         response = self.client.get("/editor")
@@ -1778,7 +1781,10 @@ class WorkflowExecutionTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         database.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_completed_output_is_imported_into_library(self) -> None:
         store = WorkflowStore()

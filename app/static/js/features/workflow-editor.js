@@ -1733,7 +1733,7 @@ function suggestedPromptFamily() {
 
 function supportedPromptProfile(profile) {
     return profile.kind === 'openai_compatible'
-        || (profile.kind === 'cli' && profile.cli_type === 'opencode');
+        || (profile.kind === 'cli' && (profile.cli_type === 'opencode' || profile.cli_type === 'antigravity'));
 }
 
 async function loadPromptAssistantData() {
@@ -1758,20 +1758,24 @@ function populatePromptFamilies(select) {
     if (state.aiCapabilities.some((family) => family.id === suggested)) select.value = suggested;
 }
 
-function populatePromptProfiles(select, note, preferredDefaultId = null, roleFilter = 'text') {
+function populatePromptProfiles(select, note, preferredDefaultId = null, roleFilter = ['text', 'translator']) {
+    const rolesToMatch = Array.isArray(roleFilter) ? roleFilter : [roleFilter];
     const matchingProfiles = state.aiProfiles.filter((profile) => (
-        !profile.roles || profile.roles.includes(roleFilter)
+        !profile.roles || profile.roles.some((role) => rolesToMatch.includes(role))
     ));
+    const roleLabel = rolesToMatch.join('/');
     select.innerHTML = matchingProfiles.length
         ? matchingProfiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
-        : `<option value="">No ready ${roleFilter} profiles</option>`;
-    const targetId = preferredDefaultId || state.aiDefaultProfileId;
+        : `<option value="">No ready ${escapeHtml(roleLabel)} profiles</option>`;
+    const targetId = preferredDefaultId || state.aiDefaultProfileId || state.aiDefaultTranslatorProfileId;
     if (matchingProfiles.some((profile) => profile.id === targetId)) {
         select.value = targetId;
+    } else if (matchingProfiles.length > 0) {
+        select.value = matchingProfiles[0].id;
     }
     note.innerHTML = matchingProfiles.length
         ? 'The selected profile returns the same normalized prompt contract.'
-        : 'Add a usable text profile in <a href="/settings/ai">AI settings</a> first.';
+        : 'Add a usable text or translator profile in <a href="/settings/ai">AI settings</a> first.';
 }
 
 function populateVisionProfiles(select, note) {
@@ -2154,7 +2158,12 @@ function openEnhancePopover() {
         try {
             if (!state.aiCapabilities?.length) await loadPromptAssistantData();
             populatePromptFamilies(elements.enhanceFamily);
-            populatePromptProfiles(elements.enhanceProfile, elements.enhanceProfileNote);
+            populatePromptProfiles(
+                elements.enhanceProfile,
+                elements.enhanceProfileNote,
+                state.aiDefaultProfileId || state.aiDefaultTranslatorProfileId,
+                ['text', 'translator'],
+            );
             const suggested = suggestedPromptFamily();
             if (state.aiCapabilities.some((family) => family.id === suggested)) {
                 elements.enhanceFamily.value = suggested;

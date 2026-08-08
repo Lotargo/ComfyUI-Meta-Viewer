@@ -1,3 +1,5 @@
+import { customConfirm } from './utils.js';
+
 const elements = {
     secretStatus: document.getElementById('secret-store-status'),
     secretTitle: document.getElementById('secret-store-title'),
@@ -474,14 +476,23 @@ async function runProfileTest(profile, multimodal, button, result) {
     }
 }
 
+let _deleteInFlight = false;
 async function deleteProfile(profile) {
-    if (!window.confirm(`Delete the profile “${profile.name}” and its stored API key?`)) return;
+    if (_deleteInFlight) return;
+    _deleteInFlight = true;
     try {
+        const confirmed = await customConfirm(
+            'Delete Profile',
+            `Delete the profile “${profile.name}” and its stored API key?`,
+        );
+        if (!confirmed) return;
         await requestJson(`/api/ai/profiles/${profile.id}`, { method: 'DELETE' });
         await loadProfiles();
         showToast(`Deleted “${profile.name}”.`);
     } catch (error) {
         showToast(error.message, true);
+    } finally {
+        _deleteInFlight = false;
     }
 }
 

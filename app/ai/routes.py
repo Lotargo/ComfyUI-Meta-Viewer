@@ -72,10 +72,11 @@ def _resolved_text_profile(payload: dict) -> tuple[AIProfileStore, dict]:
     profile_store = _store()
     profile_id = payload.get("profile_id")
     if profile_id is None:
-        profile_id = profile_store.list()["defaults"].get("text_profile_id")
+        defaults = profile_store.list()["defaults"]
+        profile_id = defaults.get("text_profile_id") or defaults.get("translator_profile_id")
     if not isinstance(profile_id, str) or not profile_id.strip():
         raise AIProfileStoreError(
-            "Choose an AI text profile before running this operation.",
+            "Choose an AI text or translator profile before running this operation.",
             code="missing_profile",
         )
     return profile_store, profile_store.get(profile_id)

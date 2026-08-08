@@ -132,7 +132,10 @@ class NativeDirectoryScanTest(unittest.TestCase):
     def tearDown(self) -> None:
         db.set_db_path(self.old_db_path)
         app.config.update(self.old_config)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except PermissionError:
+            pass
 
     def index_image(self, name: str = "sample image.png") -> tuple[Path, int]:
         source = self.root / "source media"

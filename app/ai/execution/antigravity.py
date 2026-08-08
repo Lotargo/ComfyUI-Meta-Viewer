@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 import time
 from typing import Any
+
+logger = logging.getLogger("cmv.ai.antigravity")
 
 from ..cli import CLIIntegrationError, find_executable, run_command
 from ..prompting import (
@@ -54,6 +57,32 @@ class AntigravityPromptExecutionResult:
         }
 
 
+def _clean_markdown_fence(text: str) -> tuple[str, bool]:
+    cleaned = text.strip()
+    unwrapped = False
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().endswith("```"):
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+        unwrapped = True
+    elif "```json" in cleaned:
+        start = cleaned.find("```json") + 7
+        end = cleaned.find("```", start)
+        if end != -1:
+            cleaned = cleaned[start:end].strip()
+            unwrapped = True
+    elif "```" in cleaned:
+        start = cleaned.find("```") + 3
+        end = cleaned.find("```", start)
+        if end != -1:
+            cleaned = cleaned[start:end].strip()
+            unwrapped = True
+    return cleaned, unwrapped
+
+
 class AntigravityPromptExecutor:
     """Execute a PromptTask through the Antigravity CLI interface (agy)."""
 
@@ -78,10 +107,11 @@ class AntigravityPromptExecutor:
             )
 
         executable = (
-            find_executable(profile.get("custom_path") or "agy")
+            find_executable("antigravity", profile.get("custom_path"))
             or find_executable("antigravity")
         )
         if executable is None:
+            logger.error("[Antigravity] Binary (agy) not found on PATH or custom_path")
             raise AntigravityPromptExecutionError(
                 "Antigravity CLI binary (agy) is not installed or not found on PATH.",
                 code="antigravity_not_found",
@@ -94,10 +124,24 @@ class AntigravityPromptExecutor:
         timeout_sec = profile.get("timeout_seconds") or 300
         start_time = time.perf_counter()
 
-        cmd = [executable, "run", "--prompt", prompt_text]
+        cmd = [
+            executable,
+            "--print",
+            prompt_text,
+            "--dangerously-skip-permissions",
+            "--sandbox",
+        ]
+        model = profile.get("model")
+        if model:
+            clean_model = str(model).split("\t")[0].strip()
+            cmd.extend(["--model", clean_model])
+
+        logger.info("[Antigravity] Executing command: %s (model=%s, timeout=%s)", executable, model, timeout_sec)
+
         try:
             completed = run_command(cmd, timeout=timeout_sec, on_output_chunk=on_output_chunk)
         except CLIIntegrationError as exc:
+            logger.error("[Antigravity] CLI execution error: %s", exc)
             raise AntigravityPromptExecutionError(
                 f"Antigravity CLI execution failed: {exc}",
                 code="execution_failed",
@@ -108,7 +152,12 @@ class AntigravityPromptExecutor:
         elapsed_ms = int((time.perf_counter() - start_time) * 1000)
         raw_output = completed.stdout.strip()
 
+        logger.info("[Antigravity] Completed in %dms with code %d", elapsed_ms, completed.returncode)
+        if completed.stderr:
+            logger.warning("[Antigravity] STDERR: %s", completed.stderr)
+
         if completed.returncode != 0 and not raw_output:
+            logger.error("[Antigravity] Process exited with error code %d: %s", completed.returncode, completed.stderr)
             raise AntigravityPromptExecutionError(
                 f"Antigravity CLI exited with code {completed.returncode}: {completed.stderr}",
                 code="cli_error",
@@ -118,9 +167,13 @@ class AntigravityPromptExecutor:
 
         raw_sha256 = hashlib.sha256(raw_output.encode("utf-8")).hexdigest()
 
+        cleaned_output, was_unwrapped = _clean_markdown_fence(raw_output)
+        normalizations = ("unwrapped_markdown_code_block",) if was_unwrapped else ()
+
         try:
-            parsed_result, normalizations = parse_prompt_result(raw_output, task=task)
+            parsed_result = parse_prompt_result(cleaned_output)
         except (PromptContractError, PromptCompilerError) as exc:
+            logger.error("[Antigravity] Output parsing failed: %s. Raw output: %s", exc, raw_output[:300])
             raise AntigravityPromptExecutionError(
                 f"Failed to parse Antigravity output into PromptResult: {exc}",
                 code="contract_violation",

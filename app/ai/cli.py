@@ -571,8 +571,11 @@ def list_cli_models(
             continue
         if cli_type == "opencode" and not re.fullmatch(r"[^\s/]+/[^\s]+", value):
             continue
-        if cli_type == "antigravity" and value.lower().startswith(("available", "model")):
-            continue
+        if cli_type == "antigravity":
+            if value.lower().startswith(("available", "model", "fetching")):
+                continue
+            if "\t" in value:
+                value = value.split("\t")[0].strip()
         if original_provider and original_provider.lower() == "opencode-go" and value.startswith("opencode/"):
             value = "opencode-go/" + value[len("opencode/"):]
         if value not in models:
@@ -688,6 +691,7 @@ def run_cli_test(profile: dict[str, Any], *, multimodal: bool = False) -> dict[s
             "--print-timeout",
             f"{profile['timeout_seconds']}s",
             "--sandbox",
+            "--dangerously-skip-permissions",
         ]
     result = run_command(args, timeout=profile["timeout_seconds"])
     output = "\n".join(part for part in (result.stdout, result.stderr) if part)

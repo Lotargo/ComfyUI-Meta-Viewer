@@ -125,6 +125,8 @@ def _validate_profile(
 
     name = _clean_text(payload.get("name"), "Profile name", maximum=80)
     model = _clean_text(payload.get("model"), "Model ID", maximum=200)
+    if "\t" in model:
+        model = model.split("\t")[0].strip()
     try:
         timeout_seconds = int(payload.get("timeout_seconds", 60))
     except (TypeError, ValueError) as exc:

@@ -3,7 +3,10 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+import queue
+import threading
+
+from flask import Blueprint, Response, current_app, jsonify, render_template, request, stream_with_context
 from pydantic import ValidationError
 
 from app import database
@@ -412,6 +415,47 @@ def ai_generate():
     }), 201
 
 
+def _stream_prompt_operation(runner) -> Response:
+    def generate():
+        chunk_queue: queue.Queue = queue.Queue()
+        done = threading.Event()
+        error_container: dict[str, Any] = {}
+        result_container: dict[str, Any] = {}
+
+        def on_chunk(chunk: str):
+            chunk_queue.put(chunk)
+
+        def worker():
+            try:
+                result_container["data"] = runner(on_chunk)
+            except Exception as exc:
+                error_container["error"] = exc
+            finally:
+                done.set()
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+
+        yield f"data: {json.dumps({'event': 'status', 'status': 'started'})}\n\n"
+
+        while not done.is_set() or not chunk_queue.empty():
+            try:
+                chunk = chunk_queue.get(timeout=0.1)
+                yield f"data: {json.dumps({'event': 'chunk', 'chunk': chunk})}\n\n"
+            except queue.Empty:
+                pass
+
+        if "error" in error_container:
+            exc = error_container["error"]
+            err_msg = str(exc)
+            code = getattr(exc, "code", "execution_failed")
+            yield f"data: {json.dumps({'event': 'error', 'error': err_msg, 'code': code})}\n\n"
+        elif "data" in result_container:
+            yield f"data: {json.dumps({'event': 'result', **result_container['data']})}\n\n"
+
+    return Response(stream_with_context(generate()), mimetype="text/event-stream")
+
+
 @ai_blueprint.route("/api/ai/translate", methods=["POST"])
 def ai_translate():
     payload = _json_object()
@@ -427,29 +471,41 @@ def ai_translate():
     source_lang = payload.get("source_language")
 
     service = PromptTranslationService()
-    outcome = service.translate(
-        profile=profile,
-        task=task,
-        source=source,
-        target_language=target_lang,
-        source_language=source_lang,
-        api_key=profile_store.resolve_api_key(profile),
-        asset_id=payload.get("asset_id"),
-    )
-    snapshot = _job_store().get(outcome.execution.job_id)
-    if not snapshot.drafts:
-        raise AIJobStoreError(
-            f"AI job {outcome.execution.job_id} completed without a prompt draft."
+
+    def run_op(on_chunk=None):
+        outcome = service.translate(
+            profile=profile,
+            task=task,
+            source=source,
+            target_language=target_lang,
+            source_language=source_lang,
+            api_key=profile_store.resolve_api_key(profile),
+            asset_id=payload.get("asset_id"),
+            on_output_chunk=on_chunk,
         )
-    prompt_draft = snapshot.drafts[-1]
-    return jsonify({
-        "job": snapshot.job.model_dump(mode="json"),
-        "prompt_draft": prompt_draft.model_dump(mode="json"),
-        "context": _job_store().draft_context(
-            prompt_draft, snapshot.job
-        ).model_dump(mode="json"),
-        "translation": outcome.translation.model_dump(mode="json"),
-    }), 201
+        snapshot = _job_store().get(outcome.execution.job_id)
+        if not snapshot.drafts:
+            raise AIJobStoreError(
+                f"AI job {outcome.execution.job_id} completed without a prompt draft."
+            )
+        prompt_draft = snapshot.drafts[-1]
+        return {
+            "job": snapshot.job.model_dump(mode="json"),
+            "prompt_draft": prompt_draft.model_dump(mode="json"),
+            "context": _job_store().draft_context(
+                prompt_draft, snapshot.job
+            ).model_dump(mode="json"),
+            "translation": outcome.translation.model_dump(mode="json"),
+        }
+
+    is_stream = (
+        request.args.get("stream") == "1"
+        or payload.get("stream") is True
+        or "text/event-stream" in request.headers.get("Accept", "")
+    )
+    if is_stream:
+        return _stream_prompt_operation(run_op)
+    return jsonify(run_op()), 201
 
 
 @ai_blueprint.route("/api/ai/adapt", methods=["POST"])

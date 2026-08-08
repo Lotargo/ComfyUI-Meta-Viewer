@@ -7209,17 +7209,35 @@
     line-height: 1.45;
 }
 
+.editor-dialog.ai-prompt-dialog,
+.editor-dialog.translate-prompt-dialog,
+.editor-dialog.adapt-prompt-dialog {
+    width: min(640px, calc(100vw - 28px));
+}
+
 .ai-prompt-dialog > form,
 .translate-prompt-dialog > form,
-.adapt-prompt-dialog > form { width: min(580px, calc(100vw - 32px)); }
+.adapt-prompt-dialog > form {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 24px;
+}
 
-.reconstruct-prompt-dialog > form { width: min(940px, calc(100vw - 32px)); }
+.editor-dialog.reconstruct-prompt-dialog {
+    width: min(940px, calc(100vw - 28px));
+}
+
+.reconstruct-prompt-dialog > form {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 24px;
+}
 
 .reconstruct-layout {
     display: grid;
     grid-template-columns: minmax(180px, .55fr) minmax(0, 1.45fr);
     gap: 20px;
-    padding: 22px 24px;
+    padding: 18px 0;
 }
 
 .reconstruct-source { display: grid; align-content: start; gap: 9px; }
@@ -7239,11 +7257,15 @@
 .ai-prompt-fields {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-    padding: 18px 22px;
+    gap: 16px;
+    padding: 18px 0;
 }
 
-.ai-prompt-fields label { display: grid; gap: 7px; }
+.ai-prompt-fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
 .ai-prompt-fields label > span { color: var(--text); font-size: 12px; font-weight: 700; }
 .ai-prompt-fields label > small { color: var(--text-muted); font-size: 10.5px; line-height: 1.45; }
 .ai-prompt-fields textarea,
@@ -7259,7 +7281,7 @@
     color: var(--text);
 }
 .ai-prompt-fields textarea {
-    min-height: 132px;
+    min-height: 110px;
     padding: 12px;
     overflow: auto;
     resize: vertical;
@@ -7269,10 +7291,20 @@
 }
 .ai-prompt-fields input,
 .ai-prompt-fields select { min-height: 42px; padding: 0 36px 0 11px; }
-.translate-prompt-fields .ai-prompt-source textarea,
-.adapt-prompt-fields .ai-prompt-source textarea { min-height: 92px; }
+.translate-prompt-fields #translate-prompt-positive,
+.adapt-prompt-fields #adapt-prompt-positive { min-height: 98px; }
+.translate-prompt-fields #translate-prompt-negative,
+.adapt-prompt-fields #adapt-prompt-negative { min-height: 64px; }
 
-.prompt-provenance-dialog > form { width: min(820px, calc(100vw - 32px)); }
+.editor-dialog.prompt-provenance-dialog {
+    width: min(840px, calc(100vw - 28px));
+}
+
+.prompt-provenance-dialog > form {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 24px;
+}
 
 .prompt-provenance-grid {
     display: grid;

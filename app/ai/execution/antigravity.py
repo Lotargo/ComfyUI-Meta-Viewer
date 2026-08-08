@@ -68,6 +68,7 @@ class AntigravityPromptExecutor:
         user_input: str,
         image_path: str | Path | None = None,
         bundle: InstructionBundle | None = None,
+        on_output_chunk: Any = None,
     ) -> AntigravityPromptExecutionResult:
         if profile.get("kind") != "cli" or profile.get("cli_type") != "antigravity":
             raise AntigravityPromptExecutionError(
@@ -88,14 +89,14 @@ class AntigravityPromptExecutor:
             )
 
         instruction_bundle = bundle or self.compiler.compile(task)
-        prompt_text = f"{instruction_bundle.system_prompt}\n\nUSER PROMPT:\n{user_input}"
+        prompt_text = f"{instruction_bundle.render()}\n\nUSER PROMPT:\n{user_input}"
 
         timeout_sec = profile.get("timeout_seconds") or 300
         start_time = time.perf_counter()
 
         cmd = [executable, "run", "--prompt", prompt_text]
         try:
-            completed = run_command(cmd, timeout=timeout_sec)
+            completed = run_command(cmd, timeout=timeout_sec, on_output_chunk=on_output_chunk)
         except CLIIntegrationError as exc:
             raise AntigravityPromptExecutionError(
                 f"Antigravity CLI execution failed: {exc}",

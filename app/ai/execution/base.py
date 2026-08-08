@@ -38,6 +38,7 @@ class PreparedPromptExecution:
     api_key: str | None = None
     image_data_url: str | None = None
     image_path: Path | None = None
+    on_output_chunk: Any = None
 
 
 @dataclass(frozen=True)

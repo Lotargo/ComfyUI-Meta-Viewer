@@ -85,7 +85,7 @@ class ClaudeCodePromptExecutor:
             )
 
         instruction_bundle = bundle or self.compiler.compile(task)
-        prompt_text = f"{instruction_bundle.system_prompt}\n\nUSER PROMPT:\n{user_input}"
+        prompt_text = f"{instruction_bundle.render()}\n\nUSER PROMPT:\n{user_input}"
 
         timeout_sec = profile.get("timeout_seconds") or 300
         start_time = time.perf_counter()

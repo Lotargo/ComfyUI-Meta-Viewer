@@ -267,6 +267,13 @@ const state = {
     aiPromptAdaptation: null,
     aiSceneSpec: null,
     aiSceneSpecJobId: null,
+    activeOperations: {
+        translate: false,
+        enhance: false,
+        adapt: false,
+        aiPrompt: false,
+        reconstruct: false,
+    },
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -1817,7 +1824,13 @@ function renderScenarioOptions(select, familyId) {
 
 function renderAIScenarios() {
     const available = renderScenarioOptions(elements.aiPromptScenario, elements.aiPromptFamily.value);
-    elements.aiPromptSubmit.disabled = !available.length || !elements.aiPromptProfile.value;
+    if (state.activeOperations?.aiPrompt) {
+        elements.aiPromptSubmit.disabled = true;
+        elements.aiPromptSubmit.textContent = 'Creating…';
+    } else {
+        elements.aiPromptSubmit.disabled = !available.length || !elements.aiPromptProfile.value;
+        elements.aiPromptSubmit.textContent = 'Create draft';
+    }
 }
 
 function renderTranslationScenarios() {
@@ -1825,9 +1838,15 @@ function renderTranslationScenarios() {
         elements.translatePromptScenario,
         elements.translatePromptFamily.value,
     );
-    elements.translatePromptSubmit.disabled = (
-        !available.length || !elements.translatePromptProfile.value
-    );
+    if (state.activeOperations?.translate) {
+        elements.translatePromptSubmit.disabled = true;
+        elements.translatePromptSubmit.textContent = 'Translating…';
+    } else {
+        elements.translatePromptSubmit.disabled = (
+            !available.length || !elements.translatePromptProfile.value
+        );
+        elements.translatePromptSubmit.textContent = 'Translate to draft';
+    }
 }
 
 function renderAdaptationScenarios() {
@@ -1835,9 +1854,15 @@ function renderAdaptationScenarios() {
         elements.adaptPromptScenario,
         elements.adaptPromptFamily.value,
     );
-    elements.adaptPromptSubmit.disabled = (
-        !available.length || !elements.adaptPromptProfile.value
-    );
+    if (state.activeOperations?.adapt) {
+        elements.adaptPromptSubmit.disabled = true;
+        elements.adaptPromptSubmit.textContent = 'Adapting…';
+    } else {
+        elements.adaptPromptSubmit.disabled = (
+            !available.length || !elements.adaptPromptProfile.value
+        );
+        elements.adaptPromptSubmit.textContent = 'Adapt to draft';
+    }
 }
 
 function renderReconstructionScenarios() {
@@ -1900,10 +1925,11 @@ async function createAIPromptDraft(event) {
         elements.aiPromptDialog.close();
         return;
     }
+    if (state.activeOperations?.aiPrompt) return;
     const userInput = elements.aiPromptInput.value.trim();
     if (!userInput || !elements.aiPromptProfile.value || !elements.aiPromptScenario.value) return;
-    elements.aiPromptSubmit.disabled = true;
-    elements.aiPromptSubmit.textContent = 'Creating…';
+    state.activeOperations.aiPrompt = true;
+    renderAIScenarios();
     try {
         const generated = await requestJson('/api/ai/generate', {
             method: 'POST',
@@ -1936,7 +1962,7 @@ async function createAIPromptDraft(event) {
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
-        elements.aiPromptSubmit.textContent = 'Create draft';
+        state.activeOperations.aiPrompt = false;
         renderAIScenarios();
     }
 }
@@ -1972,14 +1998,15 @@ async function createTranslatedPromptDraft(event) {
         elements.translatePromptDialog.close();
         return;
     }
+    if (state.activeOperations?.translate) return;
     const positivePrompt = elements.translatePromptPositive.value.trim();
     const targetLanguage = elements.translateTargetLanguage.value.trim();
     if (
         !positivePrompt || !targetLanguage || !elements.translatePromptProfile.value
         || !elements.translatePromptScenario.value
     ) return;
-    elements.translatePromptSubmit.disabled = true;
-    elements.translatePromptSubmit.textContent = 'Translating…';
+    state.activeOperations.translate = true;
+    renderTranslationScenarios();
     try {
         const translated = await requestJson('/api/ai/translate', {
             method: 'POST',
@@ -2017,7 +2044,7 @@ async function createTranslatedPromptDraft(event) {
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
-        elements.translatePromptSubmit.textContent = 'Translate to draft';
+        state.activeOperations.translate = false;
         renderTranslationScenarios();
     }
 }
@@ -2079,13 +2106,14 @@ async function createAdaptedPromptDraft(event) {
         elements.adaptPromptDialog.close();
         return;
     }
+    if (state.activeOperations?.adapt) return;
     const positivePrompt = elements.adaptPromptPositive.value.trim();
     if (
         !positivePrompt || !elements.adaptPromptProfile.value
         || !elements.adaptPromptScenario.value || !elements.adaptPromptFamily.value
     ) return;
-    elements.adaptPromptSubmit.disabled = true;
-    elements.adaptPromptSubmit.textContent = 'Adapting…';
+    state.activeOperations.adapt = true;
+    renderAdaptationScenarios();
     try {
         const checkpointResource = selectedAdaptCheckpointResource();
         const adapted = await requestJson('/api/ai/adapt', {
@@ -2125,7 +2153,7 @@ async function createAdaptedPromptDraft(event) {
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
-        elements.adaptPromptSubmit.textContent = 'Adapt to draft';
+        state.activeOperations.adapt = false;
         renderAdaptationScenarios();
     }
 }
@@ -2197,9 +2225,15 @@ function renderEnhanceScenarios() {
         elements.enhanceScenario,
         elements.enhanceFamily.value,
     );
-    elements.enhanceSubmit.disabled = (
-        !available.length || !elements.enhanceProfile.value
-    );
+    if (state.activeOperations?.enhance) {
+        elements.enhanceSubmit.disabled = true;
+        elements.enhanceSubmit.textContent = 'Enhancing…';
+    } else {
+        elements.enhanceSubmit.disabled = (
+            !available.length || !elements.enhanceProfile.value
+        );
+        elements.enhanceSubmit.textContent = 'Enhance prompt';
+    }
 }
 
 function renderEnhanceCheckpointNote() {
@@ -2219,13 +2253,14 @@ function renderEnhanceCheckpointNote() {
 }
 
 async function createEnhancedPromptDraft() {
+    if (state.activeOperations?.enhance) return;
     const positivePrompt = String(state.values.positive_prompt || '').trim();
     if (
         !positivePrompt || !elements.enhanceProfile.value
         || !elements.enhanceScenario.value || !elements.enhanceFamily.value
     ) return;
-    elements.enhanceSubmit.disabled = true;
-    elements.enhanceSubmit.textContent = 'Enhancing…';
+    state.activeOperations.enhance = true;
+    renderEnhanceScenarios();
     try {
         const checkpointResource = selectedAdaptCheckpointResource();
         const enhanced = await requestJson('/api/ai/enhance', {
@@ -2261,13 +2296,13 @@ async function createEnhancedPromptDraft() {
         activateAIPromptDraft(
             created,
             'Enhanced draft',
-            'Prompt enhanced and applied as a new draft. Review it before generation.',
+            'Prompt enhancement saved as a new draft. Review it before generation.',
         );
         closeEnhancePopover();
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
-        elements.enhanceSubmit.textContent = 'Enhance to draft';
+        state.activeOperations.enhance = false;
         renderEnhanceScenarios();
     }
 }

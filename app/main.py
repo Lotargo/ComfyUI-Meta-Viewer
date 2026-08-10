@@ -577,6 +577,8 @@ def api_images():
         return jsonify({
             "error": "media_type must contain image and/or video",
         }), 400
+    cursor_mtime = request.args.get("cursor_mtime", type=float)
+    cursor_id = request.args.get("cursor_id", type=int)
     result = db.get_images_page(
         folder_id,
         page,
@@ -586,8 +588,11 @@ def api_images():
         album_id=album_id,
         rating=rating,
         media_types=media_types,
+        cursor_mtime=cursor_mtime,
+        cursor_id=cursor_id,
     )
     return jsonify(result.model_dump())
+
 
 
 @app.route("/api/assets/<int:image_id>", methods=["GET"])

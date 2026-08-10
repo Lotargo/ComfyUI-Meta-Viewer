@@ -105,6 +105,7 @@ def get_conn() -> sqlite3.Connection:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA wal_autocheckpoint=1000")
         return conn
     except Exception:
         if "conn" in locals():
@@ -397,7 +398,9 @@ _INITIAL_SCHEMA_SQL = """
 
     CREATE INDEX IF NOT EXISTS idx_images_folder ON images(folder_id);
     CREATE INDEX IF NOT EXISTS idx_images_folder_mtime ON images(folder_id, file_mtime);
+    CREATE INDEX IF NOT EXISTS idx_images_mtime_id ON images(file_mtime DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_album_images_image ON album_images(image_id);
+    CREATE INDEX IF NOT EXISTS idx_album_images_album_image ON album_images(album_id, image_id);
     CREATE INDEX IF NOT EXISTS idx_image_tags_tag ON image_tags(tag_id);
     CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
@@ -454,6 +457,10 @@ _LATE_INDEXES_SQL = """
     CREATE INDEX IF NOT EXISTS idx_images_fingerprint ON images(content_fingerprint);
     CREATE INDEX IF NOT EXISTS idx_images_media_type ON images(media_type);
     CREATE INDEX IF NOT EXISTS idx_images_derived_from ON images(derived_from_asset_id);
+    CREATE INDEX IF NOT EXISTS idx_images_mtime_id ON images(file_mtime DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_images_media_mtime_id ON images(media_type, file_mtime DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_images_folder_media_mtime_id ON images(folder_id, media_type, file_mtime DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_images_rating_media_mtime ON images(rating, media_type, file_mtime DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
 """
@@ -1340,6 +1347,8 @@ def get_images_page(
     album_id: int | None = None,
     rating: int | None = None,
     media_types: tuple[str, ...] = ("image",),
+    cursor_mtime: float | None = None,
+    cursor_id: int | None = None,
 ) -> ImagesResponse:
     if rating is not None and rating not in range(6):
         raise ValueError("rating must be between 0 and 5")
@@ -1356,6 +1365,7 @@ def get_images_page(
         rating_params: tuple[int, ...] = () if rating is None else (rating,)
         media_placeholders = ", ".join("?" for _ in normalized_media_types)
         media_clause = f" AND i.media_type IN ({media_placeholders})"
+
         if album_id is not None:
             total_row = conn.execute(
                 f"""SELECT COUNT(*) AS c FROM images i
@@ -1382,7 +1392,6 @@ def get_images_page(
             ).fetchone()
 
         total = total_row["c"] if total_row else 0
-        offset = (page - 1) * per_page
 
         # Map sorting key to column names safely
         sort_by_map = {
@@ -1399,7 +1408,7 @@ def get_images_page(
         sort_column = sort_by_map[sort_by]
         direction = "DESC" if sort_dir.lower() == "desc" else "ASC"
 
-        # Enforce strict whitelist of columns and directions to prevent any SQL Injection via dynamic order_clause formatting
+        # Enforce strict whitelist of columns and directions to prevent SQL Injection
         allowed_sort_columns = {"i.file_name", "i.file_mtime", "i.file_size", "i.format"}
         allowed_directions = {"ASC", "DESC"}
 
@@ -1408,64 +1417,87 @@ def get_images_page(
         if direction not in allowed_directions:
             raise ValueError(f"Invalid sort direction: {direction}")
 
-        # Determine secondary sort order for stability
-        if sort_column == "i.file_name":
-            order_clause = f"ORDER BY i.file_name {direction}"
+        # Keyset / Cursor pagination
+        cursor_clause = ""
+        cursor_params: tuple[Any, ...] = ()
+        if cursor_mtime is not None and cursor_id is not None and sort_by == "date":
+            if sort_dir.lower() == "desc":
+                cursor_clause = " AND (i.file_mtime < ? OR (i.file_mtime = ? AND i.id < ?))"
+            else:
+                cursor_clause = " AND (i.file_mtime > ? OR (i.file_mtime = ? AND i.id > ?))"
+            cursor_params = (cursor_mtime, cursor_mtime, cursor_id)
+            offset = 0
         else:
-            order_clause = f"ORDER BY {sort_column} {direction}, i.file_name ASC"
+            offset = (page - 1) * per_page
+
+        # Determine sort order
+        if sort_column == "i.file_name":
+            subquery_order = f"ORDER BY i2.file_name {direction}, i2.id {direction}"
+            main_order = f"ORDER BY i.file_name {direction}, i.id {direction}"
+        else:
+            sort_col_sub = sort_column.replace("i.", "i2.")
+            subquery_order = f"ORDER BY {sort_col_sub} {direction}, i2.file_name ASC, i2.id {direction}"
+            main_order = f"ORDER BY {sort_column} {direction}, i.file_name ASC, i.id {direction}"
+
+        # Deferred Join: subquery uses index scan to get IDs, main query fetches row details
+        media_clause_sub = media_clause.replace("i.", "i2.")
+        rating_clause_sub = rating_clause.replace("i.", "i2.")
+        cursor_clause_sub = cursor_clause.replace("i.", "i2.")
 
         if album_id is not None:
-            rows = conn.execute(
-                f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
-                    i.format, i.width, i.height, i.mode,
-                    i.duration, i.frame_rate, i.codec, i.preview_status,
-                    i.preview_error, i.error, i.metadata_json, i.rating,
-                    i.original_data IS NULL AS has_local_file
-                FROM images i
-                JOIN folders f ON f.id = i.folder_id
-                JOIN album_images ai ON ai.image_id = i.id
-                WHERE ai.album_id = ? AND f.enabled = 1
-                  {media_clause}{rating_clause}
-                {order_clause} LIMIT ? OFFSET ?""",
-                (
-                    album_id,
-                    *normalized_media_types,
-                    *rating_params,
-                    per_page,
-                    offset,
-                ),
-            ).fetchall()
+            subquery = f"""SELECT i2.id FROM images i2
+                JOIN folders f2 ON f2.id = i2.folder_id
+                JOIN album_images ai2 ON ai2.image_id = i2.id
+                WHERE ai2.album_id = ? AND f2.enabled = 1
+                  {media_clause_sub}{rating_clause_sub}{cursor_clause_sub}
+                {subquery_order} LIMIT ? OFFSET ?"""
+            query_params = (
+                album_id,
+                *normalized_media_types,
+                *rating_params,
+                *cursor_params,
+                per_page,
+                offset,
+            )
         elif folder_id is not None:
-            rows = conn.execute(
-                f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
-                    i.format, i.width, i.height, i.mode,
-                    i.duration, i.frame_rate, i.codec, i.preview_status,
-                    i.preview_error, i.error, i.metadata_json, i.rating,
-                    i.original_data IS NULL AS has_local_file
-                FROM images i JOIN folders f ON f.id = i.folder_id
-                WHERE i.folder_id = ? AND f.enabled = 1
-                  {media_clause}{rating_clause}
-                {order_clause} LIMIT ? OFFSET ?""",
-                (
-                    folder_id,
-                    *normalized_media_types,
-                    *rating_params,
-                    per_page,
-                    offset,
-                ),
-            ).fetchall()
+            subquery = f"""SELECT i2.id FROM images i2
+                JOIN folders f2 ON f2.id = i2.folder_id
+                WHERE i2.folder_id = ? AND f2.enabled = 1
+                  {media_clause_sub}{rating_clause_sub}{cursor_clause_sub}
+                {subquery_order} LIMIT ? OFFSET ?"""
+            query_params = (
+                folder_id,
+                *normalized_media_types,
+                *rating_params,
+                *cursor_params,
+                per_page,
+                offset,
+            )
         else:
-            rows = conn.execute(
-                f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
-                    i.format, i.width, i.height, i.mode,
-                    i.duration, i.frame_rate, i.codec, i.preview_status,
-                    i.preview_error, i.error, i.metadata_json, i.rating,
-                    i.original_data IS NULL AS has_local_file
-                FROM images i JOIN folders f ON f.id = i.folder_id
-                WHERE f.enabled = 1{media_clause}{rating_clause}
-                {order_clause} LIMIT ? OFFSET ?""",
-                (*normalized_media_types, *rating_params, per_page, offset),
-            ).fetchall()
+            subquery = f"""SELECT i2.id FROM images i2
+                JOIN folders f2 ON f2.id = i2.folder_id
+                WHERE f2.enabled = 1{media_clause_sub}{rating_clause_sub}{cursor_clause_sub}
+                {subquery_order} LIMIT ? OFFSET ?"""
+            query_params = (
+                *normalized_media_types,
+                *rating_params,
+                *cursor_params,
+                per_page,
+                offset,
+            )
+
+        main_query = f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
+            i.format, i.width, i.height, i.mode,
+            i.duration, i.frame_rate, i.codec, i.preview_status,
+            i.preview_error, i.error, i.metadata_json, i.rating,
+            i.original_data IS NULL AS has_local_file,
+            i.file_mtime
+        FROM ({subquery}) page_ids
+        JOIN images i ON i.id = page_ids.id
+        {main_order}"""
+
+        rows = conn.execute(main_query, query_params).fetchall()
+
         images = []
         for r in rows:
             d = dict(r)

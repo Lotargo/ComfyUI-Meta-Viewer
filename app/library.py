@@ -340,6 +340,43 @@ def add_assets_to_album(album_id: int, asset_ids: Iterable[int]) -> int:
         conn.close()
 
 
+def reorder_album_assets(album_id: int, asset_ids: Iterable[int]) -> None:
+    ids = _unique_asset_ids(asset_ids)
+    conn = db.get_conn()
+    try:
+        if conn.execute(
+            "SELECT 1 FROM albums WHERE id = ?", (album_id,)
+        ).fetchone() is None:
+            raise LibraryNotFoundError("Album not found")
+
+        existing = _existing_asset_ids(conn, ids)
+        if len(existing) != len(ids):
+            raise LibraryNotFoundError("One or more assets were not found")
+
+        conn.execute("PRAGMA foreign_keys=OFF")
+        try:
+            conn.executemany(
+                "DELETE FROM album_images WHERE album_id = ? AND image_id = ?",
+                [(album_id, image_id) for image_id in existing],
+            )
+            conn.executemany(
+                "INSERT INTO album_images (album_id, image_id, position) VALUES (?, ?, ?)",
+                [(album_id, asset_id, offset) for offset, asset_id in enumerate(ids)],
+            )
+            conn.execute("PRAGMA foreign_keys=ON")
+        except Exception:
+            conn.execute("PRAGMA foreign_keys=ON")
+            raise
+
+        conn.execute(
+            "UPDATE albums SET custom_order = 1, updated_at = datetime('now') WHERE id = ?",
+            (album_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def remove_assets_from_album(album_id: int, asset_ids: Iterable[int]) -> int:
     ids = _unique_asset_ids(asset_ids)
     conn = db.get_conn()

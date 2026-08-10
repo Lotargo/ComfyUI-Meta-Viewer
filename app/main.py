@@ -327,6 +327,19 @@ def api_album(album_id: int):
     return jsonify({"album": album})
 
 
+@app.route("/api/albums/<int:album_id>/reorder", methods=["POST"])
+def api_album_reorder(album_id: int):
+    body = request.get_json(silent=True) or {}
+    asset_ids = body.get("asset_ids")
+    if not isinstance(asset_ids, list) or not asset_ids:
+        return jsonify({"error": "asset_ids must be a non-empty list"}), 400
+    try:
+        media_library.reorder_album_assets(album_id, asset_ids)
+    except media_library.LibraryNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    return jsonify({"ok": True})
+
+
 @app.route("/api/albums/<int:album_id>/assets", methods=["POST", "DELETE"])
 def api_album_assets(album_id: int):
     body = request.get_json(silent=True) or {}

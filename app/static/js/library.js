@@ -1566,47 +1566,65 @@ function applyFlipAnimation(oldPositions) {
     });
 }
 
-function findCardIndexAtPoint(clientX, clientY, excludeCard) {
-    const cards = [...dom.grid.querySelectorAll('.asset-card[data-asset-id]')];
-    let closest = null;
-    let closestDist = Infinity;
-
-    for (const card of cards) {
-        if (card === excludeCard || card.dataset.placeholder) continue;
-        const rect = card.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const dist = Math.hypot(clientX - centerX, clientY - centerY);
-        if (dist < closestDist) {
-            closestDist = dist;
-            closest = card;
-        }
-    }
-    return closest;
+function getCardAtCursor(clientX, clientY, placeholder) {
+    const elem = document.elementFromPoint(clientX, clientY);
+    if (!elem) return null;
+    const card = elem.closest('.asset-card');
+    if (!card || card === placeholder || card.dataset.placeholder) return null;
+    if (!card.dataset.assetId) return null;
+    const grid = document.getElementById('asset-grid');
+    if (!grid || !grid.contains(card)) return null;
+    return card;
 }
 
 function updateGridReorder(session, clientX, clientY) {
     if (!session.placeholder) return;
     const now = Date.now();
-    if (session.lastReorderTime && now - session.lastReorderTime < 160) return;
-
-    const targetCard = findCardIndexAtPoint(clientX, clientY, session.card);
-    if (!targetCard) return;
+    if (session.lastReorderTime && now - session.lastReorderTime < 120) return;
 
     const placeholder = session.placeholder;
     const allCards = [...dom.grid.querySelectorAll('.asset-card')];
-    const targetIdx = allCards.indexOf(targetCard);
     const placeholderIdx = allCards.indexOf(placeholder);
+    if (placeholderIdx === -1) return;
 
-    if (targetIdx === -1 || placeholderIdx === -1 || targetIdx === placeholderIdx) return;
+    const hoverCard = getCardAtCursor(clientX, clientY, placeholder);
+    if (!hoverCard) return;
+
+    const hoverIdx = allCards.indexOf(hoverCard);
+    if (hoverIdx === -1 || hoverIdx === placeholderIdx) return;
+
+    const hoverRect = hoverCard.getBoundingClientRect();
+    const hCenterX = hoverRect.left + hoverRect.width / 2;
+    const hCenterY = hoverRect.top + hoverRect.height / 2;
+
+    const goAfter = (clientX > hCenterX) || (Math.abs(clientX - hCenterX) < 30 && clientY > hCenterY);
+
+    let targetIdx;
+    if (hoverIdx < placeholderIdx) {
+        targetIdx = goAfter ? hoverIdx : hoverIdx;
+    } else {
+        targetIdx = goAfter ? hoverIdx : hoverIdx;
+    }
+
+    if (goAfter && hoverIdx > placeholderIdx) {
+        targetIdx = hoverIdx;
+    } else if (!goAfter && hoverIdx > placeholderIdx) {
+        targetIdx = hoverIdx;
+    } else if (goAfter && hoverIdx < placeholderIdx) {
+        targetIdx = hoverIdx;
+    } else {
+        targetIdx = hoverIdx;
+    }
+
+    if (targetIdx === placeholderIdx) return;
 
     session.lastReorderTime = now;
     const oldPositions = getCardPositions();
 
     if (targetIdx > placeholderIdx) {
-        targetCard.parentNode.insertBefore(placeholder, targetCard.nextElementSibling);
+        hoverCard.parentNode.insertBefore(placeholder, hoverCard.nextElementSibling);
     } else {
-        targetCard.parentNode.insertBefore(placeholder, targetCard);
+        hoverCard.parentNode.insertBefore(placeholder, hoverCard);
     }
 
     dom.grid.classList.add('reordering');
@@ -1669,6 +1687,8 @@ if (!dom.grid) {
             dragging: false,
             preview: null,
             dropTarget: null,
+            lastMoveDirection: undefined,
+            lastReorderTime: 0,
         };
         card.setPointerCapture?.(event.pointerId);
     });
@@ -1711,14 +1731,6 @@ document.addEventListener('pointermove', event => {
     } else {
         if (session.mode === 'reorder') {
             session.mode = 'album';
-            session.placeholder?.remove();
-            session.placeholder = null;
-            session.card.classList.remove('dragging-original');
-            dom.grid.classList.remove('reordering');
-            dom.grid.querySelectorAll('.asset-card').forEach(card => {
-                card.style.transform = '';
-                card.style.transition = '';
-            });
         }
         updatePointerDropTarget(session, event.clientX, event.clientY);
     }
@@ -1746,9 +1758,20 @@ async function finishPointerAssetDrag(event, cancelled = false) {
         : null;
     const assetIds = [...state.draggingAssetIds];
 
-    if (session.mode === 'reorder' && session.placeholder && !cancelled && !albumId) {
-        const newOrderIds = [...dom.grid.querySelectorAll('.asset-card[data-asset-id]')]
+    if (session.placeholder && !cancelled && !albumId) {
+        const placeholderIdx = [...dom.grid.querySelectorAll('.asset-card')]
+            .indexOf(session.placeholder);
+        const draggedId = session.assetId;
+
+        const otherIds = [...dom.grid.querySelectorAll('.asset-card[data-asset-id]')]
+            .filter(card => Number(card.dataset.assetId) !== draggedId)
             .map(card => Number(card.dataset.assetId));
+
+        const newOrderIds = [
+            ...otherIds.slice(0, placeholderIdx),
+            draggedId,
+            ...otherIds.slice(placeholderIdx),
+        ];
 
         const assetMap = new Map(state.assets.map(a => [a.id, a]));
         const reordered = [];
@@ -1767,6 +1790,14 @@ async function finishPointerAssetDrag(event, cancelled = false) {
         cleanupPointerAssetDrag(session);
         renderAssets();
         updatePreviewPanel();
+
+        if (state.albumId && newOrderIds.length > 1) {
+            fetchJson(`/api/albums/${state.albumId}/reorder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ asset_ids: newOrderIds }),
+            }).catch(err => showToast(err.message, true));
+        }
         return;
     }
 

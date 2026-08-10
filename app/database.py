@@ -166,6 +166,7 @@ _INITIAL_SCHEMA_SQL = """
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL COLLATE NOCASE UNIQUE,
         cover_image_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
+        custom_order INTEGER NOT NULL DEFAULT 0,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -450,6 +451,7 @@ _COLUMN_MIGRATIONS = (
     "ALTER TABLE ai_prompt_adaptations ADD COLUMN protected_triggers_json TEXT NOT NULL DEFAULT '[]'",
     "ALTER TABLE workflow_drafts ADD COLUMN auto_rate INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE workflow_runs ADD COLUMN auto_rate INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE albums ADD COLUMN custom_order INTEGER NOT NULL DEFAULT 0",
 )
 
 _LATE_INDEXES_SQL = """
@@ -1430,8 +1432,19 @@ def get_images_page(
         else:
             offset = (page - 1) * per_page
 
+        # Check if album has custom ordering
+        album_custom_order = False
+        if album_id is not None:
+            row = conn.execute(
+                "SELECT custom_order FROM albums WHERE id = ?", (album_id,)
+            ).fetchone()
+            album_custom_order = bool(row and row["custom_order"])
+
         # Determine sort order
-        if sort_column == "i.file_name":
+        if album_custom_order:
+            subquery_order = "ORDER BY ai2.position ASC, i2.id ASC"
+            main_order = "ORDER BY ai.position ASC, i.id ASC"
+        elif sort_column == "i.file_name":
             subquery_order = f"ORDER BY i2.file_name {direction}, i2.id {direction}"
             main_order = f"ORDER BY i.file_name {direction}, i.id {direction}"
         else:
@@ -1486,6 +1499,10 @@ def get_images_page(
                 offset,
             )
 
+        album_join = ""
+        if album_custom_order:
+            album_join = " JOIN album_images ai ON ai.image_id = i.id AND ai.album_id = ?"
+
         main_query = f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
             i.format, i.width, i.height, i.mode,
             i.duration, i.frame_rate, i.codec, i.preview_status,
@@ -1493,8 +1510,11 @@ def get_images_page(
             i.original_data IS NULL AS has_local_file,
             i.file_mtime
         FROM ({subquery}) page_ids
-        JOIN images i ON i.id = page_ids.id
+        JOIN images i ON i.id = page_ids.id{album_join}
         {main_order}"""
+
+        if album_custom_order:
+            query_params = (*query_params, album_id)
 
         rows = conn.execute(main_query, query_params).fetchall()
 

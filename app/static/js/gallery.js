@@ -322,6 +322,8 @@ document.addEventListener('pointerdown', event => {
         dragging: false,
         preview: null,
         dropTarget: null,
+        lastMoveDirection: undefined,
+        lastReorderTime: 0,
     };
     try {
         card.setPointerCapture?.(event.pointerId);
@@ -375,50 +377,50 @@ function applyGalleryFlipAnimation(oldPositions) {
     });
 }
 
-function findGalleryCardAtPoint(clientX, clientY, excludeCard) {
+function getGalleryCardAtCursor(clientX, clientY, placeholder) {
+    const elem = document.elementFromPoint(clientX, clientY);
+    if (!elem) return null;
+    const card = elem.closest('.gallery-card');
+    if (!card || card === placeholder || card.dataset.placeholder) return null;
+    if (!card.dataset.imageId) return null;
     const grid = document.querySelector('.gallery-masonry');
-    if (!grid) return null;
-    const cards = [...grid.querySelectorAll('.gallery-card[data-image-id]')];
-    let closest = null;
-    let closestDist = Infinity;
-
-    for (const card of cards) {
-        if (card === excludeCard || card.dataset.placeholder) continue;
-        const rect = card.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const dist = Math.hypot(clientX - centerX, clientY - centerY);
-        if (dist < closestDist) {
-            closestDist = dist;
-            closest = card;
-        }
-    }
-    return closest;
+    if (!grid || !grid.contains(card)) return null;
+    return card;
 }
 
 function updateGalleryGridReorder(session, clientX, clientY) {
     if (!session.placeholder) return;
     const now = Date.now();
-    if (session.lastReorderTime && now - session.lastReorderTime < 160) return;
-
-    const targetCard = findGalleryCardAtPoint(clientX, clientY, session.card);
-    if (!targetCard) return;
+    if (session.lastReorderTime && now - session.lastReorderTime < 120) return;
 
     const grid = document.querySelector('.gallery-masonry');
     if (!grid) return;
     const allCards = [...grid.querySelectorAll('.gallery-card')];
-    const targetIdx = allCards.indexOf(targetCard);
     const placeholderIdx = allCards.indexOf(session.placeholder);
+    if (placeholderIdx === -1) return;
 
-    if (targetIdx === -1 || placeholderIdx === -1 || targetIdx === placeholderIdx) return;
+    const hoverCard = getGalleryCardAtCursor(clientX, clientY, session.placeholder);
+    if (!hoverCard) return;
+
+    const hoverIdx = allCards.indexOf(hoverCard);
+    if (hoverIdx === -1 || hoverIdx === placeholderIdx) return;
+
+    const hoverRect = hoverCard.getBoundingClientRect();
+    const hCenterX = hoverRect.left + hoverRect.width / 2;
+    const hCenterY = hoverRect.top + hoverRect.height / 2;
+
+    const goAfter = (clientX > hCenterX) || (Math.abs(clientX - hCenterX) < 30 && clientY > hCenterY);
+
+    if (hoverIdx === placeholderIdx + 1 && !goAfter) return;
+    if (hoverIdx === placeholderIdx - 1 && goAfter) return;
 
     session.lastReorderTime = now;
     const oldPositions = getGalleryCardPositions();
 
-    if (targetIdx > placeholderIdx) {
-        targetCard.parentNode.insertBefore(session.placeholder, targetCard.nextElementSibling);
+    if (goAfter) {
+        hoverCard.parentNode.insertBefore(session.placeholder, hoverCard.nextElementSibling);
     } else {
-        targetCard.parentNode.insertBefore(session.placeholder, targetCard);
+        hoverCard.parentNode.insertBefore(session.placeholder, hoverCard);
     }
 
     grid.classList.add('reordering');
@@ -478,18 +480,6 @@ document.addEventListener('pointermove', event => {
         }
         updateGalleryGridReorder(session, event.clientX, event.clientY);
     } else {
-        if (session.placeholder) {
-            session.placeholder.remove();
-            session.placeholder = null;
-            session.card.classList.remove('dragging-original');
-            const grid = document.querySelector('.gallery-masonry');
-            grid?.classList.remove('reordering');
-            grid?.querySelectorAll('.gallery-card').forEach(card => {
-                card.style.transform = '';
-                card.style.transition = '';
-            });
-            resizeAllGridItems();
-        }
         const dropTarget = elemUnder?.closest('[data-album-drop-target], [data-album-id]') || null;
         if (dropTarget !== session.dropTarget) {
             clearDragOverElements();
@@ -525,8 +515,19 @@ document.addEventListener('pointerup', async event => {
 
     if (placeholder) {
         if (grid && !dropTarget) {
-            const newOrderIds = [...grid.querySelectorAll('.gallery-card[data-image-id]')]
+            const placeholderIdx = [...grid.querySelectorAll('.gallery-card')]
+                .indexOf(placeholder);
+            const draggedId = session.imageId;
+
+            const otherIds = [...grid.querySelectorAll('.gallery-card[data-image-id]')]
+                .filter(card => Number(card.dataset.imageId) !== draggedId)
                 .map(card => Number(card.dataset.imageId));
+
+            const newOrderIds = [
+                ...otherIds.slice(0, placeholderIdx),
+                draggedId,
+                ...otherIds.slice(placeholderIdx),
+            ];
 
             const imgMap = new Map(images.map(img => [img.id, img]));
             const reordered = [];

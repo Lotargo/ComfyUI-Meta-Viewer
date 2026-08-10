@@ -291,14 +291,6 @@ export function updateActiveGalleryCard(index) {
     }
 }
 
-export function renderGallerySkeleton() {
-    let html = '<div class="gallery-masonry">';
-    for (let i = 0; i < 12; i++) html += skeletonGalleryCard();
-    html += '</div>';
-    dom.contentArea.innerHTML = html;
-    resizeAllGridItems();
-}
-
 let galleryPointerDrag = null;
 
 function clearDragOverElements() {
@@ -338,6 +330,102 @@ document.addEventListener('pointerdown', event => {
     }
 });
 
+function getGalleryCardPositions() {
+    const grid = document.querySelector('.gallery-masonry');
+    if (!grid) return new Map();
+    const positions = new Map();
+    grid.querySelectorAll('.gallery-card[data-image-id]').forEach(card => {
+        if (card.dataset.placeholder) return;
+        positions.set(card.dataset.imageId, card.getBoundingClientRect());
+    });
+    return positions;
+}
+
+function applyGalleryFlipAnimation(oldPositions) {
+    const grid = document.querySelector('.gallery-masonry');
+    if (!grid) return;
+    const cards = [...grid.querySelectorAll('.gallery-card[data-image-id]')];
+    const moves = [];
+
+    cards.forEach(card => {
+        const oldPos = oldPositions.get(card.dataset.imageId);
+        if (!oldPos) return;
+        const newPos = card.getBoundingClientRect();
+        const dx = oldPos.left - newPos.left;
+        const dy = oldPos.top - newPos.top;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+            moves.push({ card, dx, dy });
+        }
+    });
+
+    if (!moves.length) return;
+
+    moves.forEach(({ card, dx, dy }) => {
+        card.style.transition = 'none';
+        card.style.transform = `translate(${dx}px, ${dy}px)`;
+    });
+
+    grid.offsetHeight;
+
+    requestAnimationFrame(() => {
+        moves.forEach(({ card }) => {
+            card.style.transition = '';
+            card.style.transform = '';
+        });
+    });
+}
+
+function findGalleryCardAtPoint(clientX, clientY, excludeCard) {
+    const grid = document.querySelector('.gallery-masonry');
+    if (!grid) return null;
+    const cards = [...grid.querySelectorAll('.gallery-card[data-image-id]')];
+    let closest = null;
+    let closestDist = Infinity;
+
+    for (const card of cards) {
+        if (card === excludeCard || card.dataset.placeholder) continue;
+        const rect = card.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const dist = Math.hypot(clientX - centerX, clientY - centerY);
+        if (dist < closestDist) {
+            closestDist = dist;
+            closest = card;
+        }
+    }
+    return closest;
+}
+
+function updateGalleryGridReorder(session, clientX, clientY) {
+    if (!session.placeholder) return;
+    const now = Date.now();
+    if (session.lastReorderTime && now - session.lastReorderTime < 160) return;
+
+    const targetCard = findGalleryCardAtPoint(clientX, clientY, session.card);
+    if (!targetCard) return;
+
+    const grid = document.querySelector('.gallery-masonry');
+    if (!grid) return;
+    const allCards = [...grid.querySelectorAll('.gallery-card')];
+    const targetIdx = allCards.indexOf(targetCard);
+    const placeholderIdx = allCards.indexOf(session.placeholder);
+
+    if (targetIdx === -1 || placeholderIdx === -1 || targetIdx === placeholderIdx) return;
+
+    session.lastReorderTime = now;
+    const oldPositions = getGalleryCardPositions();
+
+    if (targetIdx > placeholderIdx) {
+        targetCard.parentNode.insertBefore(session.placeholder, targetCard.nextElementSibling);
+    } else {
+        targetCard.parentNode.insertBefore(session.placeholder, targetCard);
+    }
+
+    grid.classList.add('reordering');
+    resizeAllGridItems();
+    applyGalleryFlipAnimation(oldPositions);
+}
+
 document.addEventListener('pointermove', event => {
     const session = galleryPointerDrag;
     if (!session || session.pointerId !== event.pointerId) return;
@@ -376,16 +464,38 @@ document.addEventListener('pointermove', event => {
         session.preview.style.transform = 'rotate(2deg) scale(1.02)';
     }
 
-    const wasVisible = session.preview?.style.display !== 'none';
-    if (session.preview) session.preview.style.display = 'none';
     const elemUnder = document.elementFromPoint(event.clientX, event.clientY);
-    if (session.preview && wasVisible) session.preview.style.display = '';
+    const overGrid = elemUnder?.closest('.gallery-masonry');
 
-    const dropTarget = elemUnder?.closest('[data-album-drop-target], [data-album-id]') || null;
-    if (dropTarget !== session.dropTarget) {
-        clearDragOverElements();
-        session.dropTarget = dropTarget;
-        dropTarget?.classList.add('drag-over');
+    if (overGrid && session.card.classList.contains('gallery-card')) {
+        if (!session.placeholder) {
+            session.card.classList.add('dragging-original');
+            const placeholder = session.card.cloneNode(false);
+            placeholder.classList.add('drag-placeholder');
+            placeholder.dataset.placeholder = 'true';
+            session.card.parentNode.insertBefore(placeholder, session.card);
+            session.placeholder = placeholder;
+        }
+        updateGalleryGridReorder(session, event.clientX, event.clientY);
+    } else {
+        if (session.placeholder) {
+            session.placeholder.remove();
+            session.placeholder = null;
+            session.card.classList.remove('dragging-original');
+            const grid = document.querySelector('.gallery-masonry');
+            grid?.classList.remove('reordering');
+            grid?.querySelectorAll('.gallery-card').forEach(card => {
+                card.style.transform = '';
+                card.style.transition = '';
+            });
+            resizeAllGridItems();
+        }
+        const dropTarget = elemUnder?.closest('[data-album-drop-target], [data-album-id]') || null;
+        if (dropTarget !== session.dropTarget) {
+            clearDragOverElements();
+            session.dropTarget = dropTarget;
+            dropTarget?.classList.add('drag-over');
+        }
     }
 }, { passive: false });
 
@@ -399,11 +509,42 @@ document.addEventListener('pointerup', async event => {
 
     const wasDragging = session.dragging;
     const dropTarget = session.dropTarget;
+    const placeholder = session.placeholder;
 
     session.preview?.remove();
-    session.card.classList.remove('dragging');
+    session.card.classList.remove('dragging', 'dragging-original');
     document.body.classList.remove('asset-pointer-dragging');
     clearDragOverElements();
+
+    const grid = document.querySelector('.gallery-masonry');
+    grid?.classList.remove('reordering');
+    grid?.querySelectorAll('.gallery-card').forEach(card => {
+        card.style.transform = '';
+        card.style.transition = '';
+    });
+
+    if (placeholder) {
+        if (grid && !dropTarget) {
+            const newOrderIds = [...grid.querySelectorAll('.gallery-card[data-image-id]')]
+                .map(card => Number(card.dataset.imageId));
+
+            const imgMap = new Map(images.map(img => [img.id, img]));
+            const reordered = [];
+            for (const id of newOrderIds) {
+                if (imgMap.has(id)) {
+                    reordered.push(imgMap.get(id));
+                    imgMap.delete(id);
+                }
+            }
+            images.length = 0;
+            images.push(...reordered);
+
+            renderGallery();
+        }
+        placeholder.remove();
+        resizeAllGridItems();
+    }
+
     galleryPointerDrag = null;
 
     if (wasDragging) {
@@ -433,9 +574,17 @@ document.addEventListener('pointercancel', event => {
         session.card.releasePointerCapture?.(session.pointerId);
     } catch {}
     session.preview?.remove();
-    session.card.classList.remove('dragging');
+    session.placeholder?.remove();
+    session.card.classList.remove('dragging', 'dragging-original');
     document.body.classList.remove('asset-pointer-dragging');
     clearDragOverElements();
+    const grid = document.querySelector('.gallery-masonry');
+    grid?.classList.remove('reordering');
+    grid?.querySelectorAll('.gallery-card').forEach(card => {
+        card.style.transform = '';
+        card.style.transition = '';
+    });
+    resizeAllGridItems();
     galleryPointerDrag = null;
 });
 

@@ -1469,15 +1469,11 @@ function createAssetDragPreview(asset, count, sourceCard) {
     return ghost;
 }
 
-function albumTargetAtPoint(clientX, clientY, ignoreElem) {
-    const wasVisible = ignoreElem?.style.display !== 'none';
-    if (ignoreElem) ignoreElem.style.display = 'none';
-    const elem = document.elementFromPoint(clientX, clientY)?.closest?.('[data-album-drop-target]') || null;
-    if (ignoreElem && wasVisible) ignoreElem.style.display = '';
-    return elem;
+function albumTargetAtPoint(clientX, clientY) {
+    return document.elementFromPoint(clientX, clientY)?.closest?.('[data-album-drop-target]') || null;
 }
 function updatePointerDropTarget(session, clientX, clientY) {
-    const target = albumTargetAtPoint(clientX, clientY, session.preview);
+    const target = albumTargetAtPoint(clientX, clientY);
     if (target === session.dropTarget) return;
     clearAlbumDropTargets();
     session.dropTarget = target;
@@ -1591,17 +1587,20 @@ function findCardIndexAtPoint(clientX, clientY, excludeCard) {
 
 function updateGridReorder(session, clientX, clientY) {
     if (!session.placeholder) return;
+    const now = Date.now();
+    if (session.lastReorderTime && now - session.lastReorderTime < 160) return;
 
     const targetCard = findCardIndexAtPoint(clientX, clientY, session.card);
     if (!targetCard) return;
 
     const placeholder = session.placeholder;
-    const allCards = [...dom.grid.querySelectorAll('.asset-card[data-asset-id]:not([data-placeholder])')];
+    const allCards = [...dom.grid.querySelectorAll('.asset-card')];
     const targetIdx = allCards.indexOf(targetCard);
     const placeholderIdx = allCards.indexOf(placeholder);
 
-    if (targetIdx === placeholderIdx || targetIdx === -1) return;
+    if (targetIdx === -1 || placeholderIdx === -1 || targetIdx === placeholderIdx) return;
 
+    session.lastReorderTime = now;
     const oldPositions = getCardPositions();
 
     if (targetIdx > placeholderIdx) {

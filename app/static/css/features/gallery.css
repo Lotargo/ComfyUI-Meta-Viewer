@@ -140,6 +140,28 @@
     display: none !important;
 }
 
+.gallery-card.dragging-original {
+    opacity: 0 !important;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.gallery-card.drag-placeholder {
+    background: transparent;
+    border: 2px dashed var(--accent2);
+    box-shadow: inset 0 0 0 4px var(--accent-dim);
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+
+.gallery-card.drag-placeholder * {
+    visibility: hidden;
+}
+
+.gallery-masonry.reordering .gallery-card:not(.dragging-original):not(.drag-placeholder) {
+    transition: transform 0.35s cubic-bezier(0.2, 0, 0, 1);
+}
+
 .gallery-delete {
     position: absolute;
     top: 9px;

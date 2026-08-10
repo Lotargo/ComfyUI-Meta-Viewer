@@ -17,6 +17,59 @@ import { escapeHtml, imageRenderSignature, originalUrl, thumbUrl } from './utils
 import { skeletonGalleryCard } from './components/skeleton.js';
 import { showImageContextMenu } from './components/image-context-menu.js';
 
+const GALLERY_ORDER_KEY = 'cmv_gallery_order';
+
+function galleryOrderStorageKey(collection) {
+    return `${collection.type || 'media'}:${collection.id ?? 'all'}`;
+}
+
+function loadAllGalleryOrders() {
+    try {
+        return JSON.parse(localStorage.getItem(GALLERY_ORDER_KEY)) || {};
+    } catch (_e) {
+        return {};
+    }
+}
+
+function saveAllGalleryOrders(orders) {
+    try {
+        localStorage.setItem(GALLERY_ORDER_KEY, JSON.stringify(orders));
+    } catch (_e) {
+        // Storage quota or persistence unavailable — order is kept in-memory only.
+    }
+}
+
+function saveGalleryOrder(collection, imageIds) {
+    const orders = loadAllGalleryOrders();
+    orders[galleryOrderStorageKey(collection)] = imageIds;
+    saveAllGalleryOrders(orders);
+}
+
+function loadGalleryOrder(collection) {
+    const orders = loadAllGalleryOrders();
+    return orders[galleryOrderStorageKey(collection)] || null;
+}
+
+export function applySavedCustomOrder() {
+    const saved = loadGalleryOrder(currentCollection);
+    if (!saved || saved.length < 2) return;
+    if (images.length < 2) return;
+
+    const imgMap = new Map(images.map(img => [img.id, img]));
+    const reordered = [];
+    for (const id of saved) {
+        if (imgMap.has(id)) {
+            reordered.push(imgMap.get(id));
+            imgMap.delete(id);
+        }
+    }
+    for (const img of imgMap.values()) {
+        reordered.push(img);
+    }
+    images.length = 0;
+    images.push(...reordered);
+}
+
 let resizeTimeout = null;
 export function resizeAllGridItems() {
     if (resizeTimeout) cancelAnimationFrame(resizeTimeout);
@@ -209,6 +262,10 @@ export function loadNextGalleryPage() {
 
 export function renderGallery({ appendOnly = false, startIndex = 0, reconcile = false } = {}) {
     if (galleryScrollObserver) galleryScrollObserver.disconnect();
+
+    if (!appendOnly && !reconcile && startIndex === 0) {
+        applySavedCustomOrder();
+    }
 
     if (images.length === 0) {
         if (!allLoaded && isBrowsableCollection(currentCollection)) {
@@ -540,6 +597,7 @@ document.addEventListener('pointerup', async event => {
             images.length = 0;
             images.push(...reordered);
 
+            saveGalleryOrder(currentCollection, reordered.map(img => img.id));
             renderGallery();
         }
         placeholder.remove();

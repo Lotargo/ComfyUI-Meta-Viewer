@@ -5,12 +5,15 @@ import {
     openLightbox,
     prevLightbox,
 } from '../lightbox.js';
+import { showImageContextMenu } from '../components/image-context-menu.js';
+import { initKeyboardShortcuts } from './keyboard.js';
 
 const byId = (id) => document.getElementById(id);
 
 const elements = {
     categoryTabs: byId('template-category-tabs'),
-    templateSelect: byId('template-select'),
+    modelFormatFilter: byId('model-format-filter'),
+    btnRescanModels: byId('btn-rescan-models'),
     templateName: byId('template-name'),
     templateMeta: byId('template-meta'),
     templateDescription: byId('template-description'),
@@ -37,12 +40,6 @@ const elements = {
     previewButtonLabel: byId('preview-workflow-label'),
     generateButton: byId('generate-workflow'),
     generateLabel: byId('generate-label'),
-    generateHelp: byId('generate-help'),
-    generateFromPreview: byId('generate-from-preview'),
-    previewDialog: byId('workflow-preview-dialog'),
-    dependencyReport: byId('dependency-report'),
-    workflowJson: byId('workflow-json-preview'),
-    runRibbon: byId('run-ribbon'),
     runStateIcon: byId('run-state-icon'),
     runStateTitle: byId('run-state-title'),
     runStateDetail: byId('run-state-detail'),
@@ -196,6 +193,13 @@ const elements = {
     aspectRatioLock: byId('aspect-ratio-lock'),
     batchQuickControl: byId('batch-quick-control'),
     lightbox: byId('lightbox'),
+    runRibbon: byId('run-ribbon'),
+    generateFromPreview: byId('generate-from-preview'),
+    previewDialog: byId('workflow-preview-dialog'),
+    dependencyReport: byId('dependency-report'),
+    workflowJson: byId('workflow-json-preview'),
+    generateHelp: byId('generate-help'),
+    templateSelect: byId('template-select'),
 };
 
 const runtimeElements = {
@@ -263,6 +267,13 @@ const state = {
     aiPromptAdaptation: null,
     aiSceneSpec: null,
     aiSceneSpecJobId: null,
+    activeOperations: {
+        translate: false,
+        enhance: false,
+        adapt: false,
+        aiPrompt: false,
+        reconstruct: false,
+    },
 };
 
 const ADVANCED_FIELD_IDS = new Set([
@@ -693,9 +704,11 @@ function renderTemplateNavigation() {
         tab.setAttribute('aria-selected', active ? 'true' : 'false');
         tab.hidden = !categories.includes(tab.dataset.category);
     });
-    elements.templateSelect.innerHTML = state.templates
-        .map((item) => `<option value="${escapeHtml(item.manifest.id)}"${item.manifest.id === manifest.id ? ' selected' : ''}>${escapeHtml(friendlyTemplateName(item.manifest))}</option>`)
-        .join('');
+    if (elements.templateSelect) {
+        elements.templateSelect.innerHTML = state.templates
+            .map((item) => `<option value="${escapeHtml(item.manifest.id)}"${item.manifest.id === manifest.id ? ' selected' : ''}>${escapeHtml(friendlyTemplateName(item.manifest))}</option>`)
+            .join('');
+    }
     elements.templateName.textContent = friendlyTemplateName(manifest);
     elements.templateMeta.textContent = `${manifest.media_type} · v${manifest.version} · ${state.selected.source}`;
     elements.templateDescription.textContent = friendlyTemplateDescription(manifest);
@@ -1395,8 +1408,21 @@ function resourceOptionLabel(option) {
     return `${friendlyResourceName(option.name)}${suffix ? ` · ${suffix}` : ''}`;
 }
 
+function filterResourceOptions(options) {
+    if (!state.modelFilter || state.modelFilter === 'all') return options;
+    return options.filter((option) => {
+        if (state.modelFilter === 'safetensors') return option.format === 'safetensors';
+        if (state.modelFilter === 'gguf') return option.format === 'gguf';
+        if (state.modelFilter === 'other') return option.format === 'other';
+        if (state.modelFilter === 'image') return option.media_type === 'image';
+        if (state.modelFilter === 'video') return option.media_type === 'video';
+        return true;
+    });
+}
+
 function renderSelectableResourceOptions(options, selected = '') {
-    const selectable = options.filter((option) => resourceCompatibilityStatus(option) !== 'incompatible');
+    const filtered = filterResourceOptions(options);
+    const selectable = filtered.filter((option) => resourceCompatibilityStatus(option) !== 'incompatible');
     const persistedIncompatible = options.find((option) => (
         option.name === selected && resourceCompatibilityStatus(option) === 'incompatible'
     ));
@@ -1714,7 +1740,7 @@ function suggestedPromptFamily() {
 
 function supportedPromptProfile(profile) {
     return profile.kind === 'openai_compatible'
-        || (profile.kind === 'cli' && profile.cli_type === 'opencode');
+        || (profile.kind === 'cli' && (profile.cli_type === 'opencode' || profile.cli_type === 'antigravity'));
 }
 
 async function loadPromptAssistantData() {
@@ -1727,6 +1753,7 @@ async function loadPromptAssistantData() {
         profile.has_credentials !== false && supportedPromptProfile(profile)
     ));
     state.aiDefaultProfileId = profiles.defaults?.text_profile_id || null;
+    state.aiDefaultTranslatorProfileId = profiles.defaults?.translator_profile_id || null;
     state.aiDefaultMultimodalProfileId = profiles.defaults?.multimodal_profile_id || null;
 }
 
@@ -1738,23 +1765,33 @@ function populatePromptFamilies(select) {
     if (state.aiCapabilities.some((family) => family.id === suggested)) select.value = suggested;
 }
 
-function populatePromptProfiles(select, note) {
-    select.innerHTML = state.aiProfiles.length
-        ? state.aiProfiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
-        : '<option value="">No ready text profiles</option>';
-    if (state.aiProfiles.some((profile) => profile.id === state.aiDefaultProfileId)) {
-        select.value = state.aiDefaultProfileId;
+function populatePromptProfiles(select, note, preferredDefaultId = null, roleFilter = ['text', 'translator']) {
+    const rolesToMatch = Array.isArray(roleFilter) ? roleFilter : [roleFilter];
+    const matchingProfiles = state.aiProfiles.filter((profile) => (
+        !profile.roles || profile.roles.some((role) => rolesToMatch.includes(role))
+    ));
+    const roleLabel = rolesToMatch.join('/');
+    select.innerHTML = matchingProfiles.length
+        ? matchingProfiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.model)}</option>`).join('')
+        : `<option value="">No ready ${escapeHtml(roleLabel)} profiles</option>`;
+    const targetId = preferredDefaultId || state.aiDefaultProfileId || state.aiDefaultTranslatorProfileId;
+    if (matchingProfiles.some((profile) => profile.id === targetId)) {
+        select.value = targetId;
+    } else if (matchingProfiles.length > 0) {
+        select.value = matchingProfiles[0].id;
     }
-    note.innerHTML = state.aiProfiles.length
+    note.innerHTML = matchingProfiles.length
         ? 'The selected profile returns the same normalized prompt contract.'
-        : 'Add a usable text profile in <a href="/settings/ai">AI settings</a> first.';
+        : 'Add a usable text or translator profile in <a href="/settings/ai">AI settings</a> first.';
 }
 
 function populateVisionProfiles(select, note) {
     const profiles = state.aiProfiles.filter((profile) => (
-        profile.multimodal === true && (
-            profile.kind === 'openai_compatible'
-            || (profile.kind === 'cli' && profile.cli_type === 'opencode')
+        profile.multimodal === true &&
+        (!profile.roles || profile.roles.includes('vision')) && (
+            profile.kind === 'openai_compatible' ||
+            (profile.kind === 'cli' && profile.cli_type === 'opencode') ||
+            (profile.kind === 'cli' && profile.cli_type === 'antigravity')
         )
     ));
     select.innerHTML = profiles.length
@@ -1787,7 +1824,13 @@ function renderScenarioOptions(select, familyId) {
 
 function renderAIScenarios() {
     const available = renderScenarioOptions(elements.aiPromptScenario, elements.aiPromptFamily.value);
-    elements.aiPromptSubmit.disabled = !available.length || !elements.aiPromptProfile.value;
+    if (state.activeOperations?.aiPrompt) {
+        elements.aiPromptSubmit.disabled = true;
+        elements.aiPromptSubmit.textContent = 'Creating…';
+    } else {
+        elements.aiPromptSubmit.disabled = !available.length || !elements.aiPromptProfile.value;
+        elements.aiPromptSubmit.textContent = 'Create draft';
+    }
 }
 
 function renderTranslationScenarios() {
@@ -1795,9 +1838,15 @@ function renderTranslationScenarios() {
         elements.translatePromptScenario,
         elements.translatePromptFamily.value,
     );
-    elements.translatePromptSubmit.disabled = (
-        !available.length || !elements.translatePromptProfile.value
-    );
+    if (state.activeOperations?.translate) {
+        elements.translatePromptSubmit.disabled = true;
+        elements.translatePromptSubmit.textContent = 'Translating…';
+    } else {
+        elements.translatePromptSubmit.disabled = (
+            !available.length || !elements.translatePromptProfile.value
+        );
+        elements.translatePromptSubmit.textContent = 'Translate to draft';
+    }
 }
 
 function renderAdaptationScenarios() {
@@ -1805,9 +1854,15 @@ function renderAdaptationScenarios() {
         elements.adaptPromptScenario,
         elements.adaptPromptFamily.value,
     );
-    elements.adaptPromptSubmit.disabled = (
-        !available.length || !elements.adaptPromptProfile.value
-    );
+    if (state.activeOperations?.adapt) {
+        elements.adaptPromptSubmit.disabled = true;
+        elements.adaptPromptSubmit.textContent = 'Adapting…';
+    } else {
+        elements.adaptPromptSubmit.disabled = (
+            !available.length || !elements.adaptPromptProfile.value
+        );
+        elements.adaptPromptSubmit.textContent = 'Adapt to draft';
+    }
 }
 
 function renderReconstructionScenarios() {
@@ -1870,10 +1925,11 @@ async function createAIPromptDraft(event) {
         elements.aiPromptDialog.close();
         return;
     }
+    if (state.activeOperations?.aiPrompt) return;
     const userInput = elements.aiPromptInput.value.trim();
     if (!userInput || !elements.aiPromptProfile.value || !elements.aiPromptScenario.value) return;
-    elements.aiPromptSubmit.disabled = true;
-    elements.aiPromptSubmit.textContent = 'Creating…';
+    state.activeOperations.aiPrompt = true;
+    renderAIScenarios();
     try {
         const generated = await requestJson('/api/ai/generate', {
             method: 'POST',
@@ -1906,7 +1962,7 @@ async function createAIPromptDraft(event) {
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
-        elements.aiPromptSubmit.textContent = 'Create draft';
+        state.activeOperations.aiPrompt = false;
         renderAIScenarios();
     }
 }
@@ -1916,7 +1972,12 @@ async function openTranslatePromptDialog() {
     try {
         await loadPromptAssistantData();
         populatePromptFamilies(elements.translatePromptFamily);
-        populatePromptProfiles(elements.translatePromptProfile, elements.translateProfileNote);
+        populatePromptProfiles(
+            elements.translatePromptProfile,
+            elements.translateProfileNote,
+            state.aiDefaultTranslatorProfileId,
+            'translator',
+        );
         elements.translatePromptPositive.value = String(state.values.positive_prompt || '');
         elements.translatePromptNegative.value = String(
             state.values.negative_prompt || state.advancedFieldMemory.negative_prompt || '',
@@ -1937,14 +1998,15 @@ async function createTranslatedPromptDraft(event) {
         elements.translatePromptDialog.close();
         return;
     }
+    if (state.activeOperations?.translate) return;
     const positivePrompt = elements.translatePromptPositive.value.trim();
     const targetLanguage = elements.translateTargetLanguage.value.trim();
     if (
         !positivePrompt || !targetLanguage || !elements.translatePromptProfile.value
         || !elements.translatePromptScenario.value
     ) return;
-    elements.translatePromptSubmit.disabled = true;
-    elements.translatePromptSubmit.textContent = 'Translating…';
+    state.activeOperations.translate = true;
+    renderTranslationScenarios();
     try {
         const translated = await requestJson('/api/ai/translate', {
             method: 'POST',
@@ -1982,7 +2044,7 @@ async function createTranslatedPromptDraft(event) {
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
-        elements.translatePromptSubmit.textContent = 'Translate to draft';
+        state.activeOperations.translate = false;
         renderTranslationScenarios();
     }
 }
@@ -2044,13 +2106,14 @@ async function createAdaptedPromptDraft(event) {
         elements.adaptPromptDialog.close();
         return;
     }
+    if (state.activeOperations?.adapt) return;
     const positivePrompt = elements.adaptPromptPositive.value.trim();
     if (
         !positivePrompt || !elements.adaptPromptProfile.value
         || !elements.adaptPromptScenario.value || !elements.adaptPromptFamily.value
     ) return;
-    elements.adaptPromptSubmit.disabled = true;
-    elements.adaptPromptSubmit.textContent = 'Adapting…';
+    state.activeOperations.adapt = true;
+    renderAdaptationScenarios();
     try {
         const checkpointResource = selectedAdaptCheckpointResource();
         const adapted = await requestJson('/api/ai/adapt', {
@@ -2090,7 +2153,7 @@ async function createAdaptedPromptDraft(event) {
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
-        elements.adaptPromptSubmit.textContent = 'Adapt to draft';
+        state.activeOperations.adapt = false;
         renderAdaptationScenarios();
     }
 }
@@ -2123,7 +2186,12 @@ function openEnhancePopover() {
         try {
             if (!state.aiCapabilities?.length) await loadPromptAssistantData();
             populatePromptFamilies(elements.enhanceFamily);
-            populatePromptProfiles(elements.enhanceProfile, elements.enhanceProfileNote);
+            populatePromptProfiles(
+                elements.enhanceProfile,
+                elements.enhanceProfileNote,
+                state.aiDefaultProfileId || state.aiDefaultTranslatorProfileId,
+                ['text', 'translator'],
+            );
             const suggested = suggestedPromptFamily();
             if (state.aiCapabilities.some((family) => family.id === suggested)) {
                 elements.enhanceFamily.value = suggested;
@@ -2157,9 +2225,15 @@ function renderEnhanceScenarios() {
         elements.enhanceScenario,
         elements.enhanceFamily.value,
     );
-    elements.enhanceSubmit.disabled = (
-        !available.length || !elements.enhanceProfile.value
-    );
+    if (state.activeOperations?.enhance) {
+        elements.enhanceSubmit.disabled = true;
+        elements.enhanceSubmit.textContent = 'Enhancing…';
+    } else {
+        elements.enhanceSubmit.disabled = (
+            !available.length || !elements.enhanceProfile.value
+        );
+        elements.enhanceSubmit.textContent = 'Enhance prompt';
+    }
 }
 
 function renderEnhanceCheckpointNote() {
@@ -2179,13 +2253,14 @@ function renderEnhanceCheckpointNote() {
 }
 
 async function createEnhancedPromptDraft() {
+    if (state.activeOperations?.enhance) return;
     const positivePrompt = String(state.values.positive_prompt || '').trim();
     if (
         !positivePrompt || !elements.enhanceProfile.value
         || !elements.enhanceScenario.value || !elements.enhanceFamily.value
     ) return;
-    elements.enhanceSubmit.disabled = true;
-    elements.enhanceSubmit.textContent = 'Enhancing…';
+    state.activeOperations.enhance = true;
+    renderEnhanceScenarios();
     try {
         const checkpointResource = selectedAdaptCheckpointResource();
         const enhanced = await requestJson('/api/ai/enhance', {
@@ -2221,13 +2296,13 @@ async function createEnhancedPromptDraft() {
         activateAIPromptDraft(
             created,
             'Enhanced draft',
-            'Prompt enhanced and applied as a new draft. Review it before generation.',
+            'Prompt enhancement saved as a new draft. Review it before generation.',
         );
         closeEnhancePopover();
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
-        elements.enhanceSubmit.textContent = 'Enhance to draft';
+        state.activeOperations.enhance = false;
         renderEnhanceScenarios();
     }
 }
@@ -2728,6 +2803,7 @@ function resultLightboxAssets() {
         id: Number(assetId),
         media_type: runOutputIsVideo(run) ? 'video' : 'image',
         file_name: `Generation #${run.id}`,
+        has_local_file: true,
     })));
 }
 
@@ -2743,7 +2819,7 @@ function resultCard(run, assetId) {
     const media = isVideo
         ? `<video src="/api/original/${assetId}" preload="metadata" controls></video>`
         : `<img src="/api/preview/${assetId}" alt="Generated result ${assetId}" loading="lazy" data-open-result="${assetId}">`;
-    return `<article class="result-card" data-result-search="generation ${run.id}"><div class="result-media">${media}<div class="result-card-actions"><button type="button" data-open-result="${assetId}" title="View result" aria-label="View generation ${run.id}">${iconSvg('view')}</button><a href="/api/original/${assetId}" download title="Download">${iconSvg('download')}</a><a href="/library" title="Open in library">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Generation #${run.id}</strong><span>In library</span></div></article>`;
+    return `<article class="result-card" data-result-search="generation ${run.id}" data-asset-id="${assetId}"><div class="result-media">${media}<div class="result-card-actions"><button type="button" data-open-result="${assetId}" title="View result" aria-label="View generation ${run.id}">${iconSvg('view')}</button><a href="/api/original/${assetId}" download title="Download">${iconSvg('download')}</a><a href="/library" title="Open in library">${iconSvg('open')}</a></div></div><div class="result-card-meta"><strong>Generation #${run.id}</strong><span>In library</span></div></article>`;
 }
 
 function runHistoryCard(run) {
@@ -3485,9 +3561,26 @@ function bindEvents() {
         const template = state.templates.find((item) => item.manifest.category === button.dataset.category);
         if (template) selectTemplate(template);
     });
-    elements.templateSelect.addEventListener('change', () => {
-        const template = state.templates.find((item) => item.manifest.id === elements.templateSelect.value);
-        if (template) selectTemplate(template);
+     elements.modelFormatFilter?.addEventListener('change', (event) => {
+         state.modelFilter = event.target.value;
+         renderResources();
+     });
+     elements.templateSelect?.addEventListener('change', (event) => {
+         const template = state.templates.find((item) => item.manifest.id === event.target.value);
+         if (template) selectTemplate(template);
+     });
+    elements.btnRescanModels?.addEventListener('click', async () => {
+        if (elements.btnRescanModels) elements.btnRescanModels.disabled = true;
+        showToast('Rescanning local models & Civitai metadata in background…', 'info');
+        const progressBanner = document.getElementById('model-scan-progress');
+        if (progressBanner) progressBanner.classList.remove('hidden');
+        try {
+            await requestJson('/api/editor/models/rescan', { method: 'POST' });
+        } catch (error) {
+            showToast(`Rescan failed: ${error.message || String(error)}`, 'error');
+        } finally {
+            if (elements.btnRescanModels) elements.btnRescanModels.disabled = false;
+        }
     });
     elements.previewButton.addEventListener('click', () => previewWorkflow());
     elements.generateButton.addEventListener('click', generateWorkflow);
@@ -3500,6 +3593,89 @@ function bindEvents() {
         openResultLightbox(trigger.dataset.openResult).catch((error) => {
             showToast(error.message || String(error), 'error');
         });
+    });
+function openResultContextMenu(event, assetId, anchor) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const run = state.runs.find((r) => (r.output_asset_ids || []).map(Number).includes(assetId));
+    const isVideo = run ? runOutputIsVideo(run) : false;
+    const fileName = `Generation #${run?.id || assetId}`;
+
+    showImageContextMenu(event, {
+        imageId: assetId,
+        fileName,
+        sourceUrl: `/api/original/${assetId}`,
+        mediaType: isVideo ? 'video' : 'image',
+        canAccessOriginal: true,
+        hasLocalFile: true,
+        onOpenInViewer: () => openResultLightbox(assetId),
+        onDeleteFile: async () => {
+            const api = await import('../api.js');
+            const deleted = await api.deleteAssetFileById(assetId);
+            if (deleted) await loadRuns();
+        },
+        onRemoveFromIndex: async () => {
+            const api = await import('../api.js');
+            const removed = await api.removeAssetFromIndexById(assetId);
+            if (removed) await loadRuns();
+        },
+        onRenamed: async () => {
+            await loadRuns();
+        },
+        onRatingChanged: async () => {
+            await loadRuns();
+        },
+        extraSections: [
+            [
+                {
+                    label: 'Add to favorites',
+                    icon: 'favorite',
+                    run: async () => {
+                        await requestJson(`/api/images/${assetId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ favorite: true }),
+                        });
+                        showToast('Added to favorites', 'success');
+                        await loadRuns();
+                    },
+                },
+            ],
+            isVideo ? [] : [
+                {
+                    label: 'Create transparent PNG',
+                    icon: 'cutout',
+                    run: async () => {
+                        await openResultLightbox(assetId);
+                        const cutout = await import('./cutout.js');
+                        cutout.openCutoutPanel();
+                    },
+                },
+            ],
+        ],
+        anchor,
+        notify: showToast,
+    });
+}
+
+    elements.resultGrid.addEventListener('contextmenu', (event) => {
+        const card = event.target.closest('[data-asset-id]') || event.target.closest('[data-open-result]');
+        if (!card) return;
+        event.preventDefault();
+        const assetIdStr = card.dataset.assetId || card.dataset.openResult || card.querySelector('[data-open-result]')?.dataset.openResult;
+        const assetId = Number(assetIdStr);
+        if (!assetId) return;
+
+        openResultContextMenu(event, assetId, card);
+    });
+
+    elements.reconstructSourcePreview?.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        const assetId = state.draft?.source_asset_id;
+        if (!assetId) return;
+
+        openResultContextMenu(event, Number(assetId), elements.reconstructSourcePreview);
     });
     elements.runtimeOpen.addEventListener('click', openRuntimeDrawer);
     elements.runtimeConnect.addEventListener('click', openRuntimeDrawer);
@@ -3697,6 +3873,17 @@ function bindEvents() {
     window.addEventListener('civitai:models-updated', () => {
         refreshTemplates();
     });
+    document.addEventListener('lightbox:asset-deleted', (event) => {
+        const assetId = Number(event.detail?.assetId);
+        if (!assetId) return;
+        for (const run of state.runs) {
+            if (run.output_asset_ids) {
+                run.output_asset_ids = run.output_asset_ids.filter((id) => Number(id) !== assetId);
+            }
+        }
+        renderResults();
+        loadRuns();
+    });
     window.addEventListener('beforeunload', () => {
         persistCreateWorkspace();
         window.clearTimeout(state.pollTimer);
@@ -3707,11 +3894,65 @@ function bindEvents() {
     });
 }
 
+function initModelScanSSE() {
+    if (!window.EventSource) return;
+    const progressBanner = document.getElementById('model-scan-progress');
+    const detailsEl = document.getElementById('scan-progress-details');
+    const progressBar = document.getElementById('scan-progress-bar');
+    if (!progressBanner) return;
+
+    let wasScanning = false;
+    let eventSource = null;
+
+    function connect() {
+        if (eventSource) eventSource.close();
+        eventSource = new EventSource('/api/editor/models/scan_stream');
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.scanning) {
+                    wasScanning = true;
+                    progressBanner.classList.remove('hidden');
+                    const total = data.total_count || 0;
+                    const count = data.scanned_count || 0;
+                    const pct = total > 0 ? Math.min(100, Math.round((count / total) * 100)) : 0;
+                    if (progressBar) progressBar.style.width = `${pct}%`;
+                    if (detailsEl) {
+                        const fileLabel = data.current_file ? ` — ${data.current_file}` : '';
+                        detailsEl.textContent = `Scanned ${count} of ${total} models (${pct}%)${fileLabel}`;
+                    }
+                } else {
+                    if (wasScanning) {
+                        wasScanning = false;
+                        progressBanner.classList.add('hidden');
+                        showToast(`Model scanning complete (${data.scanned_count || 0} models indexed)`, 'success');
+                        bootstrap().catch(() => {});
+                    } else {
+                        progressBanner.classList.add('hidden');
+                    }
+                }
+            } catch (err) {
+                console.error('Model scan SSE error:', err);
+            }
+        };
+
+        eventSource.onerror = () => {
+            eventSource?.close();
+            setTimeout(connect, 6000);
+        };
+    }
+
+    connect();
+}
+
 async function initialize() {
     bindEvents();
-    initLightboxEvents({ enableContextMenu: false });
+    initLightboxEvents({ enableContextMenu: true });
+    initKeyboardShortcuts();
     observeDecorativeBackdropWindows();
     await loadDecorativeBackdrops();
+    initModelScanSSE();
     try {
         const cached = localStorage.getItem('cmv_cached_runs');
         if (cached) {

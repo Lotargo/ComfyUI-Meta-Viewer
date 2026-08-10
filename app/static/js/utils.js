@@ -134,12 +134,15 @@ export function customAlert(title, message) {
 }
 
 export function customConfirm(title, message) {
+    if (document.querySelector('.modal-overlay')) {
+        return Promise.resolve(false);
+    }
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay';
         overlay.innerHTML = `
             <div class="modal-content">
-                <div class="modal-title">❓ ${escapeHtml(title)}</div>
+                <div class="modal-title">${escapeHtml(title)}</div>
                 <div class="modal-message">${escapeHtml(message)}</div>
                 <div class="modal-actions">
                     <button class="btn btn-secondary modal-cancel-btn">Cancel</button>

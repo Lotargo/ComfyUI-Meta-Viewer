@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/static/css/components/inputs.css">
     <link rel="stylesheet" href="/static/css/components/badges.css">
     <link rel="stylesheet" href="/static/css/components/toast.css">
+    <link rel="stylesheet" href="/static/css/components/image-context-menu.css?v={{ static_version('css/components/image-context-menu.css') }}">
     <link rel="stylesheet" href="/static/css/features/lightbox.css">
     <link rel="stylesheet" href="/static/css/features/workflow-editor.css?v={{ static_version('css/features/workflow-editor.css') }}">
     <link rel="stylesheet" href="/static/css/features/civitai-downloader.css?v={{ static_version('css/features/civitai-downloader.css') }}">
@@ -29,7 +30,7 @@
                 <a class="app-switcher-link" href="/">Viewer</a>
                 <a class="app-switcher-link" href="/library">Library</a>
                 <a class="app-switcher-link active" href="/editor" aria-current="page">Create</a>
-                <a class="app-switcher-link" href="/settings/ai">AI</a>
+                <a class="app-switcher-link" href="/settings/ai">Integrations</a>
             </nav>
         </div>
         <div class="global-header-actions">
@@ -78,11 +79,35 @@
                     <section id="resource-section" class="resource-section model-hero" aria-labelledby="resource-heading">
                         <img id="workflow-backdrop" class="mosaic-backdrop model-hero-backdrop" alt="" aria-hidden="true" decoding="async">
                         <div class="model-hero-copy"><span>Current workflow</span><h2 id="template-name">Preparing editor</h2><p id="template-description">Loading local models…</p></div>
-                        <div class="model-hero-switch"><label id="template-heading" for="template-select">Switch workflow</label><select id="template-select" aria-describedby="template-description"><option value="">Loading…</option></select></div>
+                         <div class="model-hero-switch">
+                             <label id="template-switch-label" for="template-select">Switch workflow</label>
+                             <select id="template-select" aria-label="Select workflow template"></select>
+                         </div>
                         <span id="template-meta" class="model-hero-meta">Manifest v1</span>
                         <span id="resource-count" class="control-section-note">Required</span>
                         <h3 id="resource-heading" class="sr-only">Model selection</h3>
-                        <div id="resource-slots" class="resource-slots"></div>
+                         <div id="resource-slots" class="resource-slots"></div>
+                         <div class="model-format-filter-row">
+                             <label id="model-filter-label" for="model-format-filter">Filter models</label>
+                             <select id="model-format-filter" aria-label="Filter models by format or type">
+                                 <option value="all" selected>All models & formats</option>
+                                 <option value="safetensors">Safetensors (.safetensors)</option>
+                                 <option value="gguf">GGUF (.gguf)</option>
+                                 <option value="other">Other formats</option>
+                                 <option value="image">Image models</option>
+                                 <option value="video">Video models</option>
+                             </select>
+                         </div>
+                         <div id="model-scan-progress" class="model-scan-progress-banner hidden">
+                            <div class="scan-spinner-ring"></div>
+                            <div class="scan-progress-info">
+                                <span class="scan-title">Scanning local models & Civitai metadata…</span>
+                                <small id="scan-progress-details" class="scan-details">Preparing scanner…</small>
+                            </div>
+                            <div class="scan-progress-bar-wrap">
+                                <div id="scan-progress-bar" class="scan-progress-bar" style="width: 0%;"></div>
+                            </div>
+                        </div>
                     </section>
 
                     <details id="additional-settings" class="sidebar-accordion additional-settings">
@@ -341,7 +366,10 @@
                 <section class="runtime-section" aria-labelledby="runtime-connection-title">
                     <div class="runtime-section-heading">
                         <div><span>Connection</span><h3 id="runtime-connection-title">Local installation</h3></div>
-                        <button id="btn-save-config" class="btn btn-primary btn-sm" type="button">Save</button>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button id="btn-rescan-models" class="btn btn-secondary btn-sm" type="button" title="Rescan local models & Civitai metadata">Rescan models</button>
+                            <button id="btn-save-config" class="btn btn-primary btn-sm" type="button">Save</button>
+                        </div>
                     </div>
                     <form id="comfyui-config-form" class="runtime-config-form" onsubmit="return false;">
                         <label class="runtime-field runtime-field-wide" for="install-path">
@@ -642,6 +670,7 @@
             <button class="lb-btn" id="lb-toggle-meta" type="button" title="Toggle metadata panel (M)"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/></svg></button>
             <button class="lb-btn" id="lb-view-original" type="button" title="View original in a new tab"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M14 3h7v7M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg></button>
             <button class="lb-btn" id="lb-download" type="button" title="Download media"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M12 3v12m-5-5 5 5 5-5M5 21h14"/></svg></button>
+            <button class="lb-btn lb-delete" id="lb-delete" type="button" title="Delete current asset (Delete)"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></button>
             <button class="lb-btn" id="lb-close" type="button" title="Close (Esc)"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
         </div>
         <div class="lightbox-body">

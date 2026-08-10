@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import time
@@ -34,6 +35,7 @@ from .extractor import (
     make_thumbnail_b64,
     scan_paths,
 )
+from .integrations.social import social_blueprint
 from .folder_picker import FolderPickerUnavailable, choose_folder
 from .indexing import index_source_directory
 from .media import (
@@ -81,7 +83,14 @@ app.config["CONFIG_STORE"] = ConfigStore(Path(app.config["CONFIG_FILE"]))
 app.register_blueprint(ai_blueprint)
 app.register_blueprint(comfyui_blueprint)
 app.register_blueprint(editor_blueprint)
+app.register_blueprint(social_blueprint)
 app.jinja_env.auto_reload = True
+
+try:
+    from app.comfyui.model_scanner import get_model_scanner
+    get_model_scanner(app.config["CONFIG_STORE"]).trigger_rescan()
+except Exception as exc:
+    logging.getLogger(__name__).debug(f"Failed to start initial model scan: {exc}")
 
 
 def static_version(filename: str) -> str:
@@ -265,6 +274,8 @@ def api_trash_library_assets():
     for image_id in dict.fromkeys(payload.asset_ids):
         try:
             file_actions.move_image_file_to_trash(image_id)
+        except file_actions.ImageHasNoLocalFileError:
+            pass
         except file_actions.ImageFileActionError as exc:
             failures.append({
                 "id": image_id,
@@ -833,24 +844,16 @@ def api_preview(image_id: int):
             image_id,
             storage_path("PREVIEW_FOLDER"),
         )
-    except PreviewBusyError:
-        response = jsonify({"status": "busy"})
-        response.status_code = 202
-        response.headers["Retry-After"] = "1"
+        response = send_file(
+            preview_path,
+            mimetype=preview_mimetype(preview_path),
+            conditional=True,
+            max_age=31536000,
+        )
+        response.headers["Cache-Control"] = _IMMUTABLE_IMAGE_CACHE
         return response
-    except FileNotFoundError:
-        return jsonify({"error": "not found"}), 404
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
-
-    response = send_file(
-        preview_path,
-        mimetype=preview_mimetype(preview_path),
-        conditional=True,
-        max_age=31536000,
-    )
-    response.headers["Cache-Control"] = _IMMUTABLE_IMAGE_CACHE
-    return response
+    except Exception:
+        return api_original(image_id)
 
 
 MIME_MAP = {

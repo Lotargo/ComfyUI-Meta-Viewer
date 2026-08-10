@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI providers — ComfyUI Meta Viewer</title>
+    <title>Integrations — ComfyUI Meta Viewer</title>
     <link rel="preload" href="/static/fonts/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/static/fonts/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yw.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/static/css/fonts.css">
@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/static/css/components/buttons.css">
     <link rel="stylesheet" href="/static/css/components/header.css">
     <link rel="stylesheet" href="/static/css/components/toast.css">
+    <link rel="stylesheet" href="/static/css/components/modal.css?v={{ static_version('css/components/modal.css') }}">
     <link rel="stylesheet" href="/static/css/features/ai-settings.css?v={{ static_version('css/features/ai-settings.css') }}">
     <link rel="stylesheet" href="/static/css/base/studio-theme.css?v={{ static_version('css/base/studio-theme.css') }}">
     <link rel="stylesheet" href="/static/css/features/ai-settings-boot.css?v={{ static_version('css/features/ai-settings-boot.css') }}">
@@ -27,20 +28,24 @@
                 <a class="app-switcher-link" href="/">Viewer</a>
                 <a class="app-switcher-link" href="/library">Library</a>
                 <a class="app-switcher-link" href="/editor">Create</a>
-                <a class="app-switcher-link active" href="/settings/ai" aria-current="page">AI</a>
+                <a class="app-switcher-link active" href="/settings/ai" aria-current="page">Integrations</a>
             </nav>
         </div>
         <div class="global-header-actions">
-            <button id="refresh-all" class="header-primary-action" type="button">Refresh</button>
+            <button id="add-provider" class="header-primary-action header-primary-action-wide" type="button">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+                <span>Add provider</span>
+            </button>
+            <button id="refresh-all" class="header-primary-action" type="button"><span>Refresh</span></button>
         </div>
     </header>
 
     <main class="ai-settings-main">
         <div class="page-head">
             <div class="page-head-copy">
-                <p class="ai-eyebrow">Bring your own provider</p>
-                <h1>AI providers</h1>
-                <p class="page-sub">Connect an OpenAI-compatible endpoint or reuse an authenticated local CLI. API keys never enter the media index.</p>
+                <p class="ai-eyebrow">Everything connects locally</p>
+                <h1>Integrations</h1>
+                <p class="page-sub">Connect an OpenAI-compatible endpoint, reuse an authenticated local CLI, and link the accounts used to publish generated content. Credentials never leave this machine.</p>
             </div>
             <div id="secret-store-status" class="status-pill" role="status">
                 <span class="status-dot"></span>
@@ -49,20 +54,45 @@
             </div>
         </div>
 
-        <section class="settings-section" aria-labelledby="profiles-heading">
+        <div class="integrations-shell">
+            <aside class="integrations-rail" aria-label="Integration categories">
+                <nav class="integrations-rail-nav">
+                    <p class="rail-group-label">Intelligence</p>
+                    <a class="rail-link active" href="#providers" data-pane="providers" aria-current="page">
+                        <span>Provider profiles</span>
+                        <span id="rail-count-providers" class="rail-count" hidden></span>
+                    </a>
+                    <a class="rail-link" href="#cli" data-pane="cli">
+                        <span>Local AI tools</span>
+                        <span id="rail-count-cli" class="rail-count" hidden></span>
+                    </a>
+                    <p class="rail-group-label">Publishing</p>
+                    <a class="rail-link" href="#social" data-pane="social">
+                        <span>Social accounts</span>
+                        <span id="rail-count-social" class="rail-count" hidden></span>
+                    </a>
+                </nav>
+            </aside>
+
+            <div class="integrations-content">
+
+        <section class="settings-section integrations-pane" data-pane="providers" aria-labelledby="profiles-heading">
             <div class="section-heading">
                 <div>
                     <p class="section-kicker">Configured</p>
                     <h2 id="profiles-heading">Provider profiles</h2>
                     <p>Each operation uses the exact model ID and timeout saved in its profile.</p>
                 </div>
-                <button id="add-provider" class="btn btn-primary" type="button">Add provider</button>
             </div>
 
             <div id="default-profile-panel" class="default-profile-panel" hidden>
                 <label>
                     <span>Default text profile</span>
                     <select id="default-text-profile"><option value="">Not selected</option></select>
+                </label>
+                <label>
+                    <span>Default translator profile</span>
+                    <select id="default-translator-profile"><option value="">Not selected</option></select>
                 </label>
                 <label>
                     <span>Default multimodal profile</span>
@@ -82,7 +112,7 @@
             </div>
         </section>
 
-        <section class="settings-section" id="cli-section" aria-labelledby="cli-heading">
+        <section class="settings-section integrations-pane" id="cli-section" data-pane="cli" aria-labelledby="cli-heading" hidden>
             <div class="section-heading">
                 <div>
                     <p class="section-kicker">Existing authorization</p>
@@ -93,13 +123,23 @@
             <div id="cli-grid" class="cli-grid" aria-live="polite"></div>
         </section>
 
-        <section class="security-note">
-            <div class="security-note-icon" aria-hidden="true">✓</div>
-            <div>
-                <h2>Credential boundary</h2>
-                <p>System-stored API keys are addressed by profile UUID and are never returned by the API. CLI profiles delegate authentication to OpenCode, Claude Code, or Antigravity. Environment-variable profiles store only the variable name.</p>
+        <section class="settings-section integrations-pane" id="social-section" data-pane="social" aria-labelledby="social-heading" hidden>
+            <div class="section-heading">
+                <div>
+                    <p class="section-kicker">Social publishing</p>
+                    <h2 id="social-heading">Social accounts</h2>
+                    <p>Connect the accounts used to publish generated content. Everything is authorized in your browser; credentials never leave this machine.</p>
+                </div>
             </div>
+            <label class="social-optional-toggle" for="social-show-optional">
+                <input type="checkbox" id="social-show-optional">
+                <span>Show optional adapters <span class="social-optional-note">(Telegram — registration-required)</span></span>
+            </label>
+            <div id="social-grid" class="social-grid" aria-live="polite"></div>
         </section>
+
+            </div>
+        </div>
     </main>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -192,10 +232,24 @@
                     <input id="profile-timeout" type="number" min="5" max="600" value="60" required>
                 </label>
 
-                <label class="check-field">
-                    <input id="profile-multimodal" type="checkbox">
-                    <span><strong>Multimodal profile</strong><small>Allow image and video-frame requests.</small></span>
-                </label>
+                <div id="profile-roles-group" class="profile-roles-group field-wide">
+                    <span class="field-label">Profile roles & intended defaults</span>
+                    <small class="roles-hint">Select which profile sections to create or assign this model for:</small>
+                    <div class="profile-roles-grid">
+                        <label class="check-field">
+                            <input id="profile-role-text" type="checkbox" checked>
+                            <span><strong>Text prompt profile</strong><small>For prompt generation & AI expansion.</small></span>
+                        </label>
+                        <label class="check-field">
+                            <input id="profile-role-translator" type="checkbox">
+                            <span><strong>Translator profile</strong><small>For automatic prompt translation.</small></span>
+                        </label>
+                        <label class="check-field">
+                            <input id="profile-role-vision" type="checkbox">
+                            <span><strong>Vision / Multimodal profile</strong><small>Allow image and video-frame requests.</small></span>
+                        </label>
+                    </div>
+                </div>
 
                 <label id="extra-body-field" class="field field-wide">
                     <span>Additional request parameters <em>optional</em></span>
@@ -223,12 +277,8 @@
             </header>
             <p class="catalog-description">Select the providers shown in the profile form. For each provider, show all its models or keep a smaller allowlist.</p>
             <div class="catalog-discovery">
-                <div class="catalog-add-provider">
-                    <input id="model-catalog-provider-id" maxlength="100" placeholder="Provider ID, e.g. deepseek" spellcheck="false" autocomplete="off">
-                    <button id="add-model-catalog-provider" class="btn btn-secondary" type="button">Add provider</button>
-                </div>
-                <button id="discover-model-catalog" class="btn btn-secondary" type="button">Discover all providers</button>
-                <span id="model-catalog-status">The complete catalog is requested only when you press Discover all providers.</span>
+                <button id="discover-model-catalog" class="btn btn-secondary" type="button">Scan providers</button>
+                <span id="model-catalog-status">The complete catalog is requested only when you press Scan providers.</span>
             </div>
             <div id="model-catalog-providers" class="catalog-provider-list"></div>
             <div id="model-catalog-error" class="form-error" role="alert" hidden></div>
@@ -239,10 +289,65 @@
         </form>
     </dialog>
 
+    <dialog id="social-telegram-dialog" class="profile-dialog social-dialog" aria-labelledby="social-telegram-title">
+        <form id="social-telegram-form" method="dialog">
+            <header class="dialog-header">
+                <div>
+                    <p class="section-kicker">Telegram</p>
+                    <h2 id="social-telegram-title">Sign in to Telegram</h2>
+                </div>
+                <button id="close-social-telegram" class="dialog-close" type="button" aria-label="Close">×</button>
+            </header>
+
+            <div class="social-tg-qr-block">
+                <div class="social-tg-qr-frame">
+                    <img id="social-tg-qr" alt="Telegram QR code" hidden>
+                </div>
+                <p id="social-tg-qr-hint">Scan the QR code with your Telegram app (Settings → Devices → Scan QR code), or enter your phone number to receive a code instead.</p>
+            </div>
+
+            <div id="social-tg-phone-step">
+                <label class="field field-wide">
+                    <span>Phone number</span>
+                    <input id="social-tg-phone" type="tel" placeholder="+79001234567" autocomplete="tel" inputmode="tel">
+                    <small>The code can be delivered as an SMS or inside the Telegram app.</small>
+                </label>
+            </div>
+
+            <div id="social-tg-code-step" hidden>
+                <label class="field field-wide">
+                    <span>Verification code</span>
+                    <input id="social-tg-code" placeholder="12345" autocomplete="one-time-code" inputmode="numeric">
+                </label>
+            </div>
+
+            <div id="social-tg-password-step" hidden>
+                <label class="field field-wide">
+                    <span>Two-factor password</span>
+                    <input id="social-tg-password" type="password" autocomplete="current-password">
+                    <small>Your account has two-step verification enabled.</small>
+                </label>
+            </div>
+
+            <div id="social-tg-error" class="form-error" role="alert" hidden></div>
+            <div id="social-tg-busy" class="social-busy" role="status" hidden>Waiting for you to scan or enter a code…</div>
+
+            <footer class="dialog-actions">
+                <button id="social-tg-cancel" class="btn btn-secondary" type="button">Cancel</button>
+                <button id="social-tg-send-code" class="btn btn-secondary" type="button" hidden>Send code</button>
+                <button id="social-tg-submit" class="btn btn-primary" type="submit" hidden>Confirm</button>
+            </footer>
+        </form>
+    </dialog>
+
     <script
         type="module"
         src="/static/js/ai-settings-bootstrap.js?v={{ static_version('js/ai-settings-bootstrap.js') }}"
         data-ai-settings-main="/static/js/ai-settings.js?v={{ static_version('js/ai-settings.js') }}"
+    ></script>
+    <script
+        type="module"
+        src="/static/js/social-accounts.js?v={{ static_version('js/social-accounts.js') }}"
     ></script>
 </body>
 </html>

@@ -1532,7 +1532,7 @@ def get_asset_source_info(asset_id: int) -> dict[str, Any] | None:
                 i.preview_error, i.original_data IS NOT NULL AS has_original_data,
                 f.path AS folder_path
             FROM images i
-            JOIN folders f ON f.id = i.folder_id
+            LEFT JOIN folders f ON f.id = i.folder_id
             WHERE i.id = ?""",
             (asset_id,),
         ).fetchone()
@@ -1598,7 +1598,7 @@ def get_asset_detail(asset_id: int) -> ImageDetail | None:
                 i.original_data IS NULL AS has_local_file,
                 f.path AS folder_path
             FROM images i
-            JOIN folders f ON f.id = i.folder_id
+            LEFT JOIN folders f ON f.id = i.folder_id
             WHERE i.id = ?""",
             (asset_id,),
         ).fetchone()
@@ -1680,6 +1680,17 @@ def get_asset_detail(asset_id: int) -> ImageDetail | None:
             "tags": [str(row["name"]) for row in tag_rows],
         }
 
+        wf = merged.get("workflow")
+        prompt_api_json = merged.get("prompt_api_json")
+        workflow_ui_json = merged.get("workflow_ui_json")
+
+        if not isinstance(wf, dict) or "workflow_nodes" not in wf:
+            from .extractor import parse_workflow_json
+            target_api_json = prompt_api_json or (wf if isinstance(wf, dict) and not wf.get("workflow_nodes") else None)
+            parsed_wf = parse_workflow_json(target_api_json, workflow_ui_json)
+            if parsed_wf and parsed_wf.get("workflow_nodes"):
+                wf = parsed_wf
+
         w, h = d.get("width"), d.get("height")
         return ImageDetail(
             id=d.get("id"),
@@ -1696,8 +1707,8 @@ def get_asset_detail(asset_id: int) -> ImageDetail | None:
             preview_error=d.get("preview_error"),
             error=d.get("error"),
             prompt_parameters=merged.get("prompt_parameters"),
-            workflow=merged.get("workflow"),
-            workflow_ui_json=merged.get("workflow_ui_json"),
+            workflow=wf,
+            workflow_ui_json=workflow_ui_json,
             exif=merged.get("exif"),
             raw_chunks=merged.get("raw_chunks"),
             raw_parameters=merged.get("raw_parameters"),

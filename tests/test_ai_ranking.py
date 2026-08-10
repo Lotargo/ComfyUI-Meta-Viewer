@@ -110,7 +110,10 @@ class AIRankingTest(unittest.TestCase):
     def tearDown(self) -> None:
         app.config.update(self.old_app_config)
         database.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_save_and_retrieve_ai_rating(self) -> None:
         result = AIRatingResult(

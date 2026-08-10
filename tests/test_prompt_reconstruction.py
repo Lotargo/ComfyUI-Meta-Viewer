@@ -84,7 +84,10 @@ class PromptReconstructionTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         database.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_rerender_reuses_scene_spec_without_an_image_input(self) -> None:
         first = self.service.render_from_scene_spec(

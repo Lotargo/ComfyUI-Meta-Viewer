@@ -55,7 +55,10 @@ class PromptDraftRoutesTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         database.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_get_job_returns_restart_safe_draft_history(self) -> None:
         response = self.client.get(f"/api/ai/jobs/{self.job.id}")

@@ -91,6 +91,7 @@ class ExecutionRouter:
         asset_id: int | None = None,
         scene_spec: SceneSpec | None = None,
         result_transformer: Callable[[PromptResult], PromptResult] | None = None,
+        on_output_chunk: Callable[[str], None] | None = None,
     ) -> PromptExecutionOutcome:
         adapter = self._select_adapter(profile)
         normalized_path = Path(image_path) if image_path is not None else None
@@ -154,6 +155,7 @@ class ExecutionRouter:
             api_key=api_key,
             image_data_url=image_data_url,
             image_path=normalized_path,
+            on_output_chunk=on_output_chunk,
         )
         try:
             executed = adapter.execute(prepared)

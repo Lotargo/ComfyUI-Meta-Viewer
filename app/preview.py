@@ -64,7 +64,7 @@ def get_or_create_preview(
     if cached:
         return cached
 
-    if not _generation_lock.acquire(blocking=False):
+    if not _generation_lock.acquire(timeout=10.0):
         raise PreviewBusyError("Preview generator is busy")
 
     try:

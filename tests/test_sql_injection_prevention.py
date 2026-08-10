@@ -17,7 +17,10 @@ class SQLInjectionPreventionTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         db.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_get_images_page_rejects_sql_injection_in_sort_by(self) -> None:
         # A normal call with a valid sort_by and sort_dir should not raise anything

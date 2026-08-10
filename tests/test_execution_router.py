@@ -100,7 +100,10 @@ class ExecutionRouterTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         database.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_routes_by_adapter_match_and_persists_normalized_result(self) -> None:
         outcome = self.router.execute(

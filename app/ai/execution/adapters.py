@@ -185,6 +185,7 @@ class AntigravityAgentHostAdapter:
                 user_input=prepared.user_input,
                 image_path=prepared.image_path,
                 bundle=prepared.bundle,
+                on_output_chunk=prepared.on_output_chunk,
             )
         except AntigravityPromptExecutionError as exc:
             raise AdapterExecutionError(

@@ -178,6 +178,7 @@ class PromptTranslationService:
         source_language: str | None = None,
         api_key: str | None = None,
         asset_id: int | None = None,
+        on_output_chunk: Any = None,
     ) -> PromptTranslationOutcome:
         if task.operation is not PromptOperation.TRANSLATE:
             raise PromptTranslationError(
@@ -197,6 +198,7 @@ class PromptTranslationService:
             user_input=user_input,
             api_key=api_key,
             asset_id=asset_id,
+            on_output_chunk=on_output_chunk,
         )
         translation = self.store.save(
             job_id=execution.job_id,

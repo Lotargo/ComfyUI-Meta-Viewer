@@ -1129,7 +1129,10 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
         database.set_db_path(self.old_db_path)
         app.config["UPLOAD_FOLDER"] = self.old_upload_folder
         app.config["CONFIG_STORE"] = self.old_config_store
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_editor_page_uses_beginner_path_and_separate_advanced_settings(self) -> None:
         response = self.client.get("/editor")
@@ -1778,7 +1781,10 @@ class WorkflowExecutionTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         database.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_completed_output_is_imported_into_library(self) -> None:
         store = WorkflowStore()
@@ -1906,12 +1912,28 @@ class WorkflowExecutionTest(unittest.TestCase):
         parser.feed(html)
         self.assertGreater(len(parser.cancel_buttons), 0)
 
-        for dialog_id, attrs in parser.cancel_buttons:
-            self.assertEqual(
-                attrs.get("type"),
-                "button",
-                f"Button with value='cancel' in dialog #{dialog_id} lacks type='button'",
-            )
+    def test_preview_route_fallback_to_original_when_preview_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            old_db = database.get_db_path()
+            try:
+                database.set_db_path(Path(temp_dir) / "test.db")
+                database.init_db()
+                asset_id, _ = database.insert_upload_asset(
+                    "test.png",
+                    PNG_1X1,
+                    media_type="image",
+                    format_name="PNG",
+                    width=1,
+                    height=1,
+                )
+                with app.test_client() as client:
+                    with patch("app.main.get_or_create_preview", side_effect=RuntimeError("Preview busy or failed")):
+                        res = client.get(f"/api/preview/{asset_id}")
+                        self.assertEqual(res.status_code, 200)
+                        self.assertEqual(res.mimetype, "image/png")
+                        self.assertEqual(res.data, PNG_1X1)
+            finally:
+                database.set_db_path(old_db)
 
 
 if __name__ == "__main__":

@@ -42,6 +42,7 @@ def _default_config() -> dict[str, Any]:
             "profiles": [],
             "defaults": {
                 "text_profile_id": None,
+                "translator_profile_id": None,
                 "multimodal_profile_id": None,
                 "rating_auto_enabled": False,
             },
@@ -54,6 +55,16 @@ def _default_config() -> dict[str, Any]:
             "extra_args": "",
             "auto_start": False,
             "civitai_api_token": None,
+        },
+        "social": {
+            "telegram": {
+                "api_id": None,
+                "api_hash": None,
+            },
+            "vk": {
+                "client_id": None,
+                "client_secret": None,
+            },
         },
     }
 
@@ -126,6 +137,15 @@ class ConfigStore:
             raw_comfyui = raw.get("comfyui")
             comfyui = raw_comfyui if isinstance(raw_comfyui, dict) else {}
 
+            raw_social = raw.get("social")
+            social = raw_social if isinstance(raw_social, dict) else {}
+            social_telegram = social.get("telegram")
+            social_telegram = (
+                social_telegram if isinstance(social_telegram, dict) else {}
+            )
+            social_vk = social.get("vk")
+            social_vk = social_vk if isinstance(social_vk, dict) else {}
+
             return {
                 "version": CONFIG_VERSION,
                 "sources": sources,
@@ -133,9 +153,11 @@ class ConfigStore:
                     "profiles": profiles,
                     "defaults": {
                         "text_profile_id": defaults.get("text_profile_id"),
+                        "translator_profile_id": defaults.get("translator_profile_id"),
                         "multimodal_profile_id": defaults.get(
                             "multimodal_profile_id"
                         ),
+                        "rating_auto_enabled": bool(defaults.get("rating_auto_enabled", False)),
                     },
                 },
                 "comfyui": {
@@ -146,6 +168,16 @@ class ConfigStore:
                     "extra_args": comfyui.get("extra_args") or "",
                     "auto_start": comfyui.get("auto_start") is True,
                     "civitai_api_token": comfyui.get("civitai_api_token"),
+                },
+                "social": {
+                    "telegram": {
+                        "api_id": social_telegram.get("api_id"),
+                        "api_hash": social_telegram.get("api_hash"),
+                    },
+                    "vk": {
+                        "client_id": social_vk.get("client_id"),
+                        "client_secret": social_vk.get("client_secret"),
+                    },
                 },
             }
 
@@ -365,3 +397,36 @@ class ConfigStore:
 
             self.save(config)
             return comfyui
+
+    def social_settings(self) -> dict[str, Any]:
+        settings = self.load().get("social", {
+            "telegram": {"api_id": None, "api_hash": None},
+            "vk": {"client_id": None, "client_secret": None},
+        })
+        settings.setdefault("telegram", {"api_id": None, "api_hash": None})
+        settings.setdefault("vk", {"client_id": None, "client_secret": None})
+        return settings
+
+    def update_social_settings(
+        self,
+        *,
+        telegram_api_id: str | int | None = None,
+        telegram_api_hash: str | None = None,
+        vk_client_id: str | None = None,
+        vk_client_secret: str | None = None,
+    ) -> dict[str, Any]:
+        with _config_lock:
+            config = self.load()
+            social = config.setdefault("social", {})
+            telegram = social.setdefault("telegram", {})
+            if telegram_api_id is not None:
+                telegram["api_id"] = str(telegram_api_id).strip() or None
+            if telegram_api_hash is not None:
+                telegram["api_hash"] = telegram_api_hash.strip() or None
+            vk = social.setdefault("vk", {})
+            if vk_client_id is not None:
+                vk["client_id"] = vk_client_id.strip() or None
+            if vk_client_secret is not None:
+                vk["client_secret"] = vk_client_secret.strip() or None
+            self.save(config)
+            return social

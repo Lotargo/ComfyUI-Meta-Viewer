@@ -7,6 +7,7 @@ import signal
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -190,12 +191,16 @@ def _terminate_process_tree(process: subprocess.Popen) -> None:
 def run_command(
     args: list[str],
     *,
-    timeout: int,
+    timeout: int = 60,
+    max_timeout: int = 600,
     cwd: str | Path | None = None,
+    on_output_chunk: Any = None,
 ) -> CommandResult:
     env = os.environ.copy()
     env.setdefault("NO_COLOR", "1")
     started = time.monotonic()
+    last_activity = time.monotonic()
+
     try:
         process = subprocess.Popen(
             args,
@@ -209,24 +214,73 @@ def run_command(
             errors="replace",
             **_subprocess_options(),
         )
-        stdout, stderr = process.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired as exc:
-        _terminate_process_tree(process)
-        try:
-            process.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
-            _terminate_process_tree(process)
-        raise CLIIntegrationError(
-            f"The CLI did not respond within {timeout} seconds.", code="timeout"
-        ) from exc
     except OSError as exc:
         raise CLIIntegrationError(
             f"Cannot start the CLI executable: {exc}", code="cli_unavailable"
         ) from exc
+
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+
+    def read_stdout():
+        nonlocal last_activity
+        if process.stdout is None:
+            return
+        for line in iter(process.stdout.readline, ""):
+            stdout_chunks.append(line)
+            last_activity = time.monotonic()
+            if on_output_chunk is not None:
+                try:
+                    on_output_chunk(line)
+                except Exception:
+                    pass
+        process.stdout.close()
+
+    def read_stderr():
+        nonlocal last_activity
+        if process.stderr is None:
+            return
+        for line in iter(process.stderr.readline, ""):
+            stderr_chunks.append(line)
+            last_activity = time.monotonic()
+        process.stderr.close()
+
+    t_out = threading.Thread(target=read_stdout, daemon=True)
+    t_err = threading.Thread(target=read_stderr, daemon=True)
+    t_out.start()
+    t_err.start()
+
+    while True:
+        retcode = process.poll()
+        if retcode is not None:
+            break
+        now = time.monotonic()
+        if (now - last_activity) > timeout:
+            _terminate_process_tree(process)
+            t_out.join(timeout=1.0)
+            t_err.join(timeout=1.0)
+            raise CLIIntegrationError(
+                f"The CLI did not respond within {timeout} seconds of inactivity.", code="timeout"
+            )
+        if (now - started) > max_timeout:
+            _terminate_process_tree(process)
+            t_out.join(timeout=1.0)
+            t_err.join(timeout=1.0)
+            raise CLIIntegrationError(
+                f"The CLI process exceeded the maximum execution limit of {max_timeout} seconds.", code="timeout"
+            )
+        time.sleep(0.05)
+
+    t_out.join(timeout=2.0)
+    t_err.join(timeout=2.0)
+
+    raw_stdout = "".join(stdout_chunks)
+    raw_stderr = "".join(stderr_chunks)
+
     return CommandResult(
         returncode=process.returncode,
-        stdout=sanitize_output(stdout),
-        stderr=sanitize_output(stderr),
+        stdout=sanitize_output(raw_stdout),
+        stderr=sanitize_output(raw_stderr),
         elapsed_ms=round((time.monotonic() - started) * 1000),
     )
 
@@ -473,9 +527,11 @@ def list_cli_models(
             f"{spec['label']} was not found in PATH.", code="cli_unavailable"
         )
     model_args = spec["models_args"]
+    original_provider: str | None = None
     provider_id: str | None = None
     if provider is not None:
-        provider_id = provider.strip()
+        original_provider = provider.strip()
+        provider_id = original_provider
         if cli_type != "opencode":
             raise CLIIntegrationError(
                 "This CLI does not support provider-filtered model discovery."
@@ -489,7 +545,8 @@ def list_cli_models(
         provider_aliases = {
             "zen": "opencode",
             "opencode-zen": "opencode",
-            "go": "opencode-go",
+            "opencode-go": "opencode",
+            "go": "opencode",
         }
         provider_id = provider_aliases.get(provider_id.lower(), provider_id)
     if model_args is None:
@@ -514,8 +571,13 @@ def list_cli_models(
             continue
         if cli_type == "opencode" and not re.fullmatch(r"[^\s/]+/[^\s]+", value):
             continue
-        if cli_type == "antigravity" and value.lower().startswith(("available", "model")):
-            continue
+        if cli_type == "antigravity":
+            if value.lower().startswith(("available", "model", "fetching")):
+                continue
+            if "\t" in value:
+                value = value.split("\t")[0].strip()
+        if original_provider and original_provider.lower() == "opencode-go" and value.startswith("opencode/"):
+            value = "opencode-go/" + value[len("opencode/"):]
         if value not in models:
             models.append(value)
         if len(models) >= 5_000:
@@ -528,7 +590,7 @@ def list_cli_models(
     return {
         "models": models,
         "providers": providers,
-        "requested_provider": provider_id,
+        "requested_provider": original_provider,
         "source": "cli",
         "message": None,
     }
@@ -629,6 +691,7 @@ def run_cli_test(profile: dict[str, Any], *, multimodal: bool = False) -> dict[s
             "--print-timeout",
             f"{profile['timeout_seconds']}s",
             "--sandbox",
+            "--dangerously-skip-permissions",
         ]
     result = run_command(args, timeout=profile["timeout_seconds"])
     output = "\n".join(part for part in (result.stdout, result.stderr) if part)

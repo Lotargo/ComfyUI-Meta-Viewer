@@ -157,6 +157,16 @@ class AIProfileStoreTest(unittest.TestCase):
         self.store.delete(vision_profile["id"])
         self.assertIsNone(self.store.list()["defaults"]["multimodal_profile_id"])
 
+    def test_translator_profile_defaults(self):
+        translator_profile = self.store.create(direct_payload(name="Translator"))
+        defaults = self.store.set_defaults({
+            "translator_profile_id": translator_profile["id"]
+        })
+        self.assertEqual(defaults["translator_profile_id"], translator_profile["id"])
+        self.assertEqual(self.store.list()["defaults"]["translator_profile_id"], translator_profile["id"])
+        self.store.delete(translator_profile["id"])
+        self.assertIsNone(self.store.list()["defaults"]["translator_profile_id"])
+
 
 class AIRoutesTest(unittest.TestCase):
     def setUp(self):
@@ -179,7 +189,9 @@ class AIRoutesTest(unittest.TestCase):
     def test_profile_api_masks_secrets_and_exposes_settings_page(self):
         page = self.client.get("/settings/ai")
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b"AI providers", page.data)
+        self.assertIn(b">Integrations</h1>", page.data)
+        self.assertIn(b'id="add-provider"', page.data)
+        self.assertIn(b"integrations-rail", page.data)
         self.assertIn(b'id="secret-store-status"', page.data)
         self.assertIn(b'id="profile-model-provider"', page.data)
         self.assertIn(b'id="profile-model-name"', page.data)

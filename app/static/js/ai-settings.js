@@ -1,3 +1,5 @@
+import { customConfirm } from './utils.js';
+
 const elements = {
     secretStatus: document.getElementById('secret-store-status'),
     secretTitle: document.getElementById('secret-store-title'),
@@ -9,6 +11,7 @@ const elements = {
     cliSection: document.getElementById('cli-section'),
     defaultPanel: document.getElementById('default-profile-panel'),
     defaultText: document.getElementById('default-text-profile'),
+    defaultTranslator: document.getElementById('default-translator-profile'),
     defaultMultimodal: document.getElementById('default-multimodal-profile'),
     dialog: document.getElementById('profile-dialog'),
     form: document.getElementById('profile-form'),
@@ -42,10 +45,12 @@ const elements = {
     catalogProviders: document.getElementById('model-catalog-providers'),
     catalogStatus: document.getElementById('model-catalog-status'),
     catalogError: document.getElementById('model-catalog-error'),
-    catalogProviderId: document.getElementById('model-catalog-provider-id'),
     catalogDiscover: document.getElementById('discover-model-catalog'),
     timeout: document.getElementById('profile-timeout'),
-    multimodal: document.getElementById('profile-multimodal'),
+    multimodal: document.getElementById('profile-role-vision'),
+    roleText: document.getElementById('profile-role-text'),
+    roleTranslator: document.getElementById('profile-role-translator'),
+    roleVision: document.getElementById('profile-role-vision'),
     extraBody: document.getElementById('profile-extra-body'),
     openaiFields: document.getElementById('openai-fields'),
     apiKeyField: document.getElementById('api-key-field'),
@@ -58,7 +63,7 @@ const elements = {
 };
 
 let profiles = [];
-let defaults = { text_profile_id: null, multimodal_profile_id: null };
+let defaults = { text_profile_id: null, multimodal_profile_id: null, translator_profile_id: null };
 let secretStore = { available: false };
 let cliCatalog = [];
 const CONNECTED_CLI_STORAGE_KEY = 'cmv_ai_connected_cli_types_v1';
@@ -261,6 +266,62 @@ function profileKindLabel(profile) {
         || 'Local CLI';
 }
 
+/* ------------------------------------------------------------------ */
+/* Integrations pane routing + rail counts                             */
+/* ------------------------------------------------------------------ */
+
+const RAIL_PANES = ['providers', 'cli', 'social'];
+
+function currentPane() {
+    const hash = window.location.hash.replace('#', '');
+    return RAIL_PANES.includes(hash) ? hash : 'providers';
+}
+
+function activatePane(pane) {
+    const target = RAIL_PANES.includes(pane) ? pane : 'providers';
+    document.querySelectorAll('.integrations-pane').forEach(section => {
+        section.hidden = section.dataset.pane !== target;
+    });
+    document.querySelectorAll('.rail-link').forEach(link => {
+        const active = link.dataset.pane === target;
+        link.classList.toggle('active', active);
+        if (active) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+    });
+}
+
+function updateRailCounts() {
+    const setCount = (id, count) => {
+        const badge = document.getElementById(id);
+        if (!badge) return;
+        badge.textContent = String(count);
+        badge.hidden = count <= 0;
+    };
+    setCount('rail-count-providers', profiles.length);
+    setCount('rail-count-cli', connectedCliTypes.size);
+    let socialCount = 0;
+    if (typeof window.cmvSocialStatus === 'function') {
+        const status = window.cmvSocialStatus();
+        const providers = (status && status.providers) ? status.providers : {};
+        socialCount = Object.keys(providers).filter(name => {
+            const data = providers[name];
+            if (!data) return false;
+            if (data.connected) return true;
+            return !!(data.publisher && data.publisher.connected);
+        }).length;
+    }
+    setCount('rail-count-social', socialCount);
+}
+
+function initPaneRouting() {
+    activatePane(currentPane());
+    window.addEventListener('hashchange', () => {
+        activatePane(currentPane());
+        window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+    window.updateRailCounts = updateRailCounts;
+}
+
 function renderProfiles() {
     elements.profilesGrid.replaceChildren();
     elements.profilesEmpty.hidden = profiles.length > 0;
@@ -292,6 +353,7 @@ function renderProfiles() {
         if (profile.multimodal) appendBadge(badges, 'Multimodal', 'vision');
         if (!profile.has_credentials) appendBadge(badges, 'Credentials unavailable', 'missing');
         if (defaults.text_profile_id === profile.id) appendBadge(badges, 'Default text');
+        if (defaults.translator_profile_id === profile.id) appendBadge(badges, 'Default translator');
         if (defaults.multimodal_profile_id === profile.id) appendBadge(badges, 'Default vision');
         card.append(badges);
 
@@ -314,6 +376,7 @@ function renderProfiles() {
         elements.profilesGrid.append(card);
     });
     renderDefaultSelectors();
+    updateRailCounts();
 }
 
 function renderDefaultSelectors() {
@@ -324,8 +387,23 @@ function renderDefaultSelectors() {
         });
         select.value = selected || '';
     };
-    fill(elements.defaultText, () => true, defaults.text_profile_id);
-    fill(elements.defaultMultimodal, profile => profile.multimodal, defaults.multimodal_profile_id);
+    fill(
+        elements.defaultText,
+        profile => !profile.roles || profile.roles.includes('text'),
+        defaults.text_profile_id
+    );
+    if (elements.defaultTranslator) {
+        fill(
+            elements.defaultTranslator,
+            profile => !profile.roles || profile.roles.includes('translator'),
+            defaults.translator_profile_id
+        );
+    }
+    fill(
+        elements.defaultMultimodal,
+        profile => profile.multimodal && (!profile.roles || profile.roles.includes('vision')),
+        defaults.multimodal_profile_id
+    );
 }
 
 async function saveDefaults() {
@@ -335,6 +413,7 @@ async function saveDefaults() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 text_profile_id: elements.defaultText.value || null,
+                translator_profile_id: elements.defaultTranslator?.value || null,
                 multimodal_profile_id: elements.defaultMultimodal.value || null,
             }),
         });
@@ -397,14 +476,23 @@ async function runProfileTest(profile, multimodal, button, result) {
     }
 }
 
+let _deleteInFlight = false;
 async function deleteProfile(profile) {
-    if (!window.confirm(`Delete the profile “${profile.name}” and its stored API key?`)) return;
+    if (_deleteInFlight) return;
+    _deleteInFlight = true;
     try {
+        const confirmed = await customConfirm(
+            'Delete Profile',
+            `Delete the profile “${profile.name}” and its stored API key?`,
+        );
+        if (!confirmed) return;
         await requestJson(`/api/ai/profiles/${profile.id}`, { method: 'DELETE' });
         await loadProfiles();
         showToast(`Deleted “${profile.name}”.`);
     } catch (error) {
         showToast(error.message, true);
+    } finally {
+        _deleteInFlight = false;
     }
 }
 
@@ -568,6 +656,7 @@ function renderCliCard(entry) {
 function renderIntegrations() {
     elements.cliGrid.replaceChildren();
     cliCatalog.forEach(entry => elements.cliGrid.append(renderCliCard(entry)));
+    updateRailCounts();
 }
 
 async function connectCli(cliType) {
@@ -1116,7 +1205,7 @@ function renderCatalogSettings() {
             const load = createElement(
                 'button',
                 'btn btn-secondary catalog-load-provider',
-                knownModels.length ? 'Refresh provider models' : 'Load provider models',
+                'Refresh provider models',
             );
             load.type = 'button';
             load.dataset.action = 'load-provider';
@@ -1132,9 +1221,8 @@ function openCatalogSettings() {
     resetCatalogDraft();
     elements.catalogError.hidden = true;
     elements.catalogError.textContent = '';
-    elements.catalogProviderId.value = '';
     elements.catalogStatus.textContent = (
-        'The complete catalog is requested only when you press Discover all providers.'
+        'The complete catalog is requested only when you press Scan providers.'
     );
     renderCatalogSettings();
     elements.catalogDialog.showModal();
@@ -1146,7 +1234,9 @@ async function loadCatalogProvider(provider) {
         const query = new URLSearchParams({ provider });
         const data = await requestJson(`/api/ai/cli-integrations/opencode/models?${query}`);
         discoveredCatalogModels.set(provider, data.models || []);
-        ensureCatalogDraftProvider(provider, true);
+        const draft = ensureCatalogDraftProvider(provider, true);
+        draft.enabled = true;
+        draft.mode = 'selected';
         elements.catalogStatus.textContent = (
             `${data.models?.length || 0} models loaded for ${provider}; other providers were not requested.`
         );
@@ -1175,19 +1265,6 @@ async function discoverCatalogProviders() {
     } finally {
         elements.catalogDiscover.disabled = false;
     }
-}
-
-function addCatalogProvider() {
-    const provider = elements.catalogProviderId.value.trim();
-    if (!provider || provider.length > 100 || /[\s/]/.test(provider)) {
-        elements.catalogError.textContent = 'Enter a provider ID without spaces or slashes.';
-        elements.catalogError.hidden = false;
-        return;
-    }
-    ensureCatalogDraftProvider(provider, true).enabled = true;
-    elements.catalogProviderId.value = '';
-    elements.catalogError.hidden = true;
-    renderCatalogSettings();
 }
 
 function saveCatalogSettings(event) {
@@ -1262,14 +1339,21 @@ function openProfileDialog(profile = null, integration = null, models = []) {
         : 'OpenAI-compatible';
     elements.dialogTitle.textContent = profile ? 'Edit provider profile' : 'Add provider profile';
     elements.saveProfile.textContent = profile ? 'Save changes' : 'Save profile';
-    elements.multimodal.disabled = false;
+
+    const visionSupported = isCli ? (integration?.multimodal !== false) : true;
+    if (elements.roleVision) {
+        elements.roleVision.disabled = !visionSupported;
+    }
 
     if (profile) {
         elements.id.value = profile.id;
         elements.name.value = profile.name;
         if (!isOpenCode) elements.model.value = profile.model;
         elements.timeout.value = String(profile.timeout_seconds);
-        elements.multimodal.checked = profile.multimodal;
+        const roles = profile.roles || (profile.multimodal ? ['vision'] : ['text', 'translator']);
+        if (elements.roleText) elements.roleText.checked = roles.includes('text');
+        if (elements.roleTranslator) elements.roleTranslator.checked = roles.includes('translator');
+        if (elements.roleVision) elements.roleVision.checked = visionSupported && roles.includes('vision');
         if (!isCli) {
             elements.baseUrl.value = profile.base_url;
             elements.keySource.value = profile.api_key_source;
@@ -1284,9 +1368,14 @@ function openProfileDialog(profile = null, integration = null, models = []) {
         elements.keySource.value = secretStore.available ? 'system' : 'environment';
         elements.apiKey.placeholder = 'Stored securely after save';
         elements.apiKeyHelp.textContent = 'Required for a new system-stored profile.';
+        if (elements.roleText) elements.roleText.checked = true;
+        if (elements.roleTranslator) elements.roleTranslator.checked = false;
+        if (elements.roleVision) elements.roleVision.checked = false;
     } else {
         elements.name.value = integration.label;
-        elements.multimodal.checked = integration.multimodal;
+        if (elements.roleText) elements.roleText.checked = true;
+        if (elements.roleTranslator) elements.roleTranslator.checked = false;
+        if (elements.roleVision) elements.roleVision.checked = visionSupported && Boolean(integration.multimodal);
     }
     if (isOpenCode) {
         configureOpenCodeModelFields(profile?.model || '');
@@ -1307,12 +1396,18 @@ function profilePayload() {
             ? modelName
             : `${provider}/${modelName}`;
     }
+    const roles = [];
+    if (elements.roleText?.checked) roles.push('text');
+    if (elements.roleTranslator?.checked) roles.push('translator');
+    if (elements.roleVision?.checked && !elements.roleVision.disabled) roles.push('vision');
+
     const payload = {
         kind: elements.kind.value,
         name: elements.name.value.trim(),
         model,
         timeout_seconds: Number(elements.timeout.value),
         multimodal: elements.multimodal.checked,
+        roles,
     };
     if (payload.kind === 'cli') {
         payload.cli_type = elements.cliType.value;
@@ -1332,18 +1427,87 @@ async function submitProfile(event) {
     event.preventDefault();
     elements.formError.hidden = true;
     elements.saveProfile.disabled = true;
+
     try {
-        const payload = profilePayload();
+        const selectedRoles = [];
+        if (elements.roleText?.checked) selectedRoles.push('text');
+        if (elements.roleTranslator?.checked) selectedRoles.push('translator');
+        if (elements.roleVision?.checked && !elements.roleVision.disabled) selectedRoles.push('vision');
+
+        if (selectedRoles.length === 0) {
+            elements.formError.textContent = 'Please select at least one profile role (Text, Translator, or Vision).';
+            elements.formError.hidden = false;
+            elements.saveProfile.disabled = false;
+            return;
+        }
+
+        const basePayload = profilePayload();
         const profileId = elements.id.value;
-        const url = profileId ? `/api/ai/profiles/${profileId}` : '/api/ai/profiles';
-        await requestJson(url, {
-            method: profileId ? 'PATCH' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
+
+        if (profileId) {
+            const patchPayload = {
+                ...basePayload,
+                multimodal: selectedRoles.includes('vision'),
+                roles: selectedRoles,
+            };
+            await requestJson(`/api/ai/profiles/${profileId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(patchPayload),
+            });
+            elements.dialog.close();
+            await loadProfiles();
+            showToast('Provider profile updated.');
+            return;
+        }
+
+        const baseName = basePayload.name;
+        const newDefaults = { ...defaults };
+        const roleLabels = { text: 'Text', translator: 'Translator', vision: 'Vision' };
+        let createdCount = 0;
+
+        for (const role of selectedRoles) {
+            const roleName = selectedRoles.length > 1
+                ? `${baseName} (${roleLabels[role]})`
+                : baseName;
+            const rolePayload = {
+                ...basePayload,
+                name: roleName,
+                multimodal: (role === 'vision'),
+                roles: [role],
+            };
+            const created = await requestJson('/api/ai/profiles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(rolePayload),
+            });
+            createdCount += 1;
+            const newProfile = created.profile;
+            if (newProfile?.id) {
+                if (role === 'text') newDefaults.text_profile_id = newProfile.id;
+                if (role === 'translator') newDefaults.translator_profile_id = newProfile.id;
+                if (role === 'vision') newDefaults.multimodal_profile_id = newProfile.id;
+            }
+        }
+
+        try {
+            const defaultRes = await requestJson('/api/ai/defaults', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newDefaults),
+            });
+            defaults = defaultRes.defaults;
+        } catch {
+            // Ignore default assignment failure if any
+        }
+
         elements.dialog.close();
         await loadProfiles();
-        showToast(profileId ? 'Provider profile updated.' : 'Provider profile created.');
+        showToast(
+            createdCount > 1
+                ? `${createdCount} provider profiles created for selected sections.`
+                : 'Provider profile created.'
+        );
     } catch (error) {
         elements.formError.textContent = error instanceof SyntaxError
             ? 'Additional request parameters contain invalid JSON.'
@@ -1432,7 +1596,8 @@ async function refreshProfiles() {
 document.getElementById('add-provider').addEventListener('click', () => openProfileDialog());
 document.getElementById('empty-add-provider').addEventListener('click', () => openProfileDialog());
 document.getElementById('empty-goto-cli').addEventListener('click', () => {
-    elements.cliSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    activatePane('cli');
+    if (window.location.hash !== '#cli') window.location.hash = 'cli';
 });
 document.getElementById('refresh-all').addEventListener('click', refreshProfiles);
 document.getElementById('close-profile-dialog').addEventListener('click', () => elements.dialog.close());
@@ -1491,13 +1656,6 @@ document.getElementById('close-model-catalog').addEventListener('click', () => {
 document.getElementById('cancel-model-catalog').addEventListener('click', () => {
     elements.catalogDialog.close();
 });
-document.getElementById('add-model-catalog-provider').addEventListener('click', addCatalogProvider);
-elements.catalogProviderId.addEventListener('keydown', event => {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        addCatalogProvider();
-    }
-});
 elements.catalogDiscover.addEventListener('click', discoverCatalogProviders);
 elements.catalogProviders.addEventListener('change', event => {
     const target = event.target;
@@ -1540,10 +1698,12 @@ elements.dialog.addEventListener('close', () => {
 });
 elements.form.addEventListener('submit', submitProfile);
 elements.defaultText.addEventListener('change', saveDefaults);
+elements.defaultTranslator?.addEventListener('change', saveDefaults);
 elements.defaultMultimodal.addEventListener('change', saveDefaults);
 
 readProfilesCache();
 cliCatalog = DEFAULT_CLI_CATALOG;
+initPaneRouting();
 renderSecretStore();
 renderProfiles();
 renderIntegrations();

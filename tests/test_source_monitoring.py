@@ -90,7 +90,10 @@ class SourceMonitoringTest(unittest.TestCase):
         stop_worker(wait=True)
         app.config.update(self.old_app_config)
         db.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def make_image(self, relative: str, *, size: tuple[int, int] = (3, 3)) -> Path:
         path = self.source / relative

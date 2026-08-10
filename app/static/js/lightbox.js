@@ -828,14 +828,22 @@ async function removeCurrentLightboxAsset(removeAsset) {
     try {
         const deleted = await removeAsset(img.id);
         if (!deleted) return false;
+        // If currentImagesArray is not the same reference as images/sidebarImages,
+        // we need to manually remove the deleted image from it.
+        if (currentImagesArray !== images && currentImagesArray !== sidebarImages) {
+            const idx = currentImagesArray.findIndex(item => item.id === img.id);
+            if (idx >= 0) currentImagesArray.splice(idx, 1);
+        }
+        // Notify other parts of the app that an image was deleted
+        document.dispatchEvent(new CustomEvent('lightbox:asset-deleted', { detail: { assetId: img.id } }));
         if (currentImagesArray.length === 0) {
             closeLightbox();
             return true;
         }
-        setLightboxIndex(Math.min(currentIndex, currentImagesArray.length - 1));
+        const nextIndex = Math.min(currentIndex, currentImagesArray.length - 1);
         resetZoom();
         resetCutoutPanel();
-        updateLightbox();
+        await openLightbox(nextIndex);
         return true;
     } finally {
         fileDeleteInProgress = false;

@@ -109,7 +109,10 @@ class UnifiedMediaAssetTest(unittest.TestCase):
     def tearDown(self) -> None:
         app.config.update(self.old_app_config)
         db.set_db_path(self.old_db_path)
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def index(self):
         return index_source_directory(

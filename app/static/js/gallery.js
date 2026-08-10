@@ -97,8 +97,15 @@ function createGalleryCard(img, index) {
     return card;
 }
 
+let suppressNextClick = false;
+
 function bindGalleryCard(card) {
-    card.addEventListener('click', () => {
+    card.addEventListener('click', event => {
+        if (suppressNextClick) {
+            suppressNextClick = false;
+            event.stopPropagation();
+            return;
+        }
         const index = Number.parseInt(card.dataset.index, 10);
         import('./lightbox.js').then(module => module.openLightbox(index, images));
     });
@@ -291,3 +298,149 @@ export function renderGallerySkeleton() {
     dom.contentArea.innerHTML = html;
     resizeAllGridItems();
 }
+
+let galleryPointerDrag = null;
+
+function clearDragOverElements() {
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+
+document.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || event.pointerType === 'touch') return;
+    if (event.target.closest('button, input, a, .image-delete-btn, .gallery-delete')) return;
+    const card = event.target.closest('.gallery-card, .image-item');
+    if (!card) return;
+
+    const index = Number.parseInt(card.dataset.index, 10);
+    const img = card.classList.contains('image-item')
+        ? (window.sidebarImages ? window.sidebarImages[index] : null)
+        : images[index];
+
+    const imageId = Number(card.dataset.imageId || img?.id);
+    if (!imageId) return;
+
+    galleryPointerDrag = {
+        pointerId: event.pointerId,
+        card,
+        imageId,
+        fileName: img?.file_name || img?.file || 'Asset',
+        thumbUrl: thumbUrl(img || { id: imageId }),
+        startX: event.clientX,
+        startY: event.clientY,
+        dragging: false,
+        preview: null,
+        dropTarget: null,
+    };
+    try {
+        card.setPointerCapture?.(event.pointerId);
+    } catch {
+        // Fallback if capture not available
+    }
+});
+
+document.addEventListener('pointermove', event => {
+    const session = galleryPointerDrag;
+    if (!session || session.pointerId !== event.pointerId) return;
+
+    const distance = Math.hypot(event.clientX - session.startX, event.clientY - session.startY);
+    if (!session.dragging && distance >= 4) {
+        session.dragging = true;
+        session.card.classList.add('dragging');
+
+        const rect = session.card.getBoundingClientRect();
+        const ghost = session.card.cloneNode(true);
+        ghost.classList.add('asset-drag-ghost');
+        ghost.style.position = 'fixed';
+        ghost.style.top = '0';
+        ghost.style.left = '0';
+        ghost.style.width = `${rect.width || 200}px`;
+        ghost.style.height = `${rect.height || 260}px`;
+        ghost.style.zIndex = '999999';
+        ghost.style.pointerEvents = 'none';
+
+        document.body.append(ghost);
+        session.preview = ghost;
+        session.cardWidth = rect.width || 200;
+        session.cardHeight = rect.height || 260;
+        document.body.classList.add('asset-pointer-dragging');
+    }
+
+    if (!session.dragging) return;
+    event.preventDefault();
+
+    if (session.preview) {
+        const x = event.clientX - session.cardWidth / 2;
+        const y = event.clientY - session.cardHeight / 2;
+        session.preview.style.left = `${x}px`;
+        session.preview.style.top = `${y}px`;
+        session.preview.style.transform = 'rotate(2deg) scale(1.02)';
+    }
+
+    const wasVisible = session.preview?.style.display !== 'none';
+    if (session.preview) session.preview.style.display = 'none';
+    const elemUnder = document.elementFromPoint(event.clientX, event.clientY);
+    if (session.preview && wasVisible) session.preview.style.display = '';
+
+    const dropTarget = elemUnder?.closest('[data-album-drop-target], [data-album-id]') || null;
+    if (dropTarget !== session.dropTarget) {
+        clearDragOverElements();
+        session.dropTarget = dropTarget;
+        dropTarget?.classList.add('drag-over');
+    }
+}, { passive: false });
+
+document.addEventListener('pointerup', async event => {
+    const session = galleryPointerDrag;
+    if (!session || session.pointerId !== event.pointerId) return;
+
+    try {
+        session.card.releasePointerCapture?.(session.pointerId);
+    } catch {}
+
+    const wasDragging = session.dragging;
+    const dropTarget = session.dropTarget;
+
+    session.preview?.remove();
+    session.card.classList.remove('dragging');
+    document.body.classList.remove('asset-pointer-dragging');
+    clearDragOverElements();
+    galleryPointerDrag = null;
+
+    if (wasDragging) {
+        suppressNextClick = true;
+        window.setTimeout(() => { suppressNextClick = false; }, 150);
+
+        if (dropTarget) {
+            const albumId = Number(dropTarget.dataset.albumDropTarget || dropTarget.dataset.albumId);
+            if (albumId && session.imageId) {
+                try {
+                    const { addAssetsToAlbum } = await import('./api.js');
+                    const res = await addAssetsToAlbum(albumId, [session.imageId]);
+                    const albumName = dropTarget.querySelector('.folder-item-name')?.textContent || 'album';
+                    showToast(res.affected ? `Added 1 asset to "${albumName}"` : `Asset is already in "${albumName}"`);
+                } catch (err) {
+                    showToast(err.message, true);
+                }
+            }
+        }
+    }
+});
+
+document.addEventListener('pointercancel', event => {
+    const session = galleryPointerDrag;
+    if (!session || session.pointerId !== event.pointerId) return;
+    try {
+        session.card.releasePointerCapture?.(session.pointerId);
+    } catch {}
+    session.preview?.remove();
+    session.card.classList.remove('dragging');
+    document.body.classList.remove('asset-pointer-dragging');
+    clearDragOverElements();
+    galleryPointerDrag = null;
+});
+
+document.addEventListener('dragstart', event => {
+    if (event.target.closest('.gallery-card, .image-item, .asset-card')) {
+        event.preventDefault();
+    }
+});

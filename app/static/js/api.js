@@ -697,3 +697,19 @@ export function loadAlbumImages(albumId, albumName, options = {}) {
 export function loadMediaCollection(options = {}) {
     return loadCollectionImages({ type: 'media', id: null, name: 'All Media' }, options);
 }
+
+export async function addAssetsToAlbum(albumId, assetIds) {
+    const data = await fetchJson(`/api/albums/${albumId}/assets`, {
+        options: {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asset_ids: assetIds }),
+        },
+    });
+    invalidateApiCache();
+    const freshAlbums = await getAlbums({ force: true });
+    setAlbums(freshAlbums);
+    const { renderAlbumsList } = await import('./features/sidebar.js');
+    await renderAlbumsList(freshAlbums);
+    return data;
+}

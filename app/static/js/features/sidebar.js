@@ -320,6 +320,8 @@ export async function renderAlbumsList(albumList = null) {
             !album.display_cover_image_id ? 'empty-album' : '',
             currentCollection.type === 'album' && currentCollection.id === album.id ? 'active' : '',
         ].filter(Boolean).join(' ');
+        item.dataset.albumDropTarget = String(album.id);
+        item.dataset.albumId = String(album.id);
         item.setAttribute('aria-label', `Open album ${album.name}`);
         const cover = album.display_cover_image_id
             ? `<img src="/api/thumbnail/${album.display_cover_image_id}" alt="" loading="lazy" draggable="false">`

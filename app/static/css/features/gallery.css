@@ -27,6 +27,8 @@
     box-shadow: var(--shadow-sm);
     user-select: none;
     -webkit-user-select: none;
+    -webkit-user-drag: none;
+    touch-action: none;
 }
 
 .gallery-card:hover {
@@ -47,6 +49,8 @@
     display: block;
     background: var(--surface2);
     transition: transform var(--transition);
+    -webkit-user-drag: none;
+    user-select: none;
 }
 
 .gallery-card:hover img {
@@ -112,6 +116,28 @@
     justify-content: center;
     color: var(--red);
     font-size: 24px;
+}
+
+.asset-drag-ghost {
+    position: fixed;
+    z-index: 999999 !important;
+    pointer-events: none !important;
+    opacity: 0.92;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45), 0 0 0 2px var(--accent2);
+    transform: rotate(2deg) scale(1.02);
+    transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), opacity 0.15s ease;
+    will-change: transform, top, left;
+    overflow: hidden;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+}
+
+.asset-drag-ghost .image-delete-btn,
+.asset-drag-ghost .gallery-delete,
+.asset-drag-ghost .sidebar-delete,
+.asset-drag-ghost .asset-favorite,
+.asset-drag-ghost .asset-select {
+    display: none !important;
 }
 
 .gallery-delete {

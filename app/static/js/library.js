@@ -1130,7 +1130,7 @@ dom.albumList.addEventListener('click', async event => {
 });
 
 function clearAlbumDropTargets() {
-    dom.albumList.querySelectorAll('.drag-over').forEach(item => item.classList.remove('drag-over'));
+    document.querySelectorAll('.drag-over').forEach(item => item.classList.remove('drag-over'));
 }
 
 async function addAssetsToAlbumFromGrid(albumId, assetIds) {
@@ -1414,9 +1414,31 @@ dom.grid.addEventListener('contextmenu', event => {
     openLibraryImageContextMenu(event, asset, card);
 });
 
-function createAssetDragPreview(asset, count) {
+function createAssetDragPreview(asset, count, sourceCard) {
+    if (count === 1 && sourceCard) {
+        const rect = sourceCard.getBoundingClientRect();
+        const width = rect.width || 190;
+        const height = rect.height || 250;
+        const ghost = sourceCard.cloneNode(true);
+        ghost.classList.add('asset-drag-ghost');
+        ghost.style.position = 'fixed';
+        ghost.style.top = '0';
+        ghost.style.left = '0';
+        ghost.style.width = `${width}px`;
+        ghost.style.height = `${height}px`;
+        ghost.style.pointerEvents = 'none';
+        ghost.style.zIndex = '999999';
+        document.body.append(ghost);
+        return ghost;
+    }
+
+    const ghost = document.createElement('div');
+    ghost.className = 'asset-drag-ghost asset-drag-ghost-multi';
+
     const preview = document.createElement('div');
     preview.className = 'asset-drag-preview';
+    preview.style.position = 'static';
+    preview.style.transform = 'none';
 
     const image = document.createElement('img');
     image.src = asset.thumbnail_url;
@@ -1426,21 +1448,36 @@ function createAssetDragPreview(asset, count) {
     const copy = document.createElement('span');
     copy.className = 'asset-drag-preview-copy';
     const title = document.createElement('strong');
-    title.textContent = count === 1 ? asset.file_name : `${count} selected assets`;
+    title.textContent = `${count} selected assets`;
     const hint = document.createElement('span');
     hint.textContent = 'Drop onto an album';
     copy.append(title, hint);
     preview.append(image, copy);
-    document.body.append(preview);
-    return preview;
+    ghost.append(preview);
+
+    const badge = document.createElement('span');
+    badge.className = 'asset-drag-badge';
+    badge.textContent = count;
+    ghost.append(badge);
+
+    if (sourceCard) {
+        const rect = sourceCard.getBoundingClientRect();
+        ghost.style.width = `${rect.width || 190}px`;
+    }
+
+    document.body.append(ghost);
+    return ghost;
 }
 
-function albumTargetAtPoint(clientX, clientY) {
-    return document.elementFromPoint(clientX, clientY)?.closest?.('[data-album-drop-target]') || null;
+function albumTargetAtPoint(clientX, clientY, ignoreElem) {
+    const wasVisible = ignoreElem?.style.display !== 'none';
+    if (ignoreElem) ignoreElem.style.display = 'none';
+    const elem = document.elementFromPoint(clientX, clientY)?.closest?.('[data-album-drop-target]') || null;
+    if (ignoreElem && wasVisible) ignoreElem.style.display = '';
+    return elem;
 }
-
 function updatePointerDropTarget(session, clientX, clientY) {
-    const target = albumTargetAtPoint(clientX, clientY);
+    const target = albumTargetAtPoint(clientX, clientY, session.preview);
     if (target === session.dropTarget) return;
     clearAlbumDropTargets();
     session.dropTarget = target;
@@ -1451,24 +1488,141 @@ function beginPointerAssetDrag(session, event) {
     const asset = state.assets.find(item => item.id === session.assetId);
     if (!asset) return false;
 
+    if (session.card) {
+        const rect = session.card.getBoundingClientRect();
+        session.cardWidth = rect.width || 190;
+        session.cardHeight = rect.height || 250;
+    }
+
     const dragSelectedGroup = state.selectMode && state.selected.has(session.assetId);
     state.draggingAssetIds = dragSelectedGroup ? selectedIds() : [session.assetId];
     session.dragging = true;
-    session.preview = createAssetDragPreview(asset, state.draggingAssetIds.length);
+    session.preview = createAssetDragPreview(asset, state.draggingAssetIds.length, session.card);
+    session.mode = 'album';
+    session.reorder = null;
+
     const draggingIds = new Set(state.draggingAssetIds);
-    dom.grid.querySelectorAll('[data-asset-id]').forEach(card => {
-        const cardId = Number(card.dataset.assetId);
-        card.classList.toggle('dragging', draggingIds.has(cardId));
-    });
+    if (state.draggingAssetIds.length === 1) {
+        session.card.classList.add('dragging-original');
+        session.placeholder = createDragPlaceholder(session.card);
+    } else {
+        dom.grid.querySelectorAll('[data-asset-id]').forEach(card => {
+            const cardId = Number(card.dataset.assetId);
+            card.classList.toggle('dragging', draggingIds.has(cardId));
+        });
+    }
+
     dom.shell.classList.add('asset-drag-active');
     document.body.classList.add('asset-pointer-dragging');
     updatePointerDropTarget(session, event.clientX, event.clientY);
     return true;
 }
 
+function createDragPlaceholder(card) {
+    const placeholder = card.cloneNode(false);
+    placeholder.classList.add('drag-placeholder');
+    placeholder.removeAttribute('tabindex');
+    placeholder.removeAttribute('aria-label');
+    placeholder.removeAttribute('aria-selected');
+    placeholder.dataset.placeholder = 'true';
+    card.parentNode.insertBefore(placeholder, card);
+    return placeholder;
+}
+
+function getCardPositions() {
+    const positions = new Map();
+    dom.grid.querySelectorAll('.asset-card[data-asset-id]').forEach(card => {
+        if (card.dataset.placeholder) return;
+        positions.set(card.dataset.assetId, card.getBoundingClientRect());
+    });
+    return positions;
+}
+
+function applyFlipAnimation(oldPositions) {
+    const cards = [...dom.grid.querySelectorAll('.asset-card[data-asset-id]')];
+    const moves = [];
+
+    cards.forEach(card => {
+        const oldPos = oldPositions.get(card.dataset.assetId);
+        if (!oldPos) return;
+        const newPos = card.getBoundingClientRect();
+        const dx = oldPos.left - newPos.left;
+        const dy = oldPos.top - newPos.top;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+            moves.push({ card, dx, dy });
+        }
+    });
+
+    if (!moves.length) return;
+
+    moves.forEach(({ card, dx, dy }) => {
+        card.style.transition = 'none';
+        card.style.transform = `translate(${dx}px, ${dy}px)`;
+    });
+
+    dom.grid.offsetHeight;
+
+    requestAnimationFrame(() => {
+        moves.forEach(({ card }) => {
+            card.style.transition = '';
+            card.style.transform = '';
+        });
+    });
+}
+
+function findCardIndexAtPoint(clientX, clientY, excludeCard) {
+    const cards = [...dom.grid.querySelectorAll('.asset-card[data-asset-id]')];
+    let closest = null;
+    let closestDist = Infinity;
+
+    for (const card of cards) {
+        if (card === excludeCard || card.dataset.placeholder) continue;
+        const rect = card.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const dist = Math.hypot(clientX - centerX, clientY - centerY);
+        if (dist < closestDist) {
+            closestDist = dist;
+            closest = card;
+        }
+    }
+    return closest;
+}
+
+function updateGridReorder(session, clientX, clientY) {
+    if (!session.placeholder) return;
+
+    const targetCard = findCardIndexAtPoint(clientX, clientY, session.card);
+    if (!targetCard) return;
+
+    const placeholder = session.placeholder;
+    const allCards = [...dom.grid.querySelectorAll('.asset-card[data-asset-id]:not([data-placeholder])')];
+    const targetIdx = allCards.indexOf(targetCard);
+    const placeholderIdx = allCards.indexOf(placeholder);
+
+    if (targetIdx === placeholderIdx || targetIdx === -1) return;
+
+    const oldPositions = getCardPositions();
+
+    if (targetIdx > placeholderIdx) {
+        targetCard.parentNode.insertBefore(placeholder, targetCard.nextElementSibling);
+    } else {
+        targetCard.parentNode.insertBefore(placeholder, targetCard);
+    }
+
+    dom.grid.classList.add('reordering');
+    applyFlipAnimation(oldPositions);
+}
+
 function moveAssetDragPreview(session, clientX, clientY) {
     if (!session.preview) return;
-    session.preview.style.transform = `translate3d(${clientX + 14}px, ${clientY + 14}px, 0)`;
+    const w = session.cardWidth || 190;
+    const h = session.cardHeight || 250;
+    const x = clientX - w / 2;
+    const y = clientY - h / 2;
+    session.preview.style.left = `${x}px`;
+    session.preview.style.top = `${y}px`;
+    session.preview.style.transform = 'rotate(2deg) scale(1.02)';
 }
 
 function cleanupPointerAssetDrag(session) {
@@ -1478,6 +1632,14 @@ function cleanupPointerAssetDrag(session) {
         // Capture may already be released by the browser.
     }
     session.preview?.remove();
+    session.placeholder?.remove();
+    dom.grid.classList.remove('reordering');
+    dom.grid.querySelectorAll('.asset-card').forEach(card => {
+        card.classList.remove('dragging-original', 'dragging', 'drag-placeholder');
+        card.style.transform = '';
+        card.style.transition = '';
+        delete card.dataset.placeholder;
+    });
     clearAlbumDropTargets();
     dom.shell.classList.remove('asset-drag-active');
     document.body.classList.remove('asset-pointer-dragging');
@@ -1487,37 +1649,80 @@ function cleanupPointerAssetDrag(session) {
     updatePreviewPanel();
 }
 
-dom.grid.addEventListener('pointerdown', event => {
-    if (event.button !== 0 || event.pointerType === 'touch') return;
-    if (state.pointerDrag) return;
-    if (event.target.closest('button, input, a')) return;
-    const card = event.target.closest('[data-asset-id]');
-    if (!card || state.collection === 'albums') return;
-    const assetId = Number(card.dataset.assetId);
-    if (!state.assets.some(asset => asset.id === assetId)) return;
+if (!dom.grid) {
+    console.warn('[library] asset-grid not found, drag disabled');
+} else {
+    dom.grid.addEventListener('pointerdown', event => {
+        if (event.button !== 0 || event.pointerType === 'touch') return;
+        if (state.pointerDrag) return;
+        if (event.target.closest('button, input, a')) return;
+        const card = event.target.closest('[data-asset-id]');
+        if (!card || state.collection === 'albums') return;
+        const assetId = Number(card.dataset.assetId);
+        if (!state.assets.some(asset => asset.id === assetId)) return;
 
-    state.pointerDrag = {
-        pointerId: event.pointerId,
-        assetId,
-        card,
-        startX: event.clientX,
-        startY: event.clientY,
-        dragging: false,
-        preview: null,
-        dropTarget: null,
-    };
-    card.setPointerCapture?.(event.pointerId);
-});
+        state.pointerDrag = {
+            pointerId: event.pointerId,
+            assetId,
+            card,
+            startX: event.clientX,
+            startY: event.clientY,
+            dragging: false,
+            preview: null,
+            dropTarget: null,
+        };
+        card.setPointerCapture?.(event.pointerId);
+    });
+}
 
 document.addEventListener('pointermove', event => {
     const session = state.pointerDrag;
     if (!session || session.pointerId !== event.pointerId) return;
     const distance = Math.hypot(event.clientX - session.startX, event.clientY - session.startY);
-    if (!session.dragging && distance >= 6 && !beginPointerAssetDrag(session, event)) return;
+    if (!session.dragging && distance >= 3) {
+        const started = beginPointerAssetDrag(session, event);
+        if (!started) {
+            state.pointerDrag = null;
+            return;
+        }
+    }
     if (!session.dragging) return;
     event.preventDefault();
     moveAssetDragPreview(session, event.clientX, event.clientY);
-    updatePointerDropTarget(session, event.clientX, event.clientY);
+
+    const wasVisible = session.preview?.style.display !== 'none';
+    if (session.preview) session.preview.style.display = 'none';
+    const elemUnder = document.elementFromPoint(event.clientX, event.clientY);
+    if (session.preview && wasVisible) session.preview.style.display = '';
+
+    const overGrid = elemUnder?.closest('.asset-grid');
+
+    if (overGrid) {
+        if (session.mode !== 'reorder') {
+            session.mode = 'reorder';
+            clearAlbumDropTargets();
+            if (!session.placeholder && session.card) {
+                session.card.classList.add('dragging-original');
+                session.placeholder = createDragPlaceholder(session.card);
+            }
+        }
+        if (session.placeholder) {
+            updateGridReorder(session, event.clientX, event.clientY);
+        }
+    } else {
+        if (session.mode === 'reorder') {
+            session.mode = 'album';
+            session.placeholder?.remove();
+            session.placeholder = null;
+            session.card.classList.remove('dragging-original');
+            dom.grid.classList.remove('reordering');
+            dom.grid.querySelectorAll('.asset-card').forEach(card => {
+                card.style.transform = '';
+                card.style.transition = '';
+            });
+        }
+        updatePointerDropTarget(session, event.clientX, event.clientY);
+    }
 }, { passive: false });
 
 async function finishPointerAssetDrag(event, cancelled = false) {
@@ -1533,13 +1738,38 @@ async function finishPointerAssetDrag(event, cancelled = false) {
         state.pointerDrag = null;
         return;
     }
+
     const finalDropTarget = cancelled
         ? null
-        : albumTargetAtPoint(event.clientX, event.clientY);
+        : albumTargetAtPoint(event.clientX, event.clientY, session.preview);
     const albumId = finalDropTarget
         ? Number(finalDropTarget.dataset.albumDropTarget)
         : null;
     const assetIds = [...state.draggingAssetIds];
+
+    if (session.mode === 'reorder' && session.placeholder && !cancelled && !albumId) {
+        const newOrderIds = [...dom.grid.querySelectorAll('.asset-card[data-asset-id]')]
+            .map(card => Number(card.dataset.assetId));
+
+        const assetMap = new Map(state.assets.map(a => [a.id, a]));
+        const reordered = [];
+        for (const id of newOrderIds) {
+            if (assetMap.has(id)) {
+                reordered.push(assetMap.get(id));
+                assetMap.delete(id);
+            }
+        }
+        state.assets = reordered;
+
+        if (wasDragging) {
+            state.suppressNextGridClick = true;
+            window.setTimeout(() => { state.suppressNextGridClick = false; }, 100);
+        }
+        cleanupPointerAssetDrag(session);
+        renderAssets();
+        updatePreviewPanel();
+        return;
+    }
 
     if (wasDragging) {
         state.suppressNextGridClick = true;

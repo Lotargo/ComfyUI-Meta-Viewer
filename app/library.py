@@ -652,7 +652,7 @@ def get_assets(
         return {"assets": [], "total": 0}
 
     page = max(1, page)
-    per_page = min(200, max(1, per_page))
+    per_page = min(5000, max(1, per_page))
     conditions: list[str] = []
     params: list[Any] = []
 

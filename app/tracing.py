@@ -24,18 +24,14 @@ def setup_tracing(service_name: str = "comfy-meta-viewer", level: str = "INFO") 
 
     resource = Resource.create({SERVICE_NAME: service_name})
     provider = TracerProvider(resource=resource, sampler=ALWAYS_ON)
-    provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+
+    import os
+    if os.environ.get("CMV_CONSOLE_TRACING") == "1" or os.environ.get("OTEL_TRACES_EXPORTER") == "console":
+        provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+        logger.info("opentelemetry tracing enabled -> stdout (console exporter)")
+
     trace.set_tracer_provider(provider)
-
-    try:
-        from opentelemetry.instrumentation.flask import FlaskInstrumentor
-
-        FlaskInstrumentor().instrument()
-    except ImportError:
-        logger.debug("flask instrumentation not installed")
-
     _tracing_ready = True
-    logger.info("opentelemetry tracing enabled -> stdout (console exporter)")
 
 
 def get_tracer(name: str = __name__):

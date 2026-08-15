@@ -922,7 +922,7 @@ function toggleSelection(assetId, index, extend = false) {
         state.selected.add(assetId);
     }
     state.lastSelectedIndex = index;
-    renderAssets();
+    renderAssets({ reconcile: true });
 }
 
 function captureLibraryScroll() {
@@ -1025,7 +1025,7 @@ function activateAssetSelection(assetId, index) {
     state.activeAssetId = assetId;
     dom.btnToggleSelect.classList.add('active');
     dom.shell.classList.add('select-mode-on');
-    renderAssets();
+    renderAssets({ reconcile: true });
     updatePreviewPanel();
     focusActiveCard();
 }
@@ -1321,11 +1321,15 @@ dom.grid.addEventListener('click', async event => {
     if (state.selectMode) {
         toggleSelection(assetId, index, event.shiftKey);
         state.activeAssetId = assetId;
-        renderAssets();
+        renderAssets({ reconcile: true });
         updatePreviewPanel();
     } else {
         state.activeAssetId = assetId;
-        renderAssets();
+        dom.grid.querySelectorAll('.asset-card').forEach(c => {
+            const isThisCard = Number(c.dataset.assetId) === assetId;
+            c.classList.toggle('active', isThisCard);
+            c.tabIndex = isThisCard ? 0 : -1;
+        });
         updatePreviewPanel();
     }
 });
@@ -1812,7 +1816,7 @@ dom.selectVisible.addEventListener('change', () => {
     } else {
         state.assets.forEach(asset => state.selected.delete(asset.id));
     }
-    renderAssets();
+    renderAssets({ reconcile: true });
     updatePreviewPanel();
 });
 

@@ -3,7 +3,9 @@
   "scripts": {
     "lint": "eslint app/static/js",
     "test:metadata": "node --test tests/test_metadata_format.mjs",
-    "test:preferences": "node --test tests/test_preferences.mjs"
+    "test:preferences": "node --test tests/test_preferences.mjs",
+    "test:custom-order": "node --test tests/test_custom_order.mjs",
+    "test": "node --test tests/test_*.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

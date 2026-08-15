@@ -8,7 +8,7 @@ const COLLECTION_TYPES = new Set(['folder', 'album', 'media']);
 const FOLDER_VIEW_MODES = new Set(['list', 'tile']);
 const META_TABS = new Set(['summary', 'workflow', 'raw']);
 const SORT_DIRECTIONS = new Set(['asc', 'desc']);
-const IMAGE_SORT_KEYS = new Set(['name', 'date', 'size', 'type']);
+const IMAGE_SORT_KEYS = new Set(['name', 'date', 'size', 'type', 'custom']);
 const FOLDER_SORT_KEYS = new Set(['name', 'scanned_at', 'image_count']);
 const ALBUM_SORT_KEYS = new Set(['name', 'updated_at', 'asset_count']);
 

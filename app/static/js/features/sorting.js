@@ -31,7 +31,8 @@ const sortOptions = [
     { key: 'name', label: 'Name' },
     { key: 'date', label: 'Date' },
     { key: 'size', label: 'Size' },
-    { key: 'type', label: 'Type' }
+    { key: 'type', label: 'Type' },
+    { key: 'custom', label: 'Custom' }
 ];
 
 const folderSortOptions = [

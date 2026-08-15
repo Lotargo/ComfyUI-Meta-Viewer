@@ -100,12 +100,14 @@ function selectedMediaTypes() {
 function collectionImagesUrl(collection, page, perPage) {
     const filter = collectionFilter(collection);
     const rating = ratingFilter === null ? '' : `&rating=${ratingFilter}`;
-    return `/api/images?${filter}&page=${page}&per_page=${perPage}&sort_by=${sortKey}&sort_dir=${sortDir}&media_type=${selectedMediaTypes()}${rating}`;
+    const backendSortBy = sortKey === 'custom' ? 'date' : sortKey;
+    return `/api/images?${filter}&page=${page}&per_page=${perPage}&sort_by=${backendSortBy}&sort_dir=${sortDir}&media_type=${selectedMediaTypes()}${rating}`;
 }
 
 function sidebarImagesUrl(page, perPage) {
     const rating = ratingFilter === null ? '' : `&rating=${ratingFilter}`;
-    return `/api/images?page=${page}&per_page=${perPage}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}&media_type=${selectedMediaTypes()}${rating}`;
+    const backendSortBy = sidebarSortKey === 'custom' ? 'date' : sidebarSortKey;
+    return `/api/images?page=${page}&per_page=${perPage}&sort_by=${backendSortBy}&sort_dir=${sidebarSortDir}&media_type=${selectedMediaTypes()}${rating}`;
 }
 
 async function renderCurrentContent({ reconcileGallery = false } = {}) {

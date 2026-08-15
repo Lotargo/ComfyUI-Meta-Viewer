@@ -12,6 +12,9 @@ import {
     showToast,
     setGalleryScrollObserver,
     isBrowsableCollection,
+    sortKey,
+    setSortKey,
+    saveState,
 } from './state.js';
 import { escapeHtml, imageRenderSignature, originalUrl, thumbUrl } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
@@ -65,6 +68,10 @@ function loadGalleryOrder(collection) {
 let hasCustomOrder = false;
 
 export function applySavedCustomOrder() {
+    if (sortKey !== 'custom') {
+        hasCustomOrder = false;
+        return;
+    }
     const span = traceSpan("gallery.applySavedCustomOrder", {
         collection: currentCollection.type,
         collection_id: currentCollection.id ?? "all",
@@ -362,7 +369,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0, reconcile = 
     try {
         if (galleryScrollObserver) galleryScrollObserver.disconnect();
 
-        if (!appendOnly && !reconcile && startIndex === 0) {
+        if (!appendOnly && startIndex === 0) {
             applySavedCustomOrder();
         }
 
@@ -710,6 +717,8 @@ document.addEventListener('pointerup', async event => {
 
             saveGalleryOrder(currentCollection, newOrderIds);
             hasCustomOrder = true;
+            setSortKey('custom');
+            saveState();
 
             if (currentCollection.type === 'album' && currentCollection.id != null && newOrderIds.length > 1) {
                 fetchJson(`/api/albums/${currentCollection.id}/reorder`, {

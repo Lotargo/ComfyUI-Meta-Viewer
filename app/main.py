@@ -216,12 +216,15 @@ def api_library_assets():
             "sort_by": request.args.get("sort_by", "date"),
         },
     ):
+        sort_by = request.args.get("sort_by", "date")
+        if sort_by == "custom":
+            sort_by = "date"
         result = media_library.get_assets(
             collection=request.args.get("collection", "all"),
             album_id=request.args.get("album_id", type=int),
             page=request.args.get("page", 1, type=int),
             per_page=request.args.get("per_page", 80, type=int),
-            sort_by=request.args.get("sort_by", "date"),
+            sort_by=sort_by,
             sort_dir=request.args.get("sort_dir", "desc"),
             query=request.args.get("q", ""),
             source_id=request.args.get("source_id", type=int),
@@ -590,6 +593,8 @@ def api_images():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 50, type=int)
     sort_by = request.args.get("sort_by", "date")
+    if sort_by == "custom":
+        sort_by = "date"
     sort_dir = request.args.get("sort_dir", "desc")
     rating_value = request.args.get("rating")
     media_type_value = request.args.get("media_type", "image")

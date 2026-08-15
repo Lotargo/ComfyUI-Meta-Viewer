@@ -1748,19 +1748,14 @@ async function finishPointerAssetDrag(event, cancelled = false) {
     const assetIds = [...state.draggingAssetIds];
 
     if (session.placeholder && !cancelled && !albumId) {
-        const placeholderIdx = [...dom.grid.querySelectorAll('.asset-card')]
-            .indexOf(session.placeholder);
-        const draggedId = session.assetId;
+        if (session.card) {
+            session.placeholder.parentNode.insertBefore(session.card, session.placeholder);
+        }
+        session.placeholder.remove();
+        session.placeholder = null;
 
-        const otherIds = [...dom.grid.querySelectorAll('.asset-card[data-asset-id]')]
-            .filter(card => Number(card.dataset.assetId) !== draggedId)
-            .map(card => Number(card.dataset.assetId));
-
-        const newOrderIds = [
-            ...otherIds.slice(0, placeholderIdx),
-            draggedId,
-            ...otherIds.slice(placeholderIdx),
-        ];
+        const cardElements = [...dom.grid.querySelectorAll('.asset-card[data-asset-id]')];
+        const newOrderIds = cardElements.map(c => Number(c.dataset.assetId)).filter(Boolean);
 
         const assetMap = new Map(state.assets.map(a => [a.id, a]));
         const reordered = [];
@@ -1777,7 +1772,7 @@ async function finishPointerAssetDrag(event, cancelled = false) {
             window.setTimeout(() => { state.suppressNextGridClick = false; }, 100);
         }
         cleanupPointerAssetDrag(session);
-        renderAssets();
+        renderAssets({ reconcile: true });
         updatePreviewPanel();
 
         if (state.albumId && newOrderIds.length > 1) {

@@ -86,12 +86,16 @@ export function applySavedCustomOrder() {
         }
 
         hasCustomOrder = true;
-        const imgMap = new Map(images.map(img => [img.id, img]));
+        const imgMap = new Map();
+        for (const img of images) {
+            imgMap.set(Number(img.id), img);
+        }
         const reordered = [];
         for (const id of saved) {
-            if (imgMap.has(id)) {
-                reordered.push(imgMap.get(id));
-                imgMap.delete(id);
+            const numId = Number(id);
+            if (imgMap.has(numId)) {
+                reordered.push(imgMap.get(numId));
+                imgMap.delete(numId);
             }
         }
         for (const img of imgMap.values()) {
@@ -122,9 +126,10 @@ export function mergeCustomOrderOnPageLoad(newImageIds) {
             span.setAttribute("reason", "no_saved_order");
             return;
         }
-        const merged = [...saved];
+        const merged = [...saved.map(Number)];
         for (const id of newImageIds) {
-            if (!merged.includes(id)) merged.push(id);
+            const numId = Number(id);
+            if (!merged.includes(numId)) merged.push(numId);
         }
         saveGalleryOrder(currentCollection, merged);
         span.setAttribute("merged_length", merged.length);
@@ -676,21 +681,20 @@ document.addEventListener('pointerup', async event => {
 
     if (placeholder) {
         if (grid && !dropTarget) {
-            const placeholderIdx = [...grid.querySelectorAll('.gallery-card')]
-                .indexOf(placeholder);
-            const draggedId = session.imageId;
+            placeholder.parentNode.insertBefore(session.card, placeholder);
+            placeholder.remove();
 
-            const otherIds = [...grid.querySelectorAll('.gallery-card[data-image-id]')]
-                .filter(card => Number(card.dataset.imageId) !== draggedId)
-                .map(card => Number(card.dataset.imageId));
+            const cardElements = [...grid.querySelectorAll('.gallery-card[data-image-id]')];
+            const newOrderIds = cardElements.map(c => Number(c.dataset.imageId)).filter(Boolean);
 
-            const newOrderIds = [
-                ...otherIds.slice(0, placeholderIdx),
-                draggedId,
-                ...otherIds.slice(placeholderIdx),
-            ];
+            cardElements.forEach((c, idx) => {
+                c.dataset.index = String(idx);
+            });
 
-            const imgMap = new Map(images.map(img => [img.id, img]));
+            const imgMap = new Map();
+            for (const img of images) {
+                imgMap.set(Number(img.id), img);
+            }
             const reordered = [];
             for (const id of newOrderIds) {
                 if (imgMap.has(id)) {
@@ -698,10 +702,14 @@ document.addEventListener('pointerup', async event => {
                     imgMap.delete(id);
                 }
             }
+            for (const img of imgMap.values()) {
+                reordered.push(img);
+            }
             images.length = 0;
             images.push(...reordered);
 
-            saveGalleryOrder(currentCollection, reordered.map(img => img.id));
+            saveGalleryOrder(currentCollection, newOrderIds);
+            hasCustomOrder = true;
 
             if (currentCollection.type === 'album' && currentCollection.id != null && newOrderIds.length > 1) {
                 fetchJson(`/api/albums/${currentCollection.id}/reorder`, {
@@ -711,10 +719,11 @@ document.addEventListener('pointerup', async event => {
                 }).catch(err => showToast(err.message, true));
             }
 
-            renderGallery();
+            resizeAllGridItems([session.card]);
+        } else {
+            placeholder.remove();
+            resizeAllGridItems();
         }
-        placeholder.remove();
-        resizeAllGridItems();
     }
 
     galleryPointerDrag = null;

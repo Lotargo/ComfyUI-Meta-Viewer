@@ -17,6 +17,8 @@ import { escapeHtml, imageRenderSignature, originalUrl, thumbUrl } from './utils
 import { skeletonGalleryCard } from './components/skeleton.js';
 import { showImageContextMenu } from './components/image-context-menu.js';
 import { traceSpan } from './tracing.js';
+import { applySearchFilter } from './components/search-bar.js';
+import { bindCentralSortEvents } from './features/sorting.js';
 
 async function fetchJson(url, options) {
     const response = await fetch(url, options);
@@ -136,27 +138,38 @@ export function isCustomOrderActive() {
 }
 
 let resizeTimeout = null;
-export function resizeAllGridItems() {
+export function resizeAllGridItems(targetCards = null) {
     if (resizeTimeout) cancelAnimationFrame(resizeTimeout);
     resizeTimeout = requestAnimationFrame(() => {
         const grid = document.querySelector('.gallery-masonry');
         if (!grid) return;
-        const items = grid.querySelectorAll('.gallery-card');
-        items.forEach(item => {
-            const wrapper = item.querySelector('.img-wrapper');
-            if (!wrapper) return;
-            const cardHeight = wrapper.getBoundingClientRect().height;
-            const rowHeight = 10;
-            const rowGap = 14;
-            // Add 2px to account for borders (1px top + 1px bottom)
-            const rowSpan = Math.ceil((cardHeight + 2 + rowGap) / (rowHeight + rowGap));
-            item.style.gridRowEnd = `span ${rowSpan}`;
-        });
+        const items = targetCards || grid.querySelectorAll('.gallery-card');
+        const len = items.length;
+        if (!len) return;
+
+        const rowHeight = 10;
+        const rowGap = 14;
+        const spans = new Uint16Array(len);
+
+        // Phase 1: Pure Read phase (no DOM writes)
+        for (let i = 0; i < len; i++) {
+            const wrapper = items[i].firstElementChild;
+            if (wrapper) {
+                spans[i] = Math.ceil((wrapper.offsetHeight + 2 + rowGap) / (rowHeight + rowGap));
+            }
+        }
+
+        // Phase 2: Pure Write phase (no DOM reads)
+        for (let i = 0; i < len; i++) {
+            if (spans[i] > 0) {
+                items[i].style.gridRowEnd = `span ${spans[i]}`;
+            }
+        }
         resizeTimeout = null;
     });
 }
 
-window.addEventListener('resize', resizeAllGridItems);
+window.addEventListener('resize', () => resizeAllGridItems());
 
 let nextGalleryPagePromise = null;
 
@@ -190,7 +203,7 @@ function galleryCardHtml(img, index) {
         <div class="gallery-card${isActive}" data-index="${index}" data-image-id="${img.id ?? ''}">
             <div class="img-wrapper"${ratioStyle}>
                 ${videoPlaceholder}
-                <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" decoding="async" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}" onerror="if(this.dataset.mediaType==='video'){this.hidden=true;}" data-media-type="${isVideo ? 'video' : 'image'}">
+                <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" decoding="async" draggable="false"${imgStyle} onload="if(this.naturalWidth && !this.parentElement.style.aspectRatio){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;}" onerror="if(this.dataset.mediaType==='video'){this.hidden=true;}" data-media-type="${isVideo ? 'video' : 'image'}">
                 ${videoPlayOverlay}
                 ${mediaBadge}
             </div>
@@ -368,21 +381,24 @@ export function renderGallery({ appendOnly = false, startIndex = 0, reconcile = 
         if (reconcile && masonry) {
             reconcileGalleryCards(masonry);
             resizeAllGridItems();
-            import('./components/search-bar.js').then(module => module.applySearchFilter());
+            applySearchFilter();
         } else if (appendOnly && masonry) {
             const fragment = document.createDocumentFragment();
+            const newCards = [];
             for (let index = startIndex; index < images.length; index++) {
+                const card = createGalleryCard(images[index], index);
+                newCards.push(card);
                 // eslint-disable-next-line no-restricted-syntax -- appending to a detached fragment batches the DOM update
-                fragment.appendChild(createGalleryCard(images[index], index));
+                fragment.appendChild(card);
             }
             masonry.appendChild(fragment);
 
-            resizeAllGridItems();
-            import('./components/search-bar.js').then(module => module.applySearchFilter());
+            resizeAllGridItems(newCards);
+            applySearchFilter();
         } else {
             const html = `<div class="gallery-masonry">${images.map(galleryCardHtml).join('')}</div>`;
             dom.contentArea.innerHTML = html;
-            import('./components/search-bar.js').then(module => module.applySearchFilter());
+            applySearchFilter();
 
             dom.contentArea.querySelectorAll('.gallery-card').forEach(card => {
                 const index = Number.parseInt(card.dataset.index, 10);
@@ -391,7 +407,7 @@ export function renderGallery({ appendOnly = false, startIndex = 0, reconcile = 
             });
 
             resizeAllGridItems();
-            import('./features/sorting.js').then(module => module.bindCentralSortEvents());
+            bindCentralSortEvents();
         }
 
         if (!allLoaded && isBrowsableCollection(currentCollection)) {

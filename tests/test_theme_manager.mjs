@@ -55,6 +55,9 @@ test('getStoredTheme retrieves valid stored themes', () => {
     localStorage.setItem('cmv_theme', 'strawberry');
     assert.equal(getStoredTheme(), 'strawberry');
 
+    localStorage.setItem('cmv_theme', 'strawberry-dark');
+    assert.equal(getStoredTheme(), 'strawberry-dark');
+
     localStorage.setItem('cmv_theme', 'system');
     assert.equal(getStoredTheme(), 'system');
 });
@@ -67,6 +70,7 @@ test('getStoredTheme falls back on corrupted or unknown theme names', () => {
 test('resolveEffectiveTheme returns the direct theme or resolves system', () => {
     assert.equal(resolveEffectiveTheme('light'), 'light');
     assert.equal(resolveEffectiveTheme('strawberry'), 'strawberry');
+    assert.equal(resolveEffectiveTheme('strawberry-dark'), 'strawberry-dark');
     assert.equal(resolveEffectiveTheme('dark'), 'dark');
     assert.equal(resolveEffectiveTheme('system'), 'dark'); // based on mock matchMedia
 });

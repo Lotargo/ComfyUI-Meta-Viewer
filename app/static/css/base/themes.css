@@ -4,6 +4,7 @@
      - dark (Default Studio Dark)
      - light (Clean Studio Light)
      - strawberry (Pastel Strawberry Milk / Клубнично-молочная)
+     - strawberry-dark (Strawberry Velvet / Тёмная клубнично-молочная)
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -112,7 +113,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   3. Strawberry Milk Theme (Клубнично-молочная)
+   3. Strawberry Milk Theme (Светлая клубнично-молочная)
    -------------------------------------------------------------------------- */
 [data-theme="strawberry"] {
     --h-primary: 345;
@@ -164,16 +165,70 @@
 }
 
 /* --------------------------------------------------------------------------
+   4. Strawberry Velvet / Dark Strawberry Milk (Тёмная клубнично-молочная)
+   -------------------------------------------------------------------------- */
+[data-theme="strawberry-dark"] {
+    --h-primary: 342;
+    --h-secondary: 325;
+
+    --bg: #140d12;
+    --bg-elevated: #1b1018;
+    --surface: #221520;
+    --surface-glass: rgba(27, 16, 24, 0.88);
+    --surface2: #2d1c2a;
+    --surface3: #3c2438;
+
+    --border: rgba(244, 114, 150, 0.18);
+    --border-subtle: rgba(244, 114, 150, 0.09);
+    --border-glow: rgba(244, 114, 150, 0.30);
+
+    --text: #faebf0;
+    --text-dim: #cca8b6;
+    --text-muted: #8c6e7b;
+
+    --accent: #f47296;
+    --accent-hover: #fa92b0;
+    --accent-dim: rgba(244, 114, 150, 0.16);
+    --accent-glow: rgba(244, 114, 150, 0.28);
+
+    --accent2: #fbcfe8;
+    --accent2-hover: #fce7f3;
+    --accent2-dim: rgba(251, 207, 232, 0.15);
+
+    --green: #4ade80;
+    --green-dim: rgba(74, 222, 128, 0.15);
+    --orange: #fb923c;
+    --orange-dim: rgba(251, 146, 60, 0.15);
+    --red: #f87171;
+    --red-dim: rgba(248, 113, 113, 0.15);
+    --blue: #60a5fa;
+    --blue-dim: rgba(96, 165, 250, 0.15);
+    --pink: #f472b6;
+    --pink-dim: rgba(244, 114, 182, 0.15);
+    --cyan: #2dd4bf;
+    --cyan-dim: rgba(45, 212, 191, 0.15);
+
+    --shadow-sm: 0 1px 2px rgba(10, 4, 8, 0.35);
+    --shadow: 0 8px 22px rgba(10, 4, 8, 0.40);
+    --shadow-lg: 0 20px 50px rgba(10, 4, 8, 0.55);
+    --shadow-glow: 0 0 0 3px rgba(244, 114, 150, 0.20);
+
+    color-scheme: dark;
+}
+
+/* --------------------------------------------------------------------------
    Shared Component Theme Enhancements
    -------------------------------------------------------------------------- */
 [data-theme="light"] body,
-[data-theme="strawberry"] body {
+[data-theme="strawberry"] body,
+[data-theme="strawberry-dark"] body {
     background-color: var(--bg);
     color: var(--text);
 }
 
 [data-theme="light"] .global-header,
-[data-theme="strawberry"] .global-header {
+[data-theme="strawberry"] .global-header,
+[data-theme="strawberry-dark"] .global-header {
     background: var(--surface-glass);
     border-bottom: 1px solid var(--border-subtle);
     backdrop-filter: blur(18px);
@@ -181,69 +236,112 @@
 }
 
 [data-theme="light"] .global-header .app-switcher,
-[data-theme="strawberry"] .global-header .app-switcher {
+[data-theme="strawberry"] .global-header .app-switcher,
+[data-theme="strawberry-dark"] .global-header .app-switcher {
     border-color: var(--border-subtle);
     background: var(--bg-elevated);
 }
 
 [data-theme="light"] .global-header .app-switcher-link,
-[data-theme="strawberry"] .global-header .app-switcher-link {
+[data-theme="strawberry"] .global-header .app-switcher-link,
+[data-theme="strawberry-dark"] .global-header .app-switcher-link {
     color: var(--text-dim);
 }
 
 [data-theme="light"] .global-header .app-switcher-link:hover,
-[data-theme="strawberry"] .global-header .app-switcher-link:hover {
+[data-theme="strawberry"] .global-header .app-switcher-link:hover,
+[data-theme="strawberry-dark"] .global-header .app-switcher-link:hover {
     background: var(--surface2);
     color: var(--text);
 }
 
 [data-theme="light"] .global-header .app-switcher-link.active,
-[data-theme="strawberry"] .global-header .app-switcher-link.active {
+[data-theme="strawberry"] .global-header .app-switcher-link.active,
+[data-theme="strawberry-dark"] .global-header .app-switcher-link.active {
     background: var(--surface);
     color: var(--accent);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 [data-theme="light"] .header-dropdown,
-[data-theme="strawberry"] .header-dropdown {
+[data-theme="strawberry"] .header-dropdown,
+[data-theme="strawberry-dark"] .header-dropdown {
     background: var(--surface);
     border-color: var(--border);
     box-shadow: var(--shadow-lg);
 }
 
 [data-theme="light"] .header-menu-item,
-[data-theme="strawberry"] .header-menu-item {
+[data-theme="strawberry"] .header-menu-item,
+[data-theme="strawberry-dark"] .header-menu-item {
     color: var(--text-dim);
 }
 
 [data-theme="light"] .header-menu-item:hover,
 [data-theme="strawberry"] .header-menu-item:hover,
+[data-theme="strawberry-dark"] .header-menu-item:hover,
 [data-theme="light"] .header-menu-item.active,
-[data-theme="strawberry"] .header-menu-item.active {
+[data-theme="strawberry"] .header-menu-item.active,
+[data-theme="strawberry-dark"] .header-menu-item.active {
     background: var(--accent-dim);
     color: var(--text);
 }
 
-/* Theme menu checkmark styling */
+/* Theme menu item & checkmark styling */
 .header-menu-item.theme-option {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 8px 10px;
+    min-height: 48px;
+    gap: 12px;
 }
 
 .header-menu-item.theme-option > .theme-option-main {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     min-width: 0;
+    flex: 1;
+}
+
+.header-menu-item.theme-option > .theme-option-main > svg {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.header-menu-item.theme-option .theme-option-main > span {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    text-align: left;
+}
+
+.header-menu-item.theme-option .theme-option-main > span > strong {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.header-menu-item.theme-option .theme-option-main > span > small {
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.2;
+    color: var(--text-muted);
+    white-space: nowrap;
 }
 
 .header-menu-item.theme-option .theme-check {
     opacity: 0;
     color: var(--accent);
     font-weight: 800;
-    font-size: 13px;
+    font-size: 14px;
     margin-left: 8px;
+    flex-shrink: 0;
     transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
 
@@ -252,7 +350,7 @@
     transform: scale(1.1);
 }
 
-/* Light / Strawberry scrollbar styling */
+/* Scrollbar styling */
 [data-theme="light"] ::-webkit-scrollbar-thumb {
     background: rgba(15, 23, 42, 0.18);
 }
@@ -265,4 +363,11 @@
 }
 [data-theme="strawberry"] ::-webkit-scrollbar-thumb:hover {
     background: rgba(217, 75, 104, 0.40);
+}
+
+[data-theme="strawberry-dark"] ::-webkit-scrollbar-thumb {
+    background: rgba(244, 114, 150, 0.22);
+}
+[data-theme="strawberry-dark"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(244, 114, 150, 0.42);
 }

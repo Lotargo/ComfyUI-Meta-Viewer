@@ -1,10 +1,10 @@
 /**
  * ComfyUI Meta Viewer — Global Theme Manager
- * Supports: 'dark', 'light', 'strawberry', 'system'
+ * Supports: 'dark', 'light', 'strawberry', 'strawberry-dark', 'system'
  */
 
 const THEME_STORAGE_KEY = 'cmv_theme';
-const VALID_THEMES = ['dark', 'light', 'strawberry', 'system'];
+const VALID_THEMES = ['dark', 'light', 'strawberry', 'strawberry-dark', 'system'];
 
 export function getStoredTheme() {
     try {

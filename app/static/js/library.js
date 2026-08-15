@@ -88,7 +88,78 @@ const storageKeys = {
     previewVisible: 'library-preview-visible',
     previewWidth: 'library-preview-width',
     sidebarCollapsed: 'library-sidebar-collapsed',
+    sort: 'library-sort',
 };
+
+const LIBRARY_ORDER_KEY = 'cmv_library_order';
+
+function libraryOrderStorageKey() {
+    if (state.albumId) return `album:${state.albumId}`;
+    return `collection:${state.collection || 'all'}`;
+}
+
+function loadAllLibraryOrders() {
+    try {
+        return JSON.parse(localStorage.getItem(LIBRARY_ORDER_KEY)) || {};
+    } catch {
+        return {};
+    }
+}
+
+function saveAllLibraryOrders(orders) {
+    try {
+        localStorage.setItem(LIBRARY_ORDER_KEY, JSON.stringify(orders));
+    } catch {
+        // storage unavailable
+    }
+}
+
+function saveLibraryOrder(newOrderIds) {
+    const orders = loadAllLibraryOrders();
+    orders[libraryOrderStorageKey()] = newOrderIds.map(Number);
+    saveAllLibraryOrders(orders);
+}
+
+function loadLibraryOrder() {
+    const orders = loadAllLibraryOrders();
+    return orders[libraryOrderStorageKey()] || null;
+}
+
+function applySavedLibraryOrder() {
+    const [sortBy] = dom.sort.value.split(':');
+    if (sortBy !== 'custom') return;
+    const saved = loadLibraryOrder();
+    if (!saved || saved.length < 2 || state.assets.length < 2) return;
+
+    const assetMap = new Map();
+    for (const a of state.assets) {
+        assetMap.set(Number(a.id), a);
+    }
+    const savedSet = new Set(saved.map(Number));
+    const newItemsAtTop = [];
+    const newItemsAtBottom = [];
+
+    const firstSavedIdx = state.assets.findIndex(a => savedSet.has(Number(a.id)));
+    state.assets.forEach((a, idx) => {
+        if (!savedSet.has(Number(a.id))) {
+            if (firstSavedIdx === -1 || idx < firstSavedIdx) {
+                newItemsAtTop.push(a);
+            } else {
+                newItemsAtBottom.push(a);
+            }
+        }
+    });
+
+    const reordered = [];
+    for (const id of saved) {
+        const numId = Number(id);
+        if (assetMap.has(numId)) {
+            reordered.push(assetMap.get(numId));
+            assetMap.delete(numId);
+        }
+    }
+    state.assets = [...newItemsAtTop, ...reordered, ...newItemsAtBottom];
+}
 
 function readStoredBoolean(key, fallback) {
     try {
@@ -677,12 +748,14 @@ function applyCurrentFilters(params) {
 
 function buildAssetsUrl() {
     const [sortBy, sortDir] = dom.sort.value.split(':');
+    const apiSortBy = sortBy === 'custom' ? 'date' : sortBy;
+    const apiSortDir = sortBy === 'custom' ? 'desc' : (sortDir || 'desc');
     const params = applyCurrentFilters(new URLSearchParams({
         collection: state.collection,
         page: String(state.page),
         per_page: String(state.perPage),
-        sort_by: sortBy,
-        sort_dir: sortDir,
+        sort_by: apiSortBy,
+        sort_dir: apiSortDir,
     }));
     return `/api/library/assets?${params}`;
 }
@@ -705,17 +778,20 @@ async function refreshAssets({ reconcile = false, preserveScroll = false } = {})
     state.loading = true;
     try {
         const [sortBy, sortDir] = dom.sort.value.split(':');
+        const apiSortBy = sortBy === 'custom' ? 'date' : sortBy;
+        const apiSortDir = sortBy === 'custom' ? 'desc' : (sortDir || 'desc');
         const params = applyCurrentFilters(new URLSearchParams({
             collection: state.collection,
             page: '1',
             per_page: String(state.page * state.perPage),
-            sort_by: sortBy,
-            sort_dir: sortDir,
+            sort_by: apiSortBy,
+            sort_dir: apiSortDir,
         }));
 
         const data = await fetchJson(`/api/library/assets?${params}`, { signal: controller.signal });
         state.assets = data.assets || [];
         state.total = data.total || 0;
+        applySavedLibraryOrder();
         if (!state.assets.some(asset => asset.id === state.activeAssetId)) {
             state.activeAssetId = state.assets[0]?.id ?? null;
         }
@@ -809,6 +885,7 @@ async function loadAssets({ append = false } = {}) {
         const data = await fetchJson(buildAssetsUrl(), { signal: controller.signal });
         state.assets = append ? [...state.assets, ...(data.assets || [])] : (data.assets || []);
         state.total = data.total || 0;
+        applySavedLibraryOrder();
         succeeded = true;
     } catch (error) {
         if (error.name !== 'AbortError') {
@@ -1772,6 +1849,11 @@ async function finishPointerAssetDrag(event, cancelled = false) {
             window.setTimeout(() => { state.suppressNextGridClick = false; }, 100);
         }
         cleanupPointerAssetDrag(session);
+        saveLibraryOrder(newOrderIds);
+        if (dom.sort.value !== 'custom:desc') {
+            dom.sort.value = 'custom:desc';
+            writeStoredPreference(storageKeys.sort, dom.sort.value);
+        }
         renderAssets({ reconcile: true });
         updatePreviewPanel();
 
@@ -2114,7 +2196,10 @@ dom.search.addEventListener('input', () => {
     searchTimer = window.setTimeout(resetAssetQuery, 250);
 });
 
-dom.sort.addEventListener('change', resetAssetQuery);
+dom.sort.addEventListener('change', () => {
+    writeStoredPreference(storageKeys.sort, dom.sort.value);
+    resetAssetQuery();
+});
 dom.modelFilter.addEventListener('change', resetAssetQuery);
 dom.orientationFilter.addEventListener('change', resetAssetQuery);
 dom.nodeFilter.addEventListener('change', resetAssetQuery);
@@ -2612,6 +2697,11 @@ async function initialize() {
         // Initialize sidebar and columns layout
         updateSidebarUI();
         setupInfiniteScroll();
+
+        const storedSort = localStorage.getItem(storageKeys.sort);
+        if (storedSort && dom.sort.querySelector(`option[value="${storedSort}"]`)) {
+            dom.sort.value = storedSort;
+        }
 
         await loadMetadata({ includeFilters: true });
         await loadAssets();

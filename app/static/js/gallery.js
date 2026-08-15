@@ -97,6 +97,21 @@ export function applySavedCustomOrder() {
         for (const img of images) {
             imgMap.set(Number(img.id), img);
         }
+        const savedSet = new Set(saved.map(Number));
+        const newItemsAtTop = [];
+        const newItemsAtBottom = [];
+
+        const firstSavedIdx = images.findIndex(img => savedSet.has(Number(img.id)));
+        images.forEach((img, idx) => {
+            if (!savedSet.has(Number(img.id))) {
+                if (firstSavedIdx === -1 || idx < firstSavedIdx) {
+                    newItemsAtTop.push(img);
+                } else {
+                    newItemsAtBottom.push(img);
+                }
+            }
+        });
+
         const reordered = [];
         for (const id of saved) {
             const numId = Number(id);
@@ -105,14 +120,11 @@ export function applySavedCustomOrder() {
                 imgMap.delete(numId);
             }
         }
-        for (const img of imgMap.values()) {
-            reordered.push(img);
-        }
         images.length = 0;
-        images.push(...reordered);
+        images.push(...newItemsAtTop, ...reordered, ...newItemsAtBottom);
         span.setAttribute("custom_order.active", true);
         span.setAttribute("saved_order_length", saved.length);
-        span.setAttribute("reordered_count", reordered.length);
+        span.setAttribute("reordered_count", images.length);
     } finally {
         span.end();
     }

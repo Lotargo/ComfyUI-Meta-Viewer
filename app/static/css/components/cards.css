@@ -123,6 +123,8 @@
     cursor: pointer;
     transition: all var(--transition);
     position: relative;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 240px;
 }
 
 .gallery-card:hover {
@@ -130,9 +132,12 @@
     transform: translateY(-2px);
 }
 
-.gallery-card.active {
+.gallery-card.active,
+.gallery-card.dragging-original,
+.gallery-card.drag-placeholder {
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
+    content-visibility: visible;
 }
 
 .gallery-card img {

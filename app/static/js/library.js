@@ -313,7 +313,7 @@ function assetCardHtml(asset) {
         : asset.preview_status === 'error' ? 'Preview unavailable' : 'Preparing preview…';
     const thumbnail = previewPending
         ? `<div class="asset-video-placeholder" title="${escapeHtml(asset.preview_error || previewMessage)}"><small>${escapeHtml(previewMessage)}</small></div>`
-        : `<img class="asset-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy" draggable="false">`;
+        : `<img class="asset-thumb" src="${escapeHtml(asset.thumbnail_url)}" alt="" loading="lazy" decoding="async" draggable="false">`;
     const videoPlayOverlay = isVideo
         ? `<span class="asset-video-play" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="m9 7 8 5-8 5z"></path></svg>

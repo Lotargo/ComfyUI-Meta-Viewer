@@ -29,6 +29,8 @@
     -webkit-user-select: none;
     -webkit-user-drag: none;
     touch-action: none;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 240px;
 }
 
 .gallery-card:hover {
@@ -37,9 +39,12 @@
     box-shadow: var(--shadow);
 }
 
-.gallery-card.active {
+.gallery-card.active,
+.gallery-card.dragging-original,
+.gallery-card.drag-placeholder {
     border-color: var(--accent);
     box-shadow: inset 0 0 0 2px var(--accent), var(--shadow);
+    content-visibility: visible;
 }
 
 .gallery-card img {

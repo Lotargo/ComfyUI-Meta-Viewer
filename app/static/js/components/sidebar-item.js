@@ -23,7 +23,7 @@ export function createSidebarItem(img, index, isActive) {
 
     div.innerHTML = `
         <div class="item-thumb">
-            <img src="${src}" alt="" loading="lazy" draggable="false">
+            <img src="${src}" alt="" loading="lazy" decoding="async" draggable="false">
             ${mediaBadge}
         </div>
         <div class="item-info">

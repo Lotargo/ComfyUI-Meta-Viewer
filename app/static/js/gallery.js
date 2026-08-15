@@ -190,7 +190,7 @@ function galleryCardHtml(img, index) {
         <div class="gallery-card${isActive}" data-index="${index}" data-image-id="${img.id ?? ''}">
             <div class="img-wrapper"${ratioStyle}>
                 ${videoPlaceholder}
-                <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}" onerror="if(this.dataset.mediaType==='video'){this.hidden=true;}" data-media-type="${isVideo ? 'video' : 'image'}">
+                <img src="${src}" alt="${escapeHtml(fileName)}" loading="lazy" decoding="async" draggable="false"${imgStyle} onload="if(this.naturalWidth){this.parentElement.style.aspectRatio=this.naturalWidth+'/'+this.naturalHeight;window.dispatchEvent(new Event('resize'));}" onerror="if(this.dataset.mediaType==='video'){this.hidden=true;}" data-media-type="${isVideo ? 'video' : 'image'}">
                 ${videoPlayOverlay}
                 ${mediaBadge}
             </div>

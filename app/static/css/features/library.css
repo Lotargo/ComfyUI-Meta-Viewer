@@ -589,12 +589,17 @@
     -webkit-user-select: none;
     -webkit-user-drag: none;
     touch-action: none;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 260px;
 }
 
 .asset-card:hover { transform: translateY(-2px); border-color: var(--border); box-shadow: var(--shadow); }
-.asset-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim), var(--shadow); }
+.asset-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim), var(--shadow); content-visibility: visible; }
+.asset-card.active { content-visibility: visible; }
 .asset-card .asset-thumb-wrap { cursor: grab; user-select: none; -webkit-user-drag: none; }
-.asset-card.dragging { opacity: 0.5; cursor: grabbing; }
+.asset-card.dragging,
+.asset-card.dragging-original,
+.asset-card.drag-placeholder { opacity: 0.5; cursor: grabbing; content-visibility: visible; }
 .asset-pointer-dragging,
 .asset-pointer-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-drag: none !important; }
 .asset-card:focus-visible { outline: 2px solid var(--accent2); outline-offset: 3px; }

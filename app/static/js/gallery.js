@@ -32,38 +32,7 @@ async function fetchJson(url, options) {
     return data;
 }
 
-const GALLERY_ORDER_KEY = 'cmv_gallery_order';
-
-function galleryOrderStorageKey(collection) {
-    return `${collection.type || 'media'}:${collection.id ?? 'all'}`;
-}
-
-function loadAllGalleryOrders() {
-    try {
-        return JSON.parse(localStorage.getItem(GALLERY_ORDER_KEY)) || {};
-    } catch (_e) {
-        return {};
-    }
-}
-
-function saveAllGalleryOrders(orders) {
-    try {
-        localStorage.setItem(GALLERY_ORDER_KEY, JSON.stringify(orders));
-    } catch (_e) {
-        // Storage quota or persistence unavailable — order is kept in-memory only.
-    }
-}
-
-function saveGalleryOrder(collection, imageIds) {
-    const orders = loadAllGalleryOrders();
-    orders[galleryOrderStorageKey(collection)] = imageIds;
-    saveAllGalleryOrders(orders);
-}
-
-function loadGalleryOrder(collection) {
-    const orders = loadAllGalleryOrders();
-    return orders[galleryOrderStorageKey(collection)] || null;
-}
+import { loadCustomOrder, saveCustomOrder, applyCustomOrder } from './custom-order.js';
 
 let hasCustomOrder = false;
 
@@ -78,52 +47,9 @@ export function applySavedCustomOrder() {
         image_count: images.length,
     });
     try {
-        const saved = loadGalleryOrder(currentCollection);
-        if (!saved || saved.length < 2) {
-            hasCustomOrder = false;
-            span.setAttribute("custom_order.active", false);
-            span.setAttribute("reason", "no_saved_order");
-            return;
-        }
-        if (images.length < 2) {
-            hasCustomOrder = false;
-            span.setAttribute("custom_order.active", false);
-            span.setAttribute("reason", "too_few_images");
-            return;
-        }
-
-        hasCustomOrder = true;
-        const imgMap = new Map();
-        for (const img of images) {
-            imgMap.set(Number(img.id), img);
-        }
-        const savedSet = new Set(saved.map(Number));
-        const newItemsAtTop = [];
-        const newItemsAtBottom = [];
-
-        const firstSavedIdx = images.findIndex(img => savedSet.has(Number(img.id)));
-        images.forEach((img, idx) => {
-            if (!savedSet.has(Number(img.id))) {
-                if (firstSavedIdx === -1 || idx < firstSavedIdx) {
-                    newItemsAtTop.push(img);
-                } else {
-                    newItemsAtBottom.push(img);
-                }
-            }
-        });
-
-        const reordered = [];
-        for (const id of saved) {
-            const numId = Number(id);
-            if (imgMap.has(numId)) {
-                reordered.push(imgMap.get(numId));
-                imgMap.delete(numId);
-            }
-        }
-        images.length = 0;
-        images.push(...newItemsAtTop, ...reordered, ...newItemsAtBottom);
-        span.setAttribute("custom_order.active", true);
-        span.setAttribute("saved_order_length", saved.length);
+        const result = applyCustomOrder(images, currentCollection);
+        hasCustomOrder = result.active;
+        span.setAttribute("custom_order.active", hasCustomOrder);
         span.setAttribute("reordered_count", images.length);
     } finally {
         span.end();
@@ -140,7 +66,7 @@ export function mergeCustomOrderOnPageLoad(newImageIds) {
             span.setAttribute("reason", "no_custom_order");
             return;
         }
-        const saved = loadGalleryOrder(currentCollection);
+        const saved = loadCustomOrder(currentCollection);
         if (!saved) {
             span.setAttribute("reason", "no_saved_order");
             return;
@@ -150,7 +76,7 @@ export function mergeCustomOrderOnPageLoad(newImageIds) {
             const numId = Number(id);
             if (!merged.includes(numId)) merged.push(numId);
         }
-        saveGalleryOrder(currentCollection, merged);
+        saveCustomOrder(currentCollection, merged);
         span.setAttribute("merged_length", merged.length);
     } finally {
         span.end();
@@ -727,10 +653,14 @@ document.addEventListener('pointerup', async event => {
             images.length = 0;
             images.push(...reordered);
 
-            saveGalleryOrder(currentCollection, newOrderIds);
+            saveCustomOrder(currentCollection, newOrderIds);
             hasCustomOrder = true;
             setSortKey('custom');
             saveState();
+
+            import('./features/sidebar.js').then(({ renderSidebar }) => {
+                renderSidebar({ reconcile: true });
+            });
 
             if (currentCollection.type === 'album' && currentCollection.id != null && newOrderIds.length > 1) {
                 fetchJson(`/api/albums/${currentCollection.id}/reorder`, {

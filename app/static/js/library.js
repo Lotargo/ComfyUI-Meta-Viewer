@@ -1,5 +1,6 @@
 import { showImageContextMenu } from './components/image-context-menu.js';
 import { isSupportedMediaFile } from './media-files.js';
+import { saveCustomOrder, applyCustomOrder } from './custom-order.js';
 
 const dom = {
     systemCollections: document.getElementById('system-collections'),
@@ -91,74 +92,19 @@ const storageKeys = {
     sort: 'library-sort',
 };
 
-const LIBRARY_ORDER_KEY = 'cmv_library_order';
-
-function libraryOrderStorageKey() {
-    if (state.albumId) return `album:${state.albumId}`;
-    return `collection:${state.collection || 'all'}`;
-}
-
-function loadAllLibraryOrders() {
-    try {
-        return JSON.parse(localStorage.getItem(LIBRARY_ORDER_KEY)) || {};
-    } catch {
-        return {};
-    }
-}
-
-function saveAllLibraryOrders(orders) {
-    try {
-        localStorage.setItem(LIBRARY_ORDER_KEY, JSON.stringify(orders));
-    } catch {
-        // storage unavailable
-    }
+function currentLibraryCollectionDescriptor() {
+    if (state.albumId) return { type: 'album', id: state.albumId };
+    return { type: 'collection', collection: state.collection || 'all' };
 }
 
 function saveLibraryOrder(newOrderIds) {
-    const orders = loadAllLibraryOrders();
-    orders[libraryOrderStorageKey()] = newOrderIds.map(Number);
-    saveAllLibraryOrders(orders);
-}
-
-function loadLibraryOrder() {
-    const orders = loadAllLibraryOrders();
-    return orders[libraryOrderStorageKey()] || null;
+    saveCustomOrder(currentLibraryCollectionDescriptor(), newOrderIds);
 }
 
 function applySavedLibraryOrder() {
     const [sortBy] = dom.sort.value.split(':');
     if (sortBy !== 'custom') return;
-    const saved = loadLibraryOrder();
-    if (!saved || saved.length < 2 || state.assets.length < 2) return;
-
-    const assetMap = new Map();
-    for (const a of state.assets) {
-        assetMap.set(Number(a.id), a);
-    }
-    const savedSet = new Set(saved.map(Number));
-    const newItemsAtTop = [];
-    const newItemsAtBottom = [];
-
-    const firstSavedIdx = state.assets.findIndex(a => savedSet.has(Number(a.id)));
-    state.assets.forEach((a, idx) => {
-        if (!savedSet.has(Number(a.id))) {
-            if (firstSavedIdx === -1 || idx < firstSavedIdx) {
-                newItemsAtTop.push(a);
-            } else {
-                newItemsAtBottom.push(a);
-            }
-        }
-    });
-
-    const reordered = [];
-    for (const id of saved) {
-        const numId = Number(id);
-        if (assetMap.has(numId)) {
-            reordered.push(assetMap.get(numId));
-            assetMap.delete(numId);
-        }
-    }
-    state.assets = [...newItemsAtTop, ...reordered, ...newItemsAtBottom];
+    applyCustomOrder(state.assets, currentLibraryCollectionDescriptor());
 }
 
 function readStoredBoolean(key, fallback) {

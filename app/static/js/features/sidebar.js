@@ -41,7 +41,10 @@ import {
     sidebarCollapsed,
     sidebarWidth,
     refreshCacheBuster,
+    sortKey,
+    sidebarSortKey,
 } from '../state.js';
+import { applyCustomOrder } from '../custom-order.js';
 import { escapeHtml, customConfirm, formatMediaCountLabel, imageRenderSignature, originalUrl } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
 import { showImageContextMenu } from '../components/image-context-menu.js';
@@ -134,6 +137,9 @@ export function updateSidebarImageCount() {
 }
 
 export function renderSidebar({ reconcile = false } = {}) {
+    if (sidebarSortKey === 'custom' || sortKey === 'custom') {
+        applyCustomOrder(sidebarImages, currentCollection);
+    }
     updateSidebarImageCount();
 
     if (reconcile) {

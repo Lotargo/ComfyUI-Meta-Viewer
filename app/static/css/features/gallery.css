@@ -11,6 +11,8 @@
     grid-auto-rows: 10px;
     gap: 14px;
     align-items: start;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .gallery-card {

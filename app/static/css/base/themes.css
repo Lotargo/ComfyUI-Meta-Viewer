@@ -1,0 +1,268 @@
+/* ==========================================================================
+   ComfyUI Meta Viewer — Multi-Theme Engine
+   Supported Themes:
+     - dark (Default Studio Dark)
+     - light (Clean Studio Light)
+     - strawberry (Pastel Strawberry Milk / Клубнично-молочная)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Dark Studio Theme (Default)
+   -------------------------------------------------------------------------- */
+[data-theme="dark"],
+:root:not([data-theme]) {
+    --h-primary: 174;
+    --h-secondary: 38;
+    
+    --bg: #090b0d;
+    --bg-elevated: #0f1114;
+    --surface: #15181b;
+    --surface-glass: rgba(20, 23, 26, 0.86);
+    --surface2: #1c2024;
+    --surface3: #272c31;
+    
+    --border: rgba(235, 241, 243, 0.13);
+    --border-subtle: rgba(235, 241, 243, 0.075);
+    --border-glow: rgba(158, 181, 176, 0.24);
+
+    --text: #f1f3f3;
+    --text-dim: #afb5b7;
+    --text-muted: #747b80;
+
+    --accent: #78948f;
+    --accent-hover: #a6bbb7;
+    --accent-dim: rgba(120, 148, 143, 0.16);
+    --accent-glow: rgba(120, 148, 143, 0.24);
+    
+    --accent2: #9ba0a4;
+    --accent2-hover: #c2c5c7;
+    --accent2-dim: rgba(155, 160, 164, 0.15);
+
+    --green: #79a98a;
+    --green-dim: rgba(121, 169, 138, 0.15);
+    --orange: #b99a70;
+    --orange-dim: rgba(185, 154, 112, 0.15);
+    --red: #b97882;
+    --red-dim: rgba(185, 120, 130, 0.15);
+    --blue: #5b8def;
+    --blue-dim: rgba(91, 141, 239, 0.15);
+    --pink: #d96b92;
+    --pink-dim: rgba(217, 107, 146, 0.15);
+    --cyan: #4ea8a4;
+    --cyan-dim: rgba(78, 168, 164, 0.15);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.45);
+    --shadow-glow: 0 0 0 3px rgba(120, 148, 143, 0.18);
+    
+    color-scheme: dark;
+}
+
+/* --------------------------------------------------------------------------
+   2. Light Studio Theme
+   -------------------------------------------------------------------------- */
+[data-theme="light"] {
+    --h-primary: 174;
+    --h-secondary: 38;
+
+    --bg: #f4f6f9;
+    --bg-elevated: #e9eef2;
+    --surface: #ffffff;
+    --surface-glass: rgba(255, 255, 255, 0.88);
+    --surface2: #edf1f5;
+    --surface3: #e1e7ec;
+
+    --border: rgba(15, 23, 42, 0.13);
+    --border-subtle: rgba(15, 23, 42, 0.07);
+    --border-glow: rgba(13, 148, 136, 0.22);
+
+    --text: #0f172a;
+    --text-dim: #475569;
+    --text-muted: #8b98a9;
+
+    --accent: #0d9488;
+    --accent-hover: #0f766e;
+    --accent-dim: rgba(13, 148, 136, 0.12);
+    --accent-glow: rgba(13, 148, 136, 0.20);
+
+    --accent2: #d97706;
+    --accent2-hover: #b45309;
+    --accent2-dim: rgba(217, 119, 6, 0.12);
+
+    --green: #16a34a;
+    --green-dim: rgba(22, 163, 74, 0.12);
+    --orange: #ea580c;
+    --orange-dim: rgba(234, 88, 12, 0.12);
+    --red: #e11d48;
+    --red-dim: rgba(225, 29, 72, 0.12);
+    --blue: #2563eb;
+    --blue-dim: rgba(37, 99, 235, 0.12);
+    --pink: #db2777;
+    --pink-dim: rgba(219, 39, 119, 0.12);
+    --cyan: #0891b2;
+    --cyan-dim: rgba(8, 145, 178, 0.12);
+
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+    --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+    --shadow-glow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+
+    color-scheme: light;
+}
+
+/* --------------------------------------------------------------------------
+   3. Strawberry Milk Theme (Клубнично-молочная)
+   -------------------------------------------------------------------------- */
+[data-theme="strawberry"] {
+    --h-primary: 345;
+    --h-secondary: 330;
+
+    --bg: #fdf5f7;
+    --bg-elevated: #f9e9ee;
+    --surface: #ffffff;
+    --surface-glass: rgba(255, 255, 255, 0.90);
+    --surface2: #f6e3ea;
+    --surface3: #edd0dc;
+
+    --border: rgba(217, 75, 104, 0.18);
+    --border-subtle: rgba(217, 75, 104, 0.10);
+    --border-glow: rgba(217, 75, 104, 0.28);
+
+    --text: #3c242c;
+    --text-dim: #785360;
+    --text-muted: #ad8795;
+
+    --accent: #d94b68;
+    --accent-hover: #c43855;
+    --accent-dim: rgba(217, 75, 104, 0.14);
+    --accent-glow: rgba(217, 75, 104, 0.22);
+
+    --accent2: #e8849b;
+    --accent2-hover: #d26a83;
+    --accent2-dim: rgba(232, 132, 155, 0.16);
+
+    --green: #2e9e6b;
+    --green-dim: rgba(46, 158, 107, 0.14);
+    --orange: #e07a3c;
+    --orange-dim: rgba(224, 122, 60, 0.14);
+    --red: #e03b58;
+    --red-dim: rgba(224, 59, 88, 0.14);
+    --blue: #4f85db;
+    --blue-dim: rgba(79, 133, 219, 0.14);
+    --pink: #e04b7e;
+    --pink-dim: rgba(224, 75, 126, 0.14);
+    --cyan: #32a8a4;
+    --cyan-dim: rgba(50, 168, 164, 0.14);
+
+    --shadow-sm: 0 1px 3px rgba(90, 30, 50, 0.06);
+    --shadow: 0 6px 18px rgba(90, 30, 50, 0.08);
+    --shadow-lg: 0 16px 36px rgba(90, 30, 50, 0.12);
+    --shadow-glow: 0 0 0 3px rgba(217, 75, 104, 0.18);
+
+    color-scheme: light;
+}
+
+/* --------------------------------------------------------------------------
+   Shared Component Theme Enhancements
+   -------------------------------------------------------------------------- */
+[data-theme="light"] body,
+[data-theme="strawberry"] body {
+    background-color: var(--bg);
+    color: var(--text);
+}
+
+[data-theme="light"] .global-header,
+[data-theme="strawberry"] .global-header {
+    background: var(--surface-glass);
+    border-bottom: 1px solid var(--border-subtle);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+[data-theme="light"] .global-header .app-switcher,
+[data-theme="strawberry"] .global-header .app-switcher {
+    border-color: var(--border-subtle);
+    background: var(--bg-elevated);
+}
+
+[data-theme="light"] .global-header .app-switcher-link,
+[data-theme="strawberry"] .global-header .app-switcher-link {
+    color: var(--text-dim);
+}
+
+[data-theme="light"] .global-header .app-switcher-link:hover,
+[data-theme="strawberry"] .global-header .app-switcher-link:hover {
+    background: var(--surface2);
+    color: var(--text);
+}
+
+[data-theme="light"] .global-header .app-switcher-link.active,
+[data-theme="strawberry"] .global-header .app-switcher-link.active {
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .header-dropdown,
+[data-theme="strawberry"] .header-dropdown {
+    background: var(--surface);
+    border-color: var(--border);
+    box-shadow: var(--shadow-lg);
+}
+
+[data-theme="light"] .header-menu-item,
+[data-theme="strawberry"] .header-menu-item {
+    color: var(--text-dim);
+}
+
+[data-theme="light"] .header-menu-item:hover,
+[data-theme="strawberry"] .header-menu-item:hover,
+[data-theme="light"] .header-menu-item.active,
+[data-theme="strawberry"] .header-menu-item.active {
+    background: var(--accent-dim);
+    color: var(--text);
+}
+
+/* Theme menu checkmark styling */
+.header-menu-item.theme-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header-menu-item.theme-option > .theme-option-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.header-menu-item.theme-option .theme-check {
+    opacity: 0;
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 13px;
+    margin-left: 8px;
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.header-menu-item.theme-option.active .theme-check {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* Light / Strawberry scrollbar styling */
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: rgba(15, 23, 42, 0.18);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(15, 23, 42, 0.32);
+}
+
+[data-theme="strawberry"] ::-webkit-scrollbar-thumb {
+    background: rgba(217, 75, 104, 0.22);
+}
+[data-theme="strawberry"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(217, 75, 104, 0.40);
+}

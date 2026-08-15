@@ -1,78 +1,48 @@
+@import url('./themes.css');
+
 /*
  * Shared visual language for Viewer, Library, Create, and AI Settings.
- * Page-specific styles keep ownership of layout; this layer only aligns
+ * Page-specific styles keep ownership of layout; this layer aligns
  * palette, depth, radii, focus treatment, and the global application header.
  */
 .studio-theme {
-    --bg: #090b0d;
-    --bg-elevated: #0f1114;
-    --surface: #15181b;
-    --surface-glass: rgba(20, 23, 26, .84);
-    --surface2: #1c2024;
-    --surface3: #272c31;
-    --border: rgba(235, 241, 243, .13);
-    --border-subtle: rgba(235, 241, 243, .075);
-    --border-glow: rgba(158, 181, 176, .24);
-    --text: #f1f3f3;
-    --text-dim: #afb5b7;
-    --text-muted: #747b80;
-    --accent: #78948f;
-    --accent-hover: #a6bbb7;
-    --accent-dim: rgba(120, 148, 143, .13);
-    --accent-glow: transparent;
-    --accent2: #9ba0a4;
-    --accent2-hover: #c2c5c7;
-    --accent2-dim: rgba(155, 160, 164, .12);
-    --green: #79a98a;
-    --green-dim: rgba(121, 169, 138, .13);
-    --orange: #b99a70;
-    --orange-dim: rgba(185, 154, 112, .13);
-    --red: #b97882;
-    --red-dim: rgba(185, 120, 130, .13);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
-    --shadow: 0 10px 26px rgba(0, 0, 0, .28);
-    --shadow-lg: 0 22px 60px rgba(0, 0, 0, .42);
-    --shadow-glow: none;
-    --radius-sm: 6px;
-    --radius: 8px;
-    --radius-lg: 10px;
-    --radius-xl: 12px;
     background-color: var(--bg);
     color: var(--text);
 }
 
 .studio-theme :focus-visible {
-    outline: 1px solid rgba(171, 190, 186, .72);
+    outline: 1px solid var(--accent);
     outline-offset: 2px;
 }
 
 .studio-theme .global-header {
-    border-bottom-color: var(--border-subtle);
-    background: rgba(10, 12, 14, .88);
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--surface-glass);
     backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 }
 
 .studio-theme .global-header .header-logo span {
-    color: hsl(var(--h-secondary), 88%, 56%);
+    color: var(--accent);
 }
 
 .studio-theme .global-header .app-switcher {
     border-color: var(--border-subtle);
-    background: rgba(255, 255, 255, .025);
+    background: var(--bg-elevated);
 }
 
 .studio-theme .global-header .app-switcher-link {
-    color: #7e8589;
+    color: var(--text-muted);
     font-weight: 620;
 }
 
 .studio-theme .global-header .app-switcher-link:hover {
-    background: rgba(255, 255, 255, .045);
+    background: var(--surface2);
     color: var(--text-dim);
 }
 
 .studio-theme .global-header .app-switcher-link.active {
-    background: #252a2e;
-    color: #f0f2f2;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09);
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }

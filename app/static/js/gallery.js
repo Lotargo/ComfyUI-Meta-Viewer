@@ -16,6 +16,16 @@ import {
 import { escapeHtml, imageRenderSignature, originalUrl, thumbUrl } from './utils.js';
 import { skeletonGalleryCard } from './components/skeleton.js';
 import { showImageContextMenu } from './components/image-context-menu.js';
+import { traceSpan } from './tracing.js';
+
+async function fetchJson(url, options) {
+    const response = await fetch(url, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error) {
+        throw new Error(data.error || `${response.status} ${response.statusText}`);
+    }
+    return data;
+}
 
 const GALLERY_ORDER_KEY = 'cmv_gallery_order';
 
@@ -50,24 +60,79 @@ function loadGalleryOrder(collection) {
     return orders[galleryOrderStorageKey(collection)] || null;
 }
 
-export function applySavedCustomOrder() {
-    const saved = loadGalleryOrder(currentCollection);
-    if (!saved || saved.length < 2) return;
-    if (images.length < 2) return;
+let hasCustomOrder = false;
 
-    const imgMap = new Map(images.map(img => [img.id, img]));
-    const reordered = [];
-    for (const id of saved) {
-        if (imgMap.has(id)) {
-            reordered.push(imgMap.get(id));
-            imgMap.delete(id);
+export function applySavedCustomOrder() {
+    const span = traceSpan("gallery.applySavedCustomOrder", {
+        collection: currentCollection.type,
+        collection_id: currentCollection.id ?? "all",
+        image_count: images.length,
+    });
+    try {
+        const saved = loadGalleryOrder(currentCollection);
+        if (!saved || saved.length < 2) {
+            hasCustomOrder = false;
+            span.setAttribute("custom_order.active", false);
+            span.setAttribute("reason", "no_saved_order");
+            return;
         }
+        if (images.length < 2) {
+            hasCustomOrder = false;
+            span.setAttribute("custom_order.active", false);
+            span.setAttribute("reason", "too_few_images");
+            return;
+        }
+
+        hasCustomOrder = true;
+        const imgMap = new Map(images.map(img => [img.id, img]));
+        const reordered = [];
+        for (const id of saved) {
+            if (imgMap.has(id)) {
+                reordered.push(imgMap.get(id));
+                imgMap.delete(id);
+            }
+        }
+        for (const img of imgMap.values()) {
+            reordered.push(img);
+        }
+        images.length = 0;
+        images.push(...reordered);
+        span.setAttribute("custom_order.active", true);
+        span.setAttribute("saved_order_length", saved.length);
+        span.setAttribute("reordered_count", reordered.length);
+    } finally {
+        span.end();
     }
-    for (const img of imgMap.values()) {
-        reordered.push(img);
+}
+
+export function mergeCustomOrderOnPageLoad(newImageIds) {
+    const span = traceSpan("gallery.mergeCustomOrderOnPageLoad", {
+        new_count: newImageIds.length,
+        has_custom_order: hasCustomOrder,
+    });
+    try {
+        if (!hasCustomOrder) {
+            span.setAttribute("reason", "no_custom_order");
+            return;
+        }
+        const saved = loadGalleryOrder(currentCollection);
+        if (!saved) {
+            span.setAttribute("reason", "no_saved_order");
+            return;
+        }
+        const merged = [...saved];
+        for (const id of newImageIds) {
+            if (!merged.includes(id)) merged.push(id);
+        }
+        saveGalleryOrder(currentCollection, merged);
+        span.setAttribute("merged_length", merged.length);
+    } finally {
+        span.end();
     }
-    images.length = 0;
-    images.push(...reordered);
+}
+
+export function isCustomOrderActive() {
+    return hasCustomOrder;
 }
 
 let resizeTimeout = null;
@@ -260,78 +325,99 @@ export function loadNextGalleryPage() {
     return nextGalleryPagePromise;
 }
 
+export function renderGallerySkeleton() {
+    let html = '<div class="gallery-masonry">';
+    for (let i = 0; i < 12; i++) html += skeletonGalleryCard();
+    html += '</div>';
+    dom.contentArea.innerHTML = html;
+    resizeAllGridItems();
+}
+
 export function renderGallery({ appendOnly = false, startIndex = 0, reconcile = false } = {}) {
-    if (galleryScrollObserver) galleryScrollObserver.disconnect();
+    const span = traceSpan("gallery.renderGallery", {
+        append_only: appendOnly,
+        reconcile: reconcile,
+        start_index: startIndex,
+        image_count: images.length,
+    });
 
-    if (!appendOnly && !reconcile && startIndex === 0) {
-        applySavedCustomOrder();
-    }
+    try {
+        if (galleryScrollObserver) galleryScrollObserver.disconnect();
 
-    if (images.length === 0) {
-        if (!allLoaded && isBrowsableCollection(currentCollection)) {
-            renderGallerySkeleton();
+        if (!appendOnly && !reconcile && startIndex === 0) {
+            applySavedCustomOrder();
+        }
+
+        if (images.length === 0) {
+            if (!allLoaded && isBrowsableCollection(currentCollection)) {
+                renderGallerySkeleton();
+                return;
+            }
+            dom.contentArea.innerHTML = `
+                <div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-dim);">
+                    <div class="empty-state-icon" style="margin-bottom: 16px;">
+                        <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    </div>
+                    <p>No media found for the selected filters</p>
+                </div>
+            `;
             return;
         }
-        dom.contentArea.innerHTML = `
-            <div class="empty-state" style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-dim);">
-                <div class="empty-state-icon" style="margin-bottom: 16px;">
-                    <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                </div>
-                <p>No media found for the selected filters</p>
-            </div>
-        `;
-        return;
-    }
 
-    const masonry = dom.contentArea.querySelector('.gallery-masonry');
-    if (reconcile && masonry) {
-        reconcileGalleryCards(masonry);
-        resizeAllGridItems();
-        import('./components/search-bar.js').then(module => module.applySearchFilter());
-    } else if (appendOnly && masonry) {
-        const fragment = document.createDocumentFragment();
-        for (let index = startIndex; index < images.length; index++) {
-            // eslint-disable-next-line no-restricted-syntax -- appending to a detached fragment batches the DOM update
-            fragment.appendChild(createGalleryCard(images[index], index));
-        }
-        masonry.appendChild(fragment);
+        const masonry = dom.contentArea.querySelector('.gallery-masonry');
+        if (reconcile && masonry) {
+            reconcileGalleryCards(masonry);
+            resizeAllGridItems();
+            import('./components/search-bar.js').then(module => module.applySearchFilter());
+        } else if (appendOnly && masonry) {
+            const fragment = document.createDocumentFragment();
+            for (let index = startIndex; index < images.length; index++) {
+                // eslint-disable-next-line no-restricted-syntax -- appending to a detached fragment batches the DOM update
+                fragment.appendChild(createGalleryCard(images[index], index));
+            }
+            masonry.appendChild(fragment);
 
-        resizeAllGridItems();
-        import('./components/search-bar.js').then(module => module.applySearchFilter());
-    } else {
-        const html = `<div class="gallery-masonry">${images.map(galleryCardHtml).join('')}</div>`;
-        dom.contentArea.innerHTML = html;
-        import('./components/search-bar.js').then(module => module.applySearchFilter());
-
-        dom.contentArea.querySelectorAll('.gallery-card').forEach(card => {
-            const index = Number.parseInt(card.dataset.index, 10);
-            card.dataset.renderSignature = imageRenderSignature(images[index]);
-            bindGalleryCard(card);
-        });
-
-        resizeAllGridItems();
-        import('./features/sorting.js').then(module => module.bindCentralSortEvents());
-    }
-
-    if (!allLoaded && isBrowsableCollection(currentCollection)) {
-        let sentinel = document.querySelector('#gallery-sentinel');
-        if (!sentinel) {
-            sentinel = document.createElement('div');
-            sentinel.id = 'gallery-sentinel';
-            sentinel.style.height = '1px';
-            dom.contentArea.appendChild(sentinel);
+            resizeAllGridItems();
+            import('./components/search-bar.js').then(module => module.applySearchFilter());
         } else {
-            dom.contentArea.appendChild(sentinel);
+            const html = `<div class="gallery-masonry">${images.map(galleryCardHtml).join('')}</div>`;
+            dom.contentArea.innerHTML = html;
+            import('./components/search-bar.js').then(module => module.applySearchFilter());
+
+            dom.contentArea.querySelectorAll('.gallery-card').forEach(card => {
+                const index = Number.parseInt(card.dataset.index, 10);
+                card.dataset.renderSignature = imageRenderSignature(images[index]);
+                bindGalleryCard(card);
+            });
+
+            resizeAllGridItems();
+            import('./features/sorting.js').then(module => module.bindCentralSortEvents());
         }
 
-        const observer = new IntersectionObserver(entries => {
-            if (!entries[0].isIntersecting) return;
-            loadNextGalleryPage();
-        }, { root: dom.contentArea, threshold: 0.1 });
-        setGalleryScrollObserver(observer);
-        observer.observe(sentinel);
-    } else {
-        dom.contentArea.querySelector('#gallery-sentinel')?.remove();
+        if (!allLoaded && isBrowsableCollection(currentCollection)) {
+            let sentinel = document.querySelector('#gallery-sentinel');
+            if (!sentinel) {
+                sentinel = document.createElement('div');
+                sentinel.id = 'gallery-sentinel';
+                sentinel.className = 'infinite-scroll-sentinel';
+                sentinel.innerHTML = '<span class="infinite-scroll-spinner" aria-hidden="true"></span><span>Loading more media…</span>';
+                dom.contentArea.appendChild(sentinel);
+            } else {
+                dom.contentArea.appendChild(sentinel);
+            }
+
+            const observer = new IntersectionObserver(entries => {
+                if (entries.some(entry => entry.isIntersecting)) {
+                    loadNextGalleryPage();
+                }
+            }, { root: null, rootMargin: '600px 0px', threshold: 0 });
+            setGalleryScrollObserver(observer);
+            observer.observe(sentinel);
+        } else {
+            dom.contentArea.querySelector('#gallery-sentinel')?.remove();
+        }
+    } finally {
+        span.end();
     }
 }
 
@@ -552,7 +638,9 @@ document.addEventListener('pointerup', async event => {
 
     try {
         session.card.releasePointerCapture?.(session.pointerId);
-    } catch {}
+    } catch (_e) {
+        // Capture may already be released by the browser.
+    }
 
     const wasDragging = session.dragging;
     const dropTarget = session.dropTarget;
@@ -598,6 +686,15 @@ document.addEventListener('pointerup', async event => {
             images.push(...reordered);
 
             saveGalleryOrder(currentCollection, reordered.map(img => img.id));
+
+            if (currentCollection.type === 'album' && currentCollection.id != null && newOrderIds.length > 1) {
+                fetchJson(`/api/albums/${currentCollection.id}/reorder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset_ids: newOrderIds }),
+                }).catch(err => showToast(err.message, true));
+            }
+
             renderGallery();
         }
         placeholder.remove();
@@ -631,7 +728,9 @@ document.addEventListener('pointercancel', event => {
     if (!session || session.pointerId !== event.pointerId) return;
     try {
         session.card.releasePointerCapture?.(session.pointerId);
-    } catch {}
+    } catch (_e) {
+        // Capture may already be released by the browser.
+    }
     session.preview?.remove();
     session.placeholder?.remove();
     session.card.classList.remove('dragging', 'dragging-original');

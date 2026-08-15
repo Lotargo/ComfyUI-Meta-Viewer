@@ -10,6 +10,7 @@ import {
     sidebarAllLoaded,
     sidebarScrollObserver,
     sidebarTotalImages,
+    totalImages,
     dom,
     showToast,
     setActiveIndex,
@@ -125,8 +126,15 @@ function reconcileSidebarItems() {
     existingById.forEach(item => item.remove());
 }
 
+export function updateSidebarImageCount() {
+    if (!dom.imageCount) return;
+    const loadedCount = Math.max(images.length, sidebarImages.length);
+    const totalCount = totalImages || sidebarTotalImages;
+    dom.imageCount.textContent = formatMediaCountLabel(loadedCount, totalCount);
+}
+
 export function renderSidebar({ reconcile = false } = {}) {
-    dom.imageCount.textContent = formatMediaCountLabel(sidebarImages.length, sidebarTotalImages);
+    updateSidebarImageCount();
 
     if (reconcile) {
         dom.imageList.querySelector('#scroll-sentinel')?.remove();
@@ -153,14 +161,15 @@ export function appendSentinel() {
 
     const sentinel = document.createElement('div');
     sentinel.id = 'scroll-sentinel';
-    sentinel.style.height = '1px';
+    sentinel.style.height = '20px';
+    sentinel.style.width = '100%';
     dom.imageList.appendChild(sentinel);
 
     const observer = new IntersectionObserver(entries => {
-        if (entries[0].isIntersecting) {
+        if (entries.some(entry => entry.isIntersecting)) {
             import('../api.js').then(module => module.loadMoreSidebarImages());
         }
-    }, { root: dom.imageList, threshold: 0.1 });
+    }, { root: dom.imageList, rootMargin: '400px 0px', threshold: 0 });
     setSidebarScrollObserver(observer);
     observer.observe(sentinel);
 }

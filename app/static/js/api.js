@@ -1,3 +1,4 @@
+import { traceAsync } from './tracing.js';
 import {
     images,
     activeIndex,
@@ -317,12 +318,22 @@ export async function loadMore() {
     const nextPage = currentPage + 1;
     let didLoad = false;
     try {
-        const data = await fetchJson(collectionImagesUrl(currentCollection, nextPage, PAGE_SIZE));
+        const data = await traceAsync("api.loadMore.fetch", {
+            page: nextPage,
+            collection: currentCollection.type,
+            collection_id: currentCollection.id ?? "all",
+            page_size: PAGE_SIZE,
+        }, () => fetchJson(collectionImagesUrl(currentCollection, nextPage, PAGE_SIZE)));
         if (data.images?.length) {
+            const newIds = data.images.map(img => img.id);
             images.push(...data.images);
+            const { mergeCustomOrderOnPageLoad } = await import('./gallery.js');
+            mergeCustomOrderOnPageLoad(newIds);
             setCurrentPage(nextPage);
             setTotalImages(data.total || totalImages);
             setAllLoaded(images.length >= (data.total || 0));
+            const { updateSidebarImageCount } = await import('./features/sidebar.js');
+            updateSidebarImageCount();
             didLoad = true;
         } else {
             setAllLoaded(true);

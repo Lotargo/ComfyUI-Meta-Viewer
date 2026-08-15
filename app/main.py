@@ -28,6 +28,7 @@ from .ai import ai_blueprint
 from .comfyui import comfyui_blueprint, editor_blueprint
 from .cutout import clear_cutout, get_cutout_path, make_cutout_png
 from .config_store import ConfigStore, ConfigStoreError
+from .tracing import setup_tracing, get_tracer
 from .extractor import (
     has_generation_metadata,
     make_thumbnail_bytes,
@@ -76,6 +77,10 @@ from .schemas import (
 )
 
 app = Flask(__name__)
+
+setup_tracing()
+tracer = get_tracer("comfy-meta-viewer")
+
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 app.config["SEND_FILE_MAX_AGE"] = 3600
 app.config.update(build_runtime_paths().flask_config())
@@ -202,23 +207,32 @@ def api_library_assets():
     rating_val = request.args.get("rating")
     rating = int(rating_val) if rating_val and rating_val.isdigit() else None
 
-    result = media_library.get_assets(
-        collection=request.args.get("collection", "all"),
-        album_id=request.args.get("album_id", type=int),
-        page=request.args.get("page", 1, type=int),
-        per_page=request.args.get("per_page", 80, type=int),
-        sort_by=request.args.get("sort_by", "date"),
-        sort_dir=request.args.get("sort_dir", "desc"),
-        query=request.args.get("q", ""),
-        source_id=request.args.get("source_id", type=int),
-        tag=request.args.get("tag"),
-        rating=rating,
-        ai_rank=request.args.get("ai_rank"),
-        ai_rating_status=request.args.get("ai_rating_status"),
-        model_family=request.args.get("model_family"),
-        orientation=request.args.get("orientation"),
-        node_type=request.args.get("node_type"),
-    )
+    with tracer.start_as_current_span(
+        "library.get_assets",
+        attributes={
+            "collection": request.args.get("collection", "all"),
+            "album.id": request.args.get("album_id", type=int) or -1,
+            "page": request.args.get("page", 1, type=int),
+            "sort_by": request.args.get("sort_by", "date"),
+        },
+    ):
+        result = media_library.get_assets(
+            collection=request.args.get("collection", "all"),
+            album_id=request.args.get("album_id", type=int),
+            page=request.args.get("page", 1, type=int),
+            per_page=request.args.get("per_page", 80, type=int),
+            sort_by=request.args.get("sort_by", "date"),
+            sort_dir=request.args.get("sort_dir", "desc"),
+            query=request.args.get("q", ""),
+            source_id=request.args.get("source_id", type=int),
+            tag=request.args.get("tag"),
+            rating=rating,
+            ai_rank=request.args.get("ai_rank"),
+            ai_rating_status=request.args.get("ai_rating_status"),
+            model_family=request.args.get("model_family"),
+            orientation=request.args.get("orientation"),
+            node_type=request.args.get("node_type"),
+        )
     return jsonify(result)
 
 
@@ -333,10 +347,14 @@ def api_album_reorder(album_id: int):
     asset_ids = body.get("asset_ids")
     if not isinstance(asset_ids, list) or not asset_ids:
         return jsonify({"error": "asset_ids must be a non-empty list"}), 400
-    try:
-        media_library.reorder_album_assets(album_id, asset_ids)
-    except media_library.LibraryNotFoundError as exc:
-        return jsonify({"error": str(exc)}), 404
+    with tracer.start_as_current_span(
+        "album.reorder",
+        attributes={"album.id": album_id, "asset_count": len(asset_ids)},
+    ):
+        try:
+            media_library.reorder_album_assets(album_id, asset_ids)
+        except media_library.LibraryNotFoundError as exc:
+            return jsonify({"error": str(exc)}), 404
     return jsonify({"ok": True})
 
 
@@ -592,18 +610,28 @@ def api_images():
         }), 400
     cursor_mtime = request.args.get("cursor_mtime", type=float)
     cursor_id = request.args.get("cursor_id", type=int)
-    result = db.get_images_page(
-        folder_id,
-        page,
-        per_page,
-        sort_by,
-        sort_dir,
-        album_id=album_id,
-        rating=rating,
-        media_types=media_types,
-        cursor_mtime=cursor_mtime,
-        cursor_id=cursor_id,
-    )
+    with tracer.start_as_current_span(
+        "gallery.get_images_page",
+        attributes={
+            "collection.folder_id": folder_id or -1,
+            "collection.album_id": album_id or -1,
+            "page": page,
+            "per_page": per_page,
+            "sort_by": sort_by,
+        },
+    ):
+        result = db.get_images_page(
+            folder_id,
+            page,
+            per_page,
+            sort_by,
+            sort_dir,
+            album_id=album_id,
+            rating=rating,
+            media_types=media_types,
+            cursor_mtime=cursor_mtime,
+            cursor_id=cursor_id,
+        )
     return jsonify(result.model_dump())
 
 

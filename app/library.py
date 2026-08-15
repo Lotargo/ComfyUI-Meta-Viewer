@@ -789,11 +789,30 @@ def get_assets(
 
     conn = db.get_conn()
     try:
+        # Albums with a custom (drag-reordered) order must be served in position order,
+        # overriding any user-selected sort, to match the Viewer behavior.
+        album_custom_order = False
+        album_join = ""
+        if collection == "album" and album_id is not None:
+            album_row = conn.execute(
+                "SELECT custom_order FROM albums WHERE id = ?", (album_id,)
+            ).fetchone()
+            album_custom_order = bool(album_row and album_row["custom_order"])
+            if album_custom_order:
+                album_join = " JOIN album_images ai ON ai.image_id = i.id AND ai.album_id = ?"
+
+        if album_custom_order:
+            order_clause = "ORDER BY ai.position ASC, i.id ASC"
+            order_params = [album_id]
+        else:
+            order_clause = f"ORDER BY {sort_column} {direction}, i.id {direction}"
+            order_params = []
+
         total = int(
             conn.execute(
                 f"""SELECT COUNT(*) AS count FROM images i
-                JOIN folders f ON f.id = i.folder_id{where}""",
-                params,
+                JOIN folders f ON f.id = i.folder_id{album_join}{where}""",
+                [*order_params, *params],
             ).fetchone()["count"]
         )
         rows = conn.execute(
@@ -807,11 +826,11 @@ def get_assets(
                 f.name AS source_name, f.path AS source_path, f.enabled AS source_enabled,
                 f.source_status,
                 r.rank AS ai_rank, r.rank_override AS ai_rank_override, r.status AS ai_rank_status
-            FROM images i JOIN folders f ON f.id = i.folder_id
+            FROM images i JOIN folders f ON f.id = i.folder_id{album_join}
             LEFT JOIN ai_ratings r ON r.image_id = i.id{where}
-            ORDER BY {sort_column} {direction}, i.id {direction}
+            {order_clause}
             LIMIT ? OFFSET ?""",
-            [*params, per_page, offset],
+            [*order_params, *params, per_page, offset],
         ).fetchall()
         assets = [dict(row) for row in rows]
         ids = [int(asset["id"]) for asset in assets]

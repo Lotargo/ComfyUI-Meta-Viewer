@@ -799,7 +799,11 @@ async function loadAssets({ append = false } = {}) {
     const controller = new AbortController();
     state.assetRequestController = controller;
     state.loading = true;
-    renderAssets();
+    if (append) {
+        updateInfiniteScroll();
+    } else {
+        renderAssets();
+    }
     let succeeded = false;
     try {
         const data = await fetchJson(buildAssetsUrl(), { signal: controller.signal });
@@ -818,7 +822,7 @@ async function loadAssets({ append = false } = {}) {
             if (state.assets.length > 0 && state.activeAssetId === null) {
                 state.activeAssetId = state.assets[0].id;
             }
-            renderAssets();
+            renderAssets({ reconcile: append });
             updatePreviewPanel();
         }
     }
@@ -1599,29 +1603,10 @@ function updateGridReorder(session, clientX, clientY) {
 
     const goAfter = (clientX > hCenterX) || (Math.abs(clientX - hCenterX) < 30 && clientY > hCenterY);
 
-    let targetIdx;
-    if (hoverIdx < placeholderIdx) {
-        targetIdx = goAfter ? hoverIdx : hoverIdx;
-    } else {
-        targetIdx = goAfter ? hoverIdx : hoverIdx;
-    }
-
-    if (goAfter && hoverIdx > placeholderIdx) {
-        targetIdx = hoverIdx;
-    } else if (!goAfter && hoverIdx > placeholderIdx) {
-        targetIdx = hoverIdx;
-    } else if (goAfter && hoverIdx < placeholderIdx) {
-        targetIdx = hoverIdx;
-    } else {
-        targetIdx = hoverIdx;
-    }
-
-    if (targetIdx === placeholderIdx) return;
-
     session.lastReorderTime = now;
     const oldPositions = getCardPositions();
 
-    if (targetIdx > placeholderIdx) {
+    if (goAfter) {
         hoverCard.parentNode.insertBefore(placeholder, hoverCard.nextElementSibling);
     } else {
         hoverCard.parentNode.insertBefore(placeholder, hoverCard);

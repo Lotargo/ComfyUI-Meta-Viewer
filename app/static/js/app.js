@@ -31,6 +31,10 @@ import { initSorting } from './features/sorting.js';
 import { initRatingFilter } from './features/rating-filter.js';
 import { initMediaTypeFilter } from './features/media-type-filter.js';
 import { waitForInitialMediaReady } from './media-loading.js';
+import { setupTracing } from './tracing.js';
+
+setupTracing();
+
 
 function finishBoot() {
     requestAnimationFrame(() => {

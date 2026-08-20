@@ -11,6 +11,7 @@ This folder contains the public documentation for the project: architecture, API
 | Document | Description |
 |----------|-------------|
 | [Architecture](architecture.md) | System overview, data flow, storage model, and extension points |
+| [Simple Mode Redesign](simple-mode-redesign.md) | Target UX, verified-profile model, AI-assisted generation flow, migration rules, and legacy-backend policy for the new simplified Create experience |
 | [API Reference](api.md) | Current REST API routes with request/response examples |
 | [Features](features.md) | User-facing features and implementation notes |
 | [Configuration](configuration.md) | Environment variables, local paths, file support, and CLI flags |
@@ -46,6 +47,7 @@ The `dev_docs/` folder contains planning notes and sprint documents. These files
 |------|------------|
 | Install and run the app | [Development > Setup](development.md#setup) |
 | Understand the system design | [Architecture](architecture.md) |
+| Understand the new simplified Create direction | [Simple Mode Redesign](simple-mode-redesign.md) |
 | Use or integrate with the REST API | [API Reference](api.md) |
 | Review user-facing capabilities | [Features](features.md) |
 | Change the port or storage path | [Configuration > Environment Variables](configuration.md#environment-variables) |

@@ -31,6 +31,9 @@ def test_composite_indexes_exist(temp_db):
             "idx_images_folder_media_mtime_id",
             "idx_images_rating_media_mtime",
             "idx_album_images_album_image",
+            "idx_album_images_album_pos",
+            "idx_images_indexed_at",
+            "idx_images_pending_processing",
         }
         for expected in expected_indexes:
             assert expected in index_names, f"Missing expected index: {expected}"
@@ -169,3 +172,76 @@ def test_large_offset_performance_benchmark(temp_db):
         assert elapsed_ms < 200.0, f"Query took too long: {elapsed_ms:.2f} ms"
     finally:
         conn.close()
+
+
+def test_batch_generation_stability_with_identical_mtimes(temp_db):
+    """Verify that multiple items with identical mtime sort consistently by ID in descending order."""
+    folder_id = db.upsert_folder("C:/test_batch_folder")
+    conn = db.get_conn()
+    try:
+        # Simulate a batch of 6 images generated in the same second
+        records = [
+            (folder_id, f"batch_000{i}.png", f"batch_000{i}.png", 1500.0, "image")
+            for i in range(1, 7)
+        ]
+        conn.executemany(
+            "INSERT INTO images (folder_id, rel_path, file_name, file_mtime, media_type) VALUES (?, ?, ?, ?, ?)",
+            records,
+        )
+        conn.commit()
+
+        # In DESC order (newest first), the latest created item (highest ID) should come first
+        res = db.get_images_page(folder_id, page=1, per_page=10, sort_by="date", sort_dir="desc")
+        assert len(res.images) == 6
+        file_names = [img.file_name for img in res.images]
+        assert file_names == [
+            "batch_0006.png",
+            "batch_0005.png",
+            "batch_0004.png",
+            "batch_0003.png",
+            "batch_0002.png",
+            "batch_0001.png",
+        ]
+
+        # In ASC order (oldest first), the earliest created item (lowest ID) should come first
+        res_asc = db.get_images_page(folder_id, page=1, per_page=10, sort_by="date", sort_dir="asc")
+        file_names_asc = [img.file_name for img in res_asc.images]
+        assert file_names_asc == [
+            "batch_0001.png",
+            "batch_0002.png",
+            "batch_0003.png",
+            "batch_0004.png",
+            "batch_0005.png",
+            "batch_0006.png",
+        ]
+    finally:
+        conn.close()
+
+
+def test_case_insensitive_name_sorting(temp_db):
+    """Verify that name sorting is case-insensitive (COLLATE NOCASE)."""
+    folder_id = db.upsert_folder("C:/test_nocase_folder")
+    conn = db.get_conn()
+    try:
+        records = [
+            (folder_id, "b.png", "b.png", 100.0, "image"),
+            (folder_id, "A.png", "A.png", 100.0, "image"),
+            (folder_id, "c.png", "c.png", 100.0, "image"),
+            (folder_id, "B2.png", "B2.png", 100.0, "image"),
+        ]
+        conn.executemany(
+            "INSERT INTO images (folder_id, rel_path, file_name, file_mtime, media_type) VALUES (?, ?, ?, ?, ?)",
+            records,
+        )
+        conn.commit()
+
+        res_asc = db.get_images_page(folder_id, page=1, per_page=10, sort_by="name", sort_dir="asc")
+        names_asc = [img.file_name for img in res_asc.images]
+        assert names_asc == ["A.png", "b.png", "B2.png", "c.png"]
+
+        res_desc = db.get_images_page(folder_id, page=1, per_page=10, sort_by="name", sort_dir="desc")
+        names_desc = [img.file_name for img in res_desc.images]
+        assert names_desc == ["c.png", "B2.png", "b.png", "A.png"]
+    finally:
+        conn.close()
+

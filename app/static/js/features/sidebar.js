@@ -137,8 +137,8 @@ export function updateSidebarImageCount() {
 }
 
 export function renderSidebar({ reconcile = false } = {}) {
-    if (sidebarSortKey === 'custom' || sortKey === 'custom') {
-        applyCustomOrder(sidebarImages, currentCollection);
+    if (sidebarSortKey === 'custom') {
+        applyCustomOrder(sidebarImages, { type: 'media', id: null });
     }
     updateSidebarImageCount();
 

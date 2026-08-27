@@ -100,11 +100,14 @@ def get_conn() -> sqlite3.Connection:
         _active_connections += 1
 
     try:
-        conn = sqlite3.connect(get_db_path(), factory=_TrackedConnection)
+        conn = sqlite3.connect(get_db_path(), timeout=30.0, factory=_TrackedConnection)
         conn._cmv_counted = True
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA temp_store=MEMORY")
         conn.execute("PRAGMA wal_autocheckpoint=1000")
         return conn
     except Exception:
@@ -463,6 +466,9 @@ _LATE_INDEXES_SQL = """
     CREATE INDEX IF NOT EXISTS idx_images_media_mtime_id ON images(media_type, file_mtime DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_images_folder_media_mtime_id ON images(folder_id, media_type, file_mtime DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_images_rating_media_mtime ON images(rating, media_type, file_mtime DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_images_indexed_at ON images(indexed_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_images_pending_processing ON images(folder_id, id) WHERE metadata_json IS NULL AND error IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_album_images_album_pos ON album_images(album_id, position ASC, image_id ASC);
     CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
 """
@@ -1397,7 +1403,7 @@ def get_images_page(
 
         # Map sorting key to column names safely
         sort_by_map = {
-            "name": "i.file_name",
+            "name": "i.file_name COLLATE NOCASE",
             "date": "i.file_mtime",
             "size": "i.file_size",
             "type": "i.format",
@@ -1411,7 +1417,12 @@ def get_images_page(
         direction = "DESC" if sort_dir.lower() == "desc" else "ASC"
 
         # Enforce strict whitelist of columns and directions to prevent SQL Injection
-        allowed_sort_columns = {"i.file_name", "i.file_mtime", "i.file_size", "i.format"}
+        allowed_sort_columns = {
+            "i.file_name COLLATE NOCASE",
+            "i.file_mtime",
+            "i.file_size",
+            "i.format",
+        }
         allowed_directions = {"ASC", "DESC"}
 
         if sort_column not in allowed_sort_columns:
@@ -1444,13 +1455,16 @@ def get_images_page(
         if album_custom_order:
             subquery_order = "ORDER BY ai2.position ASC, i2.id ASC"
             main_order = "ORDER BY ai.position ASC, i.id ASC"
-        elif sort_column == "i.file_name":
-            subquery_order = f"ORDER BY i2.file_name {direction}, i2.id {direction}"
-            main_order = f"ORDER BY i.file_name {direction}, i.id {direction}"
+        elif sort_by == "name":
+            subquery_order = f"ORDER BY i2.file_name COLLATE NOCASE {direction}, i2.id {direction}"
+            main_order = f"ORDER BY i.file_name COLLATE NOCASE {direction}, i.id {direction}"
+        elif sort_by == "type":
+            subquery_order = f"ORDER BY i2.format {direction}, i2.file_name COLLATE NOCASE {direction}, i2.id {direction}"
+            main_order = f"ORDER BY i.format {direction}, i.file_name COLLATE NOCASE {direction}, i.id {direction}"
         else:
             sort_col_sub = sort_column.replace("i.", "i2.")
-            subquery_order = f"ORDER BY {sort_col_sub} {direction}, i2.file_name ASC, i2.id {direction}"
-            main_order = f"ORDER BY {sort_column} {direction}, i.file_name ASC, i.id {direction}"
+            subquery_order = f"ORDER BY {sort_col_sub} {direction}, i2.id {direction}"
+            main_order = f"ORDER BY {sort_column} {direction}, i.id {direction}"
 
         # Deferred Join: subquery uses index scan to get IDs, main query fetches row details
         media_clause_sub = media_clause.replace("i.", "i2.")

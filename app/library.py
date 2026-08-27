@@ -165,6 +165,7 @@ def list_metadata_filters() -> dict[str, list[dict[str, str]] | list[str]]:
             FROM images i,
                  json_tree(CASE WHEN json_valid(i.metadata_json) THEN i.metadata_json ELSE '{}' END, '$.workflow.workflow_nodes') node
             WHERE i.media_type = 'image'
+              AND i.metadata_json IS NOT NULL
               AND node.key = 'class_type'
               AND node.type = 'text'
               AND TRIM(CAST(node.value AS TEXT)) != ''

@@ -866,7 +866,8 @@ class PromptDraftRoutesTest(unittest.TestCase):
         self.assertEqual(run_count, 0)
 
     def test_editor_exposes_ai_prompt_draft_controls(self) -> None:
-        response = self.client.get("/editor")
+        response = self.client.get("/editor/legacy")
+
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'id="ai-prompt-open"', response.data)
         self.assertIn(b'id="ai-prompt-dialog"', response.data)

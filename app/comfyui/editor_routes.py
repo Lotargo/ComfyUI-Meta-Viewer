@@ -1,4 +1,8 @@
+# LEGACY: Used by the pre-Simple-Mode Create editor.
+# Not registered in the primary Simple Mode creation path.
+# Retained for possible future Advanced Mode/workflow tooling reuse.
 from __future__ import annotations
+
 
 import hashlib
 import json
@@ -459,9 +463,10 @@ def workflow_validation_error(error: ValidationError):
     return jsonify({"error": first.get("msg", str(error)), "code": "editor_validation_error"}), 422
 
 
-@editor_blueprint.route("/editor")
+@editor_blueprint.route("/editor/legacy")
 def workflow_editor_page():
     return render_template("workflow_editor.html")
+
 
 
 @editor_blueprint.route("/api/editor/bootstrap", methods=["GET"])

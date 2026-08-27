@@ -1135,7 +1135,8 @@ class WorkflowEditorRoutesTest(unittest.TestCase):
             pass
 
     def test_editor_page_uses_beginner_path_and_separate_advanced_settings(self) -> None:
-        response = self.client.get("/editor")
+        response = self.client.get("/editor/legacy")
+
 
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
@@ -1882,7 +1883,8 @@ class WorkflowExecutionTest(unittest.TestCase):
 
     def test_editor_dialog_cancel_buttons_have_type_button(self) -> None:
         with app.test_client() as client:
-            res = client.get("/editor")
+            res = client.get("/editor/legacy")
+
             self.assertEqual(res.status_code, 200)
             html = res.get_data(as_text=True)
 

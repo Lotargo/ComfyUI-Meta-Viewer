@@ -25,7 +25,7 @@
             link.addEventListener('touchstart', () => prefetchUrl(href), { passive: true });
         });
 
-        const prefetchTargets = ['/library', '/editor', '/settings/ai', '/'];
+        const prefetchTargets = ['/library', '/create', '/editor', '/settings/ai', '/'];
         
         const runIdlePrefetch = window.requestIdleCallback || function (cb) { setTimeout(cb, 1200); };
         runIdlePrefetch(() => {

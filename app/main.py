@@ -25,7 +25,7 @@ from . import database as db
 from . import file_actions
 from . import library as media_library
 from .ai import ai_blueprint
-from .comfyui import comfyui_blueprint, editor_blueprint
+from .comfyui import comfyui_blueprint, editor_blueprint, simple_blueprint
 from .cutout import clear_cutout, get_cutout_path, make_cutout_png
 from .config_store import ConfigStore, ConfigStoreError
 from .tracing import setup_tracing, get_tracer
@@ -88,7 +88,9 @@ app.config["CONFIG_STORE"] = ConfigStore(Path(app.config["CONFIG_FILE"]))
 app.register_blueprint(ai_blueprint)
 app.register_blueprint(comfyui_blueprint)
 app.register_blueprint(editor_blueprint)
+app.register_blueprint(simple_blueprint)
 app.register_blueprint(social_blueprint)
+
 app.jinja_env.auto_reload = True
 
 try:

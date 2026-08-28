@@ -57,6 +57,19 @@ if (typeof window !== 'undefined' && window.location.pathname === CREATE_PATH) {
         return Math.max(0, Math.min(100, Math.round(Number(item?.progress || 0))));
     }
 
+    function formatBytes(value) {
+        const amount = Number(value || 0);
+        if (!amount) return '';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let number = amount;
+        let index = 0;
+        while (number >= 1024 && index < units.length - 1) {
+            number /= 1024;
+            index += 1;
+        }
+        return `${number >= 100 || index === 0 ? number.toFixed(0) : number.toFixed(1)} ${units[index]}`;
+    }
+
     function injectStyles() {
         if (document.getElementById('cmv-continuity-styles')) return;
         const style = document.createElement('style');
@@ -80,6 +93,17 @@ if (typeof window !== 'undefined' && window.location.pathname === CREATE_PATH) {
             if (!item) return;
             const actions = row.querySelector('.model-download-actions');
             if (!actions) return;
+
+            if (item.status === 'cancelled') {
+                actions.querySelector('[data-download-action="resume"]')?.remove();
+                const fill = row.querySelector('.model-download-fill');
+                if (fill) fill.style.width = '0%';
+                const summary = row.querySelector('.model-download-copy small');
+                if (summary) {
+                    const total = formatBytes(item.file_size_bytes);
+                    summary.textContent = total ? `Отменено · ${total}` : 'Отменено';
+                }
+            }
 
             const percent = percentFor(item);
             let badge = actions.querySelector('.cmv-download-percent');

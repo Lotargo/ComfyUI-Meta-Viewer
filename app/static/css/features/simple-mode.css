@@ -37,21 +37,30 @@
 .simple-mode-body[data-glass="balanced"]{--studio-card-opacity:44%}
 .simple-mode-body[data-glass="solid"]{--studio-card-opacity:82%}
 
-/* Ambient Background Layers - High Visibility & Atmosphere */
+/* Ambient Background Layers - High Visibility & Ultra-Smooth Glass */
 .ambient-container{
     position:fixed;
     inset:0;
     z-index:0!important;
     overflow:hidden;
     pointer-events:none;
-    background:radial-gradient(circle at 18% 18%,color-mix(in srgb,var(--accent,#2dd4bf) 14%,transparent),transparent 36%),radial-gradient(circle at 82% 28%,color-mix(in srgb,var(--accent,#2dd4bf) 10%,transparent),transparent 40%),var(--bg,#0c0e14);
+    background:radial-gradient(circle at 18% 18%,color-mix(in srgb,var(--accent,#2dd4bf) 10%,transparent),transparent 45%),radial-gradient(circle at 82% 28%,color-mix(in srgb,var(--accent,#2dd4bf) 8%,transparent),transparent 50%),var(--bg,#0c0e14);
+    transform:translate3d(0,0,0);
+    -webkit-backface-visibility:hidden;
+    backface-visibility:hidden;
     transition:background var(--transition-normal) ease;
 }
-.ambient-fallback,.ambient-layer,.ambient-overlay,.ambient-noise{position:absolute;inset:0}
+.ambient-fallback,.ambient-layer,.ambient-overlay,.ambient-noise{
+    position:absolute;
+    inset:0;
+    transform:translate3d(0,0,0);
+    -webkit-backface-visibility:hidden;
+    backface-visibility:hidden;
+}
 .ambient-fallback{
     inset:-10%;
     opacity:.75;
-    background:radial-gradient(circle at 28% 38%,color-mix(in srgb,var(--accent,#2dd4bf) 14%,transparent),transparent 32%),radial-gradient(circle at 72% 28%,color-mix(in srgb,var(--accent,#2dd4bf) 10%,transparent),transparent 35%);
+    background:radial-gradient(circle at 28% 38%,color-mix(in srgb,var(--accent,#2dd4bf) 14%,transparent),transparent 40%),radial-gradient(circle at 72% 28%,color-mix(in srgb,var(--accent,#2dd4bf) 10%,transparent),transparent 45%);
     filter:blur(28px);
     transition:opacity 1200ms cubic-bezier(.16,1,.3,1);
 }
@@ -62,30 +71,34 @@
     background-position:center;
     background-size:cover;
     opacity:0;
-    filter:blur(var(--studio-ambient-blur,10px)) saturate(1.20) brightness(.90);
-    transform:scale(1.02);
+    filter:blur(var(--studio-ambient-blur,10px)) saturate(1.15) brightness(.92);
+    transform:translate3d(0,0,0) scale(1.02);
+    will-change:opacity,transform,filter;
     transition:opacity 1100ms cubic-bezier(.16,1,.3,1),transform 1400ms cubic-bezier(.16,1,.3,1),filter 80ms ease;
 }
 .ambient-layer.active{
     opacity:.86;
-    transform:scale(1.04);
+    transform:translate3d(0,0,0) scale(1.04);
 }
 .ambient-overlay{
-    background:linear-gradient(to bottom,rgba(8,10,15,.12),rgba(8,10,15,.38)),radial-gradient(circle at 50% 30%,transparent 0,rgba(8,10,15,.08) 50%,rgba(8,10,15,.35) 100%);
+    background:linear-gradient(to bottom,rgba(8,10,15,.16) 0%,rgba(8,10,15,.34) 60%,rgba(8,10,15,.52) 100%);
     transition:background var(--transition-normal) ease;
 }
 .ambient-noise{
-    opacity:.014;
-    background-image:radial-gradient(currentColor .7px,transparent .7px);
-    background-size:18px 18px;
+    opacity:.04;
+    pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    background-repeat:repeat;
+    background-size:120px 120px;
+    mix-blend-mode:overlay;
 }
 
 /* Light & Pastel Theme Ambient Enhancements */
 [data-theme="light"] .ambient-container{
-    background:radial-gradient(circle at 18% 18%,rgba(217,75,104,.10),transparent 36%),radial-gradient(circle at 82% 24%,rgba(100,130,180,.10),transparent 38%),#f5f6f8;
+    background:radial-gradient(circle at 18% 18%,rgba(217,75,104,.08),transparent 45%),radial-gradient(circle at 82% 24%,rgba(100,130,180,.08),transparent 48%),#f5f6f8;
 }
 [data-theme="light"] .ambient-layer{
-    filter:blur(var(--studio-ambient-blur,10px)) saturate(1.15) brightness(1.0);
+    filter:blur(var(--studio-ambient-blur,10px)) saturate(1.10) brightness(1.0);
 }
 [data-theme="light"] .ambient-layer.active{
     opacity:.80;
@@ -95,10 +108,10 @@
 }
 
 [data-theme="strawberry"] .ambient-container{
-    background:radial-gradient(circle at 18% 18%,rgba(224,83,117,.12),transparent 36%),radial-gradient(circle at 82% 24%,rgba(255,184,198,.16),transparent 38%),#fff0f3;
+    background:radial-gradient(circle at 18% 18%,rgba(224,83,117,.10),transparent 45%),radial-gradient(circle at 82% 24%,rgba(255,184,198,.12),transparent 48%),#fff0f3;
 }
 [data-theme="strawberry"] .ambient-layer{
-    filter:blur(var(--studio-ambient-blur,10px)) saturate(1.22) brightness(1.0);
+    filter:blur(var(--studio-ambient-blur,10px)) saturate(1.15) brightness(1.0);
 }
 [data-theme="strawberry"] .ambient-layer.active{
     opacity:.82;
@@ -108,10 +121,10 @@
 }
 
 [data-theme="strawberry-dark"] .ambient-container{
-    background:radial-gradient(circle at 18% 18%,rgba(255,77,141,.16),transparent 36%),radial-gradient(circle at 82% 28%,rgba(140,50,110,.16),transparent 38%),#130a10;
+    background:radial-gradient(circle at 18% 18%,rgba(255,77,141,.12),transparent 45%),radial-gradient(circle at 82% 28%,rgba(140,50,110,.12),transparent 48%),#130a10;
 }
 [data-theme="strawberry-dark"] .ambient-layer{
-    filter:blur(var(--studio-ambient-blur,10px)) saturate(1.25) brightness(.88);
+    filter:blur(var(--studio-ambient-blur,10px)) saturate(1.18) brightness(.90);
 }
 [data-theme="strawberry-dark"] .ambient-layer.active{
     opacity:.85;
@@ -161,8 +174,11 @@
     border:1px solid var(--border-subtle,rgba(255,255,255,.15));
     background:color-mix(in srgb,var(--surface,#121722) var(--studio-card-opacity,44%),transparent);
     box-shadow:0 24px 64px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.12);
-    backdrop-filter:blur(18px) saturate(140%);
-    -webkit-backdrop-filter:blur(18px) saturate(140%);
+    backdrop-filter:blur(12px) saturate(112%);
+    -webkit-backdrop-filter:blur(12px) saturate(112%);
+    transform:translate3d(0,0,0);
+    -webkit-backface-visibility:hidden;
+    backface-visibility:hidden;
     transition:background var(--transition-normal) ease,border-color var(--transition-normal) ease,box-shadow var(--transition-normal) ease;
 }
 .studio-controls-card{border-radius:28px;padding:clamp(22px,3vw,34px)}
@@ -198,9 +214,9 @@
     padding:15px 15px 10px;
     border:1px solid var(--border-subtle,rgba(255,255,255,.12));
     border-radius:18px;
-    background:color-mix(in srgb,var(--bg-elevated,#161c2b) 30%,transparent);
-    backdrop-filter:blur(12px);
-    -webkit-backdrop-filter:blur(12px);
+    background:color-mix(in srgb,var(--bg-elevated,#161c2b) 32%,transparent);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
     transition:border-color 170ms ease,box-shadow 170ms ease,background 170ms ease;
 }
 [data-theme="light"] .prompt-box{

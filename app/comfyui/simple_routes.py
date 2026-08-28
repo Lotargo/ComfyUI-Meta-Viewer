@@ -279,7 +279,7 @@ def simple_generate():
                 logger.warning(f"AI Prompt improvement fallback: {exc}")
 
     if not positive_prompt:
-        positive_prompt = "A beautiful aesthetic masterpiece, highly detailed"
+        positive_prompt = "Highly detailed image matching the provided visual direction"
 
     # Step 3: Parse quality preset
     try:

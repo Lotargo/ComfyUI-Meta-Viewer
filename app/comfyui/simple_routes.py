@@ -129,6 +129,7 @@ def _query_ambient_candidates() -> list[dict[str, Any]]:
                 candidates.append({
                     "id": aid,
                     "file_name": r["file_name"] or "",
+                    "original_url": f"/api/original/{aid}",
                     "preview_url": f"/api/preview/{aid}",
                     "thumbnail_url": f"/api/thumbnail/{aid}",
                     "width": int(r["width"] or 0),
@@ -158,6 +159,7 @@ def _query_ambient_candidates() -> list[dict[str, Any]]:
                 candidates.append({
                     "id": aid,
                     "file_name": r["file_name"] or "",
+                    "original_url": f"/api/original/{aid}",
                     "preview_url": f"/api/preview/{aid}",
                     "thumbnail_url": f"/api/thumbnail/{aid}",
                     "width": int(r["width"] or 0),
@@ -187,6 +189,7 @@ def _query_ambient_candidates() -> list[dict[str, Any]]:
                 candidates.append({
                     "id": aid,
                     "file_name": r["file_name"] or "",
+                    "original_url": f"/api/original/{aid}",
                     "preview_url": f"/api/preview/{aid}",
                     "thumbnail_url": f"/api/thumbnail/{aid}",
                     "width": int(r["width"] or 0),
@@ -217,6 +220,7 @@ def _ambient_payload(limit: int = 72) -> list[dict[str, Any]]:
                     {
                         "id": int(asset["id"]),
                         "file_name": asset.get("file_name") or "",
+                        "original_url": f"/api/original/{int(asset['id'])}",
                         "preview_url": f"/api/preview/{int(asset['id'])}",
                         "thumbnail_url": asset.get("thumbnail_url") or f"/api/thumbnail/{int(asset['id'])}",
                         "width": int(asset.get("width") or 0),

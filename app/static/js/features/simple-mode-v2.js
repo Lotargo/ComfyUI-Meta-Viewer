@@ -17,6 +17,7 @@ const state = {
     ambientHistory: [],
     ambientCurrent: null,
     ambientLoadingMore: false,
+    fit: 'cover',
     layer: 0,
     timer: null,
     interval: 300000,
@@ -99,6 +100,10 @@ function save(key, value) {
 function applyVisualSettings() {
     document.documentElement.style.setProperty('--studio-card-opacity', `${state.opacity ?? 44}%`);
     document.documentElement.style.setProperty('--studio-ambient-blur', `${state.blur ?? 10}px`);
+    document.documentElement.style.setProperty(
+        '--studio-ambient-size',
+        state.fit === 'contain' ? 'contain' : (state.fit === 'original' ? 'auto' : 'cover')
+    );
 }
 
 function restartAmbientTimer() {
@@ -134,6 +139,7 @@ function restore() {
 
         const rawBlur = localStorage.getItem('cmv_simple_ambient_blur');
         state.blur = rawBlur !== null && !isNaN(Number(rawBlur)) ? Number(rawBlur) : 10;
+        state.fit = localStorage.getItem('cmv_simple_ambient_fit') || 'cover';
         state.sound = localStorage.getItem('cmv_simple_sound_alert') === 'true';
     } catch {}
 }
@@ -544,7 +550,7 @@ function ambientPick(resetTimer = true) {
 function preloadAmbientPool() {
     const items = state.ambientDeck.slice(0, 4);
     for (const item of items) {
-        const src = typeof item === 'string' ? item : item?.preview_url || item?.thumbnail_url;
+        const src = typeof item === 'string' ? item : item?.original_url || item?.preview_url || item?.thumbnail_url;
         if (src) {
             const img = new Image();
             img.src = src;
@@ -553,8 +559,8 @@ function preloadAmbientPool() {
 }
 
 function setAmbient(item) {
-    const primary = typeof item === 'string' ? item : item?.preview_url;
-    const fallback = typeof item === 'object' ? item?.thumbnail_url : null;
+    const primary = typeof item === 'string' ? item : item?.original_url || item?.preview_url;
+    const fallback = typeof item === 'object' ? item?.preview_url || item?.thumbnail_url : null;
     if (!primary) return;
     const image = new Image();
     image.onload = () => applyAmbient(primary);
@@ -1304,6 +1310,24 @@ function openStudioContextMenu(event) {
     const sep2 = document.createElement('div');
     sep2.className = 'image-context-menu__separator';
     menu.appendChild(sep2);
+
+    const fitLabels = {
+        cover: 'Заполнение',
+        contain: 'Вписать целиком',
+        original: 'Оригинал 1:1',
+    };
+    menu.appendChild(createMenuItem({
+        icon: '<svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>',
+        label: 'Масштаб фона',
+        badge: fitLabels[state.fit] || 'Заполнение',
+        onClick: () => {
+            const order = ['cover', 'contain', 'original'];
+            const nextIdx = (order.indexOf(state.fit) + 1) % order.length;
+            state.fit = order[nextIdx];
+            save('cmv_simple_ambient_fit', state.fit);
+            applyVisualSettings();
+        },
+    }));
 
     menu.appendChild(createMenuItem({
         icon: '<svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>',

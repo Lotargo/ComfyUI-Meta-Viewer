@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create — ComfyUI Meta Viewer</title>
+    <title>Создание — ComfyUI Meta Viewer</title>
     <link rel="preload" href="/static/fonts/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/static/css/fonts.css">
     <link rel="stylesheet" href="/static/css/base/variables.css">
@@ -34,7 +34,7 @@
     <script src="/static/js/features/simple-mode.js?v={{ static_version('js/features/simple-mode.js') }}" type="module" defer></script>
 </head>
 <body class="simple-mode-body studio-theme">
-    <!-- Ambient Artwork Background System -->
+    <!-- Ambient Dynamic Library Background System -->
     <div id="ambient-container" class="ambient-container" aria-hidden="true">
         <div id="ambient-layer-a" class="ambient-layer ambient-layer-a active"></div>
         <div id="ambient-layer-b" class="ambient-layer ambient-layer-b"></div>
@@ -46,7 +46,7 @@
     <header class="global-header simple-header">
         <div class="global-header-left">
             <a class="header-logo" href="/"><span>Comfy</span>UI Meta Viewer</a>
-            <nav class="app-switcher" aria-label="Primary navigation">
+            <nav class="app-switcher" aria-label="Основная навигация">
                 <a class="app-switcher-link" href="/">Viewer</a>
                 <a class="app-switcher-link" href="/library">Library</a>
                 <a class="app-switcher-link active" href="/create" aria-current="page">Create</a>
@@ -55,14 +55,16 @@
         </div>
         <div class="global-header-actions">
             <!-- AI Assistant Button -->
-            <button id="ai-assistant-toggle" class="header-action-btn ai-assistant-trigger" type="button" title="AI Prompt Assistant" aria-label="Open AI Prompt Assistant">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
-                <span>AI Assistant</span>
+            <button id="ai-assistant-toggle" class="header-action-btn ai-assistant-trigger" type="button" title="ИИ-помощник промптов" aria-label="Открыть ИИ-помощника">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+                </svg>
+                <span>ИИ-помощник</span>
             </button>
 
             <!-- Theme Toggle Menu -->
             <div class="header-menu" data-theme-menu>
-                <button class="header-icon-button" id="btn-theme-toggle" type="button" data-theme-menu-trigger aria-haspopup="menu" aria-expanded="false" title="Theme" aria-label="Select theme">
+                <button class="header-icon-button" id="btn-theme-toggle" type="button" data-theme-menu-trigger aria-haspopup="menu" aria-expanded="false" title="Тема оформления" aria-label="Выбрать тему">
                     <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
                         <path d="M12 2a10 10 0 0 0 0 20 10 10 0 0 0 0-20z" fill="currentColor" opacity="0.3"></path>
@@ -70,39 +72,39 @@
                     </svg>
                 </button>
                 <div class="header-dropdown header-theme-dropdown" role="menu" hidden>
-                    <div class="header-menu-label">Theme</div>
+                    <div class="header-menu-label">Тема оформления</div>
                     <button class="header-menu-item theme-option" type="button" role="menuitem" data-theme-value="dark">
                         <div class="theme-option-main">
                             <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-                            <span><strong>Dark Studio</strong><small>Deep slate & teal</small></span>
+                            <span><strong>Dark Studio</strong><small>Тёмный сланцевый стиль</small></span>
                         </div>
                         <span class="theme-check" aria-hidden="true">✓</span>
                     </button>
                     <button class="header-menu-item theme-option" type="button" role="menuitem" data-theme-value="light">
                         <div class="theme-option-main">
                             <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-                            <span><strong>Light Studio</strong><small>Clean white & subtle borders</small></span>
+                            <span><strong>Light Studio</strong><small>Светлый чистый стиль</small></span>
                         </div>
                         <span class="theme-check" aria-hidden="true">✓</span>
                     </button>
                     <button class="header-menu-item theme-option" type="button" role="menuitem" data-theme-value="strawberry">
                         <div class="theme-option-main">
                             <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 2c-1.5 0-3 1-3.5 2.5C7.5 4 6 5 6 6.5c0 1.5 1 2.5 1 3.5C7 15 10 21 12 22c2-1 5-7 5-12 0-1 1-2 1-3.5 0-1.5-1.5-2.5-2.5-2C15 3 13.5 2 12 2z"></path></svg>
-                            <span><strong>Strawberry Milk</strong><small>Pastel cream & berry</small></span>
+                            <span><strong>Strawberry Milk</strong><small>Пастельный ягодный</small></span>
                         </div>
                         <span class="theme-check" aria-hidden="true">✓</span>
                     </button>
                     <button class="header-menu-item theme-option" type="button" role="menuitem" data-theme-value="strawberry-dark">
                         <div class="theme-option-main">
                             <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 2c-1.5 0-3 1-3.5 2.5C7.5 4 6 5 6 6.5c0 1.5 1 2.5 1 3.5C7 15 10 21 12 22c2-1 5-7 5-12 0-1 1-2 1-3.5 0-1.5-1.5-2.5-2.5-2C15 3 13.5 2 12 2z"></path><path d="M12 2v20" opacity="0.35"></path></svg>
-                            <span><strong>Strawberry Velvet</strong><small>Dark plum & neon rose</small></span>
+                            <span><strong>Strawberry Velvet</strong><small>Глубокий сливовый</small></span>
                         </div>
                         <span class="theme-check" aria-hidden="true">✓</span>
                     </button>
                     <button class="header-menu-item theme-option" type="button" role="menuitem" data-theme-value="system">
                         <div class="theme-option-main">
                             <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" stroke-width="2" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-                            <span><strong>System</strong><small>Follow OS appearance</small></span>
+                            <span><strong>Системная</strong><small>Как в операционной системе</small></span>
                         </div>
                         <span class="theme-check" aria-hidden="true">✓</span>
                     </button>
@@ -110,251 +112,279 @@
             </div>
 
             <!-- ComfyUI Status Indicator -->
-            <div id="comfy-status-badge" class="comfy-status-badge status-connected" title="ComfyUI Runtime Connected">
+            <div id="comfy-status-badge" class="comfy-status-badge status-unknown" title="Статус подключения ComfyUI">
                 <span class="status-dot"></span>
                 <span class="status-label">ComfyUI</span>
             </div>
         </div>
     </header>
 
-    <!-- Main Creation Workspace -->
-    <main class="simple-workspace">
-        <div class="simple-stage">
-            <section class="creation-surface" aria-labelledby="creation-title">
-                <header class="surface-header">
-                    <h1 id="creation-title" class="surface-title">What do you want to create?</h1>
-                    <p class="surface-subtitle">Describe any idea in plain words, or add a reference image.</p>
-                </header>
-
-                <form id="simple-form" class="simple-form" onsubmit="return false;">
-                    <!-- Prompt Box -->
-                    <div class="prompt-card">
-                        <div class="prompt-input-wrapper">
-                            <textarea id="prompt-input" class="prompt-input" rows="3" placeholder="Describe your image in any language... (e.g. misty mountain valley with pine trees at sunrise)" aria-label="Image description"></textarea>
-                            
-                            <!-- Reference Image Preview Thumbnail -->
-                            <div id="reference-preview-container" class="reference-preview-container" hidden>
-                                <img id="reference-preview-img" class="reference-preview-img" alt="Reference image">
-                                <button id="remove-reference-btn" class="remove-reference-btn" type="button" title="Remove reference image" aria-label="Remove reference image">✕</button>
-                                <span class="reference-badge">Reference</span>
-                            </div>
-                        </div>
-
-                        <div class="prompt-toolbar">
-                            <!-- Left: Reference upload affordance & Quick hints -->
-                            <div class="prompt-toolbar-left">
-                                <label class="reference-upload-btn" title="Add reference image for vision reconstruction">
-                                    <input id="reference-file-input" type="file" accept="image/*" class="sr-only">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                                    <span>Image</span>
-                                </label>
-                                <button id="prompt-clear-btn" class="prompt-ghost-btn" type="button" title="Clear text" hidden>Clear</button>
-                            </div>
-
-                            <!-- Right: Persistent "Improve with AI" Toggle -->
-                            <div class="prompt-toolbar-right">
-                                <label class="ai-improve-toggle" title="Automatically translate and format prompt for the selected model family">
-                                    <input id="ai-improve-checkbox" type="checkbox" checked>
-                                    <span class="ai-improve-badge">
-                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
-                                        <span>Improve with AI</span>
-                                    </span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Model Selection (Visual Cards) -->
-                    <div class="control-group">
-                        <div class="control-group-header">
-                            <span class="control-group-label">Model</span>
-                            <span id="model-provenance-note" class="control-group-meta">SDXL Photorealism</span>
-                        </div>
-                        <div id="model-cards-container" class="model-cards-grid" role="radiogroup" aria-label="Model profile selection">
-                            <!-- Populated dynamically via simple-mode.js -->
-                        </div>
-                    </div>
-
-                    <!-- Aspect Ratio & Quality & Batch Row -->
-                    <div class="parameters-grid">
-                        <!-- Aspect Ratio -->
-                        <div class="param-card aspect-param-card">
-                            <span class="param-label">Aspect Ratio</span>
-                            <div id="aspect-ratio-selector" class="aspect-buttons" role="radiogroup" aria-label="Aspect ratio">
-                                <button type="button" class="aspect-btn active" data-ratio="1:1" aria-checked="true">
-                                    <span class="aspect-icon ratio-1-1"></span>
-                                    <span class="aspect-text">1:1</span>
-                                </button>
-                                <button type="button" class="aspect-btn" data-ratio="3:4" aria-checked="false">
-                                    <span class="aspect-icon ratio-3-4"></span>
-                                    <span class="aspect-text">3:4</span>
-                                </button>
-                                <button type="button" class="aspect-btn" data-ratio="4:3" aria-checked="false">
-                                    <span class="aspect-icon ratio-4-3"></span>
-                                    <span class="aspect-text">4:3</span>
-                                </button>
-                                <button type="button" class="aspect-btn" data-ratio="9:16" aria-checked="false">
-                                    <span class="aspect-icon ratio-9-16"></span>
-                                    <span class="aspect-text">9:16</span>
-                                </button>
-                                <button type="button" class="aspect-btn" data-ratio="16:9" aria-checked="false">
-                                    <span class="aspect-icon ratio-16-9"></span>
-                                    <span class="aspect-text">16:9</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Quality Preset -->
-                        <div class="param-card">
-                            <span class="param-label">Quality</span>
-                            <div id="quality-selector" class="segmented-control simple-segmented" role="radiogroup" aria-label="Quality preset">
-                                <button type="button" class="segmented-btn" data-quality="fast">Fast</button>
-                                <button type="button" class="segmented-btn active" data-quality="standard" aria-checked="true">Standard</button>
-                                <button type="button" class="segmented-btn" data-quality="high">High</button>
-                                <button type="button" class="segmented-btn" data-quality="maximum">Max</button>
-                            </div>
-                        </div>
-
-                        <!-- Number of Images / Batch -->
-                        <div class="param-card">
-                            <span class="param-label">Images</span>
-                            <div id="batch-selector" class="segmented-control simple-segmented batch-control" role="radiogroup" aria-label="Number of images">
-                                <button type="button" class="segmented-btn active" data-batch="1" aria-checked="true">1</button>
-                                <button type="button" class="segmented-btn" data-batch="2">2</button>
-                                <button type="button" class="segmented-btn" data-batch="3">3</button>
-                                <button type="button" class="segmented-btn" data-batch="4">4</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Generation Action & Progress State -->
-                    <div class="create-action-container">
-                        <button id="create-button" class="create-signature-button" type="button">
-                            <span class="create-btn-content">
-                                <svg class="create-sparkle" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
-                                <span class="create-btn-label">Create</span>
-                            </span>
-                            <div class="create-progress-track" aria-hidden="true">
-                                <div id="create-progress-fill" class="create-progress-fill" style="width: 0%;"></div>
-                            </div>
-                            <span id="create-progress-text" class="create-progress-text" aria-live="polite">Creating…</span>
-                        </button>
-                    </div>
-
-                    <!-- Human-facing Error Banner (if any) -->
-                    <div id="generation-error-banner" class="generation-error-banner" hidden>
-                        <div class="error-icon">⚠️</div>
-                        <div class="error-content">
-                            <strong id="error-title">Generation could not start</strong>
-                            <p id="error-message">Make sure ComfyUI is running and required models are available.</p>
-                            <details class="error-technical-details" hidden>
-                                <summary>Technical details</summary>
-                                <pre id="error-tech-text"></pre>
-                            </details>
-                        </div>
-                        <button id="error-dismiss-btn" class="error-dismiss-btn" type="button">✕</button>
-                    </div>
-                </form>
-
-                <!-- Results Stage (calm reveal upon completion) -->
-                <section id="results-stage" class="results-stage" hidden>
-                    <header class="results-header">
-                        <span class="results-title">Generated Artwork</span>
-                        <div class="results-actions">
-                            <a id="view-in-library-btn" class="btn btn-ghost btn-sm" href="/library">Open in Library</a>
-                        </div>
+    <!-- Main Studio Workspace -->
+    <main class="studio-workspace">
+        <div class="studio-container">
+            <div class="studio-layout">
+                
+                <!-- Left Column: Controls & Prompt Area -->
+                <section class="studio-controls-card" aria-label="Параметры создания">
+                    <header class="studio-card-header">
+                        <h1 class="studio-title">Создание</h1>
+                        <p class="studio-subtitle">Опишите вашу идею обычными словами</p>
                     </header>
-                    <div id="results-gallery" class="results-gallery">
-                        <!-- Populated dynamically with generated outputs -->
+
+                    <form id="simple-form" class="studio-form" onsubmit="return false;">
+                        <!-- Prompt Input Card -->
+                        <div class="prompt-box" id="prompt-box-container">
+                            <div class="prompt-input-area">
+                                <textarea id="prompt-input" class="prompt-textarea" rows="3" placeholder="Опишите, что вы хотите создать... Например: уютный домик у озера в туманном лесу на рассвете" aria-label="Описание изображения"></textarea>
+                                
+                                <!-- Attached Reference Image Preview -->
+                                <div id="reference-preview-container" class="reference-chip" hidden>
+                                    <div class="reference-thumb-wrap">
+                                        <img id="reference-preview-img" class="reference-thumb" alt="Референс">
+                                    </div>
+                                    <span class="reference-name" id="reference-filename">Референс</span>
+                                    <button id="remove-reference-btn" class="reference-remove-btn" type="button" title="Удалить референс" aria-label="Удалить референс">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Prompt Box Toolbar -->
+                            <div class="prompt-toolbar">
+                                <div class="prompt-toolbar-left">
+                                    <!-- Custom Image Upload Affordance -->
+                                    <label class="prompt-tool-btn reference-upload-label" title="Прикрепить изображение-референс">
+                                        <input id="reference-file-input" type="file" accept="image/*" class="sr-only">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                            <polyline points="21 15 16 10 5 21"></polyline>
+                                        </svg>
+                                        <span>Референс</span>
+                                    </label>
+
+                                    <button id="prompt-clear-btn" class="prompt-tool-ghost-btn" type="button" title="Очистить текст" hidden>
+                                        Очистить
+                                    </button>
+                                </div>
+
+                                <div class="prompt-toolbar-right">
+                                    <!-- AI Improve Toggle -->
+                                    <label class="ai-improve-toggle" title="Автоматически оптимизировать и дополнить промпт деталями">
+                                        <input id="ai-improve-checkbox" type="checkbox" checked>
+                                        <span class="ai-improve-pill">
+                                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M15 4V2m0 16v-2M8 9h2m10 0h2m-4.2 4.2l1.4 1.4M18.4 5.6l-1.4 1.4M6.6 17.4l1.4-1.4M6.6 6.6l1.4 1.4M2 12l5 2 2 5 2-5 5-2-5-2-2-5-2 5z"/>
+                                            </svg>
+                                            <span>Улучшить</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Style Selection (Human-Friendly Pills) -->
+                        <div class="studio-section">
+                            <span class="section-label">Режим</span>
+                            <div id="model-cards-container" class="style-pills-row" role="radiogroup" aria-label="Выбор режима">
+                                <!-- Populated dynamically with clean pills via simple-mode.js -->
+                            </div>
+                        </div>
+
+                        <!-- Aspect Ratio Selection -->
+                        <div class="studio-section">
+                            <span class="section-label">Соотношение сторон</span>
+                            <div id="aspect-ratio-selector" class="aspect-grid" role="radiogroup" aria-label="Соотношение сторон">
+                                <button type="button" class="aspect-card active" data-ratio="1:1" aria-checked="true" title="1:1 — Квадрат">
+                                    <div class="aspect-shape aspect-1-1"></div>
+                                    <span class="aspect-name">1:1</span>
+                                </button>
+                                <button type="button" class="aspect-card" data-ratio="3:4" aria-checked="false" title="3:4 — Портрет">
+                                    <div class="aspect-shape aspect-3-4"></div>
+                                    <span class="aspect-name">3:4</span>
+                                </button>
+                                <button type="button" class="aspect-card" data-ratio="4:3" aria-checked="false" title="4:3 — Альбом">
+                                    <div class="aspect-shape aspect-4-3"></div>
+                                    <span class="aspect-name">4:3</span>
+                                </button>
+                                <button type="button" class="aspect-card" data-ratio="9:16" aria-checked="false" title="9:16 — Вертикаль">
+                                    <div class="aspect-shape aspect-9-16"></div>
+                                    <span class="aspect-name">9:16</span>
+                                </button>
+                                <button type="button" class="aspect-card" data-ratio="16:9" aria-checked="false" title="16:9 — Широкий">
+                                    <div class="aspect-shape aspect-16-9"></div>
+                                    <span class="aspect-name">16:9</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Quality & Batch hidden selectors (preset to standard) -->
+                        <div id="quality-selector" hidden>
+                            <button type="button" class="segmented-btn active" data-quality="standard"></button>
+                        </div>
+                        <div id="batch-selector" hidden>
+                            <button type="button" class="segmented-btn active" data-batch="1"></button>
+                        </div>
+
+                        <!-- Primary Action Button -->
+                        <div class="create-action-wrap">
+                            <button id="create-button" class="studio-create-btn" type="button">
+                                <span class="create-btn-content">
+                                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+                                    </svg>
+                                    <span class="create-btn-label">Создать</span>
+                                    <kbd class="create-shortcut-hint">Ctrl+Enter</kbd>
+                                </span>
+                                <div class="create-progress-track" aria-hidden="true">
+                                    <div id="create-progress-fill" class="create-progress-fill" style="width: 0%;"></div>
+                                </div>
+                                <span id="create-progress-text" class="create-progress-text" aria-live="polite">Создание…</span>
+                            </button>
+                        </div>
+
+                        <!-- Error Banner (Clean, unobtrusive) -->
+                        <div id="generation-error-banner" class="studio-error-banner" hidden>
+                            <svg class="error-svg-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            <div class="error-content">
+                                <strong id="error-title">Не удалось начать генерацию</strong>
+                                <p id="error-message">Убедитесь, что ComfyUI запущен и модели загружены.</p>
+                                <details class="error-technical-details" hidden>
+                                    <summary>Подробности</summary>
+                                    <pre id="error-tech-text"></pre>
+                                </details>
+                            </div>
+                            <button id="error-dismiss-btn" class="error-dismiss-btn" type="button" title="Закрыть">✕</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Right Column: Dedicated Canvas & Live Result Stage -->
+                <section class="studio-canvas-card" aria-label="Холст и результат">
+                    <div class="canvas-surface" id="canvas-surface">
+                        
+                        <!-- State 1: Idle Placeholder -->
+                        <div id="canvas-idle-state" class="canvas-state-view active">
+                            <div class="canvas-empty-content">
+                                <div class="canvas-empty-icon">
+                                    <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="3" width="18" height="18" rx="3" ry="3"></rect>
+                                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                        <polyline points="21 15 16 10 5 21"></polyline>
+                                    </svg>
+                                </div>
+                                <h3 class="canvas-empty-title">Здесь появится результат</h3>
+                                <p class="canvas-empty-subtitle">Напишите запрос в поле слева и нажмите «Создать»</p>
+                            </div>
+                        </div>
+
+                        <!-- State 2: Generating Shimmer State -->
+                        <div id="canvas-generating-state" class="canvas-state-view" hidden>
+                            <div class="canvas-generating-wrap">
+                                <div class="canvas-shimmer-box">
+                                    <div class="shimmer-wave"></div>
+                                </div>
+                                <div class="canvas-generating-info">
+                                    <div class="generating-spinner"></div>
+                                    <span id="canvas-generating-status" class="generating-text">Создаём изображение…</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- State 3: Ready Artwork Result -->
+                        <div id="canvas-result-state" class="canvas-state-view" hidden>
+                            <div class="canvas-artwork-wrap">
+                                <img id="canvas-result-img" class="canvas-result-img" alt="Сгенерированное изображение">
+                            </div>
+                            
+                            <!-- Result Action Bar -->
+                            <div class="canvas-action-bar" id="canvas-action-bar">
+                                <div class="canvas-actions-left">
+                                    <button id="btn-action-download" class="canvas-act-btn primary" type="button" title="Скачать в полном разрешении">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                            <polyline points="7 10 12 15 17 10"></polyline>
+                                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                                        </svg>
+                                        <span>Скачать</span>
+                                    </button>
+
+                                    <a id="btn-action-library" class="canvas-act-btn" href="/library" title="Открыть в библиотеке">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                                        </svg>
+                                        <span>В библиотеку</span>
+                                    </a>
+                                </div>
+
+                                <div class="canvas-actions-right">
+                                    <button id="btn-action-remix" class="canvas-act-btn" type="button" title="Создать вариацию / доработать">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="1 4 1 10 7 10"></polyline>
+                                            <polyline points="23 20 23 14 17 14"></polyline>
+                                            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+                                        </svg>
+                                        <span>Вариация</span>
+                                    </button>
+
+                                    <button id="btn-action-copy-prompt" class="canvas-act-btn icon-only" type="button" title="Скопировать промпт">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </section>
-            </section>
+
+            </div>
         </div>
     </main>
 
-    <!-- Floating Model Discovery Detail Popover -->
-    <div id="model-detail-popover" class="model-detail-popover" role="dialog" aria-modal="false" hidden>
-        <header class="popover-header">
-            <div>
-                <h2 id="popover-model-name" class="popover-title">Model Name</h2>
-                <span id="popover-model-tagline" class="popover-tagline">Tagline</span>
-            </div>
-            <button id="popover-close-btn" class="popover-close-btn" type="button" aria-label="Close details">✕</button>
-        </header>
-
-        <div class="popover-body">
-            <!-- Example Gallery with slow polished crossfades -->
-            <div class="popover-gallery">
-                <div id="popover-example-carousel" class="popover-example-carousel">
-                    <!-- Images crossfading smoothly -->
-                </div>
-                <div id="popover-example-caption" class="popover-example-caption">Example</div>
-            </div>
-
-            <!-- Curated Strengths & Weaknesses -->
-            <div class="popover-info-grid">
-                <div class="info-section">
-                    <span class="info-section-title strengths-title">✨ Best for</span>
-                    <ul id="popover-strengths-list" class="info-list strengths-list"></ul>
-                </div>
-                <div class="info-section">
-                    <span class="info-section-title weaknesses-title">⚠️ Limitations</span>
-                    <ul id="popover-weaknesses-list" class="info-list weaknesses-list"></ul>
-                </div>
-            </div>
-
-            <!-- VRAM & Requirements Guidance -->
-            <div class="popover-specs">
-                <div class="spec-chip">
-                    <span class="spec-label">Min VRAM</span>
-                    <span id="popover-vram-min" class="spec-val">6 GB</span>
-                </div>
-                <div class="spec-chip">
-                    <span class="spec-label">Recommended VRAM</span>
-                    <span id="popover-vram-rec" class="spec-val">12 GB</span>
-                </div>
-                <div class="spec-chip">
-                    <span class="spec-label">Architecture</span>
-                    <span id="popover-prompt-family" class="spec-val">SDXL</span>
-                </div>
-            </div>
-        </div>
-
-        <footer class="popover-footer">
-            <span class="popover-provenance-label">Technical checkpoint:</span>
-            <code id="popover-technical-model" class="popover-technical-model">SDXL 1.0</code>
-        </footer>
-    </div>
-
-    <!-- AI Prompt Assistant Slide-over Drawer -->
+    <!-- Slide-over AI Prompt Assistant Drawer -->
     <aside id="ai-assistant-drawer" class="ai-assistant-drawer" role="dialog" aria-modal="true" aria-labelledby="assistant-drawer-title" hidden>
         <header class="assistant-drawer-header">
             <div class="assistant-header-title-row">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
-                <h2 id="assistant-drawer-title">AI Prompt Assistant</h2>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+                </svg>
+                <h2 id="assistant-drawer-title">ИИ-помощник промптов</h2>
             </div>
             <div class="assistant-header-actions">
-                <button id="assistant-new-chat-btn" class="btn btn-ghost btn-sm" type="button">New Chat</button>
-                <button id="assistant-close-btn" class="assistant-close-btn" type="button" aria-label="Close assistant">✕</button>
+                <button id="assistant-new-chat-btn" class="btn btn-ghost btn-sm" type="button">Новый диалог</button>
+                <button id="assistant-close-btn" class="assistant-close-btn" type="button" aria-label="Закрыть">✕</button>
             </div>
         </header>
 
         <div id="assistant-messages-container" class="assistant-messages-container">
             <div class="assistant-message system-welcome">
-                <p>Hello! I can help you brainstorm visual ideas, translate thoughts from your language, or craft prompt details for the active model.</p>
+                <p>Привет! Я помогу сформулировать или обогатить промпт для генерации на русском или английском языке.</p>
                 <div class="quick-prompt-suggestions">
-                    <button type="button" class="quick-suggestion-chip" data-prompt="Create a cinematic cyberpunk street scene at night in Tokyo with rain reflections">Cyberpunk street</button>
-                    <button type="button" class="quick-suggestion-chip" data-prompt="Design an elegant anime fantasy character with glowing mystical runes">Anime wizard</button>
-                    <button type="button" class="quick-suggestion-chip" data-prompt="Photorealistic portrait of an elderly watchmaker in vintage workshop with warm light">Watchmaker portrait</button>
+                    <button type="button" class="quick-suggestion-chip" data-prompt="Киберпанк-улица ночного Токио с неоновыми вывесками и отражениями дождя на асфальте">Киберпанк город</button>
+                    <button type="button" class="quick-suggestion-chip" data-prompt="Портрет элегантного волшебника в мантии со светящимися магическими рунами, стиль фэнтези">Фэнтези маг</button>
+                    <button type="button" class="quick-suggestion-chip" data-prompt="Кинематографичный портрет пожилого часовщика за старинным верстаком при теплом свете">Часовщик портрет</button>
                 </div>
             </div>
         </div>
 
         <footer class="assistant-input-footer">
             <form id="assistant-chat-form" class="assistant-chat-form" onsubmit="return false;">
-                <input id="assistant-chat-input" class="assistant-chat-input" type="text" placeholder="Ask for prompt ideas or refinements..." autocomplete="off">
-                <button id="assistant-send-btn" class="assistant-send-btn" type="submit" aria-label="Send message">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                <input id="assistant-chat-input" class="assistant-chat-input" type="text" placeholder="Спросите идею или улучшение для промпта..." autocomplete="off">
+                <button id="assistant-send-btn" class="assistant-send-btn" type="submit" aria-label="Отправить">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
                 </button>
             </form>
         </footer>

@@ -73,7 +73,7 @@ def _workflow_store() -> WorkflowStore:
     return WorkflowStore()
 
 
-def _get_ambient_candidates(limit: int = 12) -> list[dict[str, Any]]:
+def _get_ambient_candidates(limit: int = 36) -> list[dict[str, Any]]:
     """Retrieve aesthetic candidate images from the existing library for ambient glow."""
     conn = database.get_conn()
     try:
@@ -81,7 +81,7 @@ def _get_ambient_candidates(limit: int = 12) -> list[dict[str, Any]]:
             """SELECT i.id, i.filename, i.rating, i.favorite, i.width, i.height
             FROM images i
             WHERE i.is_trash = 0 AND (i.media_type = 'image' OR i.media_type IS NULL)
-            ORDER BY i.favorite DESC, i.rating DESC, i.id DESC
+            ORDER BY i.favorite DESC, RANDOM()
             LIMIT ?""",
             (limit,),
         ).fetchall()
@@ -107,6 +107,13 @@ def _get_ambient_candidates(limit: int = 12) -> list[dict[str, Any]]:
 @simple_blueprint.route("/editor")
 def simple_mode_page():
     return render_template("create.html")
+
+
+def check_comfy_online() -> bool:
+    try:
+        return bool(_client().check_health().get("online"))
+    except Exception:
+        return False
 
 
 @simple_blueprint.route("/api/simple/bootstrap", methods=["GET"])
@@ -143,6 +150,7 @@ def simple_bootstrap():
         },
         "comfyui_status": {
             "configured": bool(_config_store().comfyui_settings().get("base_url")),
+            "online": check_comfy_online(),
         },
 
     })

@@ -1,7 +1,11 @@
 /**
- * Simple Mode — ComfyUI Meta Viewer
- * Clean, aesthetic, distraction-free creation workflow.
+ * Create Mode — ComfyUI Meta Viewer
+ * Clean, human-centric creation studio with dynamic 5-minute ambient background
+ * Refactored using Open Design guidelines: zero-slop UX, tactile micro-interactions, robust state handling.
  */
+
+// Configurable Ambient Rotation Interval (5 minutes)
+const AMBIENT_ROTATION_INTERVAL_MS = 5 * 60 * 1000;
 
 // Application State
 const state = {
@@ -12,29 +16,37 @@ const state = {
     batchSize: 1,
     improveWithAi: true,
     referenceImageDataUrl: null,
+    referenceFileName: '',
     ambientImages: [],
+    ambientIndex: 0,
     activeAmbientLayer: 'a',
     currentRunId: null,
     pollInterval: null,
+    ambientRotationTimer: null,
+    lastGeneratedOutput: null,
     aiAssistantHistory: [],
-    popoverCarouselTimer: null,
-    popoverCarouselIndex: 0,
 };
 
 // DOM Element References
 const elements = {
+    // Prompt & Inputs
     promptInput: document.getElementById('prompt-input'),
+    promptBoxContainer: document.getElementById('prompt-box-container'),
     referenceFileInput: document.getElementById('reference-file-input'),
     referencePreviewContainer: document.getElementById('reference-preview-container'),
     referencePreviewImg: document.getElementById('reference-preview-img'),
+    referenceFileName: document.getElementById('reference-filename'),
     removeReferenceBtn: document.getElementById('remove-reference-btn'),
     promptClearBtn: document.getElementById('prompt-clear-btn'),
     aiImproveCheckbox: document.getElementById('ai-improve-checkbox'),
+    
+    // Style & Parameters
     modelCardsContainer: document.getElementById('model-cards-container'),
-    modelProvenanceNote: document.getElementById('model-provenance-note'),
     aspectRatioSelector: document.getElementById('aspect-ratio-selector'),
     qualitySelector: document.getElementById('quality-selector'),
     batchSelector: document.getElementById('batch-selector'),
+    
+    // Primary Action & Error
     createButton: document.getElementById('create-button'),
     createProgressFill: document.getElementById('create-progress-fill'),
     createProgressText: document.getElementById('create-progress-text'),
@@ -43,12 +55,27 @@ const elements = {
     errorMessage: document.getElementById('error-message'),
     errorTechText: document.getElementById('error-tech-text'),
     errorDismissBtn: document.getElementById('error-dismiss-btn'),
-    resultsStage: document.getElementById('results-stage'),
-    resultsGallery: document.getElementById('results-gallery'),
+    
+    // Canvas & Viewport States
+    canvasSurface: document.getElementById('canvas-surface'),
+    canvasIdleState: document.getElementById('canvas-idle-state'),
+    canvasGeneratingState: document.getElementById('canvas-generating-state'),
+    canvasGeneratingStatus: document.getElementById('canvas-generating-status'),
+    canvasResultState: document.getElementById('canvas-result-state'),
+    canvasResultImg: document.getElementById('canvas-result-img'),
+    canvasActionBar: document.getElementById('canvas-action-bar'),
+    
+    // Canvas Actions
+    btnActionDownload: document.getElementById('btn-action-download'),
+    btnActionLibrary: document.getElementById('btn-action-library'),
+    btnActionRemix: document.getElementById('btn-action-remix'),
+    btnActionCopyPrompt: document.getElementById('btn-action-copy-prompt'),
+    
+    // Ambient Background Layers
     ambientLayerA: document.getElementById('ambient-layer-a'),
     ambientLayerB: document.getElementById('ambient-layer-b'),
-    modelDetailPopover: document.getElementById('model-detail-popover'),
-    popoverCloseBtn: document.getElementById('popover-close-btn'),
+    
+    // AI Assistant Drawer
     aiAssistantDrawer: document.getElementById('ai-assistant-drawer'),
     aiAssistantToggle: document.getElementById('ai-assistant-toggle'),
     assistantCloseBtn: document.getElementById('assistant-close-btn'),
@@ -59,9 +86,91 @@ const elements = {
 };
 
 /**
- * Bootstrap Simple Mode Data
+ * Re-bind DOM element references dynamically on DOM Ready to avoid null elements due to early execution
+ */
+function rebindDOMElements() {
+    elements.promptInput = document.getElementById('prompt-input');
+    elements.promptBoxContainer = document.getElementById('prompt-box-container');
+    elements.referenceFileInput = document.getElementById('reference-file-input');
+    elements.referencePreviewContainer = document.getElementById('reference-preview-container');
+    elements.referencePreviewImg = document.getElementById('reference-preview-img');
+    elements.referenceFileName = document.getElementById('reference-filename');
+    elements.removeReferenceBtn = document.getElementById('remove-reference-btn');
+    elements.promptClearBtn = document.getElementById('prompt-clear-btn');
+    elements.aiImproveCheckbox = document.getElementById('ai-improve-checkbox');
+    
+    elements.modelCardsContainer = document.getElementById('model-cards-container');
+    elements.aspectRatioSelector = document.getElementById('aspect-ratio-selector');
+    elements.qualitySelector = document.getElementById('quality-selector');
+    elements.batchSelector = document.getElementById('batch-selector');
+    
+    elements.createButton = document.getElementById('create-button');
+    elements.createProgressFill = document.getElementById('create-progress-fill');
+    elements.createProgressText = document.getElementById('create-progress-text');
+    elements.errorBanner = document.getElementById('generation-error-banner');
+    elements.errorTitle = document.getElementById('error-title');
+    elements.errorMessage = document.getElementById('error-message');
+    elements.errorTechText = document.getElementById('error-tech-text');
+    elements.errorDismissBtn = document.getElementById('error-dismiss-btn');
+    
+    elements.canvasSurface = document.getElementById('canvas-surface');
+    elements.canvasIdleState = document.getElementById('canvas-idle-state');
+    elements.canvasGeneratingState = document.getElementById('canvas-generating-state');
+    elements.canvasGeneratingStatus = document.getElementById('canvas-generating-status');
+    elements.canvasResultState = document.getElementById('canvas-result-state');
+    elements.canvasResultImg = document.getElementById('canvas-result-img');
+    elements.canvasActionBar = document.getElementById('canvas-action-bar');
+    
+    elements.btnActionDownload = document.getElementById('btn-action-download');
+    elements.btnActionLibrary = document.getElementById('btn-action-library');
+    elements.btnActionRemix = document.getElementById('btn-action-remix');
+    elements.btnActionCopyPrompt = document.getElementById('btn-action-copy-prompt');
+    
+    elements.ambientLayerA = document.getElementById('ambient-layer-a');
+    elements.ambientLayerB = document.getElementById('ambient-layer-b');
+    
+    elements.aiAssistantDrawer = document.getElementById('ai-assistant-drawer');
+    elements.aiAssistantToggle = document.getElementById('ai-assistant-toggle');
+    elements.assistantCloseBtn = document.getElementById('assistant-close-btn');
+    elements.assistantNewChatBtn = document.getElementById('assistant-new-chat-btn');
+    elements.assistantMessages = document.getElementById('assistant-messages-container');
+    elements.assistantChatForm = document.getElementById('assistant-chat-form');
+    elements.assistantChatInput = document.getElementById('assistant-chat-input');
+}
+
+/**
+ * Friendly metadata mapping for profiles (clean, human-readable labels with inline SVGs)
+ */
+const PROFILE_FRIENDLY_INFO = {
+    realism: {
+        name: 'Фото',
+        tagline: 'Реалистичные снимки',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`
+    },
+    anime: {
+        name: 'Аниме',
+        tagline: 'Аниме и иллюстрация',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`
+    },
+    universal: {
+        name: 'Арт',
+        tagline: 'Живопись и рисунки',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"></path><path d="M6 12a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"></path><path d="M18 12a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"></path><path d="M12 18a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"></path></svg>`
+    },
+    flux: {
+        name: 'Универсал',
+        tagline: 'Универсальные стили',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"></path></svg>`
+    },
+};
+
+/**
+ * Bootstrap Create Mode Data
  */
 async function initSimpleMode() {
+    // Rebind DOM Element References to guarantee they are parsed correctly
+    rebindDOMElements();
+
     // Load persisted preferences
     try {
         const savedAiImprove = localStorage.getItem('cmv_simple_ai_improve');
@@ -83,173 +192,156 @@ async function initSimpleMode() {
         state.profiles = data.profiles || [];
         state.ambientImages = data.ambient_candidates || [];
 
-        // Set initial ambient background
-        if (state.ambientImages.length > 0) {
-            const randomArt = state.ambientImages[Math.floor(Math.random() * state.ambientImages.length)];
-            setAmbientImage(randomArt.preview_url || randomArt.thumbnail_url);
+        // Dynamic update of ComfyUI connection status badge
+        const badge = document.getElementById('comfy-status-badge');
+        if (badge) {
+            badge.classList.remove('status-unknown', 'status-connected', 'status-disconnected');
+            if (data.comfyui_status && data.comfyui_status.online) {
+                badge.classList.add('status-connected');
+            } else {
+                badge.classList.add('status-disconnected');
+            }
         }
 
-        // Render Model Cards
-        renderModelCards();
-        updateActiveProfileMeta();
+        // Set initial ambient background & start 5-minute rotation
+        if (state.ambientImages.length > 0) {
+            rotateAmbientImage();
+            startAmbientRotationTimer();
+        }
+
+        // Render Style Selection Pills
+        renderStylePills();
     } catch (err) {
-        console.error('Failed to initialize Simple Mode:', err);
-        showError('Initialization Error', 'Could not load generation profiles from server.');
+        console.error('Failed to initialize Create Mode:', err);
+        showError('Ошибка инициализации', 'Не удалось загрузить профили создания с сервера.');
     }
 }
 
 /**
- * Ambient Artwork Background Crossfade Coordinator
+ * Ambient Background Management with Preloading & 5-Minute Rotation
  */
 function setAmbientImage(url) {
     if (!url) return;
-    if (state.activeAmbientLayer === 'a') {
-        elements.ambientLayerB.style.backgroundImage = `url('${url}')`;
-        elements.ambientLayerB.classList.add('active');
-        elements.ambientLayerA.classList.remove('active');
-        state.activeAmbientLayer = 'b';
-    } else {
-        elements.ambientLayerA.style.backgroundImage = `url('${url}')`;
-        elements.ambientLayerA.classList.add('active');
-        elements.ambientLayerB.classList.remove('active');
-        state.activeAmbientLayer = 'a';
+    
+    // Preload image before fading in to avoid blank frames
+    const preloader = new Image();
+    preloader.onload = () => {
+        if (state.activeAmbientLayer === 'a') {
+            elements.ambientLayerB.style.backgroundImage = `url('${url}')`;
+            elements.ambientLayerB.classList.add('active');
+            elements.ambientLayerA.classList.remove('active');
+            state.activeAmbientLayer = 'b';
+        } else {
+            elements.ambientLayerA.style.backgroundImage = `url('${url}')`;
+            elements.ambientLayerA.classList.add('active');
+            elements.ambientLayerB.classList.remove('active');
+            state.activeAmbientLayer = 'a';
+        }
+    };
+    preloader.src = url;
+}
+
+function rotateAmbientImage() {
+    if (!state.ambientImages || state.ambientImages.length === 0) return;
+    state.ambientIndex = (state.ambientIndex + 1) % state.ambientImages.length;
+    const randomArt = state.ambientImages[state.ambientIndex];
+    if (randomArt) {
+        setAmbientImage(randomArt.preview_url || randomArt.thumbnail_url);
     }
 }
 
+function startAmbientRotationTimer() {
+    if (state.ambientRotationTimer) {
+        clearInterval(state.ambientRotationTimer);
+    }
+    state.ambientRotationTimer = setInterval(() => {
+        rotateAmbientImage();
+    }, AMBIENT_ROTATION_INTERVAL_MS);
+}
+
 /**
- * Render Model Cards
+ * Render Clean Style Selection Pills
  */
-function renderModelCards() {
+function renderStylePills() {
     if (!elements.modelCardsContainer) return;
     elements.modelCardsContainer.innerHTML = '';
 
     state.profiles.forEach(profile => {
-        const card = document.createElement('div');
-        card.className = `model-card ${profile.id === state.activeProfileId ? 'active' : ''}`;
-        card.setAttribute('role', 'radio');
-        card.setAttribute('aria-checked', profile.id === state.activeProfileId ? 'true' : 'false');
-        card.dataset.profileId = profile.id;
+        const friendly = PROFILE_FRIENDLY_INFO[profile.id] || {
+            name: profile.name,
+            icon: '✨'
+        };
 
-        card.innerHTML = `
-            <div class="model-card-top">
-                <span class="model-card-name">${escapeHtml(profile.name)}</span>
-                <button class="model-info-trigger" type="button" title="View ${escapeHtml(profile.name)} details" aria-label="Model info">ℹ</button>
-            </div>
-            <div class="model-card-tagline">${escapeHtml(profile.tagline || profile.description)}</div>
-            <div class="model-card-footer">
-                <span class="model-card-family">${escapeHtml(profile.prompt_family.toUpperCase())}</span>
-                <span class="model-card-vram">${profile.vram_min_gb}G+ VRAM</span>
-            </div>
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = `style-pill-btn ${profile.id === state.activeProfileId ? 'active' : ''}`;
+        pill.setAttribute('role', 'radio');
+        pill.setAttribute('aria-checked', profile.id === state.activeProfileId ? 'true' : 'false');
+        pill.dataset.profileId = profile.id;
+        pill.title = profile.tagline || profile.description || friendly.name;
+
+        pill.innerHTML = `
+            <span class="style-pill-icon">${friendly.icon}</span>
+            <span class="style-pill-name">${escapeHtml(friendly.name)}</span>
+            <span class="style-pill-desc">${escapeHtml(friendly.tagline || profile.tagline || profile.description || '')}</span>
         `;
 
-        // Select Card Click
-        card.addEventListener('click', (e) => {
-            if (e.target.closest('.model-info-trigger')) return;
+        pill.addEventListener('click', () => {
             selectProfile(profile.id);
         });
 
-        // Detail Popover Button
-        const infoBtn = card.querySelector('.model-info-trigger');
-        if (infoBtn) {
-            infoBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openModelDetailPopover(profile);
-            });
-        }
-
-        elements.modelCardsContainer.appendChild(card);
+        elements.modelCardsContainer.appendChild(pill);
     });
 }
 
 function selectProfile(profileId) {
     state.activeProfileId = profileId;
-    document.querySelectorAll('.model-card').forEach(c => {
-        const isActive = c.dataset.profileId === profileId;
-        c.classList.toggle('active', isActive);
-        c.setAttribute('aria-checked', isActive ? 'true' : 'false');
+    document.querySelectorAll('.style-pill-btn').forEach(btn => {
+        const isActive = btn.dataset.profileId === profileId;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
     });
-    updateActiveProfileMeta();
-}
-
-function updateActiveProfileMeta() {
-    const active = state.profiles.find(p => p.id === state.activeProfileId);
-    if (active && elements.modelProvenanceNote) {
-        elements.modelProvenanceNote.textContent = active.technical_model || active.name;
-    }
 }
 
 /**
- * Open Model Detail Popover
+ * Canvas Stage State Manager
+ * States: 'idle' | 'generating' | 'result'
  */
-function openModelDetailPopover(profile) {
-    const popover = elements.modelDetailPopover;
-    if (!popover) return;
+function setCanvasState(mode, statusText = '') {
+    if (!elements.canvasSurface) return;
 
-    document.getElementById('popover-model-name').textContent = profile.name;
-    document.getElementById('popover-model-tagline').textContent = profile.tagline || profile.description;
-    document.getElementById('popover-vram-min').textContent = `${profile.vram_min_gb} GB`;
-    document.getElementById('popover-vram-rec').textContent = `${profile.vram_rec_gb} GB`;
-    document.getElementById('popover-prompt-family').textContent = profile.prompt_family.toUpperCase();
-    document.getElementById('popover-technical-model').textContent = profile.technical_model;
-
-    // Render Strengths
-    const strengthsList = document.getElementById('popover-strengths-list');
-    strengthsList.innerHTML = (profile.strengths || []).map(s => `<li>${escapeHtml(s)}</li>`).join('');
-
-    // Render Weaknesses
-    const weaknessesList = document.getElementById('popover-weaknesses-list');
-    weaknessesList.innerHTML = (profile.weaknesses || []).map(w => `<li>${escapeHtml(w)}</li>`).join('');
-
-    // Render Carousel
-    const carousel = document.getElementById('popover-example-carousel');
-    carousel.innerHTML = '';
-    state.popoverCarouselIndex = 0;
-
-    if (profile.examples && profile.examples.length > 0) {
-        profile.examples.forEach((ex, idx) => {
-            const img = document.createElement('img');
-            img.className = `popover-example-img ${idx === 0 ? 'active' : ''}`;
-            img.src = ex.image_url;
-            img.alt = ex.title;
-            carousel.appendChild(img);
-        });
-        document.getElementById('popover-example-caption').textContent = profile.examples[0].prompt || profile.examples[0].title;
-        startPopoverCarousel(profile.examples);
-    } else {
-        carousel.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;">No examples available</div>';
-        document.getElementById('popover-example-caption').textContent = '';
-    }
-
-    popover.hidden = false;
-}
-
-function startPopoverCarousel(examples) {
-    if (state.popoverCarouselTimer) clearInterval(state.popoverCarouselTimer);
-    if (!examples || examples.length <= 1) return;
-
-    state.popoverCarouselTimer = setInterval(() => {
-        state.popoverCarouselIndex = (state.popoverCarouselIndex + 1) % examples.length;
-        const imgs = document.querySelectorAll('.popover-example-img');
-        imgs.forEach((img, idx) => {
-            img.classList.toggle('active', idx === state.popoverCarouselIndex);
-        });
-        const currentEx = examples[state.popoverCarouselIndex];
-        if (currentEx) {
-            document.getElementById('popover-example-caption').textContent = currentEx.prompt || currentEx.title;
+    if (mode === 'idle') {
+        elements.canvasIdleState.hidden = false;
+        elements.canvasIdleState.classList.add('active');
+        elements.canvasGeneratingState.hidden = true;
+        elements.canvasGeneratingState.classList.remove('active');
+        elements.canvasResultState.hidden = true;
+        elements.canvasResultState.classList.remove('active');
+        elements.canvasSurface.classList.remove('has-result');
+    } else if (mode === 'generating') {
+        elements.canvasIdleState.hidden = true;
+        elements.canvasIdleState.classList.remove('active');
+        elements.canvasGeneratingState.hidden = false;
+        elements.canvasGeneratingState.classList.add('active');
+        elements.canvasResultState.hidden = true;
+        elements.canvasResultState.classList.remove('active');
+        elements.canvasSurface.classList.remove('has-result');
+        if (elements.canvasGeneratingStatus) {
+            elements.canvasGeneratingStatus.textContent = statusText || 'Создаём изображение…';
         }
-    }, 4000);
-}
-
-function closeModelDetailPopover() {
-    if (elements.modelDetailPopover) elements.modelDetailPopover.hidden = true;
-    if (state.popoverCarouselTimer) {
-        clearInterval(state.popoverCarouselTimer);
-        state.popoverCarouselTimer = null;
+    } else if (mode === 'result') {
+        elements.canvasIdleState.hidden = true;
+        elements.canvasIdleState.classList.remove('active');
+        elements.canvasGeneratingState.hidden = true;
+        elements.canvasGeneratingState.classList.remove('active');
+        elements.canvasResultState.hidden = false;
+        elements.canvasResultState.classList.add('active');
+        elements.canvasSurface.classList.add('has-result');
     }
 }
 
 /**
- * Generation Execution & Progress
+ * Generation Execution & Polling
  */
 async function handleCreate() {
     if (state.currentRunId) return; // already generating
@@ -257,12 +349,13 @@ async function handleCreate() {
     const promptText = elements.promptInput ? elements.promptInput.value.trim() : '';
     if (!promptText && !state.referenceImageDataUrl) {
         elements.promptInput.focus();
-        showError('Empty Prompt', 'Please describe the image you want to create.');
+        showError('Пустой запрос', 'Опишите изображение, которое хотите создать.');
         return;
     }
 
     dismissError();
-    setGeneratingState(true, 0, 'Starting generation…');
+    setButtonGeneratingState(true, 0, 'Запуск…');
+    setCanvasState('generating', 'Подготовка генерации…');
 
     try {
         const payload = {
@@ -283,15 +376,16 @@ async function handleCreate() {
 
         const data = await res.json();
         if (!res.ok) {
-            throw new Error(data.error || data.suggestion || 'Generation request rejected');
+            throw new Error(data.error || data.suggestion || 'Запрос на генерацию отклонён');
         }
 
         state.currentRunId = data.run_id;
         startPollingRun(data.run_id);
     } catch (err) {
         console.error('Generation failed:', err);
-        setGeneratingState(false);
-        showError('Generation Failed', err.message);
+        setButtonGeneratingState(false);
+        setCanvasState('idle');
+        showError('Ошибка генерации', err.message);
     }
 }
 
@@ -299,6 +393,14 @@ function startPollingRun(runId) {
     if (state.pollInterval) clearInterval(state.pollInterval);
 
     let progress = 10;
+    const stages = [
+        'Создаём композицию…',
+        'Отрисовка деталей…',
+        'Проработка света и текстур…',
+        'Финальная обработка…'
+    ];
+    let stageIdx = 0;
+
     state.pollInterval = setInterval(async () => {
         try {
             const res = await fetch(`/api/simple/runs/${runId}`);
@@ -306,20 +408,27 @@ function startPollingRun(runId) {
             const data = await res.json();
 
             if (data.status === 'running') {
-                progress = Math.min(progress + 8, 92);
-                setGeneratingState(true, progress, `Creating · ${progress}%`);
+                progress = Math.min(progress + 7, 92);
+                stageIdx = Math.floor((progress / 100) * stages.length);
+                const currentStage = stages[Math.min(stageIdx, stages.length - 1)];
+                
+                setButtonGeneratingState(true, progress, `${progress}%`);
+                if (elements.canvasGeneratingStatus) {
+                    elements.canvasGeneratingStatus.textContent = currentStage;
+                }
             } else if (data.status === 'completed' || data.is_complete) {
                 clearInterval(state.pollInterval);
                 state.pollInterval = null;
                 state.currentRunId = null;
-                setGeneratingState(false);
+                setButtonGeneratingState(false);
                 handleGenerationSuccess(data.outputs || []);
             } else if (data.status === 'failed' || data.status === 'cancelled') {
                 clearInterval(state.pollInterval);
                 state.pollInterval = null;
                 state.currentRunId = null;
-                setGeneratingState(false);
-                showError('Generation Failed', data.run?.error || 'Execution was interrupted in ComfyUI.');
+                setButtonGeneratingState(false);
+                setCanvasState('idle');
+                showError('Ошибка создания', data.run?.error || 'Процесс был прерван в ComfyUI.');
             }
         } catch (e) {
             console.warn('Poll error:', e);
@@ -327,138 +436,83 @@ function startPollingRun(runId) {
     }, 800);
 }
 
-function setGeneratingState(isGenerating, percent = 0, text = 'Creating…') {
+function setButtonGeneratingState(isGenerating, percent = 0, text = 'Создание…') {
     if (!elements.createButton) return;
     if (isGenerating) {
-        elements.createButton.classList.add('is-generating');
+        elements.createButton.classList.add('running');
         elements.createProgressFill.style.width = `${percent}%`;
         elements.createProgressText.textContent = text;
     } else {
-        elements.createButton.classList.remove('is-generating');
+        elements.createButton.classList.remove('running');
         elements.createProgressFill.style.width = '0%';
-        elements.createProgressText.textContent = 'Create';
+        elements.createProgressText.textContent = 'Создание…';
     }
 }
 
 function handleGenerationSuccess(outputs) {
-    if (!outputs || outputs.length === 0) return;
-
-    if (elements.resultsStage) elements.resultsStage.hidden = false;
-    if (elements.resultsGallery) {
-        elements.resultsGallery.innerHTML = outputs.map(out => `
-            <div class="result-item">
-                <a href="/library" title="View in library">
-                    <img src="${escapeHtml(out.preview_url || out.thumbnail_url)}" alt="Generated image" loading="lazy">
-                </a>
-            </div>
-        `).join('');
+    if (!outputs || outputs.length === 0) {
+        setCanvasState('idle');
+        return;
     }
 
-    // Seamlessly crossfade ambient background to the newly generated artwork!
     const firstArt = outputs[0];
-    if (firstArt) {
-        setAmbientImage(firstArt.preview_url || firstArt.thumbnail_url);
+    state.lastGeneratedOutput = firstArt;
+
+    // Display image on the dedicated Canvas
+    if (elements.canvasResultImg) {
+        elements.canvasResultImg.src = firstArt.preview_url || firstArt.thumbnail_url;
     }
+    setCanvasState('result');
+
+    // Instantly transition ambient background to this new artwork!
+    const artUrl = firstArt.preview_url || firstArt.thumbnail_url;
+    setAmbientImage(artUrl);
+    // Reset the 5-minute timer so it stays for full 5 minutes before next rotation
+    startAmbientRotationTimer();
 }
 
 /**
- * AI Assistant Slide-over Drawer
- */
-async function sendAssistantMessage() {
-    const input = elements.assistantChatInput;
-    if (!input) return;
-    const text = input.value.trim();
-    if (!text) return;
-
-    input.value = '';
-    appendAssistantMessage('user', text);
-    state.aiAssistantHistory.push({ role: 'user', content: text });
-
-    const typingBubble = appendAssistantMessage('bot', 'Thinking…');
-
-    try {
-        const res = await fetch('/api/simple/assistant/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message: text,
-                profile_id: state.activeProfileId,
-                history: state.aiAssistantHistory,
-            }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'AI Assistant unavailable');
-
-        typingBubble.remove();
-        appendAssistantMessage('bot', data.reply, true);
-        state.aiAssistantHistory.push({ role: 'assistant', content: data.reply });
-    } catch (err) {
-        typingBubble.remove();
-        appendAssistantMessage('bot', `⚠️ ${err.message}`);
-    }
-}
-
-function appendAssistantMessage(role, content, showApplyBtn = false) {
-    const container = elements.assistantMessages;
-    if (!container) return null;
-
-    const div = document.createElement('div');
-    div.className = `assistant-message ${role === 'user' ? 'user-msg' : 'bot-msg'}`;
-    div.innerHTML = `<p style="margin:0;white-space:pre-wrap;">${escapeHtml(content)}</p>`;
-
-    if (showApplyBtn && role === 'bot') {
-        const applyBtn = document.createElement('button');
-        applyBtn.className = 'assistant-apply-prompt-btn';
-        applyBtn.type = 'button';
-        applyBtn.innerHTML = `✦ Use this prompt`;
-        applyBtn.addEventListener('click', () => {
-            if (elements.promptInput) {
-                // Extract clean prompt if inside quotes or code block
-                let promptText = content;
-                const match = content.match(/```(?:prompt)?\s*([\s\S]*?)```/) || content.match(/"([^"]+)"/);
-                if (match) promptText = match[1].trim();
-                elements.promptInput.value = promptText;
-                elements.promptInput.focus();
-                elements.aiAssistantDrawer.hidden = true;
-            }
-        });
-        div.appendChild(applyBtn);
-    }
-
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-    return div;
-}
-
-/**
- * Event Listeners Setup
+ * Setup Event Listeners
  */
 function setupEventListeners() {
-    // Reference Image Upload Handler
-    if (elements.referenceFileInput) {
-        elements.referenceFileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                state.referenceImageDataUrl = evt.target.result;
-                if (elements.referencePreviewImg) elements.referencePreviewImg.src = state.referenceImageDataUrl;
-                if (elements.referencePreviewContainer) elements.referencePreviewContainer.hidden = false;
-            };
-            reader.readAsDataURL(file);
+    // Create Button Trigger
+    if (elements.createButton) {
+        elements.createButton.addEventListener('click', handleCreate);
+    }
+
+    // Keyboard Shortcut: Ctrl + Enter to create
+    window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            handleCreate();
+        }
+    });
+
+    // Prompt Textarea input handling & auto-height
+    if (elements.promptInput) {
+        elements.promptInput.addEventListener('input', () => {
+            const hasText = elements.promptInput.value.trim().length > 0;
+            if (elements.promptClearBtn) {
+                elements.promptClearBtn.hidden = !hasText;
+            }
+            // Auto resize
+            elements.promptInput.style.height = 'auto';
+            elements.promptInput.style.height = `${Math.max(84, elements.promptInput.scrollHeight)}px`;
         });
     }
 
-    // Remove Reference Button
-    if (elements.removeReferenceBtn) {
-        elements.removeReferenceBtn.addEventListener('click', () => {
-            state.referenceImageDataUrl = null;
-            if (elements.referenceFileInput) elements.referenceFileInput.value = '';
-            if (elements.referencePreviewContainer) elements.referencePreviewContainer.hidden = true;
+    // Clear prompt button
+    if (elements.promptClearBtn) {
+        elements.promptClearBtn.addEventListener('click', () => {
+            if (elements.promptInput) {
+                elements.promptInput.value = '';
+                elements.promptInput.dispatchEvent(new Event('input'));
+                elements.promptInput.focus();
+            }
         });
     }
 
-    // Improve with AI Checkbox
+    // AI Improve Checkbox Toggle
     if (elements.aiImproveCheckbox) {
         elements.aiImproveCheckbox.addEventListener('change', (e) => {
             state.improveWithAi = e.target.checked;
@@ -470,126 +524,244 @@ function setupEventListeners() {
 
     // Aspect Ratio Buttons
     if (elements.aspectRatioSelector) {
-        elements.aspectRatioSelector.addEventListener('click', (e) => {
-            const btn = e.target.closest('.aspect-btn');
-            if (!btn) return;
-            state.aspectRatio = btn.dataset.ratio;
-            elements.aspectRatioSelector.querySelectorAll('.aspect-btn').forEach(b => {
-                const isActive = b === btn;
-                b.classList.toggle('active', isActive);
-                b.setAttribute('aria-checked', isActive ? 'true' : 'false');
+        elements.aspectRatioSelector.querySelectorAll('.aspect-card').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const ratio = btn.dataset.ratio;
+                state.aspectRatio = ratio;
+                elements.aspectRatioSelector.querySelectorAll('.aspect-card').forEach(b => {
+                    const isActive = b.dataset.ratio === ratio;
+                    b.classList.toggle('active', isActive);
+                    b.setAttribute('aria-checked', isActive ? 'true' : 'false');
+                });
             });
         });
     }
 
-    // Quality Preset Buttons
-    if (elements.qualitySelector) {
-        elements.qualitySelector.addEventListener('click', (e) => {
-            const btn = e.target.closest('.segmented-btn');
-            if (!btn) return;
-            state.quality = btn.dataset.quality;
-            elements.qualitySelector.querySelectorAll('.segmented-btn').forEach(b => {
-                const isActive = b === btn;
-                b.classList.toggle('active', isActive);
-                b.setAttribute('aria-checked', isActive ? 'true' : 'false');
-            });
+    // Reference Image File Upload
+    if (elements.referenceFileInput) {
+        elements.referenceFileInput.addEventListener('change', (e) => {
+            const file = e.target.files?.[0];
+            if (file) handleReferenceFile(file);
         });
     }
 
-    // Batch Count Buttons
-    if (elements.batchSelector) {
-        elements.batchSelector.addEventListener('click', (e) => {
-            const btn = e.target.closest('.segmented-btn');
-            if (!btn) return;
-            state.batchSize = parseInt(btn.dataset.batch, 10) || 1;
-            elements.batchSelector.querySelectorAll('.segmented-btn').forEach(b => {
-                const isActive = b === btn;
-                b.classList.toggle('active', isActive);
-                b.setAttribute('aria-checked', isActive ? 'true' : 'false');
-            });
+    // Reference Image Drag & Drop on prompt container
+    if (elements.promptBoxContainer) {
+        elements.promptBoxContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            elements.promptBoxContainer.style.borderColor = 'var(--accent, #14b8a6)';
+        });
+        elements.promptBoxContainer.addEventListener('dragleave', () => {
+            elements.promptBoxContainer.style.borderColor = '';
+        });
+        elements.promptBoxContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            elements.promptBoxContainer.style.borderColor = '';
+            const file = e.dataTransfer?.files?.[0];
+            if (file && file.type.startsWith('image/')) {
+                handleReferenceFile(file);
+            }
         });
     }
 
-    // Create Button Trigger
-    if (elements.createButton) {
-        elements.createButton.addEventListener('click', handleCreate);
+    // Remove Reference Image Button
+    if (elements.removeReferenceBtn) {
+        elements.removeReferenceBtn.addEventListener('click', () => {
+            state.referenceImageDataUrl = null;
+            state.referenceFileName = '';
+            if (elements.referencePreviewContainer) elements.referencePreviewContainer.hidden = true;
+            if (elements.referenceFileInput) elements.referenceFileInput.value = '';
+        });
     }
 
-    // Dismiss Error
+    // Canvas Action: Download
+    if (elements.btnActionDownload) {
+        elements.btnActionDownload.addEventListener('click', () => {
+            if (!state.lastGeneratedOutput) return;
+            const url = state.lastGeneratedOutput.preview_url || state.lastGeneratedOutput.thumbnail_url;
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = state.lastGeneratedOutput.filename || `artwork-${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+    }
+
+    // Canvas Action: Copy Prompt
+    if (elements.btnActionCopyPrompt) {
+        elements.btnActionCopyPrompt.addEventListener('click', async () => {
+            const text = elements.promptInput ? elements.promptInput.value.trim() : '';
+            if (text) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    const originalTitle = elements.btnActionCopyPrompt.title;
+                    elements.btnActionCopyPrompt.title = 'Скопировано!';
+                    setTimeout(() => {
+                        elements.btnActionCopyPrompt.title = originalTitle;
+                    }, 2000);
+                } catch (_) {}
+            }
+        });
+    }
+
+    // Canvas Action: Remix / Iterate
+    if (elements.btnActionRemix) {
+        elements.btnActionRemix.addEventListener('click', () => {
+            if (elements.promptInput) {
+                elements.promptInput.focus();
+                elements.promptInput.select();
+            }
+        });
+    }
+
+    // Error Dismiss
     if (elements.errorDismissBtn) {
         elements.errorDismissBtn.addEventListener('click', dismissError);
     }
 
-    // Popover Close
-    if (elements.popoverCloseBtn) {
-        elements.popoverCloseBtn.addEventListener('click', closeModelDetailPopover);
-    }
-
-    // AI Assistant Open / Close
-    if (elements.aiAssistantToggle) {
+    // AI Assistant Drawer Toggle
+    if (elements.aiAssistantToggle && elements.aiAssistantDrawer) {
         elements.aiAssistantToggle.addEventListener('click', () => {
-            if (elements.aiAssistantDrawer) {
-                elements.aiAssistantDrawer.hidden = !elements.aiAssistantDrawer.hidden;
-                if (!elements.aiAssistantDrawer.hidden && elements.assistantChatInput) {
-                    elements.assistantChatInput.focus();
-                }
+            elements.aiAssistantDrawer.hidden = !elements.aiAssistantDrawer.hidden;
+            if (!elements.aiAssistantDrawer.hidden && elements.assistantChatInput) {
+                elements.assistantChatInput.focus();
             }
         });
     }
 
-    if (elements.assistantCloseBtn) {
+    if (elements.assistantCloseBtn && elements.aiAssistantDrawer) {
         elements.assistantCloseBtn.addEventListener('click', () => {
-            if (elements.aiAssistantDrawer) elements.aiAssistantDrawer.hidden = true;
+            elements.aiAssistantDrawer.hidden = true;
         });
     }
 
-    if (elements.assistantNewChatBtn) {
-        elements.assistantNewChatBtn.addEventListener('click', () => {
-            state.aiAssistantHistory = [];
-            if (elements.assistantMessages) {
-                elements.assistantMessages.innerHTML = `
-                    <div class="assistant-message system-welcome">
-                        <p>Conversation restarted. How can I help refine your prompt?</p>
-                    </div>
-                `;
+    // Quick suggestions in AI Assistant
+    document.querySelectorAll('.quick-suggestion-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const promptText = chip.dataset.prompt;
+            if (promptText && elements.promptInput) {
+                elements.promptInput.value = promptText;
+                elements.promptInput.dispatchEvent(new Event('input'));
+                if (elements.aiAssistantDrawer) elements.aiAssistantDrawer.hidden = true;
             }
         });
-    }
-
-    if (elements.assistantChatForm) {
-        elements.assistantChatForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            sendAssistantMessage();
-        });
-    }
-
-    // Quick suggestion chips in AI Assistant
-    if (elements.aiAssistantDrawer) {
-        elements.aiAssistantDrawer.addEventListener('click', (e) => {
-            const chip = e.target.closest('.quick-suggestion-chip');
-            if (chip && chip.dataset.prompt) {
-                if (elements.assistantChatInput) elements.assistantChatInput.value = chip.dataset.prompt;
-                sendAssistantMessage();
-            }
-        });
-    }
-
-    // Global ESC to close popovers/drawers
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeModelDetailPopover();
-            if (elements.aiAssistantDrawer && !elements.aiAssistantDrawer.hidden) {
-                elements.aiAssistantDrawer.hidden = true;
-            }
-        }
     });
+
+    // AI Assistant Chat Form
+    if (elements.assistantChatForm) {
+        elements.assistantChatForm.addEventListener('submit', handleAssistantChat);
+    }
 }
 
-function showError(title, message, techDetails = null) {
+/**
+ * Reference File Handling
+ */
+function handleReferenceFile(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        state.referenceImageDataUrl = e.target.result;
+        state.referenceFileName = file.name;
+        if (elements.referencePreviewImg) {
+            elements.referencePreviewImg.onload = () => {
+                if (elements.referencePreviewContainer && state.referenceImageDataUrl) {
+                    elements.referencePreviewContainer.hidden = false;
+                }
+            };
+            elements.referencePreviewImg.onerror = () => {
+                state.referenceImageDataUrl = null;
+                state.referenceFileName = '';
+                if (elements.referencePreviewContainer) {
+                    elements.referencePreviewContainer.hidden = true;
+                }
+            };
+            elements.referencePreviewImg.src = state.referenceImageDataUrl;
+        }
+        if (elements.referenceFileName) {
+            elements.referenceFileName.textContent = file.name;
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+/**
+ * AI Assistant Chat Handler
+ */
+async function handleAssistantChat(e) {
+    if (e) e.preventDefault();
+    if (!elements.assistantChatInput) return;
+    const text = elements.assistantChatInput.value.trim();
+    if (!text) return;
+
+    elements.assistantChatInput.value = '';
+    appendAssistantMessage('user', text);
+
+    const loadingId = appendAssistantMessage('assistant', 'Думаю…');
+
+    try {
+        const res = await fetch('/api/simple/assistant/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: text,
+                current_prompt: elements.promptInput?.value || '',
+                profile_id: state.activeProfileId,
+                history: state.aiAssistantHistory,
+            }),
+        });
+
+        const data = await res.json();
+        const msgEl = document.getElementById(loadingId);
+        if (data.reply) {
+            if (msgEl) msgEl.textContent = data.reply;
+            state.aiAssistantHistory.push({ role: 'user', content: text });
+            state.aiAssistantHistory.push({ role: 'assistant', content: data.reply });
+
+            if (data.suggested_prompt) {
+                const applyBtn = document.createElement('button');
+                applyBtn.className = 'btn btn-primary btn-sm';
+                applyBtn.style.marginTop = '8px';
+                applyBtn.textContent = 'Применить этот промпт';
+                applyBtn.addEventListener('click', () => {
+                    if (elements.promptInput) {
+                        elements.promptInput.value = data.suggested_prompt;
+                        elements.promptInput.dispatchEvent(new Event('input'));
+                        if (elements.aiAssistantDrawer) elements.aiAssistantDrawer.hidden = true;
+                    }
+                });
+                msgEl?.appendChild(applyBtn);
+            }
+        } else {
+            if (msgEl) msgEl.textContent = 'Не удалось получить ответ от ассистента.';
+        }
+    } catch (err) {
+        const msgEl = document.getElementById(loadingId);
+        if (msgEl) msgEl.textContent = 'Ошибка связи с ИИ-помощником.';
+    }
+}
+
+function appendAssistantMessage(role, text) {
+    const id = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const msg = document.createElement('div');
+    msg.id = id;
+    msg.className = `assistant-message ${role === 'user' ? 'assistant-message-user' : 'assistant-message-system'}`;
+    msg.textContent = text;
+    elements.assistantMessages?.appendChild(msg);
+    if (elements.assistantMessages) {
+        elements.assistantMessages.scrollTop = elements.assistantMessages.scrollHeight;
+    }
+    return id;
+}
+
+/**
+ * Error Handling Utilities
+ */
+function showError(title, message, techDetails = '') {
     if (!elements.errorBanner) return;
-    elements.errorTitle.textContent = title;
-    elements.errorMessage.textContent = message;
-    if (techDetails && elements.errorTechText) {
+    if (elements.errorTitle) elements.errorTitle.textContent = title;
+    if (elements.errorMessage) elements.errorMessage.textContent = message;
+    if (elements.errorTechText && techDetails) {
         elements.errorTechText.textContent = techDetails;
         elements.errorTechText.parentElement.hidden = false;
     }
@@ -606,11 +778,10 @@ function escapeHtml(str) {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/"/g, '&quot;');
 }
 
-// Initialize on DOM Ready
+// Auto initialize on DOM ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initSimpleMode);
 } else {

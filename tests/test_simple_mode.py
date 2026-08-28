@@ -117,12 +117,12 @@ def test_simple_mode_routes(monkeypatch):
     # Test Create page HTML response
     resp = client.get("/create")
     assert resp.status_code == 200
-    assert b"What do you want to create?" in resp.data
+    assert b"studio-workspace" in resp.data
 
     # Test /editor route also returns Simple Mode
     resp_editor = client.get("/editor")
     assert resp_editor.status_code == 200
-    assert b"What do you want to create?" in resp_editor.data
+    assert b"studio-workspace" in resp_editor.data
 
     # Test Bootstrap API
     resp_boot = client.get("/api/simple/bootstrap")

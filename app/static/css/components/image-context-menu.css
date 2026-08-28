@@ -133,3 +133,92 @@
     .image-context-menu,
     .image-context-menu__loading-icon { animation: none; }
 }
+
+/* Studio context menu sliders */
+.studio-context-menu {
+    width: min(270px, calc(100vw - 16px));
+}
+
+.image-context-menu__slider-item {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm, 8px);
+    transition: background var(--transition-fast, 150ms);
+}
+
+.image-context-menu__slider-item:hover {
+    background: color-mix(in srgb, var(--surface2, #19202f) 40%, transparent);
+}
+
+.image-context-menu__slider-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--text-dim, #9aa4b8);
+}
+
+.image-context-menu__slider-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.image-context-menu__slider-title svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.image-context-menu__slider-val {
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--accent, #2dd4bf);
+    font-variant-numeric: tabular-nums;
+}
+
+.image-context-menu__range {
+    width: 100%;
+    height: 5px;
+    margin: 2px 0 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: color-mix(in srgb, var(--surface3, #222b3e) 70%, transparent);
+    border-radius: 999px;
+    outline: none;
+    cursor: pointer;
+}
+
+.image-context-menu__range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent, #2dd4bf);
+    cursor: pointer;
+    box-shadow: 0 0 0 2px var(--surface, #121722);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.image-context-menu__range::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #2dd4bf) 35%, transparent);
+}
+
+.image-context-menu__range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent, #2dd4bf);
+    cursor: pointer;
+    box-shadow: 0 0 0 2px var(--surface, #121722);
+}

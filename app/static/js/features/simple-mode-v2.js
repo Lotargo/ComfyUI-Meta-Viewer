@@ -13,8 +13,16 @@ const state = {
     ref: null,
     refUrl: null,
     ambient: [],
+    ambientDeck: [],
+    ambientHistory: [],
+    ambientCurrent: null,
+    ambientLoadingMore: false,
     layer: 0,
     timer: null,
+    interval: 300000,
+    opacity: 44,
+    blur: 10,
+    sound: false,
     run: null,
     poll: null,
     last: null,
@@ -63,24 +71,16 @@ function initialAmbient() {
 function hydrateAmbient() {
     const last = localStorage.getItem('cmv_simple_ambient_last');
     if (last) {
+        state.ambientCurrent = last;
+        state.ambientHistory.push(last);
         applyAmbient(last);
     }
     state.ambient = initialAmbient();
+    refillAmbientDeck();
     if (!last && state.ambient.length) {
         ambientPick();
     }
     preloadAmbientPool();
-}
-
-function preloadAmbientPool() {
-    const items = state.ambient.slice(0, 4);
-    for (const item of items) {
-        const src = typeof item === 'string' ? item : item?.preview_url || item?.thumbnail_url;
-        if (src) {
-            const img = new Image();
-            img.src = src;
-        }
-    }
 }
 
 function catalog() {
@@ -96,6 +96,21 @@ function save(key, value) {
     try { localStorage.setItem(key, String(value)); } catch {}
 }
 
+function applyVisualSettings() {
+    document.documentElement.style.setProperty('--studio-card-opacity', `${state.opacity ?? 44}%`);
+    document.documentElement.style.setProperty('--studio-ambient-blur', `${state.blur ?? 10}px`);
+}
+
+function restartAmbientTimer() {
+    if (state.timer) {
+        clearInterval(state.timer);
+        state.timer = null;
+    }
+    if (state.interval > 0 && state.ambient.length > 1) {
+        state.timer = setInterval(ambientPick, state.interval);
+    }
+}
+
 function restore() {
     try {
         state.modelId = localStorage.getItem('cmv_simple_model') || document.body.dataset.defaultModelId || '';
@@ -104,6 +119,22 @@ function restore() {
         state.batch = Math.max(1, Math.min(4, Number(localStorage.getItem('cmv_simple_batch')) || 1));
         const ai = localStorage.getItem('cmv_simple_ai_improve');
         if (ai !== null) state.improve = ai === 'true';
+
+        const rawInterval = localStorage.getItem('cmv_simple_ambient_interval');
+        state.interval = rawInterval !== null && !isNaN(Number(rawInterval)) ? Number(rawInterval) : 300000;
+
+        const rawOpacity = localStorage.getItem('cmv_simple_glass_opacity');
+        const numOpacity = Number(rawOpacity);
+        if (rawOpacity !== null && !isNaN(numOpacity) && numOpacity >= 5 && numOpacity <= 98) {
+            state.opacity = numOpacity;
+        } else if (rawOpacity === 'ultra') state.opacity = 18;
+        else if (rawOpacity === 'high') state.opacity = 30;
+        else if (rawOpacity === 'solid') state.opacity = 82;
+        else state.opacity = 44;
+
+        const rawBlur = localStorage.getItem('cmv_simple_ambient_blur');
+        state.blur = rawBlur !== null && !isNaN(Number(rawBlur)) ? Number(rawBlur) : 10;
+        state.sound = localStorage.getItem('cmv_simple_sound_alert') === 'true';
     } catch {}
 }
 
@@ -128,6 +159,7 @@ async function json(url, options) {
 function init() {
     state.models = catalog();
     restore();
+    applyVisualSettings();
     if (!state.models.some(item => item.id === state.modelId)) {
         state.modelId = state.models[0]?.id || '';
     }
@@ -407,27 +439,117 @@ function startDownloadPolling() {
     }, 850);
 }
 
+function shuffleArray(arr) {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+}
+
+function refillAmbientDeck() {
+    if (!state.ambient.length) {
+        state.ambientDeck = [];
+        return;
+    }
+    const recentSet = new Set(state.ambientHistory);
+    const unseen = state.ambient.filter(item => !recentSet.has(item.id || item));
+    const seen = state.ambient.filter(item => recentSet.has(item.id || item));
+
+    const shuffledUnseen = shuffleArray(unseen);
+    const shuffledSeen = shuffleArray(seen);
+    let newDeck = [...shuffledUnseen, ...shuffledSeen];
+
+    // Avoid immediate repeat with currently shown image
+    if (newDeck.length > 1 && (newDeck[0]?.id || newDeck[0]) === state.ambientCurrent) {
+        const first = newDeck.shift();
+        newDeck.push(first);
+    }
+    state.ambientDeck = newDeck;
+}
+
+async function loadMoreAmbient() {
+    if (state.ambientLoadingMore) return;
+    state.ambientLoadingMore = true;
+    try {
+        const data = await json('/api/simple/ambient?limit=72');
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (items.length) {
+            const existingIds = new Set(state.ambient.map(it => it.id || it));
+            const newItems = items.filter(it => !existingIds.has(it.id || it));
+            if (newItems.length) {
+                state.ambient.push(...newItems);
+                setCachedJson('cmv_simple_ambient_items', state.ambient.slice(0, 120), true);
+                state.ambientDeck.push(...shuffleArray(newItems));
+            }
+        }
+    } catch {}
+    finally {
+        state.ambientLoadingMore = false;
+    }
+}
+
 async function loadAmbient() {
     try {
-        const data = await json('/api/simple/ambient?limit=36');
+        const data = await json('/api/simple/ambient?limit=72');
         const items = Array.isArray(data.items) ? data.items : [];
         if (items.length) {
             state.ambient = items;
             setCachedJson('cmv_simple_ambient_items', items, true);
+            refillAmbientDeck();
             preloadAmbientPool();
             if (!document.querySelector('.ambient-container.has-ambient')) {
                 ambientPick();
             }
-            if (state.ambient.length > 1 && !state.timer) {
-                state.timer = setInterval(ambientPick, ROTATE);
-            }
+            restartAmbientTimer();
         }
     } catch {}
 }
 
-function ambientPick() {
+function ambientPick(resetTimer = true) {
     if (!state.ambient.length) return;
-    setAmbient(state.ambient[Math.floor(Math.random() * state.ambient.length)]);
+    if (!state.ambientDeck.length) {
+        refillAmbientDeck();
+    }
+    let nextItem = state.ambientDeck.shift();
+    if (!nextItem) return;
+
+    // Check if nextItem matches current active image
+    const nextKey = nextItem.id || (typeof nextItem === 'string' ? nextItem : nextItem.preview_url);
+    if (nextKey === state.ambientCurrent && state.ambientDeck.length > 0) {
+        const alt = state.ambientDeck.shift();
+        state.ambientDeck.push(nextItem);
+        nextItem = alt;
+    }
+
+    state.ambientCurrent = nextItem.id || (typeof nextItem === 'string' ? nextItem : nextItem.preview_url);
+    state.ambientHistory.push(state.ambientCurrent);
+    if (state.ambientHistory.length > 30) {
+        state.ambientHistory.shift();
+    }
+
+    setAmbient(nextItem);
+    preloadAmbientPool();
+
+    if (resetTimer) {
+        restartAmbientTimer();
+    }
+
+    if (state.ambientDeck.length < 8) {
+        loadMoreAmbient();
+    }
+}
+
+function preloadAmbientPool() {
+    const items = state.ambientDeck.slice(0, 4);
+    for (const item of items) {
+        const src = typeof item === 'string' ? item : item?.preview_url || item?.thumbnail_url;
+        if (src) {
+            const img = new Image();
+            img.src = src;
+        }
+    }
 }
 
 function setAmbient(item) {
@@ -599,8 +721,14 @@ function wire() {
             closeModelMenu();
             closeAssistant();
             closeRuntimeSettings();
+            closeContextMenu();
         }
     });
+    document.addEventListener('contextmenu', openStudioContextMenu);
+    document.addEventListener('click', event => {
+        if (!event.target.closest('.image-context-menu')) closeContextMenu();
+    });
+    window.addEventListener('scroll', closeContextMenu, { passive: true });
     assistantWelcome();
 }
 
@@ -731,6 +859,29 @@ function stopRunPolling() {
     state.run = null;
 }
 
+function playSuccessChime() {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+        const notes = [659.25, 987.77, 1318.51];
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.08);
+            gain.gain.setValueAtTime(0.12, now + i * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.6);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + i * 0.08);
+            osc.stop(now + i * 0.08 + 0.65);
+        });
+        setTimeout(() => { try { ctx.close(); } catch {} }, 1200);
+    } catch {}
+}
+
 function showResult(outputs) {
     const output = outputs[0];
     if (!output) return error('Результат не найден', 'Генерация завершилась без доступного изображения.');
@@ -738,6 +889,7 @@ function showResult(outputs) {
     $('result-img').src = output.preview_url || output.thumbnail_url;
     canvas('result');
     setAmbient(output.preview_url || output.thumbnail_url);
+    if (state.sound) playSuccessChime();
 }
 
 function canvas(view) {
@@ -996,6 +1148,194 @@ async function assistantSend(event) {
     } finally {
         $('assistant-send').disabled = false;
     }
+}
+
+let activeContextMenu = null;
+
+function closeContextMenu() {
+    if (activeContextMenu) {
+        activeContextMenu.remove();
+        activeContextMenu = null;
+    }
+}
+
+function createMenuItem({ icon, label, badge, onClick }) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'image-context-menu__item';
+    btn.innerHTML = `${icon}<span>${esc(label)}</span>${badge ? `<small style="margin-left:auto;color:var(--text-muted);font-size:10px;font-weight:600">${esc(badge)}</small>` : ''}`;
+    btn.addEventListener('click', () => {
+        closeContextMenu();
+        if (onClick) onClick();
+    });
+    return btn;
+}
+
+function createSliderItem({ icon, label, min, max, step, value, format, onInput, onChange }) {
+    const wrap = document.createElement('div');
+    wrap.className = 'image-context-menu__slider-item';
+    wrap.addEventListener('click', e => e.stopPropagation());
+    wrap.addEventListener('mousedown', e => e.stopPropagation());
+    wrap.addEventListener('contextmenu', e => e.stopPropagation());
+
+    const header = document.createElement('div');
+    header.className = 'image-context-menu__slider-header';
+
+    const titleWrap = document.createElement('span');
+    titleWrap.className = 'image-context-menu__slider-title';
+    titleWrap.innerHTML = `${icon}<span>${esc(label)}</span>`;
+
+    const valBadge = document.createElement('span');
+    valBadge.className = 'image-context-menu__slider-val';
+    valBadge.textContent = format ? format(value) : value;
+
+    header.appendChild(titleWrap);
+    header.appendChild(valBadge);
+
+    const range = document.createElement('input');
+    range.type = 'range';
+    range.className = 'image-context-menu__range';
+    range.min = String(min);
+    range.max = String(max);
+    range.step = String(step || 1);
+    range.value = String(value);
+
+    range.addEventListener('input', () => {
+        const num = Number(range.value);
+        valBadge.textContent = format ? format(num) : num;
+        if (onInput) onInput(num);
+    });
+
+    range.addEventListener('change', () => {
+        const num = Number(range.value);
+        if (onChange) onChange(num);
+    });
+
+    wrap.appendChild(header);
+    wrap.appendChild(range);
+    return wrap;
+}
+
+function openStudioContextMenu(event) {
+    if (event.target.closest('input, textarea, [contenteditable="true"]')) {
+        return;
+    }
+    event.preventDefault();
+    closeContextMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'image-context-menu studio-context-menu';
+
+    const title = document.createElement('div');
+    title.className = 'image-context-menu__title';
+    title.textContent = 'Настройки студии';
+    menu.appendChild(title);
+
+    menu.appendChild(createMenuItem({
+        icon: '<svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>',
+        label: 'Сменить фон',
+        onClick: () => ambientPick(),
+    }));
+
+    const sep1 = document.createElement('div');
+    sep1.className = 'image-context-menu__separator';
+    menu.appendChild(sep1);
+
+    menu.appendChild(createSliderItem({
+        icon: '<svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
+        label: 'Прозрачность карточек',
+        min: 10,
+        max: 95,
+        step: 1,
+        value: state.opacity ?? 44,
+        format: v => `${v}%`,
+        onInput: v => {
+            state.opacity = v;
+            applyVisualSettings();
+        },
+        onChange: v => {
+            state.opacity = v;
+            save('cmv_simple_glass_opacity', state.opacity);
+        },
+    }));
+
+    menu.appendChild(createSliderItem({
+        icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/><line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/></svg>',
+        label: 'Размытие фона',
+        min: 0,
+        max: 40,
+        step: 1,
+        value: state.blur ?? 10,
+        format: v => (v === 0 ? 'Без размытия' : `${v} px`),
+        onInput: v => {
+            state.blur = v;
+            applyVisualSettings();
+        },
+        onChange: v => {
+            state.blur = v;
+            save('cmv_simple_ambient_blur', state.blur);
+        },
+    }));
+
+    menu.appendChild(createSliderItem({
+        icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+        label: 'Интервал смены',
+        min: 0,
+        max: 600,
+        step: 15,
+        value: Math.round((state.interval || 0) / 1000),
+        format: v => {
+            if (v === 0) return 'Отключен';
+            if (v < 60) return `${v} сек`;
+            const m = Math.floor(v / 60);
+            const s = v % 60;
+            return s ? `${m} мин ${s}с` : `${m} мин`;
+        },
+        onInput: v => {
+            state.interval = v * 1000;
+        },
+        onChange: v => {
+            state.interval = v * 1000;
+            save('cmv_simple_ambient_interval', state.interval);
+            restartAmbientTimer();
+        },
+    }));
+
+    const sep2 = document.createElement('div');
+    sep2.className = 'image-context-menu__separator';
+    menu.appendChild(sep2);
+
+    menu.appendChild(createMenuItem({
+        icon: '<svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+        label: 'Звук готовности',
+        badge: state.sound ? 'Вкл' : 'Выкл',
+        onClick: () => {
+            state.sound = !state.sound;
+            save('cmv_simple_sound_alert', state.sound);
+            if (state.sound) playSuccessChime();
+        },
+    }));
+
+    menu.appendChild(createMenuItem({
+        icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 8.5 4.1a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2h4v.4A1.7 1.7 0 0 0 15 4.1a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.5a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.9v4h-.9a1.7 1.7 0 0 0-1.7 1.1Z"/></svg>',
+        label: 'Настройки ComfyUI…',
+        onClick: () => openRuntimeSettings(),
+    }));
+
+    document.body.appendChild(menu);
+    activeContextMenu = menu;
+
+    const menuRect = menu.getBoundingClientRect();
+    let x = event.clientX;
+    let y = event.clientY;
+    if (x + menuRect.width > window.innerWidth - 8) {
+        x = Math.max(8, window.innerWidth - menuRect.width - 8);
+    }
+    if (y + menuRect.height > window.innerHeight - 8) {
+        y = Math.max(8, window.innerHeight - menuRect.height - 8);
+    }
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
 }
 
 document.readyState === 'loading'

@@ -12,6 +12,7 @@ from typing import Any
 from flask import Blueprint, current_app, jsonify, render_template, request
 from pydantic import BaseModel
 
+from app import database as db
 from app import library as media_library
 from app.ai.enhancement import PromptEnhancementService
 from app.ai.profiles import AIProfileStore
@@ -98,35 +99,135 @@ def _ai_status_payload() -> dict[str, Any]:
 
 _AMBIENT_CACHE: list[dict[str, Any]] = []
 _AMBIENT_CACHE_TIME: float = 0.0
-_AMBIENT_CACHE_TTL: float = 60.0
+_AMBIENT_CACHE_TTL: float = 45.0
 
 
-def _ambient_payload(limit: int = 36) -> list[dict[str, Any]]:
+def _query_ambient_candidates() -> list[dict[str, Any]]:
+    conn = db.get_conn()
+    candidates: list[dict[str, Any]] = []
+    seen_ids: set[int] = set()
+
+    try:
+        # Bucket 1: Favorites & Highly rated images (all-time top quality)
+        starred_rows = conn.execute(
+            """
+            SELECT i.id, i.file_name, i.width, i.height
+            FROM images i
+            LEFT JOIN folders f ON f.id = i.folder_id
+            WHERE i.media_type = 'image'
+              AND (f.enabled = 1 OR f.id IS NULL)
+              AND (i.original_data IS NOT NULL OR f.source_status NOT IN ('disabled', 'unavailable', 'reconnecting', 'error') OR f.id IS NULL)
+              AND (i.is_favorite = 1 OR COALESCE(i.rating, 0) >= 3)
+            ORDER BY RANDOM()
+            LIMIT 90
+            """
+        ).fetchall()
+        for r in starred_rows:
+            aid = int(r["id"])
+            if aid not in seen_ids:
+                seen_ids.add(aid)
+                candidates.append({
+                    "id": aid,
+                    "file_name": r["file_name"] or "",
+                    "preview_url": f"/api/preview/{aid}",
+                    "thumbnail_url": f"/api/thumbnail/{aid}",
+                    "width": int(r["width"] or 0),
+                    "height": int(r["height"] or 0),
+                })
+    except Exception as exc:
+        logger.debug("Failed querying starred ambient images: %s", exc)
+
+    try:
+        # Bucket 2: Recent artworks (latest generations)
+        recent_rows = conn.execute(
+            """
+            SELECT i.id, i.file_name, i.width, i.height
+            FROM images i
+            LEFT JOIN folders f ON f.id = i.folder_id
+            WHERE i.media_type = 'image'
+              AND (f.enabled = 1 OR f.id IS NULL)
+              AND (i.original_data IS NOT NULL OR f.source_status NOT IN ('disabled', 'unavailable', 'reconnecting', 'error') OR f.id IS NULL)
+            ORDER BY i.indexed_at DESC
+            LIMIT 150
+            """
+        ).fetchall()
+        for r in recent_rows:
+            aid = int(r["id"])
+            if aid not in seen_ids:
+                seen_ids.add(aid)
+                candidates.append({
+                    "id": aid,
+                    "file_name": r["file_name"] or "",
+                    "preview_url": f"/api/preview/{aid}",
+                    "thumbnail_url": f"/api/thumbnail/{aid}",
+                    "width": int(r["width"] or 0),
+                    "height": int(r["height"] or 0),
+                })
+    except Exception as exc:
+        logger.debug("Failed querying recent ambient images: %s", exc)
+
+    try:
+        # Bucket 3: Full database random exploration (discover older artworks)
+        random_rows = conn.execute(
+            """
+            SELECT i.id, i.file_name, i.width, i.height
+            FROM images i
+            LEFT JOIN folders f ON f.id = i.folder_id
+            WHERE i.media_type = 'image'
+              AND (f.enabled = 1 OR f.id IS NULL)
+              AND (i.original_data IS NOT NULL OR f.source_status NOT IN ('disabled', 'unavailable', 'reconnecting', 'error') OR f.id IS NULL)
+            ORDER BY RANDOM()
+            LIMIT 150
+            """
+        ).fetchall()
+        for r in random_rows:
+            aid = int(r["id"])
+            if aid not in seen_ids:
+                seen_ids.add(aid)
+                candidates.append({
+                    "id": aid,
+                    "file_name": r["file_name"] or "",
+                    "preview_url": f"/api/preview/{aid}",
+                    "thumbnail_url": f"/api/thumbnail/{aid}",
+                    "width": int(r["width"] or 0),
+                    "height": int(r["height"] or 0),
+                })
+    except Exception as exc:
+        logger.debug("Failed querying random ambient images: %s", exc)
+
+    return candidates
+
+
+def _ambient_payload(limit: int = 72) -> list[dict[str, Any]]:
     global _AMBIENT_CACHE, _AMBIENT_CACHE_TIME
     now = time.monotonic()
     if not _AMBIENT_CACHE or (now - _AMBIENT_CACHE_TIME) > _AMBIENT_CACHE_TTL:
         try:
-            page = media_library.get_assets(
-                collection="images",
-                page=1,
-                per_page=160,
-                sort_by="added",
-                sort_dir="desc",
-            )
-            candidates = [
-                {
-                    "id": int(asset["id"]),
-                    "file_name": asset.get("file_name") or "",
-                    "preview_url": f"/api/preview/{int(asset['id'])}",
-                    "thumbnail_url": asset.get("thumbnail_url") or f"/api/thumbnail/{int(asset['id'])}",
-                    "width": int(asset.get("width") or 0),
-                    "height": int(asset.get("height") or 0),
-                }
-                for asset in page.get("assets", [])
-                if asset.get("media_type") == "image" and asset.get("available", True)
-            ]
-            _AMBIENT_CACHE = candidates
-            _AMBIENT_CACHE_TIME = now
+            candidates = _query_ambient_candidates()
+            if not candidates:
+                # Fallback to media_library
+                page = media_library.get_assets(
+                    collection="images",
+                    page=1,
+                    per_page=160,
+                    sort_by="added",
+                    sort_dir="desc",
+                )
+                candidates = [
+                    {
+                        "id": int(asset["id"]),
+                        "file_name": asset.get("file_name") or "",
+                        "preview_url": f"/api/preview/{int(asset['id'])}",
+                        "thumbnail_url": asset.get("thumbnail_url") or f"/api/thumbnail/{int(asset['id'])}",
+                        "width": int(asset.get("width") or 0),
+                        "height": int(asset.get("height") or 0),
+                    }
+                    for asset in page.get("assets", [])
+                    if asset.get("media_type") == "image" and asset.get("available", True)
+                ]
+            if candidates:
+                _AMBIENT_CACHE = candidates
+                _AMBIENT_CACHE_TIME = now
         except Exception as exc:
             logger.debug("Failed to load ambient library assets: %s", exc)
             if not _AMBIENT_CACHE:

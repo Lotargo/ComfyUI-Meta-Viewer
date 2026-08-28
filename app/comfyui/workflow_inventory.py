@@ -109,7 +109,10 @@ def _filesystem_inventory(store: ConfigStore, folders: list[str]) -> dict[str, l
     if not install_path:
         return {}
     detection = detect_comfyui(str(install_path), custom_python=config.get("custom_python"))
-    if not detection.is_valid or detection.comfy_dir is None:
+    # Filesystem inventory only needs a recognizable ComfyUI directory. A
+    # managed Python interpreter may be absent when the user connects to an
+    # already-running/external ComfyUI, and that must not hide installed models.
+    if detection.comfy_dir is None:
         return {}
     model_root = Path(detection.comfy_dir) / "models"
     if not model_root.is_dir():

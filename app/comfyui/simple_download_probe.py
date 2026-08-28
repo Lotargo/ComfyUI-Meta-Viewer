@@ -50,10 +50,27 @@ def _perform_download_with_size_probe(row: dict[str, Any]) -> None:
     _original_perform_download(mutable)
 
 
+def _reset_cancelled_progress(download_id: int) -> None:
+    conn = downloader.database.get_conn()
+    try:
+        conn.execute(
+            """UPDATE simple_model_downloads
+               SET downloaded_bytes=0, error=NULL, updated_at=datetime('now')
+               WHERE id=? AND status='cancelled'""",
+            (int(download_id),),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _cancel_and_cleanup(self: downloader.SimpleModelDownloaderService, download_id: int) -> dict[str, Any]:
     before = self.get(download_id)
     result = _original_cancel(self, download_id)
     if result.get("status") == "cancelled":
+        # Cancellation is intentionally destructive: unlike Pause it discards
+        # the partial file and resets visible progress to zero.
+        _reset_cancelled_progress(download_id)
         try:
             _, part = self._resolve_target(str(before.get("folder") or ""), str(before.get("filename") or ""))
             part.unlink(missing_ok=True)
@@ -61,6 +78,7 @@ def _cancel_and_cleanup(self: downloader.SimpleModelDownloaderService, download_
             # An active writer may still own the .part file (notably on Windows).
             # The downloader loop observes the cancelled status and removes it on its next chunk.
             pass
+        return self.get(download_id)
     return result
 
 

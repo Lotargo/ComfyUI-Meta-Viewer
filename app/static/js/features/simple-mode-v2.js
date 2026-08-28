@@ -246,7 +246,9 @@ function paintDownloads() {
     wrap.innerHTML = state.downloads.map(item => {
         const canPause = ['queued', 'downloading'].includes(item.status) && item.id > 0;
         const canResume = ['paused', 'failed', 'cancelled'].includes(item.status) && item.id > 0;
+        const canCancel = ['queued', 'downloading', 'paused'].includes(item.status) && item.id > 0;
         const indeterminate = item.status === 'downloading' && !item.file_size_bytes;
+        const percent = item.file_size_bytes ? Math.round(item.progress || 0) : null;
         const size = item.file_size_bytes
             ? `${bytes(item.downloaded_bytes)} / ${bytes(item.file_size_bytes)}`
             : (item.downloaded_bytes ? bytes(item.downloaded_bytes) : item.folder);
@@ -257,8 +259,10 @@ function paintDownloads() {
                     <small>${esc(downloadStatus(item))}${size ? ` · ${esc(size)}` : ''}</small>
                 </div>
                 <div class="model-download-actions">
+                    ${percent !== null && ['queued', 'downloading', 'paused'].includes(item.status) ? `<span class="cmv-download-percent">${percent}%</span>` : ''}
                     ${canPause ? `<button class="download-mini-btn" type="button" data-download-action="pause" data-download-id="${item.id}">Пауза</button>` : ''}
                     ${canResume ? `<button class="download-mini-btn" type="button" data-download-action="resume" data-download-id="${item.id}">${item.status === 'failed' ? 'Повторить' : 'Продолжить'}</button>` : ''}
+                    ${canCancel ? `<button class="download-mini-btn cmv-download-cancel" type="button" data-download-action="cancel" data-download-id="${item.id}">Отмена</button>` : ''}
                 </div>
             </div>
             <div class="model-download-track${indeterminate ? ' is-indeterminate' : ''}"><div class="model-download-fill" style="width:${Math.max(0, Math.min(100, Number(item.progress || 0)))}%"></div></div>
@@ -372,10 +376,12 @@ function setAmbient(item) {
 function applyAmbient(url) {
     const next = state.layer ? $('ambient-a') : $('ambient-b');
     const previous = state.layer ? $('ambient-b') : $('ambient-a');
+    const container = document.querySelector('.ambient-container');
     if (!next || !previous) return;
     next.style.backgroundImage = `url("${String(url).replaceAll('"', '%22')}")`;
     next.classList.add('active');
     previous.classList.remove('active');
+    if (container) container.classList.add('has-ambient');
     state.layer = state.layer ? 0 : 1;
 }
 

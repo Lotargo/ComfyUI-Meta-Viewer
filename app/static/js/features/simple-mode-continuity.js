@@ -84,54 +84,65 @@ if (typeof window !== 'undefined' && window.location.pathname === CREATE_PATH) {
         document.head.appendChild(style);
     }
 
+    let isEnhancing = false;
+
     function enhanceDownloadRows() {
         const wrap = document.getElementById('model-downloads');
-        if (!wrap || !latestDownloadItems.length) return;
-        const rows = [...wrap.querySelectorAll('.model-download-row')];
-        rows.forEach((row, index) => {
-            const item = latestDownloadItems[index];
-            if (!item) return;
-            const actions = row.querySelector('.model-download-actions');
-            if (!actions) return;
+        if (!wrap || !latestDownloadItems.length || isEnhancing) return;
+        isEnhancing = true;
+        if (downloadObserver) downloadObserver.disconnect();
+        try {
+            const rows = [...wrap.querySelectorAll('.model-download-row')];
+            rows.forEach((row, index) => {
+                const item = latestDownloadItems[index];
+                if (!item) return;
+                const actions = row.querySelector('.model-download-actions');
+                if (!actions) return;
 
-            if (item.status === 'cancelled') {
-                actions.querySelector('[data-download-action="resume"]')?.remove();
-                const fill = row.querySelector('.model-download-fill');
-                if (fill) fill.style.width = '0%';
-                const summary = row.querySelector('.model-download-copy small');
-                if (summary) {
-                    const total = formatBytes(item.file_size_bytes);
-                    summary.textContent = total ? `Отменено · ${total}` : 'Отменено';
+                if (item.status === 'cancelled') {
+                    const fill = row.querySelector('.model-download-fill');
+                    if (fill && fill.style.width !== '0%') fill.style.width = '0%';
+                    const summary = row.querySelector('.model-download-copy small');
+                    if (summary) {
+                        const total = formatBytes(item.file_size_bytes);
+                        const expected = total ? `Отменено · ${total}` : 'Отменено';
+                        if (summary.textContent !== expected) summary.textContent = expected;
+                    }
                 }
-            }
 
-            const percent = percentFor(item);
-            let badge = actions.querySelector('.cmv-download-percent');
-            if (percent !== null) {
-                if (!badge) {
-                    badge = document.createElement('span');
-                    badge.className = 'cmv-download-percent';
-                    actions.prepend(badge);
+                const percent = percentFor(item);
+                let badge = actions.querySelector('.cmv-download-percent');
+                if (percent !== null) {
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.className = 'cmv-download-percent';
+                        actions.prepend(badge);
+                    }
+                    const text = `${percent}%`;
+                    if (badge.textContent !== text) badge.textContent = text;
+                } else if (badge) {
+                    badge.remove();
                 }
-                const text = `${percent}%`;
-                if (badge.textContent !== text) badge.textContent = text;
-            } else if (badge) {
-                badge.remove();
-            }
 
-            const canCancel = ['queued', 'downloading', 'paused'].includes(item.status) && Number(item.id) > 0;
-            let cancel = actions.querySelector('.cmv-download-cancel');
-            if (canCancel && !cancel) {
-                cancel = document.createElement('button');
-                cancel.type = 'button';
-                cancel.className = 'download-mini-btn cmv-download-cancel';
-                cancel.dataset.cmvDownloadCancel = String(item.id);
-                cancel.textContent = 'Отмена';
-                actions.appendChild(cancel);
-            } else if (!canCancel && cancel) {
-                cancel.remove();
+                const canCancel = ['queued', 'downloading', 'paused'].includes(item.status) && Number(item.id) > 0;
+                let cancel = actions.querySelector('.cmv-download-cancel');
+                if (canCancel && !cancel) {
+                    cancel = document.createElement('button');
+                    cancel.type = 'button';
+                    cancel.className = 'download-mini-btn cmv-download-cancel';
+                    cancel.dataset.cmvDownloadCancel = String(item.id);
+                    cancel.textContent = 'Отмена';
+                    actions.appendChild(cancel);
+                } else if (!canCancel && cancel) {
+                    cancel.remove();
+                }
+            });
+        } finally {
+            if (downloadObserver && wrap) {
+                downloadObserver.observe(wrap, { childList: true, subtree: true });
             }
-        });
+            isEnhancing = false;
+        }
     }
 
     function scheduleDownloadEnhancement(items) {

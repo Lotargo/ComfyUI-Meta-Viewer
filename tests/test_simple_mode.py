@@ -20,92 +20,54 @@ from app.main import app
 
 
 def test_approved_profiles_catalog():
-    assert "realism" in APPROVED_PROFILES
-    assert "anime" in APPROVED_PROFILES
-    assert "universal" in APPROVED_PROFILES
+    assert "model_01" in APPROVED_PROFILES
+    assert "model_02" in APPROVED_PROFILES
+    assert len(APPROVED_PROFILES) >= 3
 
-    realism = APPROVED_PROFILES["realism"]
-    assert realism.flow_id == "sdxl_pony"
-    assert realism.prompt_family == PromptFamily.SDXL
-    assert len(realism.strengths) > 0
-    assert len(realism.weaknesses) > 0
-    assert realism.vram_min_gb > 0
-    assert QualityPresetLevel.STANDARD in realism.quality_presets
-
-    anime = APPROVED_PROFILES["anime"]
-    assert anime.flow_id == "sdxl_pony"
-    assert anime.prompt_family == PromptFamily.PONY
-
-    universal = APPROVED_PROFILES["universal"]
-    assert universal.flow_id == "flux"
-    assert universal.prompt_family == PromptFamily.FLUX
+    model_1 = APPROVED_PROFILES["model_01"]
+    assert model_1.prompt_family == PromptFamily.SDXL
+    assert model_1.vram_min_gb > 0
+    assert "standard" in model_1.quality_preset_ids
+    assert len(model_1.aspect_ratios) > 0
 
 
 def test_load_simple_workflows():
-    sdxl_flow = load_simple_workflow_json("sdxl_pony")
-    assert isinstance(sdxl_flow, dict)
-    assert "3" in sdxl_flow  # KSampler
-    assert "6" in sdxl_flow  # CLIPTextEncode (positive)
-
-    flux_flow = load_simple_workflow_json("flux")
-    assert isinstance(flux_flow, dict)
-    assert "7" in flux_flow  # KSampler
-    assert "4" in flux_flow  # FluxGuidance
+    flow = load_simple_workflow_json("model_01")
+    assert isinstance(flow, dict)
+    assert "3" in flow  # KSampler
+    assert "6" in flow  # CLIPTextEncode (positive)
 
 
-def test_compile_simple_workflow_sdxl_pony():
-    profile = APPROVED_PROFILES["realism"]
+def test_compile_simple_workflow_model_01():
+    profile = APPROVED_PROFILES["model_01"]
     workflow = compile_simple_workflow(
         profile,
         positive_prompt="A realistic forest at sunset",
         negative_prompt="blurry, distorted",
         aspect_ratio="16:9",
-        quality=QualityPresetLevel.HIGH,
+        quality=QualityPresetLevel.STANDARD,
         batch_size=2,
         seed=42,
     )
 
     ksampler = workflow["3"]["inputs"]
-    assert ksampler["steps"] == profile.quality_presets[QualityPresetLevel.HIGH].steps
+    assert ksampler["steps"] == 32
     assert ksampler["seed"] == 42
 
     latent = workflow["5"]["inputs"]
-    assert latent["width"] == 1216
-    assert latent["height"] == 704
+    assert latent["width"] == 1152
+    assert latent["height"] == 640
     assert latent["batch_size"] == 2
 
     assert workflow["6"]["inputs"]["text"] == "A realistic forest at sunset"
     assert workflow["7"]["inputs"]["text"] == "blurry, distorted"
 
 
-def test_compile_simple_workflow_flux():
-    profile = APPROVED_PROFILES["universal"]
-    workflow = compile_simple_workflow(
-        profile,
-        positive_prompt="A cinematic robot portrait in glass cafe",
-        aspect_ratio="3:4",
-        quality=QualityPresetLevel.FAST,
-        batch_size=1,
-        seed=1234,
-    )
-
-    ksampler = workflow["7"]["inputs"]
-    assert ksampler["steps"] == profile.quality_presets[QualityPresetLevel.FAST].steps
-    assert ksampler["seed"] == 1234
-
-    latent = workflow["6"]["inputs"]
-    assert latent["width"] == 896
-    assert latent["height"] == 1152
-
-    assert workflow["3"]["inputs"]["text"] == "A cinematic robot portrait in glass cafe"
-    assert workflow["4"]["inputs"]["guidance"] == profile.quality_presets[QualityPresetLevel.FAST].guidance
-
-
 def test_serialize_approved_profile():
-    profile = APPROVED_PROFILES["realism"]
+    profile = APPROVED_PROFILES["model_01"]
     serialized = serialize_approved_profile(profile)
-    assert serialized["id"] == "realism"
-    assert serialized["name"] == "Realism"
+    assert serialized["id"] == "model_01"
+    assert serialized["name"] == "Model 1"
     assert "quality_presets" in serialized
     assert "aspect_ratios" in serialized
     assert "health" in serialized
@@ -130,14 +92,14 @@ def test_simple_mode_routes(monkeypatch):
     data = json.loads(resp_boot.data)
     assert "profiles" in data
     assert len(data["profiles"]) >= 3
-    assert data["default_profile_id"] == "realism"
+    assert data["default_profile_id"] == "model_01"
     assert "ai_status" in data
 
     # Test Profile status API
-    resp_status = client.get("/api/simple/profiles/realism/status")
+    resp_status = client.get("/api/simple/profiles/model_01/status")
     assert resp_status.status_code == 200
     status_data = json.loads(resp_status.data)
-    assert status_data["profile_id"] == "realism"
+    assert status_data["profile_id"] == "model_01"
     assert "health" in status_data
 
 
@@ -167,10 +129,10 @@ def test_simple_assistant_chat(monkeypatch):
     client = app.test_client()
     resp = client.post(
         "/api/simple/assistant/chat",
-        json={"message": "Draw a dragon", "profile_id": "anime"},
+        json={"message": "Draw a dragon", "profile_id": "model_01"},
     )
     assert resp.status_code == 200
     data = json.loads(resp.data)
     assert data["reply"] == "Enhanced prompt suggestion"
-    assert data["profile_id"] == "anime"
+    assert data["profile_id"] == "model_01"
 

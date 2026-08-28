@@ -171,6 +171,13 @@ class ComfyUIManager:
                 self._log(f"[CMV] Failed to spawn process: {exc}")
                 raise RuntimeError(f"Failed to spawn ComfyUI process: {exc}") from exc
 
+            if self._job_object is not None:
+                try:
+                    import win32job
+                    win32job.AssignProcessToJobObject(self._job_object, int(self._process._handle))
+                except Exception as exc:
+                    self._log(f"[CMV] Warning: failed to assign process to job object: {exc}")
+
             self._mode = ComfyUIMode.MANAGED
             self._status = ComfyUIStatus.STARTING
             self._last_error = None
@@ -204,15 +211,34 @@ class ComfyUIManager:
 
         if proc.poll() is None:
             try:
-                proc.terminate()
+                if self._job_object is not None:
+                    try:
+                        import win32job
+                        win32job.TerminateJobObject(self._job_object, 1)
+                    except Exception:
+                        pass
+
+                if proc.poll() is None:
+                    self._terminate_process_tree(proc)
+
+                proc.wait(timeout=5.0)
+            except subprocess.TimeoutExpired:
+                self._log("[CMV] Process did not exit after tree kill, forcing...")
                 try:
-                    proc.wait(timeout=5.0)
-                except subprocess.TimeoutExpired:
-                    self._log("[CMV] Process did not exit within timeout, killing...")
                     proc.kill()
                     proc.wait(timeout=2.0)
+                except Exception:
+                    pass
             except Exception as exc:
                 self._log(f"[CMV] Error terminating process: {exc}")
+
+        if self._job_object is not None:
+            try:
+                import win32job
+                win32job.CloseHandle(self._job_object)
+            except Exception:
+                pass
+            self._job_object = None
 
         self._stop_monitor_event.set()
         if proc.stdout:
@@ -380,17 +406,162 @@ class ComfyUIManager:
     def _setup_win32_job_object(self, popen_kwargs: dict[str, Any]) -> None:
         try:
             import win32job
-            import win32process
 
             job = win32job.CreateJobObject(None, "")
             info = win32job.QueryInformationJobObject(job, win32job.JobObjectExtendedLimitInformation)
             info['BasicLimitInformation']['LimitFlags'] |= win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
             win32job.SetInformationJobObject(job, win32job.JobObjectExtendedLimitInformation, info)
 
-            popen_kwargs["creationflags"] = win32process.CREATE_BREAKAWAY_FROM_JOB
             self._job_object = job
         except (ImportError, Exception):
             pass
 
+    def _terminate_process_tree(self, proc: subprocess.Popen) -> None:
+        """Terminate the process and all its child processes."""
+        if sys.platform == "win32" or os.name == "nt":
+            try:
+                system_root = os.environ.get("SystemRoot", "C:\\Windows")
+                taskkill_path = os.path.join(system_root, "System32", "taskkill.exe")
+                subprocess.run(
+                    [taskkill_path, "/PID", str(proc.pid), "/T", "/F"],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5,
+                    check=False,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        else:
+            try:
+                os.killpg(proc.pid, 9)
+            except (OSError, ProcessLookupError):
+                pass
+
+        if proc.poll() is None:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+
 
 comfy_manager = ComfyUIManager()
+
+
+def resolve_comfyui_installation(store: Any | None = None) -> ComfyUIDetectionResult | None:
+    """Resolve valid ComfyUI installation from config store or standard candidate paths."""
+    settings = store.comfyui_settings() if store and hasattr(store, "comfyui_settings") else {}
+    configured_path = settings.get("install_path")
+    custom_python = settings.get("custom_python")
+
+    if configured_path:
+        detection = detect_comfyui(configured_path, custom_python=custom_python)
+        if detection.is_valid:
+            return detection
+
+    candidates = [
+        Path.cwd().parent,
+        Path.cwd(),
+        Path(__file__).resolve().parents[2],
+        Path("f:/ComfyUI_windows_portable"),
+    ]
+    for cand in candidates:
+        if cand.exists() and cand.is_dir():
+            detection = detect_comfyui(cand, custom_python=custom_python)
+            if detection.is_valid:
+                if store and not configured_path and hasattr(store, "update_comfyui_settings"):
+                    try:
+                        store.update_comfyui_settings(install_path=str(cand))
+                    except Exception:
+                        pass
+                return detection
+    return None
+
+
+def ensure_comfyui_online(store: Any | None = None, timeout: float = 60.0) -> bool:
+    """Ensure ComfyUI API is online. If offline, automatically launches a managed process and waits for readiness."""
+    import logging
+    log = logging.getLogger("comfy-meta-viewer.comfyui")
+
+    settings = store.comfyui_settings() if store and hasattr(store, "comfyui_settings") else {}
+    host = str(settings.get("host") or "127.0.0.1")
+    port = int(settings.get("port") or 8188)
+    client = ComfyUIClient(host=host, port=port, timeout=1.5)
+
+    # 1. Quick check if already online
+    try:
+        health = client.check_health()
+        if health.get("online"):
+            log.info("[CMV] ComfyUI already online at %s:%s", host, port)
+            return True
+    except Exception:
+        pass
+
+    log.info("[CMV] ComfyUI offline at %s:%s, attempting auto-start...", host, port)
+
+    # 2. If already starting or running, wait for it
+    info = comfy_manager.get_info()
+    if info.get("status") in ("starting", "ready", "busy") and comfy_manager.mode == ComfyUIMode.MANAGED:
+        log.info("[CMV] ComfyUI managed process already in state '%s', waiting...", info["status"])
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                if client.check_health().get("online"):
+                    log.info("[CMV] ComfyUI became ready")
+                    return True
+            except Exception:
+                pass
+            time.sleep(1.0)
+        log.warning("[CMV] Timed out waiting for existing managed ComfyUI process")
+        return False
+
+    # 3. Resolve installation directory
+    installation = resolve_comfyui_installation(store)
+    if not installation or not installation.is_valid:
+        log.error("[CMV] Could not find valid ComfyUI installation for auto-start")
+        return False
+
+    log.info("[CMV] Found ComfyUI at %s (interpreter: %s)", installation.comfy_dir, installation.interpreter)
+
+    extra_args = settings.get("extra_args") or ""
+    custom_python = settings.get("custom_python")
+
+    try:
+        comfy_manager.start_managed(
+            install_path=installation.root_path,
+            host=host,
+            port=port,
+            extra_args=extra_args,
+            custom_python=custom_python,
+        )
+        log.info("[CMV] ComfyUI managed process started, waiting for API readiness...")
+    except Exception as exc:
+        log.error("[CMV] Failed to start ComfyUI managed process: %s", exc)
+        return False
+
+    # 4. Wait for ComfyUI API to report ready
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            health = client.check_health()
+            if health.get("online"):
+                log.info("[CMV] ComfyUI API is now ready at %s:%s", host, port)
+                return True
+        except Exception:
+            pass
+
+        if comfy_manager.status == ComfyUIStatus.ERROR:
+            log.error("[CMV] ComfyUI process entered ERROR state: %s", comfy_manager.get_info().get("last_error"))
+            break
+        time.sleep(1.0)
+
+    try:
+        result = client.check_health().get("online", False)
+        if not result:
+            log.error("[CMV] ComfyUI did not become ready within %.0fs timeout", timeout)
+        return result
+    except Exception:
+        log.error("[CMV] ComfyUI still unreachable after %.0fs timeout", timeout)
+        return False
+

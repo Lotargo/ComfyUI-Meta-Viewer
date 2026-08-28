@@ -44,6 +44,7 @@ class ApprovedProfile:
     workflow_ready: bool
     default_negative_prompt: str
     prompt_prefix: str
+    prompt_style: str
     aspect_ratios: tuple[dict[str, Any], ...]
     quality_preset_ids: tuple[str, ...]
     required_resources: tuple[ProfileResourceDependency, ...]
@@ -56,6 +57,17 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"Expected JSON object in {path}")
     return data
+
+
+def _load_prompt_style(directory: Path) -> str:
+    path = directory / "prompt_style.md"
+    if not path.is_file():
+        return ""
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    return content.strip()
 
 
 def _load_profile(directory: Path) -> ApprovedProfile:
@@ -92,6 +104,7 @@ def _load_profile(directory: Path) -> ApprovedProfile:
         workflow_ready=bool(manifest.get("workflow_ready")),
         default_negative_prompt=str(manifest.get("default_negative_prompt") or ""),
         prompt_prefix=str(manifest.get("prompt_prefix") or ""),
+        prompt_style=_load_prompt_style(directory),
         aspect_ratios=tuple(manifest.get("aspect_ratios") or ()),
         quality_preset_ids=tuple(
             str(item) for item in manifest.get("quality_presets", ("fast", "standard", "detailed"))

@@ -1,5 +1,5 @@
 {
-  "3":{"class_type":"KSampler","inputs":{"seed":0,"steps":24,"cfg":6.0,"sampler_name":"euler_ancestral","scheduler":"normal","denoise":1.0,"model":["4",0],"positive":["6",0],"negative":["7",0],"latent_image":["5",0]}},
+  "3":{"class_type":"KSampler","inputs":{"seed":0,"steps":18,"cfg":4.0,"sampler_name":"euler_ancestral","scheduler":"normal","denoise":1.0,"model":["4",0],"positive":["6",0],"negative":["7",0],"latent_image":["5",0]}},
   "4":{"class_type":"CheckpointLoaderSimple","inputs":{"ckpt_name":"animagineXLV31_v31.safetensors"}},
   "5":{"class_type":"EmptyLatentImage","inputs":{"width":1024,"height":1024,"batch_size":1}},
   "6":{"class_type":"CLIPTextEncode","inputs":{"text":"","clip":["4",1]}},

@@ -55,6 +55,12 @@ class PromptTask(StrictModel):
     modifiers: tuple[PromptModifier, ...] = ()
     checkpoint_profile: str | None = Field(default=None, max_length=120)
     output_contract: str = Field(default="prompt_result", min_length=1, max_length=80)
+    model_style: str = ""
+
+    @field_validator("model_style")
+    @classmethod
+    def clean_model_style(cls, value: str) -> str:
+        return value.strip()
 
     @field_validator("checkpoint_profile")
     @classmethod

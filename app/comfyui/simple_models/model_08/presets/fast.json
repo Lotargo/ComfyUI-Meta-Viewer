@@ -1,1 +1,1 @@
-{"id":"fast","label":"Быстро","overrides":{"steps":30,"cfg":4.0,"sampler_name":"euler_ancestral","scheduler":"normal"}}
+{"id":"fast","label":"Быстро","overrides":{"steps":15,"cfg":3.0,"sampler_name":"dpmpp_2m","scheduler":"normal"}}

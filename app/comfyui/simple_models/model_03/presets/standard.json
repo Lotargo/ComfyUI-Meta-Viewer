@@ -1,1 +1,1 @@
-{"id":"standard","label":"Стандартно","overrides":{"steps":30,"cfg":5.0,"sampler_name":"dpmpp_2m","scheduler":"karras"}}
+{"id":"standard","label":"Стандартно","overrides":{"steps":18,"cfg":3.0,"sampler_name":"dpmpp_2m","scheduler":"karras"}}

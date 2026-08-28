@@ -1,5 +1,5 @@
 {
-  "3":{"class_type":"KSampler","inputs":{"seed":0,"steps":30,"cfg":5.0,"sampler_name":"dpmpp_2m","scheduler":"karras","denoise":1.0,"model":["4",0],"positive":["6",0],"negative":["7",0],"latent_image":["5",0]}},
+  "3":{"class_type":"KSampler","inputs":{"seed":0,"steps":18,"cfg":3.0,"sampler_name":"dpmpp_2m","scheduler":"karras","denoise":1.0,"model":["4",0],"positive":["6",0],"negative":["7",0],"latent_image":["5",0]}},
   "4":{"class_type":"CheckpointLoaderSimple","inputs":{"ckpt_name":"CyberRealisticPony_V18.0_F16.safetensors"}},
   "5":{"class_type":"EmptyLatentImage","inputs":{"width":1024,"height":1024,"batch_size":1}},
   "6":{"class_type":"CLIPTextEncode","inputs":{"text":"","clip":["10",0]}},

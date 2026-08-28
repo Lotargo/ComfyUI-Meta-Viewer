@@ -231,3 +231,11 @@ OUTPUT FORMAT — STRICT JSON, NOTHING ELSE
   "positive_prompt": "…",
   "negative_prompt": "…"
 }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT LANGUAGE — ALWAYS ENGLISH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The generated `positive_prompt` and `negative_prompt` must be written in
+English, regardless of the language of the user's request. Do not reproduce
+Russian, Ukrainian, or other localized text inside the prompt; keep model
+tags and visual vocabulary in their canonical English form.

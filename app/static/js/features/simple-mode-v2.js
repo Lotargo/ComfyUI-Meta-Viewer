@@ -104,6 +104,7 @@ function applyVisualSettings() {
         '--studio-ambient-size',
         state.fit === 'contain' ? 'contain' : (state.fit === 'original' ? 'auto' : 'cover')
     );
+    document.body.setAttribute('data-ambient-fit', state.fit || 'cover');
 }
 
 function restartAmbientTimer() {
@@ -268,18 +269,21 @@ function paintHealth(health) {
             <span>${esc(item.display_name || item.filename)}</span>
             <small>${esc(item.folder || '')}</small>
         </div>`).join('');
-    const active = state.downloads.some(item => ['queued', 'downloading'].includes(item.status));
+    const activeDownloads = state.downloads.some(item => ['queued', 'downloading'].includes(item.status));
+    const failedDownloads = state.downloads.some(item => ['failed', 'error'].includes(item.status));
     install.hidden = !(health?.status === 'not_installed' && health?.installable !== false);
-    install.disabled = active;
-    install.querySelector('span').textContent = active ? 'Загрузка…' : 'Скачать недостающее';
-    panel.hidden = !rows.length && !state.downloads.length && ['ready', 'checking'].includes(health?.status);
+    install.disabled = activeDownloads;
+    install.querySelector('span').textContent = activeDownloads ? 'Загрузка…' : 'Скачать недостающее';
+    const isMissing = health?.status === 'not_installed' || rows.length > 0;
+    panel.hidden = !isMissing && !activeDownloads && !failedDownloads;
 }
 
-async function loadHealth() {
+async function loadHealth(force = false) {
     const id = state.modelId;
     if (!id) return;
     try {
-        const data = await json(`/api/simple/models/${encodeURIComponent(id)}/status`);
+        const url = `/api/simple/models/${encodeURIComponent(id)}/status${force ? '?refresh=1' : ''}`;
+        const data = await json(url);
         const health = data.health || {};
         setCachedJson('cmv_health_' + id, health, false);
         if (state.modelId === id) paintHealth(health);
@@ -439,7 +443,10 @@ function startDownloadPolling() {
             clearInterval(state.downloadPoll);
             state.downloadPoll = null;
             if (state.downloads.length && state.downloads.every(item => item.status === 'completed')) {
-                setTimeout(loadHealth, 450);
+                setTimeout(() => {
+                    loadHealth(true);
+                    loadDownloads();
+                }, 450);
             }
         }
     }, 850);
@@ -577,11 +584,19 @@ function setAmbient(item) {
 function applyAmbient(url) {
     const next = state.layer ? $('ambient-a') : $('ambient-b');
     const previous = state.layer ? $('ambient-b') : $('ambient-a');
+    const nextBg = state.layer ? $('ambient-backdrop-a') : $('ambient-backdrop-b');
+    const prevBg = state.layer ? $('ambient-backdrop-b') : $('ambient-backdrop-a');
     const container = document.querySelector('.ambient-container');
     if (!next || !previous) return;
-    next.style.backgroundImage = `url("${String(url).replaceAll('"', '%22')}")`;
+    const formattedUrl = `url("${String(url).replaceAll('"', '%22')}")`;
+    next.style.backgroundImage = formattedUrl;
     next.classList.add('active');
     previous.classList.remove('active');
+    if (nextBg && prevBg) {
+        nextBg.style.backgroundImage = formattedUrl;
+        nextBg.classList.add('active');
+        prevBg.classList.remove('active');
+    }
     if (container) container.classList.add('has-ambient');
     try { localStorage.setItem('cmv_simple_ambient_last', url); } catch {}
     state.layer = state.layer ? 0 : 1;
@@ -692,8 +707,19 @@ function wire() {
     $('error-close').onclick = hideError;
     $('result-download').onclick = downloadResult;
     $('result-edit').onclick = () => { canvas('idle'); $('prompt').focus(); };
-    $('model-install').onclick = installModel;
-    $('model-recheck').onclick = async () => { await loadHealth(); await loadDownloads(); };
+    $('model-recheck').onclick = async () => {
+        const btn = $('model-recheck');
+        btn.disabled = true;
+        btn.textContent = 'Проверяем…';
+        try {
+            sessionStorage.removeItem('cmv_health_' + state.modelId);
+            await loadHealth(true);
+            await loadDownloads();
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Проверить снова';
+        }
+    };
     $('model-downloads').addEventListener('click', event => {
         const button = event.target.closest('[data-download-action]');
         if (button) downloadAction(Number(button.dataset.downloadId), button.dataset.downloadAction);
@@ -829,7 +855,14 @@ async function create() {
                 installable: true,
             });
         }
-        error('Не удалось начать генерацию', err.message);
+        if (err.status === 502 || err.status === 503 || err.data?.code === 'comfyui_rejected' || err.data?.code === 'comfyui_connection_failed') {
+            error(
+                'ComfyUI недоступен или отклонил задачу',
+                err.data?.suggestion || 'Убедитесь, что ComfyUI запущен на http://127.0.0.1:8188. Если вы используете другой порт или хост, настройте его через значок шестерёнки в шапке.'
+            );
+        } else {
+            error('Не удалось начать генерацию', err.message);
+        }
     }
 }
 
@@ -853,7 +886,21 @@ function pollRun() {
                 stopRunPolling();
                 createButton(false);
                 canvas('idle');
-                error('Генерация остановилась', 'Процесс завершился без результата.');
+                const rawError = data.run?.error || data.run?.last_error || '';
+                let runError = '';
+                if (typeof rawError === 'string') {
+                    runError = rawError;
+                } else if (rawError && typeof rawError === 'object') {
+                    const msg = rawError.message || rawError.error || '';
+                    const tech = rawError.technical_message || '';
+                    const node = rawError.class_type ? ` (узел: ${rawError.class_type})` : '';
+                    runError = tech && tech !== msg ? `${msg}${node}\n${tech}` : `${msg}${node}`;
+                    if (!runError) runError = JSON.stringify(rawError);
+                }
+                const statusLabel = data.status === 'failed' ? 'Генерация не удалась' : 'Генерация остановилась';
+                const detail = runError
+                    || (data.status === 'cancelled' ? 'Генерация была отменена.' : 'Процесс завершился без результата. Возможно, ComfyUI не смог обработать задачу — проверьте логи ComfyUI.');
+                error(statusLabel, detail);
             }
         } catch {}
     }, 1000);
@@ -1169,12 +1216,59 @@ function createMenuItem({ icon, label, badge, onClick }) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'image-context-menu__item';
-    btn.innerHTML = `${icon}<span>${esc(label)}</span>${badge ? `<small style="margin-left:auto;color:var(--text-muted);font-size:10px;font-weight:600">${esc(badge)}</small>` : ''}`;
+    btn.innerHTML = `${icon}<span class="image-context-menu__item-label">${esc(label)}</span>${badge ? `<span class="image-context-menu__badge">${esc(badge)}</span>` : ''}`;
     btn.addEventListener('click', () => {
         closeContextMenu();
         if (onClick) onClick();
     });
     return btn;
+}
+
+function createSubmenuItem({ icon, label, badge, items }) {
+    const wrap = document.createElement('div');
+    wrap.className = 'image-context-menu__submenu-wrap';
+
+    const parentBtn = document.createElement('button');
+    parentBtn.type = 'button';
+    parentBtn.className = 'image-context-menu__item image-context-menu__item--submenu';
+    parentBtn.innerHTML = `${icon}<span class="image-context-menu__item-label">${esc(label)}</span>${badge ? `<span class="image-context-menu__badge">${esc(badge)}</span>` : ''}<span class="image-context-menu__chevron" aria-hidden="true">›</span>`;
+
+    const submenu = document.createElement('div');
+    submenu.className = 'image-context-menu image-context-menu--submenu';
+    submenu.hidden = true;
+
+    items.forEach(it => {
+        const itemBtn = document.createElement('button');
+        itemBtn.type = 'button';
+        itemBtn.className = 'image-context-menu__item';
+        itemBtn.innerHTML = `${it.icon || '<span style="width:16px;display:inline-block;text-align:center;font-weight:700;color:var(--accent,#2dd4bf);flex-shrink:0">' + (it.active ? '✓' : '') + '</span>'}<span class="image-context-menu__item-label">${esc(it.label)}</span>`;
+        itemBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            closeContextMenu();
+            if (it.onClick) it.onClick();
+        });
+        submenu.appendChild(itemBtn);
+    });
+
+    const openSub = () => {
+        submenu.hidden = false;
+        const rect = wrap.getBoundingClientRect();
+        if (rect.right + 220 > window.innerWidth) {
+            submenu.classList.add('image-context-menu--opens-left');
+        } else {
+            submenu.classList.remove('image-context-menu--opens-left');
+        }
+    };
+    const closeSub = () => {
+        submenu.hidden = true;
+    };
+
+    wrap.addEventListener('pointerenter', openSub);
+    wrap.addEventListener('pointerleave', closeSub);
+
+    wrap.appendChild(parentBtn);
+    wrap.appendChild(submenu);
+    return wrap;
 }
 
 function createSliderItem({ icon, label, min, max, step, value, format, onInput, onChange }) {
@@ -1313,20 +1407,42 @@ function openStudioContextMenu(event) {
 
     const fitLabels = {
         cover: 'Заполнение',
-        contain: 'Вписать целиком',
-        original: 'Оригинал 1:1',
+        contain: 'Вписать',
+        original: '1:1',
     };
-    menu.appendChild(createMenuItem({
+    menu.appendChild(createSubmenuItem({
         icon: '<svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>',
         label: 'Масштаб фона',
         badge: fitLabels[state.fit] || 'Заполнение',
-        onClick: () => {
-            const order = ['cover', 'contain', 'original'];
-            const nextIdx = (order.indexOf(state.fit) + 1) % order.length;
-            state.fit = order[nextIdx];
-            save('cmv_simple_ambient_fit', state.fit);
-            applyVisualSettings();
-        },
+        items: [
+            {
+                label: 'Заполнение (Cover)',
+                active: state.fit === 'cover',
+                onClick: () => {
+                    state.fit = 'cover';
+                    save('cmv_simple_ambient_fit', state.fit);
+                    applyVisualSettings();
+                },
+            },
+            {
+                label: 'Вписать целиком (Contain)',
+                active: state.fit === 'contain',
+                onClick: () => {
+                    state.fit = 'contain';
+                    save('cmv_simple_ambient_fit', state.fit);
+                    applyVisualSettings();
+                },
+            },
+            {
+                label: 'Оригинал (1:1)',
+                active: state.fit === 'original',
+                onClick: () => {
+                    state.fit = 'original';
+                    save('cmv_simple_ambient_fit', state.fit);
+                    applyVisualSettings();
+                },
+            },
+        ],
     }));
 
     menu.appendChild(createMenuItem({

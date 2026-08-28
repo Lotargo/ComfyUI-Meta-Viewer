@@ -1196,6 +1196,20 @@ def main():
     print(f"  http://127.0.0.1:{port}")
     print()
 
+    from .comfyui.manager import comfy_manager
+    import atexit
+    atexit.register(comfy_manager.stop_managed)
+
+    def _signal_handler(signum, frame):
+        raise SystemExit(0)
+
+    try:
+        import signal
+        signal.signal(signal.SIGTERM, _signal_handler)
+        signal.signal(signal.SIGINT, _signal_handler)
+    except ValueError:
+        pass
+
     try:
         app.run(host="127.0.0.1", port=port, debug=False)
     finally:
@@ -1204,6 +1218,7 @@ def main():
 
         stop_worker(wait=True)
         stop_download_worker(wait=True)
+        comfy_manager.stop_managed()
 
 
 if __name__ == "__main__":

@@ -46,21 +46,31 @@ class PromptCompiler:
         except PromptRegistryError as exc:
             raise PromptCompilerError(str(exc)) from exc
 
-        try:
-            family_content = family_profile.path.read_text(encoding="utf-8")
-        except OSError as exc:
-            raise PromptCompilerError(
-                f"Cannot read family base '{family_profile.path}'."
-            ) from exc
-
-        sections = [
-            self._build_section(
+        if task.model_style:
+            family_section = self._build_section(
+                section_id=task.family.value,
+                kind="family_base",
+                version="model_style",
+                source="inline:model_style",
+                content=task.model_style,
+            )
+        else:
+            try:
+                family_content = family_profile.path.read_text(encoding="utf-8")
+            except OSError as exc:
+                raise PromptCompilerError(
+                    f"Cannot read family base '{family_profile.path}'."
+                ) from exc
+            family_section = self._build_section(
                 section_id=task.family.value,
                 kind="family_base",
                 version=family_profile.version,
                 source=self._display_path(family_profile.path),
                 content=family_content,
-            ),
+            )
+
+        sections = [
+            family_section,
             self._load_manifest(operation, kind="operation"),
             self._load_manifest(scenario, kind="scenario"),
         ]
@@ -71,6 +81,11 @@ class PromptCompiler:
         sections.append(self._load_manifest(output_contract, kind="output_contract"))
 
         warnings: list[str] = []
+        if task.model_style:
+            warnings.append(
+                "A per-model prompt style is active for this task; the family "
+                "base defaults are replaced by the model-specific style."
+            )
         if capability is CapabilityStatus.LIMITED:
             warnings.append(
                 f"Scenario '{task.scenario.value}' has limited support for "
@@ -84,7 +99,11 @@ class PromptCompiler:
             )
 
         versions = {
-            "family": family_profile.version,
+            "family": (
+                "model_style"
+                if task.model_style
+                else family_profile.version
+            ),
             "operation": operation.version,
             "scenario": scenario.version,
             "output_contract": output_contract.version,

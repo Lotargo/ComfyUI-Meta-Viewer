@@ -1,1 +1,1 @@
-{"id":"fast","label":"Быстро","overrides":{"steps":30,"cfg":3.5,"sampler_name":"dpmpp_2m_sde","scheduler":"karras"}}
+{"id":"fast","label":"Быстро","overrides":{"steps":15,"cfg":3.0,"sampler_name":"dpmpp_2m_sde","scheduler":"karras"}}

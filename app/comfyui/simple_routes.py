@@ -297,6 +297,9 @@ def simple_profile_status(profile_id: str):
     profile = APPROVED_PROFILES.get(profile_id)
     if not profile:
         return jsonify({"error": "Model not found"}), 404
+    if request.args.get("refresh") == "1":
+        from .workflow_inventory import invalidate_inventory_cache
+        invalidate_inventory_cache()
     return jsonify({
         "profile_id": profile_id,
         "health": check_profile_health(profile, _inventory_or_none()),
@@ -525,6 +528,7 @@ def _prepare_prompt(
                     operation=PromptOperation.RECONSTRUCT,
                     family=profile.prompt_family,
                     scenario=PromptScenario.ILLUSTRATION_ART,
+                    model_style=profile.prompt_style,
                 )
                 outcome = scene_service.analyze(
                     profile=vision_profile,
@@ -559,6 +563,7 @@ def _prepare_prompt(
                         operation=PromptOperation.ENHANCE,
                         family=profile.prompt_family,
                         scenario=PromptScenario.ILLUSTRATION_ART,
+                        model_style=profile.prompt_style,
                     ),
                     source=PromptText(positive_prompt=positive_prompt),
                     api_key=ai_store.resolve_api_key(text_profile),
@@ -633,6 +638,15 @@ def simple_generate():
         },
         resource_selections={},
     )
+
+    from .manager import ensure_comfyui_online
+    online = ensure_comfyui_online(_config_store(), timeout=60.0)
+    if not online:
+        return jsonify({
+            "error": "Не удалось подключиться к ComfyUI или автоматически запустить его.",
+            "code": "comfyui_connection_failed",
+            "suggestion": "ComfyUI не запущен и автоматический запуск не удался. Проверьте путь к ComfyUI в настройках (значок шестерёнки в шапке).",
+        }), 503
 
     import uuid
     client_id = str(uuid.uuid4())
@@ -713,8 +727,17 @@ def simple_get_run(run_id: int):
     wf_store = _workflow_store()
     try:
         run = WorkflowExecutionService(store=wf_store, client=_client()).refresh(run_id)
-    except Exception:
+    except Exception as exc:
+        import logging
+        logging.getLogger("comfy-meta-viewer.comfyui").warning(
+            "[CMV] refresh() failed for run %s: %s", run_id, exc,
+        )
         run = wf_store.get_run(run_id)
+
+    if run.status == "failed" and run.error:
+        import logging
+        log = logging.getLogger("comfy-meta-viewer.comfyui")
+        log.error("[CMV] Run %s failed. Error: %s", run_id, run.error)
 
     outputs = [
         payload

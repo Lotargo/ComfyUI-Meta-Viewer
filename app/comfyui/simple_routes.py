@@ -5,6 +5,7 @@ import os
 import random
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -95,35 +96,45 @@ def _ai_status_payload() -> dict[str, Any]:
     }
 
 
-def _ambient_payload(limit: int = 36) -> list[dict[str, Any]]:
-    try:
-        page = media_library.get_assets(
-            collection="images",
-            page=1,
-            per_page=max(80, min(240, limit * 4)),
-            sort_by="added",
-            sort_dir="desc",
-        )
-    except Exception as exc:
-        logger.debug("Failed to load ambient library assets: %s", exc)
-        return []
+_AMBIENT_CACHE: list[dict[str, Any]] = []
+_AMBIENT_CACHE_TIME: float = 0.0
+_AMBIENT_CACHE_TTL: float = 60.0
 
-    candidates = [
-        asset for asset in page.get("assets", [])
-        if asset.get("media_type") == "image" and asset.get("available", True)
-    ]
-    random.shuffle(candidates)
-    return [
-        {
-            "id": int(asset["id"]),
-            "file_name": asset.get("file_name") or "",
-            "preview_url": f"/api/preview/{int(asset['id'])}",
-            "thumbnail_url": asset.get("thumbnail_url") or f"/api/thumbnail/{int(asset['id'])}",
-            "width": int(asset.get("width") or 0),
-            "height": int(asset.get("height") or 0),
-        }
-        for asset in candidates[:limit]
-    ]
+
+def _ambient_payload(limit: int = 36) -> list[dict[str, Any]]:
+    global _AMBIENT_CACHE, _AMBIENT_CACHE_TIME
+    now = time.monotonic()
+    if not _AMBIENT_CACHE or (now - _AMBIENT_CACHE_TIME) > _AMBIENT_CACHE_TTL:
+        try:
+            page = media_library.get_assets(
+                collection="images",
+                page=1,
+                per_page=160,
+                sort_by="added",
+                sort_dir="desc",
+            )
+            candidates = [
+                {
+                    "id": int(asset["id"]),
+                    "file_name": asset.get("file_name") or "",
+                    "preview_url": f"/api/preview/{int(asset['id'])}",
+                    "thumbnail_url": asset.get("thumbnail_url") or f"/api/thumbnail/{int(asset['id'])}",
+                    "width": int(asset.get("width") or 0),
+                    "height": int(asset.get("height") or 0),
+                }
+                for asset in page.get("assets", [])
+                if asset.get("media_type") == "image" and asset.get("available", True)
+            ]
+            _AMBIENT_CACHE = candidates
+            _AMBIENT_CACHE_TIME = now
+        except Exception as exc:
+            logger.debug("Failed to load ambient library assets: %s", exc)
+            if not _AMBIENT_CACHE:
+                return []
+
+    pool = list(_AMBIENT_CACHE)
+    random.shuffle(pool)
+    return pool[:limit]
 
 
 def _inventory_or_none():
@@ -137,9 +148,11 @@ def _inventory_or_none():
 @simple_blueprint.route("/editor")
 def simple_mode_page():
     initial_models = _catalog_payload()
+    initial_ambient = _ambient_payload(16)
     return render_template(
         "create.html",
         initial_models=initial_models,
+        initial_ambient=initial_ambient,
         default_model_id=initial_models[0]["id"] if initial_models else "",
     )
 

@@ -26,6 +26,63 @@ const state = {
     runtimeStatus: null,
 };
 
+function getCachedJson(key, maxAgeMs = 0) {
+    try {
+        const raw = sessionStorage.getItem(key) || localStorage.getItem(key);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (maxAgeMs > 0 && parsed?._t && (Date.now() - parsed._t > maxAgeMs)) {
+            return null;
+        }
+        return parsed.data !== undefined ? parsed.data : parsed;
+    } catch {
+        return null;
+    }
+}
+
+function setCachedJson(key, data, isLocal = false) {
+    try {
+        const payload = JSON.stringify({ data, _t: Date.now() });
+        if (isLocal) {
+            localStorage.setItem(key, payload);
+        } else {
+            sessionStorage.setItem(key, payload);
+        }
+    } catch {}
+}
+
+function initialAmbient() {
+    try {
+        const embedded = JSON.parse($('simple-ambient-initial')?.textContent || '[]');
+        if (Array.isArray(embedded) && embedded.length) return embedded;
+    } catch {}
+    const cached = getCachedJson('cmv_simple_ambient_items', 30 * 60 * 1000);
+    return Array.isArray(cached) ? cached : [];
+}
+
+function hydrateAmbient() {
+    const last = localStorage.getItem('cmv_simple_ambient_last');
+    if (last) {
+        applyAmbient(last);
+    }
+    state.ambient = initialAmbient();
+    if (!last && state.ambient.length) {
+        ambientPick();
+    }
+    preloadAmbientPool();
+}
+
+function preloadAmbientPool() {
+    const items = state.ambient.slice(0, 4);
+    for (const item of items) {
+        const src = typeof item === 'string' ? item : item?.preview_url || item?.thumbnail_url;
+        if (src) {
+            const img = new Image();
+            img.src = src;
+        }
+    }
+}
+
 function catalog() {
     try { return JSON.parse($('simple-model-catalog')?.textContent || '[]'); }
     catch { return []; }
@@ -74,6 +131,7 @@ function init() {
     if (!state.models.some(item => item.id === state.modelId)) {
         state.modelId = state.models[0]?.id || '';
     }
+    hydrateAmbient();
     renderCatalog();
     wire();
     syncModel();
@@ -137,8 +195,13 @@ function syncModel() {
     $('model-technical').textContent = current.technical_name || current.name;
     $('model-description').textContent = current.description || '';
     $('model-vram').textContent = current.vram_rec_gb ? `Рекомендуется ${current.vram_rec_gb} GB VRAM` : '';
-    state.health = null;
-    paintHealth({ status: 'checking', message: 'Проверяем локальные компоненты' });
+    const cachedHealth = getCachedJson('cmv_health_' + current.id, 60 * 1000);
+    if (cachedHealth) {
+        paintHealth(cachedHealth);
+    } else {
+        state.health = null;
+        paintHealth({ status: 'checking', message: 'Проверяем локальные компоненты' });
+    }
     syncRatio();
     syncQuality();
 }
@@ -179,9 +242,11 @@ async function loadHealth() {
     if (!id) return;
     try {
         const data = await json(`/api/simple/models/${encodeURIComponent(id)}/status`);
-        if (state.modelId === id) paintHealth(data.health || {});
+        const health = data.health || {};
+        setCachedJson('cmv_health_' + id, health, false);
+        if (state.modelId === id) paintHealth(health);
     } catch {
-        if (state.modelId === id) {
+        if (state.modelId === id && !state.health) {
             paintHealth({ status: 'unknown', message: 'Не удалось проверить локальные компоненты' });
         }
     }
@@ -345,15 +410,23 @@ function startDownloadPolling() {
 async function loadAmbient() {
     try {
         const data = await json('/api/simple/ambient?limit=36');
-        state.ambient = Array.isArray(data.items) ? data.items : [];
-        if (state.ambient.length) {
-            ambientPick();
-            if (state.ambient.length > 1) state.timer = setInterval(ambientPick, ROTATE);
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (items.length) {
+            state.ambient = items;
+            setCachedJson('cmv_simple_ambient_items', items, true);
+            preloadAmbientPool();
+            if (!document.querySelector('.ambient-container.has-ambient')) {
+                ambientPick();
+            }
+            if (state.ambient.length > 1 && !state.timer) {
+                state.timer = setInterval(ambientPick, ROTATE);
+            }
         }
     } catch {}
 }
 
 function ambientPick() {
+    if (!state.ambient.length) return;
     setAmbient(state.ambient[Math.floor(Math.random() * state.ambient.length)]);
 }
 
@@ -382,19 +455,30 @@ function applyAmbient(url) {
     next.classList.add('active');
     previous.classList.remove('active');
     if (container) container.classList.add('has-ambient');
+    try { localStorage.setItem('cmv_simple_ambient_last', url); } catch {}
     state.layer = state.layer ? 0 : 1;
 }
 
 async function loadAi() {
+    const cached = getCachedJson('cmv_ai_status', 120 * 1000);
+    if (cached) {
+        const available = Boolean(cached.available && cached.has_text);
+        $('ai-toggle').disabled = !available;
+        $('ai-toggle-wrap').classList.toggle('is-unavailable', !available);
+        $('ai-toggle').checked = available && state.improve;
+    }
     try {
         const data = await json('/api/simple/ai-status');
+        setCachedJson('cmv_ai_status', data, false);
         const available = Boolean(data.available && data.has_text);
         $('ai-toggle').disabled = !available;
         $('ai-toggle-wrap').classList.toggle('is-unavailable', !available);
         $('ai-toggle').checked = available && state.improve;
     } catch {
-        $('ai-toggle').disabled = true;
-        $('ai-toggle-wrap').classList.add('is-unavailable');
+        if (!cached) {
+            $('ai-toggle').disabled = true;
+            $('ai-toggle-wrap').classList.add('is-unavailable');
+        }
     }
 }
 
@@ -710,12 +794,25 @@ function paintRuntimeDot() {
 }
 
 async function loadRuntimeSummary() {
+    const cachedConfig = getCachedJson('cmv_runtime_config', 120 * 1000);
+    const cachedStatus = getCachedJson('cmv_runtime_status', 30 * 1000);
+    if (cachedConfig) state.runtimeConfig = cachedConfig;
+    if (cachedStatus) {
+        state.runtimeStatus = cachedStatus;
+        paintRuntimeDot();
+    }
     const [configResult, statusResult] = await Promise.allSettled([
         json('/api/comfyui/config'),
         json('/api/comfyui/status'),
     ]);
-    if (configResult.status === 'fulfilled') state.runtimeConfig = configResult.value;
-    if (statusResult.status === 'fulfilled') state.runtimeStatus = statusResult.value;
+    if (configResult.status === 'fulfilled') {
+        state.runtimeConfig = configResult.value;
+        setCachedJson('cmv_runtime_config', configResult.value, false);
+    }
+    if (statusResult.status === 'fulfilled') {
+        state.runtimeStatus = statusResult.value;
+        setCachedJson('cmv_runtime_status', statusResult.value, false);
+    }
     paintRuntimeDot();
 }
 

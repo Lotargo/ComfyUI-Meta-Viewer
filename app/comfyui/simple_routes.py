@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import random
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +20,8 @@ from app.ai.translation import PromptText
 from app.config_store import ConfigStore
 
 from .client import ComfyUIClient, ComfyUIClientError
+from .detector import detect_comfyui
+from .simple_downloader import SimpleModelDownloaderError, SimpleModelDownloaderService
 from .simple_profiles import (
     APPROVED_PROFILES,
     ApprovedProfile,
@@ -61,6 +66,10 @@ def _workflow_store() -> WorkflowStore:
     return WorkflowStore()
 
 
+def _download_service() -> SimpleModelDownloaderService:
+    return SimpleModelDownloaderService(_config_store())
+
+
 def _catalog_payload() -> list[dict[str, Any]]:
     return [
         serialize_approved_profile(profile, include_health=False)
@@ -87,7 +96,6 @@ def _ai_status_payload() -> dict[str, Any]:
 
 
 def _ambient_payload(limit: int = 36) -> list[dict[str, Any]]:
-    """Use the same indexed Library layer as Viewer/Library, never raw Simple Mode SQL."""
     try:
         page = media_library.get_assets(
             collection="images",
@@ -116,6 +124,13 @@ def _ambient_payload(limit: int = 36) -> list[dict[str, Any]]:
         }
         for asset in candidates[:limit]
     ]
+
+
+def _inventory_or_none():
+    try:
+        return cached_runtime_inventory(_config_store())
+    except Exception:
+        return None
 
 
 @simple_blueprint.route("/create")
@@ -150,7 +165,6 @@ def simple_ai_status():
 
 @simple_blueprint.route("/api/simple/bootstrap", methods=["GET"])
 def simple_bootstrap():
-    """Compatibility endpoint. New Create UI hydrates these resources independently."""
     return jsonify({
         "profiles": _catalog_payload(),
         "default_profile_id": next(iter(APPROVED_PROFILES), None),
@@ -165,13 +179,174 @@ def simple_profile_status(profile_id: str):
     profile = APPROVED_PROFILES.get(profile_id)
     if not profile:
         return jsonify({"error": "Model not found"}), 404
-    try:
-        inventory = cached_runtime_inventory(_config_store())
-    except Exception:
-        inventory = None
     return jsonify({
         "profile_id": profile_id,
-        "health": check_profile_health(profile, inventory),
+        "health": check_profile_health(profile, _inventory_or_none()),
+    })
+
+
+@simple_blueprint.route("/api/simple/models/<profile_id>/install", methods=["POST"])
+def simple_install_profile(profile_id: str):
+    profile = APPROVED_PROFILES.get(profile_id)
+    if not profile:
+        return jsonify({"error": "Model not found"}), 404
+
+    service = _download_service()
+    try:
+        model_root = service.resolve_model_root()
+    except SimpleModelDownloaderError as exc:
+        return jsonify({
+            "error": str(exc),
+            "code": "comfyui_path_required",
+            "open_settings": True,
+        }), 409
+
+    health = check_profile_health(profile, _inventory_or_none())
+    missing_names = {
+        str(item.get("filename") or "").casefold()
+        for item in health.get("missing_resources", [])
+    }
+    queued: list[dict[str, Any]] = []
+    unavailable: list[str] = []
+    for dependency in profile.required_resources:
+        if dependency.filename.casefold() not in missing_names:
+            continue
+        if not dependency.download_url:
+            unavailable.append(dependency.display_name)
+            continue
+        try:
+            queued.append(service.queue(
+                profile_id=profile.id,
+                display_name=dependency.display_name,
+                folder=dependency.folder,
+                filename=dependency.filename,
+                source_url=dependency.download_url,
+            ))
+        except SimpleModelDownloaderError as exc:
+            unavailable.append(f"{dependency.display_name}: {exc}")
+
+    return jsonify({
+        "ok": not unavailable,
+        "profile_id": profile.id,
+        "model_root": str(model_root),
+        "downloads": queued,
+        "unavailable": unavailable,
+    }), 202 if queued else 200
+
+
+@simple_blueprint.route("/api/simple/downloads", methods=["GET"])
+def simple_downloads():
+    profile_id = str(request.args.get("profile_id") or "").strip() or None
+    return jsonify({"items": _download_service().list(profile_id=profile_id)})
+
+
+@simple_blueprint.route("/api/simple/downloads/<int:download_id>/pause", methods=["POST"])
+def simple_pause_download(download_id: int):
+    try:
+        return jsonify({"item": _download_service().pause(download_id)})
+    except SimpleModelDownloaderError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@simple_blueprint.route("/api/simple/downloads/<int:download_id>/resume", methods=["POST"])
+@simple_blueprint.route("/api/simple/downloads/<int:download_id>/retry", methods=["POST"])
+def simple_resume_download(download_id: int):
+    try:
+        return jsonify({"item": _download_service().resume(download_id)})
+    except SimpleModelDownloaderError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@simple_blueprint.route("/api/simple/downloads/<int:download_id>/cancel", methods=["POST"])
+def simple_cancel_download(download_id: int):
+    try:
+        return jsonify({"item": _download_service().cancel(download_id)})
+    except SimpleModelDownloaderError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+def _pick_windows_directory(initial_path: str) -> str | None:
+    powershell = shutil.which("powershell.exe") or shutil.which("powershell") or shutil.which("pwsh")
+    if not powershell:
+        raise RuntimeError("PowerShell не найден, поэтому системный выбор папки недоступен.")
+    script = r"""
+Add-Type -AssemblyName System.Windows.Forms
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+$dialog.Description = 'Выберите папку ComfyUI'
+$dialog.ShowNewFolderButton = $false
+$initial = $env:CMV_INITIAL_DIRECTORY
+if ($initial -and (Test-Path -LiteralPath $initial)) { $dialog.SelectedPath = $initial }
+if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+    Write-Output $dialog.SelectedPath
+}
+"""
+    env = os.environ.copy()
+    env["CMV_INITIAL_DIRECTORY"] = initial_path
+    result = subprocess.run(
+        [powershell, "-NoProfile", "-STA", "-WindowStyle", "Hidden", "-Command", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=180,
+        env=env,
+        check=False,
+    )
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout or "Не удалось открыть выбор папки.").strip()
+        raise RuntimeError(message)
+    selected = (result.stdout or "").strip().splitlines()
+    return selected[-1].strip() if selected else None
+
+
+def _pick_tk_directory(initial_path: str) -> str | None:
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as exc:  # pragma: no cover - platform dependency
+        raise RuntimeError("Системный выбор папки недоступен в этой сборке Python.") from exc
+    root = tk.Tk()
+    try:
+        root.withdraw()
+        try:
+            root.attributes("-topmost", True)
+        except Exception:
+            pass
+        selected = filedialog.askdirectory(
+            title="Выберите папку ComfyUI",
+            initialdir=initial_path or None,
+            mustexist=True,
+        )
+        return str(selected).strip() or None
+    finally:
+        root.destroy()
+
+
+@simple_blueprint.route("/api/simple/pick-comfyui-directory", methods=["POST"])
+def simple_pick_comfyui_directory():
+    remote = str(request.remote_addr or "")
+    if remote not in {"127.0.0.1", "::1", "localhost"}:
+        return jsonify({
+            "error": "Выбор локальной папки доступен только при открытии приложения на этом компьютере."
+        }), 403
+    payload = request.get_json(silent=True) or {}
+    initial_path = str(payload.get("initial_path") or "").strip()
+    try:
+        selected = (
+            _pick_windows_directory(initial_path)
+            if os.name == "nt"
+            else _pick_tk_directory(initial_path)
+        )
+    except (RuntimeError, subprocess.TimeoutExpired) as exc:
+        return jsonify({"error": str(exc), "code": "directory_picker_unavailable"}), 503
+    if not selected:
+        return jsonify({"cancelled": True})
+    detection = detect_comfyui(selected)
+    return jsonify({
+        "cancelled": False,
+        "path": selected,
+        "detection": detection.to_dict(),
     })
 
 
@@ -209,9 +384,16 @@ def _first_profile_for_role(role: str) -> dict[str, Any] | None:
     return None
 
 
-def _prepare_prompt(profile: ApprovedProfile, req: SimpleGenerateRequest) -> tuple[str, str, bool, str | None]:
+def _prepare_prompt(
+    profile: ApprovedProfile,
+    req: SimpleGenerateRequest,
+) -> tuple[str, str, bool, str | None]:
     positive_prompt = req.prompt.strip()
-    negative_prompt = req.negative_prompt if req.negative_prompt is not None else profile.default_negative_prompt
+    negative_prompt = (
+        req.negative_prompt
+        if req.negative_prompt is not None
+        else profile.default_negative_prompt
+    )
     ai_improved = False
     explanation = None
 
@@ -239,7 +421,9 @@ def _prepare_prompt(profile: ApprovedProfile, req: SimpleGenerateRequest) -> tup
                 reconstructed = f"{subjects}, {background}".strip(", ")
                 if reconstructed:
                     positive_prompt = (
-                        f"{positive_prompt}, {reconstructed}" if positive_prompt else reconstructed
+                        f"{positive_prompt}, {reconstructed}"
+                        if positive_prompt
+                        else reconstructed
                     )
                     ai_improved = True
                     explanation = "Reconstructed from reference image"
@@ -293,17 +477,13 @@ def simple_generate():
             "code": "workflow_pending",
         }), 409
 
-    try:
-        inventory = cached_runtime_inventory(_config_store())
-        health = check_profile_health(profile, inventory)
-        if health["status"] == "not_installed":
-            return jsonify({
-                "error": "Required model components are missing.",
-                "code": "model_not_installed",
-                "missing_resources": health["missing_resources"],
-            }), 409
-    except Exception:
-        pass
+    health = check_profile_health(profile, _inventory_or_none())
+    if health["status"] == "not_installed":
+        return jsonify({
+            "error": "Required model components are missing.",
+            "code": "model_not_installed",
+            "missing_resources": health["missing_resources"],
+        }), 409
 
     positive_prompt, negative_prompt, ai_improved, ai_explanation = _prepare_prompt(profile, req)
     quality_level = _quality_level(req.quality)

@@ -1,0 +1,44 @@
+{
+  "positive_prompt": {
+    "node": "6",
+    "input": "text"
+  },
+  "negative_prompt": {
+    "node": "7",
+    "input": "text"
+  },
+  "seed": {
+    "node": "3",
+    "input": "seed"
+  },
+  "width": {
+    "node": "5",
+    "input": "width"
+  },
+  "height": {
+    "node": "5",
+    "input": "height"
+  },
+  "batch_size": {
+    "node": "5",
+    "input": "batch_size"
+  },
+  "preset": {
+    "steps": {
+      "node": "3",
+      "input": "steps"
+    },
+    "cfg": {
+      "node": "3",
+      "input": "cfg"
+    },
+    "sampler_name": {
+      "node": "3",
+      "input": "sampler_name"
+    },
+    "scheduler": {
+      "node": "3",
+      "input": "scheduler"
+    }
+  }
+}

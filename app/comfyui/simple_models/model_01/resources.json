@@ -1,0 +1,12 @@
+{
+  "required": [
+    {
+      "resource_type": "checkpoint",
+      "folder": "checkpoints",
+      "filename": "Realistic_Vision_V6.0_NV_B1_fp16.safetensors",
+      "aliases": ["Realistic_Vision_V6.0_NV_B1.safetensors"],
+      "display_name": "Realistic Vision V6.0 B1 (VAE)",
+      "download_url": "https://civitai.com/api/download/models/245598"
+    }
+  ]
+}

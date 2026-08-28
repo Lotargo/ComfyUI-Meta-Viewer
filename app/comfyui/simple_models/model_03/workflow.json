@@ -1,0 +1,10 @@
+{
+  "3":{"class_type":"KSampler","inputs":{"seed":0,"steps":30,"cfg":5.0,"sampler_name":"dpmpp_2m","scheduler":"karras","denoise":1.0,"model":["4",0],"positive":["6",0],"negative":["7",0],"latent_image":["5",0]}},
+  "4":{"class_type":"CheckpointLoaderSimple","inputs":{"ckpt_name":"CyberRealisticPony_V18.0_F16.safetensors"}},
+  "5":{"class_type":"EmptyLatentImage","inputs":{"width":1024,"height":1024,"batch_size":1}},
+  "6":{"class_type":"CLIPTextEncode","inputs":{"text":"","clip":["10",0]}},
+  "7":{"class_type":"CLIPTextEncode","inputs":{"text":"","clip":["10",0]}},
+  "8":{"class_type":"VAEDecode","inputs":{"samples":["3",0],"vae":["4",2]}},
+  "9":{"class_type":"SaveImage","inputs":{"filename_prefix":"CMV/Simple/model_03","images":["8",0]}},
+  "10":{"class_type":"CLIPSetLastLayer","inputs":{"stop_at_clip_layer":-2,"clip":["4",1]}}
+}

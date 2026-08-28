@@ -1,0 +1,23 @@
+{
+  "id": "model_01",
+  "name": "Model 1",
+  "technical_name": "Realistic Vision V6.0 B1",
+  "description": "Фотореализм, портреты и естественный свет.",
+  "prompt_family": "sdxl",
+  "architecture": "sd15",
+  "source_url": "https://civitai.red/models/4201/realistic-vision-v60-b1?modelVersionId=245598",
+  "source_version_id": 245598,
+  "vram_min_gb": 4,
+  "vram_rec_gb": 6,
+  "workflow_ready": true,
+  "default_negative_prompt": "deformed iris, deformed pupils, cgi, 3d, render, sketch, cartoon, drawing, anime, text, cropped, out of frame, worst quality, low quality, jpeg artifacts, bad anatomy, extra limbs, malformed hands, watermark",
+  "prompt_prefix": "",
+  "aspect_ratios": [
+    {"ratio":"1:1","width":896,"height":896,"label":"1:1"},
+    {"ratio":"3:4","width":768,"height":1024,"label":"3:4"},
+    {"ratio":"4:3","width":1024,"height":768,"label":"4:3"},
+    {"ratio":"9:16","width":640,"height":1152,"label":"9:16"},
+    {"ratio":"16:9","width":1152,"height":640,"label":"16:9"}
+  ],
+  "quality_presets": ["fast","standard","detailed"]
+}

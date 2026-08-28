@@ -1,371 +1,248 @@
 from __future__ import annotations
 
+import copy
 import json
-import logging
-from dataclasses import asdict, dataclass, field
+import random
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
 from app.ai.prompting import PromptFamily
-from app.ai.resources import ResourceType
-from app.config_store import ConfigStore
 
-logger = logging.getLogger(__name__)
-
-SIMPLE_WORKFLOWS_DIR = Path(__file__).parent / "simple_workflows"
+SIMPLE_MODELS_DIR = Path(__file__).parent / "simple_models"
 
 
 class QualityPresetLevel(str, Enum):
     FAST = "fast"
     STANDARD = "standard"
-    HIGH = "high"
-    MAXIMUM = "maximum"
-
-
-@dataclass(frozen=True)
-class QualityPreset:
-    steps: int
-    cfg: float
-    sampler_name: str
-    scheduler: str
-    guidance: float = 3.5
-    denoise: float = 1.0
-
-
-@dataclass(frozen=True)
-class AspectRatioOption:
-    ratio: str
-    width: int
-    height: int
-    label: str
-
-
-@dataclass(frozen=True)
-class ProfileExample:
-    title: str
-    prompt: str
-    image_url: str
+    DETAILED = "detailed"
 
 
 @dataclass(frozen=True)
 class ProfileResourceDependency:
-    resource_type: ResourceType
+    resource_type: str
     folder: str
     filename: str
     display_name: str
     download_url: str | None = None
-    civitai_model_id: int | None = None
-    civitai_version_id: int | None = None
+    aliases: tuple[str, ...] = ()
 
 
-@dataclass
+@dataclass(frozen=True)
 class ApprovedProfile:
     id: str
     name: str
-    tagline: str
+    technical_name: str
     description: str
-    strengths: list[str]
-    weaknesses: list[str]
+    prompt_family: PromptFamily
+    architecture: str
+    source_url: str
+    source_version_id: int | None
     vram_min_gb: float
     vram_rec_gb: float
-    technical_model: str
-    prompt_family: PromptFamily
-    flow_id: str  # e.g. "sdxl_pony" or "flux"
-    default_negative_prompt: str | None
-    quality_presets: dict[QualityPresetLevel, QualityPreset]
-    aspect_ratios: list[AspectRatioOption]
-    examples: list[ProfileExample] = field(default_factory=list)
-    required_resources: list[ProfileResourceDependency] = field(default_factory=list)
+    workflow_ready: bool
+    default_negative_prompt: str
+    prompt_prefix: str
+    aspect_ratios: tuple[dict[str, Any], ...]
+    quality_preset_ids: tuple[str, ...]
+    required_resources: tuple[ProfileResourceDependency, ...]
+    directory: Path
 
 
-# Curated Approved Profiles
-APPROVED_PROFILES: dict[str, ApprovedProfile] = {
-    "realism": ApprovedProfile(
-        id="realism",
-        name="Realism",
-        tagline="Photorealistic & cinematic rendering",
-        description="Optimized for true-to-life photographic portraits, cinematic lighting, natural textures, and realistic environmental scenes.",
-        strengths=[
-            "Lifelike human portraits and natural skin tones",
-            "Authentic camera optics, depth of field, and bokeh",
-            "Cinematic atmosphere and architectural details",
-        ],
-        weaknesses=[
-            "Complex typography and precise in-image text",
-            "Highly stylized or 2D cel-shaded artwork",
-        ],
-        vram_min_gb=6.0,
-        vram_rec_gb=12.0,
-        technical_model="SDXL 1.0 Photorealism Checkpoint",
-        prompt_family=PromptFamily.SDXL,
-        flow_id="sdxl_pony",
-        default_negative_prompt="ugly, deformed, disfigured, blurry, bad anatomy, low quality, artifacts, watermark",
-        quality_presets={
-            QualityPresetLevel.FAST: QualityPreset(steps=18, cfg=5.5, sampler_name="euler", scheduler="normal"),
-            QualityPresetLevel.STANDARD: QualityPreset(steps=25, cfg=6.5, sampler_name="euler_ancestral", scheduler="karras"),
-            QualityPresetLevel.HIGH: QualityPreset(steps=35, cfg=7.0, sampler_name="dpmpp_2m_sde", scheduler="karras"),
-            QualityPresetLevel.MAXIMUM: QualityPreset(steps=50, cfg=7.5, sampler_name="dpmpp_3m_sde", scheduler="karras"),
-        },
-        aspect_ratios=[
-            AspectRatioOption(ratio="1:1", width=1024, height=1024, label="Square (1:1)"),
-            AspectRatioOption(ratio="3:4", width=896, height=1152, label="Portrait (3:4)"),
-            AspectRatioOption(ratio="4:3", width=1152, height=896, label="Landscape (4:3)"),
-            AspectRatioOption(ratio="9:16", width=704, height=1216, label="Story / Reel (9:16)"),
-            AspectRatioOption(ratio="16:9", width=1216, height=704, label="Widescreen (16:9)"),
-        ],
-        examples=[
-            ProfileExample(
-                title="Cinematic Portrait",
-                prompt="Close-up portrait of a woman in rainy neon city lights, dramatic reflections, natural skin texture, 85mm f/1.4 lens",
-                image_url="/static/assets/examples/realism_portrait.jpg",
-            ),
-            ProfileExample(
-                title="Nordic Landscape",
-                prompt="Misty mountain valley in Norway at dawn, pine trees, morning fog over glacial lake, cinematic light rays",
-                image_url="/static/assets/examples/realism_landscape.jpg",
-            ),
-        ],
-        required_resources=[
+def _read_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        data = json.load(handle)
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected JSON object in {path}")
+    return data
+
+
+def _load_profile(directory: Path) -> ApprovedProfile:
+    manifest = _read_json(directory / "manifest.json")
+    resources_data = _read_json(directory / "resources.json")
+    resources: list[ProfileResourceDependency] = []
+    for raw in resources_data.get("required", []):
+        resources.append(
             ProfileResourceDependency(
-                resource_type=ResourceType.CHECKPOINT,
-                folder="checkpoints",
-                filename="v1-5-pruned-emaonly.safetensors",
-                display_name="SDXL Base Model",
+                resource_type=str(raw.get("resource_type") or ""),
+                folder=str(raw.get("folder") or ""),
+                filename=str(raw.get("filename") or ""),
+                display_name=str(raw.get("display_name") or raw.get("filename") or ""),
+                download_url=str(raw.get("download_url") or "") or None,
+                aliases=tuple(str(item) for item in raw.get("aliases", []) if item),
             )
-        ],
-    ),
-    "anime": ApprovedProfile(
-        id="anime",
-        name="Anime",
-        tagline="Stylized anime and vibrant character art",
-        description="Tailored for expressive anime illustrations, high-detail character designs, clean line art, and vibrant modern aesthetic styles.",
-        strengths=[
-            "Expressive character facial features, hair rendering, and dynamic poses",
-            "Clean line art and stylized illustrative coloring",
-            "Broad aesthetic coverage from retro 90s to modern visual novel styles",
-        ],
-        weaknesses=[
-            "Strict photorealism and live-action textures",
-            "Messy non-illustrative concepts",
-        ],
-        vram_min_gb=6.0,
-        vram_rec_gb=10.0,
-        technical_model="Pony Diffusion V6 / Illustrious Anime",
-        prompt_family=PromptFamily.PONY,
-        flow_id="sdxl_pony",
-        default_negative_prompt="score_4, score_5, score_6, source_furry, low quality, bad hands, missing limbs, monochrome",
-        quality_presets={
-            QualityPresetLevel.FAST: QualityPreset(steps=20, cfg=6.0, sampler_name="euler_ancestral", scheduler="normal"),
-            QualityPresetLevel.STANDARD: QualityPreset(steps=28, cfg=7.0, sampler_name="euler_ancestral", scheduler="karras"),
-            QualityPresetLevel.HIGH: QualityPreset(steps=38, cfg=7.5, sampler_name="dpmpp_2m_sde", scheduler="karras"),
-            QualityPresetLevel.MAXIMUM: QualityPreset(steps=50, cfg=8.0, sampler_name="dpmpp_2m_sde", scheduler="karras"),
-        },
-        aspect_ratios=[
-            AspectRatioOption(ratio="1:1", width=1024, height=1024, label="Square (1:1)"),
-            AspectRatioOption(ratio="3:4", width=896, height=1152, label="Portrait (3:4)"),
-            AspectRatioOption(ratio="4:3", width=1152, height=896, label="Landscape (4:3)"),
-            AspectRatioOption(ratio="9:16", width=704, height=1216, label="Wallpaper (9:16)"),
-            AspectRatioOption(ratio="16:9", width=1216, height=704, label="Cinematic (16:9)"),
-        ],
-        examples=[
-            ProfileExample(
-                title="Anime Magician",
-                prompt="score_9, score_8_up, anime girl wizard with luminous staff, glowing magical runes, starry night sky, cherry blossoms",
-                image_url="/static/assets/examples/anime_wizard.jpg",
-            ),
-        ],
-        required_resources=[
-            ProfileResourceDependency(
-                resource_type=ResourceType.CHECKPOINT,
-                folder="checkpoints",
-                filename="v1-5-pruned-emaonly.safetensors",
-                display_name="Anime Checkpoint",
-            )
-        ],
-    ),
-    "universal": ApprovedProfile(
-        id="universal",
-        name="Universal",
-        tagline="State-of-the-art general-purpose image generation",
-        description="Powered by Flux.1 architecture for exceptional prompt adherence, complex multi-subject scenes, and legible text rendering.",
-        strengths=[
-            "Exceptional natural language prompt comprehension",
-            "Accurate in-image text and typography rendering",
-            "Complex multi-element scene compositions and diverse aesthetics",
-        ],
-        weaknesses=[
-            "Higher VRAM requirement for fast execution",
-            "Slower sampling on legacy GPUs",
-        ],
-        vram_min_gb=12.0,
-        vram_rec_gb=16.0,
-        technical_model="Flux.1 [dev] / Schnell Component Pipeline",
-        prompt_family=PromptFamily.FLUX,
-        flow_id="flux",
-        default_negative_prompt=None,
-        quality_presets={
-            QualityPresetLevel.FAST: QualityPreset(steps=15, cfg=1.0, sampler_name="euler", scheduler="simple", guidance=3.0),
-            QualityPresetLevel.STANDARD: QualityPreset(steps=28, cfg=1.0, sampler_name="euler", scheduler="simple", guidance=3.5),
-            QualityPresetLevel.HIGH: QualityPreset(steps=40, cfg=1.0, sampler_name="euler", scheduler="simple", guidance=4.0),
-            QualityPresetLevel.MAXIMUM: QualityPreset(steps=55, cfg=1.0, sampler_name="euler", scheduler="simple", guidance=4.5),
-        },
-        aspect_ratios=[
-            AspectRatioOption(ratio="1:1", width=1024, height=1024, label="Square (1:1)"),
-            AspectRatioOption(ratio="3:4", width=896, height=1152, label="Portrait (3:4)"),
-            AspectRatioOption(ratio="4:3", width=1152, height=896, label="Landscape (4:3)"),
-            AspectRatioOption(ratio="9:16", width=704, height=1216, label="Mobile (9:16)"),
-            AspectRatioOption(ratio="16:9", width=1216, height=704, label="Cinema (16:9)"),
-        ],
-        examples=[
-            ProfileExample(
-                title="Futuristic City Signage",
-                prompt="A cybernetic barista serving coffee in a glass cafe with neon signage spelling 'ANTIGRAVITY', photorealistic, 8k",
-                image_url="/static/assets/examples/flux_cafe.jpg",
-            ),
-        ],
-        required_resources=[
-            ProfileResourceDependency(
-                resource_type=ResourceType.DIFFUSION_MODEL,
-                folder="diffusion_models",
-                filename="flux1-dev.safetensors",
-                display_name="Flux.1 Diffusion Model",
-            ),
-            ProfileResourceDependency(
-                resource_type=ResourceType.TEXT_ENCODER,
-                folder="text_encoders",
-                filename="clip_l.safetensors",
-                display_name="CLIP-L Encoder",
-            ),
-            ProfileResourceDependency(
-                resource_type=ResourceType.TEXT_ENCODER,
-                folder="text_encoders",
-                filename="t5xxl_fp16.safetensors",
-                display_name="T5XXL Encoder",
-            ),
-            ProfileResourceDependency(
-                resource_type=ResourceType.VAE,
-                folder="vae",
-                filename="ae.safetensors",
-                display_name="Flux VAE",
-            ),
-        ],
-    ),
-}
+        )
+    family = PromptFamily(str(manifest.get("prompt_family") or "sdxl"))
+    return ApprovedProfile(
+        id=str(manifest["id"]),
+        name=str(manifest["name"]),
+        technical_name=str(manifest.get("technical_name") or manifest["name"]),
+        description=str(manifest.get("description") or ""),
+        prompt_family=family,
+        architecture=str(manifest.get("architecture") or ""),
+        source_url=str(manifest.get("source_url") or ""),
+        source_version_id=(
+            int(manifest["source_version_id"])
+            if manifest.get("source_version_id") is not None
+            else None
+        ),
+        vram_min_gb=float(manifest.get("vram_min_gb") or 0),
+        vram_rec_gb=float(manifest.get("vram_rec_gb") or 0),
+        workflow_ready=bool(manifest.get("workflow_ready")),
+        default_negative_prompt=str(manifest.get("default_negative_prompt") or ""),
+        prompt_prefix=str(manifest.get("prompt_prefix") or ""),
+        aspect_ratios=tuple(manifest.get("aspect_ratios") or ()),
+        quality_preset_ids=tuple(
+            str(item) for item in manifest.get("quality_presets", ("fast", "standard", "detailed"))
+        ),
+        required_resources=tuple(resources),
+        directory=directory,
+    )
 
 
-def get_simple_workflow_path(flow_id: str, custom_dir: Path | None = None) -> Path:
-    """Resolve the workflow.json path for a flow ID."""
-    base_dir = custom_dir or SIMPLE_WORKFLOWS_DIR
-    flow_path = base_dir / flow_id / "workflow.json"
-    if not flow_path.is_file():
-        # Check flat structure fallback (e.g. simple_workflows/sdxl_pony.json)
-        flat_path = base_dir / f"{flow_id}.json"
-        if flat_path.is_file():
-            return flat_path
-    return flow_path
+def load_approved_profiles(root: Path = SIMPLE_MODELS_DIR) -> dict[str, ApprovedProfile]:
+    profiles: dict[str, ApprovedProfile] = {}
+    if not root.is_dir():
+        return profiles
+    for directory in sorted(path for path in root.iterdir() if path.is_dir()):
+        manifest = directory / "manifest.json"
+        resources = directory / "resources.json"
+        if not manifest.is_file() or not resources.is_file():
+            continue
+        profile = _load_profile(directory)
+        profiles[profile.id] = profile
+    return profiles
 
 
-def load_simple_workflow_json(flow_id: str, custom_dir: Path | None = None) -> dict[str, Any]:
-    """Load the ComfyUI workflow graph JSON for a flow ID."""
-    path = get_simple_workflow_path(flow_id, custom_dir)
+APPROVED_PROFILES = load_approved_profiles()
+
+
+def get_simple_workflow_path(profile_or_id: ApprovedProfile | str) -> Path:
+    profile = (
+        profile_or_id
+        if isinstance(profile_or_id, ApprovedProfile)
+        else APPROVED_PROFILES[str(profile_or_id)]
+    )
+    return profile.directory / "workflow.json"
+
+
+def load_simple_workflow_json(profile_or_id: ApprovedProfile | str) -> dict[str, Any]:
+    path = get_simple_workflow_path(profile_or_id)
     if not path.is_file():
-        raise FileNotFoundError(f"Simple Mode workflow not found: {path}")
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        profile_id = profile_or_id.id if isinstance(profile_or_id, ApprovedProfile) else profile_or_id
+        raise FileNotFoundError(f"Simple Mode workflow is not prepared yet for {profile_id}")
+    return _read_json(path)
+
+
+def _inventory_names(inventory: Any, folder: str) -> set[str]:
+    models = getattr(inventory, "models", None)
+    if not isinstance(models, dict):
+        return set()
+    return {Path(str(name)).name.casefold() for name in models.get(folder, [])}
 
 
 def check_profile_health(
     profile: ApprovedProfile,
     inventory: Any | None = None,
 ) -> dict[str, Any]:
-    """Check health and installation status of an approved profile."""
-    if not inventory or not hasattr(inventory, "models"):
-        return {
-            "status": "ready",
-            "missing_resources": [],
-            "message": "Ready to generate",
-        }
-
     missing: list[dict[str, Any]] = []
+    inventory_known = inventory is not None and isinstance(getattr(inventory, "models", None), dict)
     for dep in profile.required_resources:
-        available_files = inventory.models.get(dep.folder, [])
-        # Check if the exact filename or any matching model exists in the target folder
-        found = any(
-            f.casefold() == dep.filename.casefold() or dep.filename.casefold() in f.casefold()
-            for f in available_files
-        )
+        candidates = {dep.filename.casefold(), *(alias.casefold() for alias in dep.aliases)}
+        found = bool(candidates & _inventory_names(inventory, dep.folder)) if inventory_known else False
         if not found:
-            missing.append({
-                "resource_type": dep.resource_type.value,
-                "folder": dep.folder,
-                "filename": dep.filename,
-                "display_name": dep.display_name,
-                "download_url": dep.download_url,
-            })
+            missing.append(
+                {
+                    "resource_type": dep.resource_type,
+                    "folder": dep.folder,
+                    "filename": dep.filename,
+                    "display_name": dep.display_name,
+                    "download_url": dep.download_url,
+                }
+            )
 
-    if not missing:
-        return {
-            "status": "ready",
-            "missing_resources": [],
-            "message": "Ready to generate",
-        }
+    if not inventory_known:
+        status = "unknown"
+        message = "Проверяем локальные компоненты"
+    elif missing:
+        status = "not_installed"
+        message = f"Не хватает компонентов: {len(missing)}"
+    elif not profile.workflow_ready or not get_simple_workflow_path(profile).is_file():
+        status = "workflow_pending"
+        message = "Компоненты готовы, workflow ещё калибруется"
+    else:
+        status = "ready"
+        message = "Готова к генерации"
 
     return {
-        "status": "ready" if not missing else "not_installed",
+        "status": status,
+        "ready": status == "ready",
         "missing_resources": missing,
-        "message": f"Missing {len(missing)} resource(s)" if missing else "Ready",
+        "installable": bool(missing) and all(item.get("download_url") for item in missing),
+        "message": message,
     }
+
+
+def _preset_summary(profile: ApprovedProfile) -> dict[str, dict[str, str]]:
+    result: dict[str, dict[str, str]] = {}
+    for preset_id in profile.quality_preset_ids:
+        path = profile.directory / "presets" / f"{preset_id}.json"
+        if not path.is_file():
+            continue
+        data = _read_json(path)
+        result[preset_id] = {"label": str(data.get("label") or preset_id)}
+    return result
 
 
 def serialize_approved_profile(
     profile: ApprovedProfile,
     inventory: Any | None = None,
+    *,
+    include_health: bool = True,
 ) -> dict[str, Any]:
-    """Serialize approved profile for frontend UI."""
-    health = check_profile_health(profile, inventory)
-    return {
+    payload = {
         "id": profile.id,
         "name": profile.name,
-        "tagline": profile.tagline,
+        "technical_name": profile.technical_name,
         "description": profile.description,
-        "strengths": profile.strengths,
-        "weaknesses": profile.weaknesses,
+        "prompt_family": profile.prompt_family.value,
+        "architecture": profile.architecture,
+        "source_url": profile.source_url,
+        "source_version_id": profile.source_version_id,
         "vram_min_gb": profile.vram_min_gb,
         "vram_rec_gb": profile.vram_rec_gb,
-        "technical_model": profile.technical_model,
-        "prompt_family": profile.prompt_family.value,
-        "flow_id": profile.flow_id,
-        "default_negative_prompt": profile.default_negative_prompt,
-        "quality_presets": {
-            k.value: {
-                "steps": v.steps,
-                "cfg": v.cfg,
-                "sampler_name": v.sampler_name,
-                "scheduler": v.scheduler,
-                "guidance": v.guidance,
-            }
-            for k, v in profile.quality_presets.items()
-        },
-        "aspect_ratios": [
-            {
-                "ratio": ar.ratio,
-                "width": ar.width,
-                "height": ar.height,
-                "label": ar.label,
-            }
-            for ar in profile.aspect_ratios
-        ],
-        "examples": [
-            {
-                "title": ex.title,
-                "prompt": ex.prompt,
-                "image_url": ex.image_url,
-            }
-            for ex in profile.examples
-        ],
-        "health": health,
+        "workflow_ready": profile.workflow_ready,
+        "aspect_ratios": list(profile.aspect_ratios),
+        "quality_presets": _preset_summary(profile),
     }
+    if include_health:
+        payload["health"] = check_profile_health(profile, inventory)
+    return payload
+
+
+def _set_binding(workflow: dict[str, Any], binding: dict[str, Any] | None, value: Any) -> None:
+    if not binding:
+        return
+    node = workflow.get(str(binding.get("node")))
+    if not isinstance(node, dict):
+        raise KeyError(f"Workflow node {binding.get('node')} is missing")
+    inputs = node.setdefault("inputs", {})
+    inputs[str(binding.get("input"))] = value
+
+
+def _load_bindings(profile: ApprovedProfile) -> dict[str, Any]:
+    path = profile.directory / "bindings.json"
+    if not path.is_file():
+        raise FileNotFoundError(f"Bindings are not prepared yet for {profile.id}")
+    return _read_json(path)
+
+
+def _load_preset(profile: ApprovedProfile, quality: QualityPresetLevel) -> dict[str, Any]:
+    path = profile.directory / "presets" / f"{quality.value}.json"
+    if not path.is_file():
+        raise FileNotFoundError(f"Preset {quality.value} is missing for {profile.id}")
+    return _read_json(path)
 
 
 def compile_simple_workflow(
@@ -379,62 +256,34 @@ def compile_simple_workflow(
     seed: int = -1,
     custom_dir: Path | None = None,
 ) -> dict[str, Any]:
-    """
-    Compile a ready-to-run ComfyUI API workflow graph for the specified profile and parameters.
-    """
-    workflow = load_simple_workflow_json(profile.flow_id, custom_dir)
-    preset = profile.quality_presets.get(quality, profile.quality_presets[QualityPresetLevel.STANDARD])
+    del custom_dir
+    if not profile.workflow_ready:
+        raise FileNotFoundError(f"Workflow is still being calibrated for {profile.name}")
 
-    # Find aspect ratio dimensions
-    width, height = 1024, 1024
-    for opt in profile.aspect_ratios:
-        if opt.ratio == aspect_ratio:
-            width, height = opt.width, opt.height
-            break
+    workflow = copy.deepcopy(load_simple_workflow_json(profile))
+    bindings = _load_bindings(profile)
+    preset = _load_preset(profile, quality)
 
-    import random
+    ratio = next(
+        (item for item in profile.aspect_ratios if str(item.get("ratio")) == aspect_ratio),
+        profile.aspect_ratios[0] if profile.aspect_ratios else {"width": 1024, "height": 1024},
+    )
     effective_seed = seed if seed >= 0 else random.randint(0, 1125899906842624)
-    effective_negative = negative_prompt or profile.default_negative_prompt or ""
+    effective_positive = positive_prompt.strip()
+    if profile.prompt_prefix and effective_positive:
+        effective_positive = f"{profile.prompt_prefix}, {effective_positive}"
+    effective_negative = negative_prompt if negative_prompt is not None else profile.default_negative_prompt
 
-    # Inject values based on standard node conventions or flow structure
-    for node_id, node in workflow.items():
-        class_type = node.get("class_type", "")
-        inputs = node.get("inputs", {})
+    _set_binding(workflow, bindings.get("positive_prompt"), effective_positive)
+    _set_binding(workflow, bindings.get("negative_prompt"), effective_negative or "")
+    _set_binding(workflow, bindings.get("seed"), effective_seed)
+    _set_binding(workflow, bindings.get("width"), int(ratio.get("width") or 1024))
+    _set_binding(workflow, bindings.get("height"), int(ratio.get("height") or 1024))
+    _set_binding(workflow, bindings.get("batch_size"), max(1, min(int(batch_size), 4)))
 
-        # KSampler node
-        if class_type in {"KSampler", "KSamplerAdvanced"}:
-            if "steps" in inputs:
-                inputs["steps"] = preset.steps
-            if "cfg" in inputs:
-                inputs["cfg"] = preset.cfg
-            if "sampler_name" in inputs:
-                inputs["sampler_name"] = preset.sampler_name
-            if "scheduler" in inputs:
-                inputs["scheduler"] = preset.scheduler
-            if "seed" in inputs:
-                inputs["seed"] = effective_seed
-
-        # Latent image dimensions
-        elif class_type in {"EmptyLatentImage", "EmptySD3LatentImage"}:
-            if "width" in inputs:
-                inputs["width"] = width
-            if "height" in inputs:
-                inputs["height"] = height
-            if "batch_size" in inputs:
-                inputs["batch_size"] = max(1, min(batch_size, 4))
-
-        # Flux Guidance
-        elif class_type == "FluxGuidance":
-            if "guidance" in inputs:
-                inputs["guidance"] = preset.guidance
-
-        # Text encoders
-        elif class_type == "CLIPTextEncode":
-            # If there are multiple text encoders, check context / node mapping
-            # In SDXL/Pony flow: node 6 is positive, node 7 is negative
-            if node_id == "6" or "positive" in str(inputs.get("text", "")).lower() or node_id == "3":
-                inputs["text"] = positive_prompt
-            elif node_id == "7" or "negative" in str(inputs.get("text", "")).lower():
-                inputs["text"] = effective_negative
+    preset_bindings = bindings.get("preset") if isinstance(bindings.get("preset"), dict) else {}
+    overrides = preset.get("overrides") if isinstance(preset.get("overrides"), dict) else {}
+    for key, value in overrides.items():
+        _set_binding(workflow, preset_bindings.get(key), value)
 
     return workflow

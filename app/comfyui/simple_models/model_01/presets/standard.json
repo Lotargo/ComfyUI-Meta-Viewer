@@ -1,0 +1,1 @@
+{"id":"standard","label":"Стандартно","overrides":{"steps":32,"cfg":5.0,"sampler_name":"dpmpp_sde","scheduler":"karras"}}

@@ -1,0 +1,1 @@
+{"id":"standard","label":"Стандартно","overrides":{"steps":10,"cfg":1.0,"sampler_name":"euler_ancestral","scheduler":"beta"}}

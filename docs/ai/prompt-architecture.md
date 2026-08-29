@@ -1,5 +1,8 @@
 # AI Prompt Architecture
 
+> High-level architecture overview for the CMV prompt compilation and AI execution subsystem.
+> For the complete normative reference, see the [Prompt Architecture Specification](prompt-architecture-spec.md).
+
 ComfyUI Meta Viewer compiles model-aware prompt instructions from one canonical registry and
 then routes the prepared task to either a direct model profile or an agent host. Provider and
 host adapters do not own prompt-family knowledge.

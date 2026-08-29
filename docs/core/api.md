@@ -17,7 +17,11 @@ The API is intentionally local-first and single-user oriented. Responses are JSO
 - [Thumbnails and Originals](#thumbnails-and-originals)
 - [Cutouts](#cutouts)
 - [AI Providers](#ai-providers)
+- [AI Prompt Drafts](#ai-prompt-drafts)
+- [AI Prompt Operations](#ai-prompt-operations)
 - [ComfyUI Runtime and Workflow Editor](#comfyui-runtime-and-workflow-editor)
+- [Create (Simple) API](#create-simple-api)
+- [Social API](#social-api)
 - [System](#system)
 - [Data Models](#data-models)
 
@@ -89,6 +93,31 @@ Forgets a source, stops its watcher, and deletes its indexed rows. Source files 
 ```json
 { "ok": true }
 ```
+
+---
+
+### `GET /api/folders/events`
+
+Server-Sent Events stream of the live folder state instead of one-off JSON snapshots. Each event
+carries a JSON object keyed by folder ID and is emitted whenever any folder state changes. While a
+folder is processing or reconnecting, events are pushed every second; otherwise every five seconds.
+
+```json
+data: {"1": {"status": "processing", "source_status": "available", "enabled": true, "image_count": 42}}
+```
+
+### `POST /api/folders/{folder_id}/pause`
+
+Temporarily pauses observation and reconciliation for one source. The watch is stopped, and the
+source can be resumed later without re-adding it.
+
+**Response:** `{ "ok": true }`
+
+### `POST /api/folders/{folder_id}/resume`
+
+Resumes the paused source and restarts the background worker.
+
+**Response:** `{ "ok": true }`
 
 ---
 
@@ -473,6 +502,7 @@ system's Recycle Bin or Trash.
 | `DELETE /api/albums/{album_id}` | Delete only the virtual album |
 | `POST /api/albums/{album_id}/assets` | Add `asset_ids` without copying files |
 | `DELETE /api/albums/{album_id}/assets` | Remove `asset_ids` from the album only |
+| `POST /api/albums/{album_id}/reorder` | Persist a custom manual order from `{ "asset_ids": [...] }` |
 
 ---
 
@@ -657,7 +687,13 @@ distinct codes including `authentication_error`, `content_rejected`, `incompatib
 
 Detects `opencode`, `claude`, and `agy`/`antigravity` through PATH and invokes documented version
 and authorization-status commands. The response includes executable path, version, capability
-flags, and an authorization state. No credential file is opened.
+flags, and an authorization state. No credential file is opened. `?probe=0` skips the live probe and
+returns the static catalog instead.
+
+### `GET /api/ai/cli-integrations/{cli_type}`
+
+Probes one integration (`opencode`, `claude`, or `agy`) and returns its singular `integration`
+object. Unsupported CLI types answer with `code: cli_unavailable`.
 
 ### `GET /api/ai/cli-integrations/{cli_type}/models`
 
@@ -769,6 +805,116 @@ running, or review-waiting job.
 
 ---
 
+## AI Prompt Operations
+
+The operation endpoints parse the profile, task, and source the same way and return a durable
+`job`, the latest normalized `prompt_draft`, and a `context` (the full message exchange). Job IDs
+can be followed through [AI Prompt Drafts](#ai-prompt-drafts).
+
+### `GET /api/ai/prompt-capabilities`
+
+Returns the compiled capability matrix: for every registered prompt family (`flux`, `sdxl`,
+`pony`), the declared version and the scenarios (`portrait`, `single_character`, `product_object`,
+`architecture_interior`, `landscape_environment`, `illustration_art`, `graphic_design_text`) with
+their tested status (`complete`, `partial`, `planned`).
+
+### `POST /api/ai/generate`
+
+Runs a direct raw `generate` operation. The task dictionary must include a scenario; `family` and
+`model_style` fall back to the selected profile. Returns `201`.
+
+```json
+{
+  "profile_id": "…",
+  "task": { "family": "flux", "scenario": "portrait" },
+  "user_input": "…"
+}
+```
+
+### `POST /api/ai/translate`
+
+Translates `source` text. `target_language` defaults to `en`; `source_language` is optional. A
+reference `asset_id` can be attached for provenance. When `?stream=1`, the `Accept` header requests
+`text/event-stream`, or the payload sets `stream: true`, the endpoint streams SSE events
+(`status`, `chunk`, `error`/`result`).
+
+### `POST /api/ai/adapt`
+
+Family-aware adaptation. `target_family` and the optional tested `checkpoint_profile` configure the
+destination; `checkpoint_resource_hash` resolves the local checkpoint from the model catalog when
+present. Trusted catalog trigger words already in the source are preserved as `protected_triggers` —
+catalog triggers absent from the source are not injected. Returns `201`.
+
+### `POST /api/ai/enhance`
+
+Enhances a prompt toward stronger composition, lighting, and subject detail. Accepts an optional
+`wishes` directive, `checkpoint_profile`, and `checkpoint_resource_hash`. Returns `201`.
+
+### `POST /api/ai/reconstruct`
+
+Renders a full prompt from a saved `SceneSpec`, supplied either directly in `scene_spec` or via a
+`scene_spec_job_id` returned by vision analysis. A `scene_spec_job_id` keeps the editor consistent:
+if both are given at once, `asset_id` must match the asset attached to the saved `SceneSpec`. Returns
+`201` with the job, `scene_spec`, prompt draft, and context.
+
+### `POST /api/ai/reconstruct/analyze`
+
+Runs multimodal vision analysis over an existing asset and returns a `SceneSpec` (the "analyze first"
+step). Requires a multimodal profile: `profile_id` defaults to the multimodal default. `asset_id` is
+required; `task` follows the same shape as other operations. Returns `201`.
+
+### `PATCH /api/ai/jobs/{job_id}/scene-spec`
+
+Replaces the editable `SceneSpec` of a reconstruct job. Only a job in `WAITING_FOR_REVIEW` whose
+operation is `reconstruct` accepts edits.
+
+```json
+{ "scene_spec": { "…": "valid SceneSpec" } }
+```
+
+### `POST /api/ai/remix`
+
+Creates a remix draft from `asset_id` and a chosen `prompt_source`, using direct or CLI execution.
+Additional `execution_backend`, `provider_profile_id`, and `model_id` fields select the runtime. The
+created draft links to its parent asset for provenance. This is the AI variant of
+[`POST /api/editor/remix`](#runs-output-and-remix); the UI currently relies on the editor endpoint.
+
+### `GET /api/ai/resources`
+
+Lists model resources from the catalog, optionally filtered by `resource_type` and `architecture`.
+
+### `POST /api/ai/resources`
+
+Registers a model resource in the catalog. Returns `201` with the saved resource.
+
+### `POST /api/ai/resources/resolve`
+
+Validates a proposed model selection against a checkpoint architecture and returns per-resource
+`evaluations` (coverage and compatibility decisions).
+
+### `POST /api/ai/evaluate`
+
+Runs AI ranking for one asset: requires a multimodal `profile_id`, the target `image_id`, and an
+optional `prompt_text`. Returns the derived `rating` (never stored back into generator metadata).
+
+### `GET /api/ai/ratings/{image_id}`
+
+Returns the stored AI rating for an asset, or `404` when none exists.
+
+### `PATCH /api/ai/ratings/{image_id}`
+
+Sets a manual rank override (`rank_override`) on top of the stored AI rating.
+
+### `DELETE /api/ai/ratings/{image_id}`
+
+Deletes the stored AI rating and any manual override for the asset.
+
+```json
+{ "ok": true }
+```
+
+---
+
 ## ComfyUI Runtime and Workflow Editor
 
 The Create page is available at `GET /editor`. `GET /settings/comfyui` remains an alias. Runtime
@@ -837,6 +983,244 @@ Preview responses keep node and resource failures separate:
 
 Imported output metadata records the template/draft/run/prompt identity and the executed API
 workflow. If a draft originated from Remix, the new asset also references its source asset.
+
+### Model scanner
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/editor/models/rescan` | Trigger a background model rescan; returns `started` or `already_running` |
+| `GET` | `/api/editor/models/scan_status` | Return the current scan status snapshot (counts, current file, scanning flag) |
+| `GET` | `/api/editor/models/scan_stream` | SSE stream of progress updates for an active rescan |
+
+---
+
+## Create (Simple) API
+
+The Create workspace (`GET /create` or `GET /editor`) is driven by a curated catalog of bundled
+generation models (Simple Mode profiles). Only profiles with a ready `workflow.json` and
+`bindings.json` can generate; calibration placeholders report status but reject generation.
+
+### `GET /api/simple/models`
+
+Returns the creation-model catalog and the default profile ID.
+
+```json
+{
+  "models": [ { "id": "model_01", "name": "…", "family": "flux", "…": "…" } ],
+  "default_model_id": "model_01"
+}
+```
+
+### `GET /api/simple/ambient`
+
+Returns up to `limit` (1–72, default 36) curated candidate images: favorites and highly rated
+assets, recent generations, and random older works. Candidate lists are cached for 45 seconds and
+fall back to recent library images when empty.
+
+```json
+{
+  "items": [ { "id": 3, "file_name": "x.png", "original_url": "/api/original/3",
+               "preview_url": "/api/preview/3", "thumbnail_url": "/api/thumbnail/3",
+               "width": 1024, "height": 1024 } ]
+}
+```
+
+### `GET /api/simple/ai-status`
+
+Reports whether any AI provider is available and whether it can serve text and vision roles.
+
+```json
+{ "available": true, "has_text": true, "has_vision": true, "profile_count": 2 }
+```
+
+### `GET /api/simple/bootstrap`
+
+One-shot bootstrap for the Create page: the model catalog, the default profile ID, `ambient_candidates`,
+and `ai_status`.
+
+### `GET /api/simple/models/{profile_id}/status`
+
+Health of one creation model: installed resources and missing components against the current ComfyUI
+inventory. `profiles/{profile_id}/status` is an alias. Pass `?refresh=1` to invalidate the cached
+runtime inventory first. Unknown profiles return `404`.
+
+```json
+{ "profile_id": "model_01", "health": { "status": "ready", "missing_resources": [] } }
+```
+
+### `POST /api/simple/models/{profile_id}/install`
+
+Queues downloads for every missing required resource of the model. When the ComfyUI path is not
+configured it answers `409` with `code: comfyui_path_required` and `open_settings: true`, so the
+client shows integration settings first.
+
+**Response (`202` when downloads were queued):**
+
+```json
+{
+  "ok": true,
+  "profile_id": "model_01",
+  "model_root": "C:\\ComfyUI\\models",
+  "downloads": [ { "id": 12, "filename": "model.safetensors", "display_name": "…" } ],
+  "unavailable": []
+}
+```
+
+### `GET /api/simple/downloads`
+
+Lists active and finished downloads, optionally filtered by `?profile_id=`.
+
+```json
+{ "items": [ { "id": 12, "filename": "model.safetensors", "status": "downloading",
+               "downloaded_bytes": 1048576, "total_bytes": 8388608 } ] }
+```
+
+### `POST /api/simple/downloads/{download_id}/pause`
+
+Pauses a download. Unknown IDs return `404`.
+
+**Response:** `{ "item": { "…": "…" } }`
+
+### `POST /api/simple/downloads/{download_id}/resume`
+
+Resumes a paused download. `/retry` is an alias that also restarts a failed download.
+
+### `POST /api/simple/downloads/{download_id}/cancel`
+
+Cancels and removes a download.
+
+### `POST /api/simple/pick-comfyui-directory`
+
+Opens a native folder picker on the same machine. Remote callers receive `403`. On success
+`detection` mirrors the result of `POST /api/comfyui/detect`.
+
+```json
+{ "cancelled": false, "path": "C:\\ComfyUI_windows_portable", "detection": { "valid": true } }
+```
+
+When the user cancels the dialog the response is `{ "cancelled": true }`. If a native picker is not
+available the endpoint answers `503` with `code: directory_picker_unavailable`.
+
+### `POST /api/simple/generate`
+
+Queue a generation for one creation model.
+
+```json
+{
+  "profile_id": "model_01",
+  "prompt": "portrait, studio light",
+  "negative_prompt": "blurry",
+  "improve_with_ai": true,
+  "aspect_ratio": "1:1",
+  "quality": "standard",
+  "batch_size": 1,
+  "seed": -1,
+  "reference_image": "data:image/png;base64,…"
+}
+```
+
+Prompt preparation happens server-side: a `reference_image` data URL triggers multimodal
+reconstruction from the default vision profile, else `improve_with_ai` runs the prompt compiler
+enhancement pass. The command is then compiled into the model API workflow, ComfyUI is auto-started
+if needed, and a durable run is created.
+
+**Response (`200`):**
+
+```json
+{
+  "ok": true,
+  "run_id": 7,
+  "prompt_id": "a1b2…",
+  "positive_prompt": "…",
+  "negative_prompt": "…",
+  "ai_improved": true,
+  "ai_explanation": "Enhanced with AI prompt compiler"
+}
+```
+
+Errors: `409` `code: workflow_pending` for calibration placeholders, `409` `code: model_not_installed`
+with `missing_resources`, `502` `code: comfyui_rejected`, and `503` `code: comfyui_connection_failed`.
+
+### `GET /api/simple/runs/{run_id}`
+
+Refreshes remote ComfyUI state and returns the run plus imported output assets.
+
+```json
+{
+  "run": { "id": 7, "status": "completed", "output_asset_ids": [42], "…": "…" },
+  "status": "completed",
+  "outputs": [ { "id": 42, "filename": "…", "preview_url": "/api/preview/42",
+                 "thumbnail_url": "/api/thumbnail/42", "width": 1024, "height": 1024 } ],
+  "is_complete": true
+}
+```
+
+### `POST /api/simple/runs/{run_id}/cancel`
+
+Cancels a pending or running generation for this run.
+
+**Response:** `{ "ok": true, "run": { "…": "…" } }`
+
+### `POST /api/simple/assistant/chat`
+
+Single-turn AI assistant for prompt refinement inside Create. Requires a text AI provider; without
+one it answers `400` with `code: no_ai_profile`. The assistant receives the selected creation model
+and the last eight history turns.
+
+```json
+{
+  "message": "Add cinematic rim light",
+  "profile_id": "model_01",
+  "history": [ { "role": "user", "content": "…" } ],
+  "current_prompt": "portrait, studio light"
+}
+```
+
+**Response:** `{ "reply": "refined prompt text…", "profile_id": "model_01" }`
+
+---
+
+## Social API
+
+Social routes are present, but publishing is **not implemented for any provider**; every publisher
+reports `implemented: false` and publish requests answer `501` with `code: not_implemented`. The
+integration page shows provider cards and authentication flows only.
+
+### `GET /api/social/status`
+
+Returns capability and credential status for all providers.
+
+```json
+{
+  "providers": {
+    "telegram": { "label": "Telegram", "implemented": false, "enabled": true, "publisher": null },
+    "vk": { "label": "VK", "implemented": false, "enabled": false, "publisher": null }
+  }
+}
+```
+
+### `GET /api/social/{provider}/status`
+
+Same payload for one provider. Unknown providers return `404` with `code: unknown_provider`.
+
+### `POST /api/social/publish` and `POST /api/social/{provider}/publish`
+
+Validate and dispatch a publish request. Payload validation failures return `400` with
+`code: invalid_payload`; unimplemented publishers return `501` with `code: not_implemented`.
+
+### Telegram auth flow
+
+`POST /api/social/telegram/auth/start`, `GET /api/social/telegram/auth/state`,
+`GET /api/social/telegram/auth/qr.png`, `POST /api/social/telegram/auth/code`,
+`POST /api/social/telegram/auth/password`, `POST /api/social/telegram/auth/cancel`, and
+`POST /api/social/telegram/auth/disconnect` implement the phone/QR login sequence. They require
+Telegram API credentials (`TELEGRAM_API_ID` / `TELEGRAM_API_HASH`).
+
+### VK auth flow
+
+`POST /api/social/vk/auth/start`, `GET /api/social/vk/auth/callback`, and
+`POST /api/social/vk/auth/disconnect` handle the OAuth exchange. VK OAuth is limited to port `80`
+on `localhost`, which the app cannot self-host.
 
 ---
 

@@ -54,18 +54,21 @@ ComfyUI-Meta-Viewer/
 │   ├── __init__.py
 │   ├── main.py                   # Flask routes and startup wiring
 │   ├── database.py               # SQLite operations
+│   ├── library.py                # Albums, favorites, tags, filters
 │   ├── extractor.py              # Metadata parsing
 │   ├── cutout.py                 # Background removal
 │   ├── schemas.py                # Pydantic models
 │   ├── source_monitor.py         # Watchers, debounce, reconnect, reconciliation
+│   ├── ai/                       # AI prompt compiler, provider adapters, durable jobs
+│   ├── comfyui/                  # ComfyUI runtime and workflow editor
 │   ├── static/
 │   │   ├── css/                  # Modular CSS
 │   │   └── js/                   # ES modules
-│   └── templates/
-│       └── index.html            # SPA entry template
-├── cache/                        # Generated thumbnails and cutouts
-├── dev_docs/                     # Internal development notes
-├── docs/                         # Public documentation
+│   └── templates/                # Jinja2 HTML templates
+├── cache/                        # Generated thumbnails, previews, and cutouts
+├── dev_docs/                     # Internal specifications and sprint roadmaps
+├── docs/                         # Technical documentation
+├── site/                         # Public landing page and interactive Scalar API portal
 ├── pyproject.toml                # Poetry project configuration
 ├── benchmark.bat                 # Windows benchmark launcher
 ├── benchmark.sh                  # Linux/macOS benchmark launcher

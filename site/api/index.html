@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComfyUI Meta Viewer — REST API Reference</title>
+  <meta name="description" content="Interactive REST API documentation and client for ComfyUI Meta Viewer. Powered by Scalar.">
+  <link rel="icon" type="image/svg+xml" href="../icons/metadata.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --scalar-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      --scalar-font-family-mono: 'JetBrains Mono', monospace;
+      --scalar-background-1: #0b0f12;
+      --scalar-background-2: #11171c;
+      --scalar-background-3: #18222a;
+      --scalar-color-1: #f1f5f9;
+      --scalar-color-2: #94a3b8;
+      --scalar-color-3: #64748b;
+      --scalar-color-accent: #38bdf8;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0b0f12;
+      color: #f1f5f9;
+      font-family: var(--scalar-font-family);
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 24px;
+      background-color: #11171c;
+      border-bottom: 1px solid #1e293b;
+      font-size: 14px;
+    }
+
+    .top-bar a {
+      color: #38bdf8;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      transition: color 0.15s ease;
+    }
+
+    .top-bar a:hover {
+      color: #7dd3fc;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #f1f5f9;
+      font-weight: 700;
+    }
+
+    .brand-mark {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <header class="top-bar">
+    <div class="brand">
+      <span class="brand-mark">CMV</span>
+      <span>ComfyUI Meta Viewer API</span>
+    </div>
+    <a href="../index.html">
+      <span>&larr;</span>
+      <span>Back to Landing Page</span>
+    </a>
+  </header>
+
+  <script
+    id="api-reference"
+    data-url="./openapi.json"
+    data-configuration='{
+      "theme": "deepSpace",
+      "darkMode": true,
+      "showSidebar": true,
+      "hideDownloadButton": false,
+      "metaData": {
+        "title": "ComfyUI Meta Viewer API Reference"
+      }
+    }'>
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+</body>
+</html>

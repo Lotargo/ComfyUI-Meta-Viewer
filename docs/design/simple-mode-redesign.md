@@ -129,7 +129,7 @@ Conceptually:
 
 ```text
 ┌─────────────────────────────────────────────────────┐
-│ Meta Viewer                         Library  Create ⚙│
+│ Meta Viewer                         Library  Create │
 │                                                     │
 │          ambient artwork / soft glow                │
 │                                                     │
@@ -139,7 +139,7 @@ Conceptually:
 │        │ ┌──────────────────────────────┐ │         │
 │        │ │ describe any idea...         │ │         │
 │        │ │                              │ │         │
-│        │ │ ✦ Improve with AI       ●    │ │         │
+│        │ │ [Improve with AI]        (o) │ │         │
 │        │ └──────────────────────────────┘ │         │
 │        │                                  │         │
 │        │ Model                            │         │

@@ -110,6 +110,7 @@ comfy-meta-viewer/
 │   └── meta.db                   # Disposable SQLite index by default
 ├── dev_docs/                     # Internal development notes and sprint docs
 ├── docs/                         # Public documentation
+├── site/                         # Public landing page and interactive Scalar API portal
 ├── pyproject.toml                # Poetry configuration
 ├── benchmark.bat                 # Windows benchmark launcher
 ├── benchmark.sh                  # Linux/macOS benchmark launcher

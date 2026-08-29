@@ -2,23 +2,35 @@
 
 > Central technical documentation for ComfyUI Meta Viewer (CMV).
 
-This directory contains the public technical and architectural documentation of the project. For the public landing website, see [`site/`](../site/). For sprint planning and historical notes, see [`dev_docs/`](../dev_docs/).
+This directory contains the public technical and architectural documentation of the project.
+- **Public Landing & Interactive API**: [`site/`](../site/) (deployed to GitHub Pages; interactive API explorer at [`site/api/`](../site/api/index.html))
+- **Technical Documentation**: [`docs/`](./) (system architecture, API reference, AI subsystem, developer guides)
+- **Internal Roadmaps & Specifications**: [`dev_docs/`](../dev_docs/) (strategic sprint plans and milestone specifications)
 
 ---
 
-## 🏛️ Core Documentation
+## Public Portal & API
+
+| Resource | Location | Description |
+|----------|----------|-------------|
+| [Landing Page](../site/index.html) | `site/index.html` | Project overview, showcase gallery, feature highlights, and quick install |
+| [Interactive API Reference (Scalar)](../site/api/index.html) | `site/api/index.html` | Interactive OpenAPI 3.1 portal powered by Scalar with dark mode and live code snippets |
+
+---
+
+## Core Documentation
 
 | Document | Description |
 |----------|-------------|
 | [Architecture](core/architecture.md) | System overview, data flow, SQLite storage model, and extension points |
-| [API Reference](core/api.md) | Current REST API routes with request/response schemas and examples |
+| [API Reference](core/api.md) | Offline REST API reference with request/response schemas and examples |
 | [Features](core/features.md) | User-facing capabilities, keyboard shortcuts, and UI interactions |
 | [Configuration](core/configuration.md) | Environment variables, local directories, file support, and CLI flags |
 | [Installation](core/installation.md) | Installation options, requirements, and startup scripts |
 
 ---
 
-## 💻 Development & Engineering
+## Development & Engineering
 
 | Document | Description |
 |----------|-------------|
@@ -28,19 +40,19 @@ This directory contains the public technical and architectural documentation of 
 
 ---
 
-## 🧠 AI Subsystem & Prompt Architecture
+## AI Subsystem & Prompt Architecture
 
 | Document | Description |
 |----------|-------------|
-| [AI Prompt Architecture](ai/prompt-architecture.md) | Canonical instruction layers, deterministic compilation, execution routing, and durable AI jobs |
-| [Prompt Architecture Spec](ai/prompt-architecture-spec.md) | Comprehensive specification: profiles, operations, scenarios, modifiers, and contracts |
+| [AI Prompt Architecture](ai/prompt-architecture.md) | High-level overview: canonical instruction layers, deterministic compilation, and durable jobs |
+| [Prompt Architecture Spec](ai/prompt-architecture-spec.md) | Master reference specification: profiles, operations, scenarios, modifiers, and contracts |
 | [Intent Benchmark](ai/intent-benchmark.md) | Raw-intent prompt generation benchmarks and model-judge evaluation suite |
 | [OpenCode Smoke Testing](ai/opencode-smoke-testing.md) | Managed CLI agent execution, test scenarios, profiles, and reporting |
 | [AI Smoke Testing](ai/smoke-testing.md) | Provider verification, test suites, and diagnostic execution |
 
 ---
 
-## 🎨 Product & UX Design
+## Product & UX Design
 
 | Document | Description |
 |----------|-------------|
@@ -48,7 +60,7 @@ This directory contains the public technical and architectural documentation of 
 
 ---
 
-## 🗺️ Roadmaps & Internal Planning
+## Roadmaps & Internal Planning
 
 Active strategic plans and technical roadmaps are maintained in [`dev_docs/roadmap/`](../dev_docs/roadmap/README.md):
 
@@ -62,13 +74,13 @@ Active strategic plans and technical roadmaps are maintained in [`dev_docs/roadm
 
 ---
 
-## ⚡ Quick Links
+## Quick Links
 
 | Goal | Start Here |
 |------|------------|
 | Install and run the app | [Installation](core/installation.md) &bull; [Development > Setup](dev/development.md#setup) |
 | Understand system design | [Architecture](core/architecture.md) |
-| Explore REST endpoints | [API Reference](core/api.md) |
+| Explore REST endpoints | [API Reference](core/api.md) &bull; [Scalar API (Interactive)](../site/api/index.html) |
 | Review keyboard shortcuts | [Features > Keyboard Shortcuts](core/features.md#keyboard-shortcuts) |
 | Configure storage or port | [Configuration](core/configuration.md#environment-variables) |
 | Add a backend endpoint | [Development > Adding an API Endpoint](dev/development.md#adding-an-api-endpoint) |
@@ -76,3 +88,4 @@ Active strategic plans and technical roadmaps are maintained in [`dev_docs/roadm
 | Add or customize styles | [CSS Architecture > Extension Guidelines](dev/css-architecture.md#extension-guidelines) |
 | Inspect AI prompt pipeline | [AI Prompt Architecture](ai/prompt-architecture.md) |
 | Review Simple Mode spec | [Simple Mode Redesign](design/simple-mode-redesign.md) |
+

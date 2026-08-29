@@ -1,0 +1,1746 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ComfyUI Meta Viewer API",
+    "version": "1.0.0",
+    "description": "REST API specification for ComfyUI Meta Viewer (CMV). Local-first workspace for browsing AI-generated images, inspecting prompt metadata and workflow graphs, managing virtual libraries, and executing AI prompt operations.",
+    "license": {
+      "name": "AGPL-3.0-only",
+      "url": "https://github.com/Lotargo/ComfyUI-Meta-Viewer/blob/main/LICENSE"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:7860",
+      "description": "Default Local Instance"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Folders",
+      "description": "Physical folder monitoring, state inspection, and reconciliation"
+    },
+    {
+      "name": "Scanning & Uploads",
+      "description": "Folder discovery, file picker, in-memory extraction, and uploads"
+    },
+    {
+      "name": "Media & Gallery",
+      "description": "Paginated gallery assets, image details, and OS file reveal"
+    },
+    {
+      "name": "Library & Albums",
+      "description": "Virtual collections, ratings, tags, notes, and bulk management"
+    },
+    {
+      "name": "Thumbnails & Previews",
+      "description": "Pillow/FFmpeg thumbnails, bounded display previews, and raw files"
+    },
+    {
+      "name": "Cutouts",
+      "description": "Subject extraction and transparent PNG generation"
+    },
+    {
+      "name": "AI Providers",
+      "description": "OpenAI-compatible and local CLI agent profile management"
+    },
+    {
+      "name": "AI Operations & Drafts",
+      "description": "Prompt generation, family adaptation, review, and job tracking"
+    },
+    {
+      "name": "ComfyUI & Simple Mode",
+      "description": "ComfyUI runtime connection, model discovery, and prompt execution"
+    },
+    {
+      "name": "System",
+      "description": "Diagnostics, cache metrics, index reset, and factory reset"
+    }
+  ],
+  "paths": {
+    "/api/folders": {
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "List all monitored folders",
+        "description": "Returns all indexed source directories and the virtual Uploads folder.",
+        "responses": {
+          "200": {
+            "description": "List of folders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/FolderListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/folders/{folder_id}": {
+      "patch": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "Update folder settings",
+        "description": "Renames, enables, or toggles recursive scanning for a monitored source directory.",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "": "#/components/schemas/SourceUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated folder status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "Remove folder from library",
+        "description": "Stops observation and clears database rows for this folder without deleting physical source files.",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folder forgotten",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/folders/{folder_id}/reconcile": {
+      "post": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "Queue folder reconciliation",
+        "description": "Triggers an immediate background filesystem check for added, modified, or removed files.",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reconciliation queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/folders/events": {
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "Server-Sent Events stream of folder state",
+        "description": "Continuous SSE stream pushing real-time indexing status and scan progress.",
+        "responses": {
+          "200": {
+            "description": "Event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scan": {
+      "post": {
+        "tags": [
+          "Scanning & Uploads"
+        ],
+        "summary": "Connect and scan local folder",
+        "description": "Adds a local directory to monitored sources, extracts metadata incrementally, and returns first page.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "": "#/components/schemas/ScanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Scan initiated / first page returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/ImagesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/choose-folder": {
+      "post": {
+        "tags": [
+          "Scanning & Uploads"
+        ],
+        "summary": "Open native OS folder dialog",
+        "description": "Opens Windows Explorer / macOS Finder / Linux Tk picker and returns the selected directory path.",
+        "responses": {
+          "200": {
+            "description": "Selected directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "GUI picker unavailable"
+          }
+        }
+      }
+    },
+    "/api/extract": {
+      "post": {
+        "tags": [
+          "Scanning & Uploads"
+        ],
+        "summary": "Extract metadata without indexing",
+        "description": "Parses image metadata for explicit file paths in-memory without saving to database.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "paths"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Extracted metadata list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "images": {
+                      "type": "array",
+                      "items": {
+                        "": "#/components/schemas/ImageDetail"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/upload": {
+      "post": {
+        "tags": [
+          "Scanning & Uploads"
+        ],
+        "summary": "Upload media files directly",
+        "description": "Accepts multipart/form-data image or video uploads and stores originals in SQLite BLOBs.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Uploaded assets summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images": {
+      "get": {
+        "tags": [
+          "Media & Gallery"
+        ],
+        "summary": "List gallery assets with pagination and filters",
+        "description": "Returns paginated media items filtered by folder, album, rating, media type, and sort order.",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "album_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "name",
+                "date",
+                "size",
+                "type"
+              ],
+              "default": "date"
+            }
+          },
+          {
+            "name": "sort_dir",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "rating",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            }
+          },
+          {
+            "name": "media_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "image"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/ImagesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/{image_id}": {
+      "get": {
+        "tags": [
+          "Media & Gallery"
+        ],
+        "summary": "Get complete image metadata and workflow",
+        "description": "Returns detailed parameters, ComfyUI node graphs, EXIF, and generation settings.",
+        "parameters": [
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detailed asset metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/ImageDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Asset not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Media & Gallery"
+        ],
+        "summary": "Delete asset from index",
+        "description": "Removes asset row and generated thumbnails/previews from cache without deleting physical file.",
+        "parameters": [
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/{image_id}/reveal": {
+      "post": {
+        "tags": [
+          "Media & Gallery"
+        ],
+        "summary": "Reveal image in OS file explorer",
+        "description": "Opens Windows Explorer or macOS Finder with the specified image file selected.",
+        "parameters": [
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File revealed in Explorer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/albums": {
+      "get": {
+        "tags": [
+          "Library & Albums"
+        ],
+        "summary": "List virtual albums",
+        "description": "Returns all virtual albums with item counts and cover image IDs.",
+        "responses": {
+          "200": {
+            "description": "Album list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "albums": {
+                      "type": "array",
+                      "items": {
+                        "": "#/components/schemas/Album"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Library & Albums"
+        ],
+        "summary": "Create virtual album",
+        "description": "Creates a new empty virtual album.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created album",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/Album"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library/assets/{asset_id}": {
+      "patch": {
+        "tags": [
+          "Library & Albums"
+        ],
+        "summary": "Update asset tags, favorite, rating, or note",
+        "description": "Updates user metadata for an indexed image or video.",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "": "#/components/schemas/LibraryAssetUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/ImageDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library/assets/bulk": {
+      "post": {
+        "tags": [
+          "Library & Albums"
+        ],
+        "summary": "Execute bulk action on assets",
+        "description": "Applies favorite, rating, album assignment, or unindex to up to 1000 assets simultaneously.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "": "#/components/schemas/LibraryBulkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk operation complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library/assets/trash": {
+      "post": {
+        "tags": [
+          "Library & Albums"
+        ],
+        "summary": "Move asset files to OS Recycle Bin / Trash",
+        "description": "Sends physical files to the native system Recycle Bin (via send2trash) and unindexes them.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "asset_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "required": [
+                  "asset_ids"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Files moved to Trash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/thumbnail/{asset_id}": {
+      "get": {
+        "tags": [
+          "Thumbnails & Previews"
+        ],
+        "summary": "Get cached JPEG thumbnail",
+        "description": "Returns a fast square JPEG thumbnail for gallery display.",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JPEG image binary",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/preview/{image_id}": {
+      "get": {
+        "tags": [
+          "Thumbnails & Previews"
+        ],
+        "summary": "Get bounded display preview",
+        "description": "Generates and caches an optimized max-4096px preview image for smooth lightbox rendering.",
+        "parameters": [
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview image binary",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Preview generation in progress (Retry-After header provided)"
+          }
+        }
+      }
+    },
+    "/api/original/{asset_id}": {
+      "get": {
+        "tags": [
+          "Thumbnails & Previews"
+        ],
+        "summary": "Get original source media file",
+        "description": "Streams the untouched original image or video file with HTTP range support.",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Original binary file",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cutout/{image_id}": {
+      "get": {
+        "tags": [
+          "Cutouts"
+        ],
+        "summary": "Get cached transparent PNG cutout",
+        "description": "Returns an existing background-removed PNG for the specified image.",
+        "parameters": [
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transparent PNG binary",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Cutout not yet generated"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Cutouts"
+        ],
+        "summary": "Generate transparent PNG cutout",
+        "description": "Performs subject segmentation / background removal and saves result in cache.",
+        "parameters": [
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cutout generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "cutout_url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/profiles": {
+      "get": {
+        "tags": [
+          "AI Providers"
+        ],
+        "summary": "List configured AI provider profiles",
+        "description": "Returns sanitized profile configs (OpenAI-compatible, OpenCode, Claude, Antigravity) without secret keys.",
+        "responses": {
+          "200": {
+            "description": "AI profiles list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/AIProfilesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "AI Providers"
+        ],
+        "summary": "Add AI provider profile",
+        "description": "Registers a new OpenAI-compatible endpoint or local CLI agent profile and secures credentials in OS keyring.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "": "#/components/schemas/AIProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/AIProfile"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/adapt": {
+      "post": {
+        "tags": [
+          "AI Operations & Drafts"
+        ],
+        "summary": "Adapt prompt for target model family",
+        "description": "Compiles model-aware prompt translation (e.g. Flux <-> SDXL <-> Pony) while protecting checkpoint triggers.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "target_family": {
+                    "type": "string",
+                    "enum": [
+                      "flux",
+                      "sdxl",
+                      "pony"
+                    ]
+                  },
+                  "task": {
+                    "type": "string",
+                    "default": "adapt"
+                  }
+                },
+                "required": [
+                  "source",
+                  "target_family"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI adaptation job created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/AIJob"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "AI Operations & Drafts"
+        ],
+        "summary": "Get AI job status and draft revisions",
+        "description": "Returns execution snapshot, prompt drafts, status, and normalized output contracts.",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AI job snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/AIJob"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diagnostics": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get system and cache diagnostics",
+        "description": "Returns SQLite database path, indexed folder/image counts, and disk cache metrics.",
+        "responses": {
+          "200": {
+            "description": "System diagnostics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/DiagnosticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reset-index": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Reset index database and thumbnail caches",
+        "description": "Safely closes SQLite connections, recreates schema, clears caches, and re-queues active sources without touching original files.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "confirm": {
+                    "type": "string",
+                    "example": "reset-index"
+                  }
+                },
+                "required": [
+                  "confirm"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Index reset completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "OkResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "Resource not found"
+          },
+          "code": {
+            "type": "string",
+            "example": "not_found"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "FolderInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "path": {
+            "type": "string",
+            "example": "C:/ComfyUI/output"
+          },
+          "name": {
+            "type": "string",
+            "example": "output"
+          },
+          "scanned_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2026-08-30 06:00:00"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2026-08-30 06:00:00"
+          },
+          "image_count": {
+            "type": "integer",
+            "example": 142
+          },
+          "asset_count": {
+            "type": "integer",
+            "example": 150
+          },
+          "video_count": {
+            "type": "integer",
+            "example": 8
+          },
+          "status": {
+            "type": "string",
+            "example": "idle"
+          },
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "recursive": {
+            "type": "boolean",
+            "example": true
+          },
+          "source_status": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "available",
+              "partially_available",
+              "unavailable",
+              "reconnecting",
+              "error"
+            ],
+            "example": "available"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": null
+          },
+          "revision": {
+            "type": "integer",
+            "example": 3
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "name",
+          "image_count",
+          "enabled",
+          "source_status"
+        ]
+      },
+      "FolderListResponse": {
+        "type": "object",
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": {
+              "": "#/components/schemas/FolderInfo"
+            }
+          }
+        },
+        "required": [
+          "folders"
+        ]
+      },
+      "SourceUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "ComfyUI Output"
+          },
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "recursive": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "ScanRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "example": "C:/Images/Generations"
+          },
+          "name": {
+            "type": "string",
+            "example": "Generations"
+          },
+          "recursive": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "ImageListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 42
+          },
+          "file_name": {
+            "type": "string",
+            "example": "ComfyUI_00042_.png"
+          },
+          "media_type": {
+            "type": "string",
+            "enum": [
+              "image",
+              "video"
+            ],
+            "example": "image"
+          },
+          "mime_type": {
+            "type": "string",
+            "example": "image/png"
+          },
+          "format": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "PNG"
+          },
+          "size": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "example": [
+              1024,
+              1024
+            ]
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "RGBA"
+          },
+          "rating": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 4
+          },
+          "preview_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "unavailable",
+              "error"
+            ],
+            "example": "ready"
+          },
+          "has_local_file": {
+            "type": "boolean",
+            "example": true
+          },
+          "thumbnail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "/api/thumbnail/42"
+          }
+        },
+        "required": [
+          "file_name",
+          "media_type"
+        ]
+      },
+      "ImageDetail": {
+        "allOf": [
+          {
+            "": "#/components/schemas/ImageListItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "prompt_parameters": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "workflow": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "workflow_ui_json": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "exif": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "embedded_metadata": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "user_metadata": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "ai_annotations": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        ]
+      },
+      "ImagesResponse": {
+        "type": "object",
+        "properties": {
+          "images": {
+            "type": "array",
+            "items": {
+              "": "#/components/schemas/ImageListItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "example": 350
+          },
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "example": 50
+          }
+        },
+        "required": [
+          "images",
+          "total",
+          "page",
+          "per_page"
+        ]
+      },
+      "Album": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Best Characters"
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-08-30 06:00:00"
+          },
+          "asset_count": {
+            "type": "integer",
+            "example": 12
+          },
+          "cover_image_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 42
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "asset_count"
+        ]
+      },
+      "LibraryAssetUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "favorite": {
+            "type": "boolean",
+            "example": true
+          },
+          "rating": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "example": 5
+          },
+          "note": {
+            "type": "string",
+            "example": "Key hero shot for presentation"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "hero",
+              "cyberpunk",
+              "approved"
+            ]
+          },
+          "file_name": {
+            "type": "string",
+            "example": "cyberpunk_character.png"
+          }
+        }
+      },
+      "LibraryBulkRequest": {
+        "type": "object",
+        "properties": {
+          "asset_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "example": [
+              1,
+              2,
+              3
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "favorite",
+              "unfavorite",
+              "add_to_album",
+              "remove_from_album",
+              "remove_from_index",
+              "set_rating"
+            ],
+            "example": "favorite"
+          },
+          "album_id": {
+            "type": "integer",
+            "example": 2
+          },
+          "rating": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "example": 4
+          }
+        },
+        "required": [
+          "asset_ids",
+          "action"
+        ]
+      },
+      "AIProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "3ea89b7d-3bd5-40ed-8486-86aa8e600711"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "openai_compatible",
+              "cli"
+            ],
+            "example": "openai_compatible"
+          },
+          "name": {
+            "type": "string",
+            "example": "Local Ollama / LM Studio"
+          },
+          "base_url": {
+            "type": "string",
+            "example": "http://127.0.0.1:11434/v1"
+          },
+          "model": {
+            "type": "string",
+            "example": "llava:latest"
+          },
+          "api_key_source": {
+            "type": "string",
+            "enum": [
+              "none",
+              "env",
+              "system"
+            ],
+            "example": "none"
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "example": 60
+          },
+          "multimodal": {
+            "type": "boolean",
+            "example": true
+          },
+          "has_credentials": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "model",
+          "has_credentials"
+        ]
+      },
+      "AIProfilesResponse": {
+        "type": "object",
+        "properties": {
+          "profiles": {
+            "type": "array",
+            "items": {
+              "": "#/components/schemas/AIProfile"
+            }
+          },
+          "defaults": {
+            "type": "object",
+            "properties": {
+              "text_profile_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "multimodal_profile_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "profiles",
+          "defaults"
+        ]
+      },
+      "AIJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "job_8f2b3e41"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting_for_review",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "example": "waiting_for_review"
+          },
+          "task": {
+            "type": "string",
+            "example": "adapt"
+          },
+          "target_family": {
+            "type": "string",
+            "example": "flux"
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-08-30 06:10:00"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "2026-08-30 06:10:05"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": null
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "task"
+        ]
+      },
+      "PromptDraft": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "draft_1a2b3c4d"
+          },
+          "job_id": {
+            "type": "string",
+            "example": "job_8f2b3e41"
+          },
+          "revision": {
+            "type": "integer",
+            "example": 1
+          },
+          "positive_prompt": {
+            "type": "string",
+            "example": "a hyperdetailed futuristic skyline at dusk, cinematic neon lighting"
+          },
+          "negative_prompt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "blurry, low quality"
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-08-30 06:10:05"
+          }
+        },
+        "required": [
+          "id",
+          "job_id",
+          "revision",
+          "positive_prompt"
+        ]
+      },
+      "DiagnosticsResponse": {
+        "type": "object",
+        "properties": {
+          "db_path": {
+            "type": "string",
+            "example": "F:/.../.comfy_meta_uploads/meta.db"
+          },
+          "folders": {
+            "type": "integer",
+            "example": 3
+          },
+          "images": {
+            "type": "integer",
+            "example": 342
+          },
+          "uploads": {
+            "type": "integer",
+            "example": 15
+          },
+          "thumbnail_count": {
+            "type": "integer",
+            "example": 342
+          },
+          "preview_count": {
+            "type": "integer",
+            "example": 28
+          },
+          "cutout_count": {
+            "type": "integer",
+            "example": 12
+          }
+        },
+        "required": [
+          "db_path",
+          "folders",
+          "images"
+        ]
+      }
+    }
+  }
+}

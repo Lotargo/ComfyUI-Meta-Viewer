@@ -76,20 +76,27 @@ After first run:
 ```
 comfy-meta-viewer/
 ├── .comfy_meta_uploads/
-│   ├── config.json      ← Saved source folders
-│   └── meta.db          ← Disposable SQLite index
+│   ├── config.json      <- Saved source folders
+│   └── meta.db          <- Disposable SQLite index
 ├── cache/
-│   ├── thumbnails/      ← Generated JPEG thumbnails
-│   └── cutouts/         ← Generated transparent PNGs
+│   ├── thumbnails/      <- Generated JPEG thumbnails
+│   ├── previews/        <- Generated high-res display previews
+│   └── cutouts/         <- Generated transparent PNGs
 ├── app/
-│   ├── main.py
-│   ├── database.py
-│   ├── extractor.py
-│   ├── cutout.py
-│   ├── schemas.py
-│   ├── templates/
-│   └── static/
-├── docs/
+│   ├── main.py          <- Flask application and routes
+│   ├── database.py      <- SQLite persistence and schemas
+│   ├── library.py       <- Virtual albums, favorites, filters
+│   ├── extractor.py     <- Metadata parsing (PNG/EXIF/ComfyUI)
+│   ├── cutout.py        <- Background removal
+│   ├── schemas.py       <- Pydantic request/response models
+│   ├── source_monitor.py<- Source observation and reconciliation
+│   ├── ai/              <- AI prompt compilation, adapters, and jobs
+│   ├── comfyui/         <- ComfyUI runtime and workflow editor
+│   ├── templates/       <- HTML templates
+│   └── static/          <- Frontend JS/CSS assets
+├── dev_docs/            <- Internal technical specifications and roadmap
+├── docs/                <- Technical documentation
+├── site/                <- Public website and interactive Scalar API portal
 ├── pyproject.toml
 ├── start.bat
 └── start.sh

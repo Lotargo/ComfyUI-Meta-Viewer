@@ -187,7 +187,7 @@ class SourceMonitoringTest(unittest.TestCase):
         ConfigStore(self.paths.config).add_source(self.source)
         result = self.index()
         monitor = self.start_monitor()
-        wait_until(lambda: db.get_folder_record(result.folder_id)["source_status"] == "available")
+        wait_until(lambda: monitor.is_idle(result.folder_id))
 
         monitor.update_source(result.folder_id, enabled=False)
         self.assertEqual(db.get_images_page(None).total, 0)
@@ -206,7 +206,7 @@ class SourceMonitoringTest(unittest.TestCase):
         ConfigStore(self.paths.config).add_source(self.source)
         result = self.index()
         monitor = self.start_monitor()
-        wait_until(lambda: db.get_folder_record(result.folder_id)["source_status"] == "available")
+        wait_until(lambda: monitor.is_idle(result.folder_id))
 
         offline = self.source.with_name("images-offline")
         self.source.rename(offline)
@@ -223,7 +223,7 @@ class SourceMonitoringTest(unittest.TestCase):
         ConfigStore(self.paths.config).add_source(self.source)
         result = self.index()
         monitor = self.start_monitor()
-        wait_until(lambda: db.get_folder_record(result.folder_id)["source_status"] == "available")
+        wait_until(lambda: monitor.is_idle(result.folder_id))
         self.make_image("burst.png")
 
         with patch(
@@ -250,7 +250,7 @@ class SourceMonitoringTest(unittest.TestCase):
         )
         self.monitor.start()
         source_id = db.get_source_records()[0]["id"]
-        wait_until(lambda: db.get_folder_record(source_id)["source_status"] == "available")
+        wait_until(lambda: self.monitor.is_idle(source_id))
 
         image = self.make_image("watched.png", size=(3, 3))
         wait_until(lambda: set(db.get_folder_file_stats(source_id)) == {"watched.png"})

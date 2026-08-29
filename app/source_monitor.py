@@ -113,11 +113,30 @@ class SourceMonitor:
         self._event_generations: dict[int, int] = {}
         self._watches: dict[int, Any] = {}
         self._watch_settings: dict[int, tuple[str, bool]] = {}
+        self._reconciling: set[int] = set()
+        self._reconcile_count = 0
         self._running = False
 
     @property
     def running(self) -> bool:
         return self._running
+
+    @property
+    def reconcile_count(self) -> int:
+        with self._lock:
+            return self._reconcile_count
+
+    def is_idle(self, source_id: int | None = None) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            if source_id is not None:
+                if source_id in self._reconciling or bool(self._forced_paths.get(source_id)):
+                    return False
+                due = self._due.get(source_id)
+                return due is None or due > now
+            if self._reconciling or any(self._forced_paths.values()):
+                return False
+            return all(due > now for due in self._due.values())
 
     def start(self) -> None:
         if self._running:
@@ -281,6 +300,7 @@ class SourceMonitor:
                 self._due.pop(source_id, None)
                 self._forced_paths.pop(source_id, None)
                 self._event_generations.pop(source_id, None)
+                self._reconciling.discard(source_id)
             db.update_source_state(source_id, "disabled")
         else:
             self.refresh_watches()
@@ -293,6 +313,7 @@ class SourceMonitor:
             self._due.pop(source_id, None)
             self._forced_paths.pop(source_id, None)
             self._event_generations.pop(source_id, None)
+            self._reconciling.discard(source_id)
 
     def source_added(self, settings: SourceSettings, source_id: int) -> None:
         db.upsert_source(
@@ -313,6 +334,7 @@ class SourceMonitor:
             if remaining > 0:
                 return None, min(0.5, remaining)
             self._due.pop(source_id, None)
+            self._reconciling.add(source_id)
             return source_id, 0.0
 
     def _run(self) -> None:
@@ -322,7 +344,12 @@ class SourceMonitor:
                 self._wake_event.wait(wait_time)
                 self._wake_event.clear()
                 continue
-            self._reconcile(source_id)
+            try:
+                self._reconcile(source_id)
+            finally:
+                with self._lock:
+                    self._reconciling.discard(source_id)
+                    self._reconcile_count += 1
 
     def _reschedule_retry(self, source_id: int) -> None:
         self.request_reconcile(source_id, delay=self.reconnect_interval)

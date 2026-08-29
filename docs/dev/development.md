@@ -2,7 +2,7 @@
 
 > Developer guide for ComfyUI Meta Viewer.
 
-This guide covers local setup, project structure, extension points, and manual testing.
+This guide covers local setup, project structure, extension points, API contract rules, and testing.
 
 ---
 
@@ -52,7 +52,7 @@ poetry run python -m app.main
 ComfyUI-Meta-Viewer/
 ├── app/                          # Python backend + frontend static assets
 │   ├── __init__.py
-│   ├── main.py                   # Flask routes and startup wiring
+│   ├── main.py                   # Core Flask routes and startup wiring
 │   ├── database.py               # SQLite operations
 │   ├── library.py                # Albums, favorites, tags, filters
 │   ├── extractor.py              # Metadata parsing
@@ -60,7 +60,12 @@ ComfyUI-Meta-Viewer/
 │   ├── schemas.py                # Pydantic models
 │   ├── source_monitor.py         # Watchers, debounce, reconnect, reconciliation
 │   ├── ai/                       # AI prompt compiler, provider adapters, durable jobs
-│   ├── comfyui/                  # ComfyUI runtime and workflow editor
+│   │   └── routes.py             # Public AI REST routes
+│   ├── comfyui/                  # ComfyUI runtime, Simple Mode, legacy editor
+│   │   ├── routes.py             # Public ComfyUI runtime routes
+│   │   ├── simple_routes.py      # Public Simple Mode routes
+│   │   └── editor_routes.py      # Legacy/internal workflow-editor routes
+│   ├── integrations/social/      # Social status/auth/publishing contract
 │   ├── static/
 │   │   ├── css/                  # Modular CSS
 │   │   └── js/                   # ES modules
@@ -68,7 +73,10 @@ ComfyUI-Meta-Viewer/
 ├── cache/                        # Generated thumbnails, previews, and cutouts
 ├── dev_docs/                     # Internal specifications and sprint roadmaps
 ├── docs/                         # Technical documentation
-├── site/                         # Public landing page and interactive Scalar API portal
+├── site/                         # Public landing page and Scalar API portal
+│   └── api/openapi.json          # Machine-readable public OpenAPI 3.1 contract
+├── tests/
+│   └── test_openapi_contract.py  # Public Flask route/OpenAPI drift gate
 ├── pyproject.toml                # Poetry project configuration
 ├── benchmark.bat                 # Windows benchmark launcher
 ├── benchmark.sh                  # Linux/macOS benchmark launcher
@@ -100,16 +108,34 @@ Default URL: `http://localhost:7860`.
 
 ## Adding an API Endpoint
 
-### 1. Add a route in `app/main.py`
+CMV treats `site/api/openapi.json` as the public machine-readable API contract. The detailed human reference lives in `docs/core/api.md`. Supported public routes and OpenAPI are checked for drift by `tests/test_openapi_contract.py` on every normal pytest/CI run.
+
+The supported public route modules are:
+
+- `app/main.py` - core media, folders, library, uploads, cutouts, diagnostics, and reset routes;
+- `app/ai/routes.py` - AI providers, prompt operations, jobs, resources, and ratings;
+- `app/comfyui/routes.py` - ComfyUI runtime lifecycle and configuration;
+- `app/comfyui/simple_routes.py` - Simple Mode model setup, generation, and run tracking;
+- `app/integrations/social/routes.py` - social capability/authentication/publishing contract.
+
+`app/comfyui/editor_routes.py` belongs to the pre-Simple-Mode workflow editor. Its `/api/editor/*` routes are intentionally legacy/internal and are excluded from the public OpenAPI coverage gate unless that product decision changes explicitly.
+
+### 1. Add the route to the owning public module
+
+Choose the module that owns the capability instead of putting every endpoint into `app/main.py`.
 
 ```python
-@app.route("/api/my-endpoint", methods=["POST"])
+@simple_blueprint.route("/api/simple/my-endpoint", methods=["POST"])
 def my_endpoint():
     data = request.get_json(silent=True) or {}
     return jsonify({"result": "ok", "input": data})
 ```
 
-### 2. Add a Pydantic model in `app/schemas.py` when useful
+Keep route handlers small and move reusable behavior into services/modules.
+
+### 2. Add request/response validation when useful
+
+Use Pydantic models for structured payloads or contracts with non-trivial validation.
 
 ```python
 class MyRequest(BaseModel):
@@ -119,11 +145,37 @@ class MyResponse(BaseModel):
     result: str
 ```
 
-### 3. Add a client wrapper in `app/static/js/api.js`
+### 3. Update the public OpenAPI contract
+
+Every new supported non-legacy `/api/*` method must be added to `site/api/openapi.json` with:
+
+- the exact normalized path (`<int:id>` in Flask becomes `{id}` in OpenAPI);
+- the HTTP method;
+- a useful `summary`;
+- at least one tag;
+- a unique `operationId`;
+- all path parameters declared with `in: path` and `required: true`;
+- request and important response schemas where they materially help API consumers.
+
+The Scalar portal at `site/api/index.html` reads this file directly.
+
+### 4. Update the detailed API reference
+
+Document behavior, edge cases, important response codes, and examples in `docs/core/api.md`.
+
+Keep the distinction clear:
+
+- `site/api/openapi.json` - supported public machine contract;
+- `docs/core/api.md` - detailed human reference and implementation notes;
+- `/api/editor/*` - legacy/internal unless explicitly promoted back into the public API.
+
+### 5. Add a frontend wrapper when the web UI consumes it
+
+If the browser UI calls the new endpoint, add or update the appropriate wrapper in `app/static/js/api.js` or the owning frontend module.
 
 ```javascript
 export async function myEndpoint(data) {
-    const res = await fetch("/api/my-endpoint", {
+    const res = await fetch("/api/simple/my-endpoint", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -133,9 +185,7 @@ export async function myEndpoint(data) {
 }
 ```
 
-### 4. Document the endpoint
-
-Update `docs/api.md` with request/response examples.
+An endpoint used only by external/local integrations does not need a frontend wrapper merely to satisfy the API contract.
 
 ---
 
@@ -175,10 +225,10 @@ The current frontend is plain ES modules. If TypeScript declarations are added l
 
 ### 1. Create a file in the relevant folder
 
-- UI components → `app/static/css/components/`
-- Feature-specific styles → `app/static/css/features/`
-- Layout styles → `app/static/css/layout/`
-- Base styles → `app/static/css/base/`
+- UI components -> `app/static/css/components/`
+- Feature-specific styles -> `app/static/css/features/`
+- Layout styles -> `app/static/css/layout/`
+- Base styles -> `app/static/css/base/`
 
 ### 2. Use CSS custom properties
 
@@ -229,17 +279,18 @@ Add the file to `app/templates/index.html` or to the appropriate CSS import path
 ### Automated Checks
 
 ```bash
-python -m unittest discover -s tests -v
+poetry run python -m pytest tests -q
 npm run test:preferences
 npm run lint
 ```
 
-The Python suite covers Flask/database/image-processing behavior. The Node test suite uses the built-in test runner for the versioned preference schema and state-persistence boundary. ESLint checks all frontend modules.
+The Python suite covers Flask/database/image-processing behavior and the public API contract. `tests/test_openapi_contract.py` statically reads route decorators from the supported public route modules and compares their normalized method/path pairs with `site/api/openapi.json`. It also checks Scalar navigation metadata, unique operation IDs, exact path-parameter declarations, and malformed component references.
 
-GitHub Actions runs the same checks on Windows, Ubuntu, and macOS. The path suite also
-verifies stable service directories, native directory scanning and watcher events, burst
-coalescing, reconnect behavior, Unicode and spaces, Windows/POSIX upload filenames, and
-that scanning does not write into a source folder.
+This makes API drift a CI failure: a new supported Flask route cannot silently appear without its OpenAPI entry, and a removed/renamed route cannot remain advertised in the public contract.
+
+The Node test suite uses the built-in test runner for the versioned preference schema and state-persistence boundary. ESLint checks all frontend modules.
+
+GitHub Actions runs the same checks on Windows, Ubuntu, and macOS. The path suite also verifies stable service directories, native directory scanning and watcher events, burst coalescing, reconnect behavior, Unicode and spaces, Windows/POSIX upload filenames, and that scanning does not write into a source folder.
 
 ### Manual Test Checklist
 
@@ -257,3 +308,4 @@ that scanning does not write into a source folder.
    - Keyboard shortcuts.
    - Reset flow.
    - Responsive layout.
+4. Open the Scalar API portal and spot-check any endpoint changed in the same patch.

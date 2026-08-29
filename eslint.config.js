@@ -14,6 +14,7 @@ export default [
     },
     rules: {
       // ── Основные ──────────────────────────────────────────
+      "no-empty": ["error", { "allowEmptyCatch": true }],
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
       "no-console": "off",
       "no-debugger": "warn",

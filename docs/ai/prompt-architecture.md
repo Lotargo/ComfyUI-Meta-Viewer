@@ -113,5 +113,5 @@ malformed results, persistence, and failure state. Export tests verify that ever
 identical reference hashes and byte-exact family bases.
 
 Real-provider smoke calls remain explicit because free providers can be overloaded or temporarily
-unavailable. See [OpenCode smoke testing](ai-opencode-smoke-testing.md) and
-[AI smoke testing](ai-smoke-testing.md).
+unavailable. See [OpenCode smoke testing](opencode-smoke-testing.md) and
+[AI smoke testing](smoke-testing.md).

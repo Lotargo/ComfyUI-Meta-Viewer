@@ -1,64 +1,78 @@
-# Documentation
+# Documentation Index
 
-> Documentation index for ComfyUI Meta Viewer.
+> Central technical documentation for ComfyUI Meta Viewer (CMV).
 
-This folder contains the public documentation for the project: architecture, API behavior, feature overview, configuration, and development guides.
+This directory contains the public technical and architectural documentation of the project. For the public landing website, see [`site/`](../site/). For sprint planning and historical notes, see [`dev_docs/`](../dev_docs/).
 
 ---
 
-## Core Documentation
+## 🏛️ Core Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Architecture](architecture.md) | System overview, data flow, storage model, and extension points |
-| [Simple Mode Redesign](simple-mode-redesign.md) | Target UX, verified-profile model, AI-assisted generation flow, migration rules, and legacy-backend policy for the new simplified Create experience |
-| [API Reference](api.md) | Current REST API routes with request/response examples |
-| [Features](features.md) | User-facing features and implementation notes |
-| [Configuration](configuration.md) | Environment variables, local paths, file support, and CLI flags |
+| [Architecture](core/architecture.md) | System overview, data flow, SQLite storage model, and extension points |
+| [API Reference](core/api.md) | Current REST API routes with request/response schemas and examples |
+| [Features](core/features.md) | User-facing capabilities, keyboard shortcuts, and UI interactions |
+| [Configuration](core/configuration.md) | Environment variables, local directories, file support, and CLI flags |
+| [Installation](core/installation.md) | Installation options, requirements, and startup scripts |
 
 ---
 
-## Development Documentation
+## 💻 Development & Engineering
 
 | Document | Description |
 |----------|-------------|
-| [Development](development.md) | Local setup, project structure, contribution workflow, and testing checklist |
-| [JavaScript Architecture](js-architecture.md) | Frontend ES module structure, state, API client, and feature modules |
-| [CSS Architecture](css-architecture.md) | Styling structure, custom properties, naming rules, and extension guidelines |
-| [AI Prompt Architecture](ai-prompt-architecture.md) | Prompt profiles, compilation, backend routing, durable jobs, and agent-host exports |
+| [Development Guide](dev/development.md) | Local setup, project structure, contribution workflow, and testing checklist |
+| [JavaScript Architecture](dev/js-architecture.md) | Frontend ES module structure, state management, API client, and feature modules |
+| [CSS Architecture](dev/css-architecture.md) | Styling design system, custom CSS properties, naming conventions, and layout tokens |
 
 ---
 
-## Internal Development Notes
+## 🧠 AI Subsystem & Prompt Architecture
 
-The `dev_docs/` folder contains planning notes and sprint documents. These files are kept as historical development context and may not always match the current public documentation.
-
-| Document | Status |
-|----------|--------|
-| [Refactor Plan](../dev_docs/plan.md) | Archived planning note |
-| [UI Redesign Sprint](../dev_docs/sprint-redesign.md) | Completed sprint note |
-| [Object Cutout Sprint](../dev_docs/sprint-object-cutout.md) | Historical sprint note |
+| Document | Description |
+|----------|-------------|
+| [AI Prompt Architecture](ai/prompt-architecture.md) | Canonical instruction layers, deterministic compilation, execution routing, and durable AI jobs |
+| [Prompt Architecture Spec](ai/prompt-architecture-spec.md) | Comprehensive specification: profiles, operations, scenarios, modifiers, and contracts |
+| [Intent Benchmark](ai/intent-benchmark.md) | Raw-intent prompt generation benchmarks and model-judge evaluation suite |
+| [OpenCode Smoke Testing](ai/opencode-smoke-testing.md) | Managed CLI agent execution, test scenarios, profiles, and reporting |
+| [AI Smoke Testing](ai/smoke-testing.md) | Provider verification, test suites, and diagnostic execution |
 
 ---
 
-## Quick Links
+## 🎨 Product & UX Design
+
+| Document | Description |
+|----------|-------------|
+| [Simple Mode Redesign](design/simple-mode-redesign.md) | Target UX, verified profile model, AI-assisted generation flow, and migration rules |
+
+---
+
+## 🗺️ Roadmaps & Internal Planning
+
+Active strategic plans and technical roadmaps are maintained in [`dev_docs/roadmap/`](../dev_docs/roadmap/README.md):
+
+| Area | Roadmap Reference | Status |
+|------|-------------------|--------|
+| **Core & Foundation** | [`dev_docs/roadmap/core/`](../dev_docs/roadmap/core/) | Cross-platform, Database reset, Source monitoring |
+| **Simple Mode** | [`dev_docs/roadmap/simple/`](../dev_docs/roadmap/simple/03_SIMPLE_MODE_MODEL_CALIBRATION.md) | Prompt generator, calibration of 8 base models |
+| **Advanced Mode** | [`dev_docs/roadmap/advanced/`](../dev_docs/roadmap/advanced/04_ADVANCED_MODE_AND_COMFYUI_INTEGRATION.md) | Embedded ComfyUI, Txt2Img, Img2Img, Studio |
+| **Social & Export** | [`dev_docs/roadmap/oauth/`](../dev_docs/roadmap/oauth/06_SOCIAL_EXPORT_PLAN.md) | Social OAuth, Telegram/VK/Instagram export |
+| **Desktop Packaging** | [`dev_docs/roadmap/desktop/`](../dev_docs/roadmap/desktop/07_DESKTOP_PACKAGING_AND_INSTALLERS.md) | Standalone cross-platform desktop installers |
+
+---
+
+## ⚡ Quick Links
 
 | Goal | Start Here |
 |------|------------|
-| Install and run the app | [Development > Setup](development.md#setup) |
-| Understand the system design | [Architecture](architecture.md) |
-| Understand the new simplified Create direction | [Simple Mode Redesign](simple-mode-redesign.md) |
-| Use or integrate with the REST API | [API Reference](api.md) |
-| Review user-facing capabilities | [Features](features.md) |
-| Change the port or storage path | [Configuration > Environment Variables](configuration.md#environment-variables) |
-| Add a new backend endpoint | [Development > Adding an API Endpoint](development.md#adding-an-api-endpoint) |
-| Add a frontend module | [JavaScript Architecture > Extension Guidelines](js-architecture.md#extension-guidelines) |
-| Add or organize styles | [CSS Architecture > Extension Guidelines](css-architecture.md#extension-guidelines) |
-
----
-
-## Notes
-
-- The root [`README.md`](../README.md) is the project landing page.
-- Files in this folder are intended to stay aligned with the current codebase.
-- Files in `dev_docs/` are allowed to be more historical or exploratory.
+| Install and run the app | [Installation](core/installation.md) &bull; [Development > Setup](dev/development.md#setup) |
+| Understand system design | [Architecture](core/architecture.md) |
+| Explore REST endpoints | [API Reference](core/api.md) |
+| Review keyboard shortcuts | [Features > Keyboard Shortcuts](core/features.md#keyboard-shortcuts) |
+| Configure storage or port | [Configuration](core/configuration.md#environment-variables) |
+| Add a backend endpoint | [Development > Adding an API Endpoint](dev/development.md#adding-an-api-endpoint) |
+| Add a frontend module | [JavaScript Architecture > Extension Guidelines](dev/js-architecture.md#extension-guidelines) |
+| Add or customize styles | [CSS Architecture > Extension Guidelines](dev/css-architecture.md#extension-guidelines) |
+| Inspect AI prompt pipeline | [AI Prompt Architecture](ai/prompt-architecture.md) |
+| Review Simple Mode spec | [Simple Mode Redesign](design/simple-mode-redesign.md) |

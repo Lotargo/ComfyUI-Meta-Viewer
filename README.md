@@ -202,7 +202,7 @@ chmod +x benchmark.sh
 ./benchmark.sh list
 ```
 
-See [AI prompt architecture](docs/ai-prompt-architecture.md), [Prompt intent benchmarks](docs/ai-intent-benchmark.md), and [OpenCode smoke testing](docs/ai-opencode-smoke-testing.md) for the current execution model.
+See [AI prompt architecture](docs/ai/prompt-architecture.md), [Prompt intent benchmarks](docs/ai/intent-benchmark.md), and [OpenCode smoke testing](docs/ai/opencode-smoke-testing.md) for the current execution model.
 
 ---
 
@@ -335,17 +335,17 @@ The app will be available at **http://localhost:7860**
 
 | Document | Description |
 |----------|-------------|
-| [Architecture](docs/architecture.md) | System overview, data flow, database schema |
-| [API Reference](docs/api.md) | REST endpoints with examples |
-| [Features](docs/features.md) | Detailed feature descriptions |
-| [Configuration](docs/configuration.md) | Environment variables, paths, CLI flags |
-| [Development](docs/development.md) | Guide for contributors |
-| [JS Architecture](docs/js-architecture.md) | Frontend module structure |
-| [CSS Architecture](docs/css-architecture.md) | Styling system and custom properties |
-| [Prompt intent benchmarks](docs/ai-intent-benchmark.md) | Targeted raw-intent generation and model-judge evaluation |
-| [OpenCode smoke testing](docs/ai-opencode-smoke-testing.md) | Managed CLI execution, profiles, scenarios, and reports |
-| [AI prompt architecture](docs/ai-prompt-architecture.md) | Canonical profiles, compilation, execution routing, persistence, and skill export |
-| [Workflow editor API](docs/api.md#comfyui-runtime-and-workflow-editor) | Runtime control, templates, drafts, preflight, execution, results, and Remix |
+| [Architecture](docs/core/architecture.md) | System overview, data flow, database schema |
+| [API Reference](docs/core/api.md) | REST endpoints with examples |
+| [Features](docs/core/features.md) | Detailed feature descriptions |
+| [Configuration](docs/core/configuration.md) | Environment variables, paths, CLI flags |
+| [Development](docs/dev/development.md) | Guide for contributors |
+| [JS Architecture](docs/dev/js-architecture.md) | Frontend module structure |
+| [CSS Architecture](docs/dev/css-architecture.md) | Styling system and custom properties |
+| [Prompt intent benchmarks](docs/ai/intent-benchmark.md) | Targeted raw-intent generation and model-judge evaluation |
+| [OpenCode smoke testing](docs/ai/opencode-smoke-testing.md) | Managed CLI execution, profiles, scenarios, and reports |
+| [AI prompt architecture](docs/ai/prompt-architecture.md) | Canonical profiles, compilation, execution routing, persistence, and skill export |
+| [Workflow editor API](docs/core/api.md#comfyui-runtime-and-workflow-editor) | Runtime control, templates, drafts, preflight, execution, results, and Remix |
 
 ---
 
@@ -376,7 +376,7 @@ The app will be available at **http://localhost:7860**
 | `POST` | `/api/editor/drafts/{id}/run` | Queue a validated workflow in ComfyUI |
 | `POST` | `/api/editor/remix` | Create a manual workflow draft from a library asset |
 
-Full API documentation: [docs/api.md](docs/api.md)
+Full API documentation: [docs/core/api.md](docs/core/api.md)
 
 ---
 
@@ -395,7 +395,7 @@ Full API documentation: [docs/api.md](docs/api.md)
 | `D` | Toggle meta panel |
 | `S` | Toggle sidebar |
 
-Full shortcuts list: [docs/features.md#keyboard-shortcuts](docs/features.md#keyboard-shortcuts)
+Full shortcuts list: [docs/core/features.md#keyboard-shortcuts](docs/core/features.md#keyboard-shortcuts)
 
 ---
 
@@ -403,29 +403,32 @@ Full shortcuts list: [docs/features.md#keyboard-shortcuts](docs/features.md#keyb
 
 ```
 comfy-meta-viewer/
-├── app/
-│   ├── main.py              # Flask routes (21 endpoints)
+├── app/                     # Flask backend, AI layer & frontend SPA
+│   ├── ai/                  # Prompt compiler, provider adapters & skills
 │   ├── database.py          # SQLite operations
 │   ├── extractor.py         # Metadata parsing
 │   ├── cutout.py            # Background removal
 │   ├── schemas.py           # Pydantic models
-│   ├── static/
-│   │   ├── css/             # Modular CSS
-│   │   └── js/              # ES modules
-│   └── templates/
-│       └── index.html       # SPA entry
-├── docs/                    # Documentation
-├── dev_docs/                # Internal dev docs
+│   ├── static/              # Modular CSS & ES modules
+│   └── templates/           # SPA HTML shell
+├── site/                    # GitHub Pages landing website
+│   ├── index.html           # Landing page
+│   ├── site.css             # Landing styles
+│   └── assets/              # Showcase images & icons
+├── docs/                    # Technical documentation
+│   ├── core/                # Architecture, API, Features, Config, Install
+│   ├── dev/                 # Development, JS & CSS architecture guides
+│   ├── ai/                  # Prompt compiler specs & benchmark suites
+│   └── design/              # UI/UX design specifications
+├── dev_docs/                # Internal roadmap & sprint tracking
 ├── .comfy_meta_uploads/     # Saved sources + disposable SQLite index
 ├── cache/                   # Thumbnails + display previews + cutouts
-├── pyproject.toml           # Poetry config
-├── benchmark.bat            # Windows benchmark launcher
-├── benchmark.sh             # Linux/macOS benchmark launcher
-├── start.bat                # Windows launcher
-└── start.sh                 # Linux launcher
+├── pyproject.toml           # Poetry configuration
+├── start.bat / start.sh     # Application launchers
+└── benchmark.bat / .sh      # AI Benchmark launchers
 ```
 
-Full structure: [docs/architecture.md#directory-structure](docs/architecture.md#directory-structure)
+Full structure: [docs/core/architecture.md#directory-structure](docs/core/architecture.md#directory-structure)
 
 ---
 
@@ -438,27 +441,27 @@ Full structure: [docs/architecture.md#directory-structure](docs/architecture.md#
 | `COMFY_META_CACHE_DIR` | `cache` | Thumbnail, preview, and cutout cache directory |
 | `COMFY_META_UPLOAD` | — | Legacy alias for `COMFY_META_DATA_DIR` |
 
-Full configuration: [docs/configuration.md](docs/configuration.md)
+Full configuration: [docs/core/configuration.md](docs/core/configuration.md)
 
 ---
 
 ## Contributing
 
-See [Development Guide](docs/development.md) for setup instructions and code style.
+See [Development Guide](docs/dev/development.md) for setup instructions and code style.
 
 ### Adding a new API endpoint
 
 1. Add route in `app/main.py`
 2. Add Pydantic model in `app/schemas.py`
 3. Add client function in `app/static/js/api.js`
-4. Document in `docs/api.md`
+4. Document in `docs/core/api.md`
 
 ### Adding a new frontend feature
 
 1. Create module in `app/static/js/features/`
 2. Create styles in `app/static/css/features/`
 3. Import in `app.js`
-4. Document in `docs/features.md`
+4. Document in `docs/core/features.md`
 
 ---
 

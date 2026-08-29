@@ -51,7 +51,7 @@ def test_compile_simple_workflow_model_01():
     )
 
     ksampler = workflow["3"]["inputs"]
-    assert ksampler["steps"] == 32
+    assert ksampler["steps"] == 18
     assert ksampler["seed"] == 42
 
     latent = workflow["5"]["inputs"]

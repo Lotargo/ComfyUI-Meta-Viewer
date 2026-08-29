@@ -1,119 +1,58 @@
 # Development Roadmap
 
-Эта директория содержит архитектурные технические задания и подробную карту их интеграции в ComfyUI Meta Viewer.
+Эта директория содержит архитектурные технические задания, спецификации этапов и карту развития ComfyUI Meta Viewer.
 
-Проект перешёл из фазы добавления отдельных возможностей в фазу сложной продуктовой интеграции. Поэтому верхнеуровневого списка из нескольких галочек больше недостаточно: наличие backend-класса, API route или страницы ещё не означает, что пользовательский сценарий завершён и проверен.
+---
 
-## Основные документы
+## Навигация по дорожной карте
 
-- [Detailed execution roadmap](EXECUTION_PLAN.md) — текущая последовательность разработки, зависимости, gates и детализированные чеклисты.
-- [Workflow template and resource baseline](WORKFLOW_TEMPLATE_BASELINE.md) — проверенный снимок built-in templates, bindings и канонической resource taxonomy.
-- Документы `00–10` — архитектурные требования и критерии готовности отдельных подсистем.
+### 1. Core (Фундамент платформы)
 
-## Как теперь отмечается выполнение
+- [ ] **[00. Cross-platform foundation](core/00_CROSS_PLATFORM_FOUNDATION.md)**  
+  Кроссплатформенная поддержка (Windows, Linux, macOS), Unicode-пути, нативный диалог выбора директорий и платформозависимые действия.
 
-- `[x]` означает, что весь связанный документ реализован, интегрирован и проверен по его критериям готовности.
-- `[ ]` означает, что остаётся реализация, интеграция, практическая проверка или подтверждение на целевых окружениях.
-- Статус `implemented` в пояснении означает, что существенная часть кода уже существует, но верхнеуровневая задача пока не закрыта.
-- Детальный прогресс отмечается в [EXECUTION_PLAN.md](EXECUTION_PLAN.md), а не новой преждевременной галочкой в этом файле.
+- [x] **[01. Database and index reset](core/01_DATABASE_AND_INDEX_RESET.md)**  
+  Механизмы сброса индекса (Reset Index) и полного сброса настроек (Factory Reset) с сохранением пользовательских исходных медиафайлов.
 
-## Текущий критический путь
+- [ ] **[02. Source monitoring and cloud directories](core/02_SOURCE_MONITORING_AND_CLOUD_DIRECTORIES.md)**  
+  Наблюдение за файловыми изменениями (watcher + periodic reconcile), обработка облачных папок (Яндекс.Диск, Google Drive, OneDrive) и устойчивость к отключению дисков.
 
-1. Workflow template contracts и resource taxonomy.
-2. Базовые templates для разных способов загрузки моделей.
-3. Импорт, регистрация и управление пользовательскими workflows.
-4. Model compatibility, preflight и понятная диагностика ComfyUI errors.
-5. Интеграция Generate, Translate, Adapt, Reconstruct и Remix с editor drafts.
-6. Практические prompt и end-to-end проверки.
-7. Опциональный AI rating.
-8. **Приоритетные практические задачи**:
-   - Дополнительные типы Workflow Templates (Img2Img, Inpaint, ControlNet/Pose, Upscale, Video).
-   - UI Мастер локального добавления моделей (Phase 4.3).
-   - Расширение AI Agent Hosts (Claude Code, Antigravity CLI).
-9. **Desktop packaging**: создаётся в самую последнюю очередь только после завершения всех функциональных задач, проверок и явного одобрения пользователя.
+---
 
-## Общие принципы
+### 2. Simple Mode (Текущий этап)
 
-- Приложение остаётся локальным и однопользовательским.
-- Windows, Linux и macOS считаются равноправными целевыми платформами.
-- Физические файлы не перемещаются ради альбомов, избранного и другой виртуальной организации.
-- Облачные хранилища подключаются как обычные локальные директории, которыми управляет установленный desktop-клиент.
-- ComfyUI интегрируется через стандартные структуры установки, локальный процесс и его API.
-- Meta Viewer не пытается заменить ComfyUI Manager и не обещает запуск любого неизвестного model file.
-- Prompt scenario и workflow template являются разными сущностями.
-- AI-операции создают редактируемый draft и не запускают генерацию автоматически.
-- Основной editor остаётся простым; технические параметры раскрываются только при применимости или конкретной ошибке.
-- AI rating является отдельной опциональной функцией и не блокирует основной сценарий.
-- Для спорных или быстро меняющихся решений исполнитель сверяется с актуальными источниками и реальными API, а не полагается только на память модели.
+- [ ] **[03. Simple Mode - калибровка базовых моделей](simple/03_SIMPLE_MODE_MODEL_CALIBRATION.md)**  
+  Стартовые параметры, калибровка пресетов (`Быстро`, `Стандартно`, `Детально`), связки семплеров и шедулеров для восьми базовых моделей (Flux, SDXL, Pony, Anima, Krea 2, Chroma, Animagine, Illustrious).
 
-## Рабочий протокол для исполнителя
+---
 
-Эти правила действуют по умолчанию на протяжении работы над roadmap и не требуют повторного подтверждения пользователя:
+### 3. Advanced Mode & Studios (Следующий этап)
 
-- Исполнитель самостоятельно определяет логические границы коммитов и создаёт коммиты после завершения связного, проверенного среза. Незавершённые или не прошедшие обязательные проверки изменения не коммитятся как завершённый результат.
-- Исполнитель самостоятельно решает, когда для текущего gate нужен реальный запуск ComfyUI. Задачи runtime integration, workflow compatibility и end-to-end generation не отмечаются выполненными только по unit-тестам или анализу кода, если roadmap требует практической проверки.
-- Для реальных AI-проверок исполнитель самостоятельно выбирает подходящий уже настроенный LLM profile. Если существующие profiles не обеспечивают воспроизводимый или изолированный сценарий, исполнитель может создать отдельный test profile, не изменяя и не раскрывая сохранённые credentials без необходимости.
-- Browser automation используется только для простых, быстрых и узко ограниченных smoke checks, где результат можно однозначно подтвердить: страница открывается, ожидаемый control присутствует, короткое действие даёт ожидаемое состояние, отсутствует явная runtime error.
-- Browser automation не используется как замена полноценному визуальному QA, длительному исследованию интерфейса или исчерпывающей проверке всех пользовательских сценариев. Исполнитель не тратит значительный объём работы на browser-проверку, если доступные средства не позволяют надёжно увидеть и оценить весь результат.
-- Когда нужен детальный UI review — композиция, responsive behavior на нескольких размерах, визуальные дефекты, сложные interaction flows или субъективная оценка удобства — исполнитель подготавливает конкретный checklist и просит пользователя провести проверку. Полученные наблюдения фиксируются как evidence для соответствующего roadmap gate.
-- Невыполненная ручная UI-проверка явно остаётся pending и не маскируется успешными unit/API/browser smoke tests.
+- [ ] **[04. Advanced Mode and Embedded ComfyUI Integration](advanced/04_ADVANCED_MODE_AND_COMFYUI_INTEGRATION.md)**  
+  Расширенные генеративные сценарии (Txt2Img, Img2Img / Style Transfer, Inpaint / Outpaint, Hi-Res Fix / Face Detailer, IP-Adapter), встроенный Webview/Iframe веб-редактора ComfyUI и интерактивная доводка/экспорт Workflow JSON.
 
-## Status dashboard
+- [ ] **[05. Character and Environment Studio](advanced/05_CHARACTER_AND_ENVIRONMENT_STUDIO.md)**  
+  Студия сущностей для консистентных генераций: текстовые паспорта внешности и локаций, авто-декомпозиция через Vision LLM, слоты референсов FaceID/IP-Adapter, мульти-ракурсные карты окружений, композитор сцен, сквозная привязка метаданных (`character_id`, `environment_id`) и фильтрация в галерее.
 
-### Core
+---
 
-- [ ] [00. Cross-platform foundation](core/00_CROSS_PLATFORM_FOUNDATION.md)  
-  **Implemented; verification pending.** Нужна подтверждённая матрица Windows, Linux и macOS, включая Unicode paths, picker fallback и platform actions.
+### 4. Social & OAuth (Экспорт и соцсети)
 
-- [x] [01. Database and index reset](core/01_DATABASE_AND_INDEX_RESET.md)  
-  **Completed.** Физический reset, Factory Reset, отдельная конфигурация источников и повторная индексация реализованы.
+- [ ] **[06. Соцсети (Telegram / ВКонтакте / Instagram) и экспорт](oauth/06_SOCIAL_EXPORT_PLAN.md)**  
+  Авторизация (личные аккаунты Telegram MTProto, VK Implicit Flow, Instagram Private API), ручная публикация медиа-ассетов по кнопке, AI-постмейкер на основе легенды персонажа и связка с историей публикаций. Дополнительно: [Чеклист реализации](oauth/SOCIAL_EXPORT_CHECKLIST.md) и [Реестр решений](oauth/SOCIAL_EXPORT_DECISIONS.md).
 
-- [ ] [02. Source monitoring and cloud directories](core/02_SOURCE_MONITORING_AND_CLOUD_DIRECTORIES.md)  
-  **Implemented; stress verification pending.** Нужны реальные массовые sync/reconnect проверки, временно недоступные диски и длительная работа watcher/reconcile.
+---
 
-### Library
+### 5. Desktop (Финальная дистрибуция)
 
-- [x] [03. Media library, albums and favorites](library/03_MEDIA_LIBRARY_ALBUMS_AND_FAVORITES.md)  
-  **Completed.** Отдельная Library, albums, favorites, tags, notes, ratings, bulk actions и различимые виды удаления реализованы.
+- [ ] **[07. Desktop packaging and installers](desktop/07_DESKTOP_PACKAGING_AND_INSTALLERS.md)**  
+  Автономная сборка приложения с установщиками для Windows, Linux и macOS, запуск локального backend, управление процессом ComfyUI и безопасное хранение секретов (выполняется после завершения функциональных этапов).
 
-- [ ] [04. Unified media assets and video](library/04_UNIFIED_MEDIA_ASSETS_AND_VIDEO.md)  
-  **Implemented; media matrix pending.** Нужны проверки FFmpeg/no-FFmpeg, разных video containers, poster failures и сохранения virtual relations.
+---
 
-### AI
+## Общие принципы разработки
 
-- [ ] [05. AI provider layer](ai/05_AI_PROVIDER_LAYER.md)  
-  **Implemented; integration and environment verification pending.** Профили, Keyring/env credentials, CLI adapters и normalized errors существуют, но нужны реальные provider/OS checks и полное использование в editor operations.
-
-- [ ] [06. Prompt skills research](ai/06_PROMPT_SKILLS_RESEARCH.md)  
-  **Partially verified.** Базовые Flux-like, SDXL и Pony profiles существуют, но остаются operation benchmarks, multimodal tests, независимые SDXL/Pony проверки и checkpoint capability profiles.
-
-- [x] [06A. Prompt profile and agent execution architecture](ai/06A_PROMPT_PROFILE_AND_AGENT_EXECUTION_ARCHITECTURE.md)  
-  **Completed.** Compiler, contracts, persistence, direct и agent-host адаптеры интегрированы с editor drafts и замкнуты на единый PromptTask execution pipeline.
-
-- [x] [07. Translation, remix and AI ranking](ai/07_TRANSLATION_REMIX_AND_AI_RANKING.md)
-  **Completed.** Перевод, family-aware адаптация, реконструкция через SceneSpec, Remix и опциональный AI rating с nullable artistic rank, раздельными техническими статусами, глобальным/per-run opt-in, сохранёнными мультимодальными профилями, policy rejection safety и фильтрами библиотеки реализованы и проверены.
-
-### ComfyUI
-
-- [x] [08. Runtime integration and process control](comfyui/08_RUNTIME_INTEGRATION_AND_PROCESS_CONTROL.md)  
-  **Completed.** Распознавание Windows Portable / venv установок, генерация скриптов запуска, managed start/stop/restart, external mode, мониторинг здоровья, изоляция процессов и обработка ошибок проверены.
-
-- [x] [09. Workflow templates and editor](comfyui/09_WORKFLOW_TEMPLATES_AND_EDITOR.md)
-  **Completed.** Редактор, loader contracts, resource filtering, API/UI workflow registration, повторный remap, registry statuses, management table, duplicate/export и field-level runtime diagnostics реализованы. Built-in templates защищены от изменения, удаления и перекрытия user template с тем же ID.
-
-### Desktop
-
-- [ ] [10. Desktop packaging and installers](desktop/10_DESKTOP_PACKAGING_AND_INSTALLERS.md)  
-  **Deferred.** Начинается в самый последний момент после завершения всех функциональных фич, проверок и явного одобрения пользователя.
-
-## Ближайший рабочий срез
-
-Подробные пункты находятся в разделах `Current execution slice`, `Phase 2`, `Phase 3`, `Phase 4` и `Phase 6` файла [EXECUTION_PLAN.md](EXECUTION_PLAN.md).
-
-Основной фокус (приоритетные практические задачи):
-
-- [ ] Дополнительные типы Workflow Templates (Img2Img, Inpaint, ControlNet/Pose, Upscale, Video).
-- [ ] UI Мастер локального добавления и регистрации моделей (Phase 4.3).
-- [ ] Расширение AI Agent Hosts (Claude Code и Antigravity CLI adapters).
-
-Desktop packaging в текущий рабочий срез не входит и отложен до полного завершения функционала и прямого одобрения пользователя.
+1. **Локальность и приватность:** Приложение работает полностью локально и является однопользовательским.
+2. **Последовательность этапов:** Сначала полностью доводится и полируется **Simple Mode**, затем реализуются расширенные пайплайны **Advanced Mode**, студия сущностей и интеграции с соцсетями, и лишь в самом конце создаются desktop-установщики.
+3. **Сохранность файлов:** Исходные изображения и видео пользователя никогда не перемещаются и не изменяются ради виртуальной организации.
+4. **Устойчивость метаданных:** Метаданные генераций, паспорта персонажей и воркфлоу сохраняются независимо от пересоздания кэша эскизов.

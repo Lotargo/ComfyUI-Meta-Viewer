@@ -1,28 +1,64 @@
 # Operation: enhance
 
-Improve an existing prompt to fully express the user's stated wishes and the selected model family's style, without discarding the original creative intent.
+Surgically improve, refine, and elevate an existing prompt to satisfy user wishes and maximize target model fidelity without discarding the original creative intent.
 
-## Required behavior
+---
 
-1. Start from the source prompt and expand it so every user wish is concretely represented in the positive prompt.
-2. Strengthen detail, lighting, composition, and style vocabulary that the selected family and checkpoint profile handle well.
-3. Keep the subject, count, action, relationships, setting, framing, and requested text unchanged unless a wish explicitly modifies them.
-4. Preserve user-provided trigger words that belong to the selected checkpoint or extension.
-5. Never invent checkpoint trigger words or claim unsupported capabilities.
-6. Produce a complete negative prompt for families that use one (SDXL, Pony); keep the source negative prompt when it already fits, and leave it empty only for families that do not rely on it (Flux).
-7. If no wishes are provided, polish the source prompt while strictly preserving its meaning.
+## 1. Dual-Channel Execution Architecture
 
-## Failure patterns
+The agent operates in two strictly isolated channels:
 
-- rewriting the prompt into a different image than the source described;
-- dropping trusted trigger words or quality details;
-- copying a negative prompt from another family unchanged when it conflicts with the target family;
-- padding the prompt with generic filler instead of honoring the user's wishes;
-- treating enhancement as a full rewrite that loses the original scene.
+1. **INTERNAL CHANNEL (Reasoning in `<thinking>`, never emitted in final prompt):**
+   - Deconstruct the source prompt to isolate its existing foundation: subject, composition, wardrobe, lighting, environment, and style.
+   - Parse user-provided wishes as **surgical deltas** (wardrobe delta, lighting delta, composition delta, detail delta).
+   - Verify protected trigger words, LoRA invocations, and checkpoint tokens.
+   - Plan family-specific enhancements (Two-Tier budget for Flux, semantic CLIP chunks for SDXL, ordered booru chain for Pony).
+2. **EXTERNAL CHANNEL (The only emitted text):**
+   - Emit a single, clean, refined prompt adhering strictly to the target family base profile and scenario manifest.
+   - **Zero Meta-Leakage:** Never include delta logs, comparison notes, or internal reasoning in the emitted prompt.
 
-## Self-check
+---
 
-- Every stated wish maps to something in the final positive prompt.
-- The scene and subject match the source; only clarity and style changed.
-- The negative prompt matches the target family conventions.
-- The final response follows the output contract exactly.
+## 2. Surgical Delta Architecture
+
+Treat user wishes as targeted, non-destructive modifications applied to the source prompt:
+
+1. **Wardrobe Delta:** Apply specific garment adjustments (e.g., adding an outer jacket, adjusting cut lines, adding sheer fabric accents) while maintaining the baseline outfit structure.
+2. **Lighting & Atmosphere Delta:** Elevate key light direction, color temperature, volumetric fog, rim highlights, and ambient occlusion.
+3. **Composition & Optics Delta:** Refine camera angle (e.g., shifting to front 3/4 or low-angle), lens focal length (e.g., 85mm portrait prime), and natural depth-of-field falloff.
+4. **Micro-Texture & Surface Delta:** Replace vague terms with tactile material physics (e.g., skin pores with translucent SSS blush, brushed metal, woven silk, water reflections).
+5. **Pure Polish Mode (Zero Wishes Provided):** If no specific wishes are provided, polish the prompt's sensory clarity, lighting physics, and model-specific syntax while strictly locking 1:1 scene composition, subject identity, and environment.
+
+---
+
+## 3. Core Preservation Guardrails
+
+1. **Anti-Rewrite Guardrail:** Do not rewrite the prompt into a fundamentally different image. The subject count, core action, setting, mood, and intentional styling must remain intact unless a user wish explicitly alters them.
+2. **Trigger Word & LoRA Protection:**
+   - Always preserve user-provided trigger words, LoRA tokens (e.g. `<lora:name:weight>`), and checkpoint keywords verbatim.
+   - Never remove a recognized trigger word under the assumption that it is redundant.
+   - Never fabricate nonexistent trigger words or claim unsupported model capabilities.
+3. **Negative Prompt Strategy by Family:**
+   - **FLUX:** Enforce the **T5-XXL No-Negation Rule** — leave the negative prompt empty (`""`), achieving technical cleanliness through positive descriptive precision.
+   - **SDXL:** Construct or refine a concise, targeted negative prompt addressing specific artifacts, anatomical flaws, and style clashes.
+   - **PONY:** Ensure standard score-based negative boilerplate (`score_4, score_5, low quality...`) is present or maintain the existing negative tag chain.
+
+---
+
+## 4. Failure Patterns
+
+- Rewriting the prompt into an entirely new scene and discarding the source composition.
+- Dropping user-provided trigger words or LoRA invocation syntax.
+- Padding the prompt with generic quality buzzwords (`"hyperrealistic, 8k, masterpiece"`) instead of concrete visual enhancements.
+- Copying an SDXL negative prompt into Flux, violating the T5-XXL No-Negation rule.
+- Emitting meta-commentary, diff summaries, or markdown formatting outside the strict output contract.
+
+---
+
+## 5. Self-Check Checklist
+
+- [ ] Every user-provided wish is concretely represented in the enhanced positive prompt.
+- [ ] Baseline scene composition, subject identity, count, and action are preserved.
+- [ ] All checkpoint trigger words and LoRA tokens are preserved verbatim.
+- [ ] Negative prompt follows the target model family convention (empty for Flux, targeted for SDXL, booru score chain for Pony).
+- [ ] Output contains zero meta-commentary, formatted strictly per the target family output contract.

@@ -643,9 +643,9 @@ def simple_generate():
     online = ensure_comfyui_online(_config_store(), timeout=60.0)
     if not online:
         return jsonify({
-            "error": "Не удалось подключиться к ComfyUI или автоматически запустить его.",
+            "error": "Could not connect to or automatically start ComfyUI.",
             "code": "comfyui_connection_failed",
-            "suggestion": "ComfyUI не запущен и автоматический запуск не удался. Проверьте путь к ComfyUI в настройках (значок шестерёнки в шапке).",
+            "suggestion": "ComfyUI is not running and automatic startup failed. Check the ComfyUI path in settings using the gear icon in the header.",
         }), 503
 
     import uuid
@@ -672,13 +672,13 @@ def simple_generate():
         return jsonify({
             "error": f"ComfyUI rejected prompt: {exc}",
             "code": "comfyui_rejected",
-            "suggestion": "Проверьте, что ComfyUI запущен и компоненты выбранной модели установлены.",
+            "suggestion": "Make sure ComfyUI is running and the selected model components are installed.",
         }), 502
     except Exception as exc:
         return jsonify({
             "error": f"Connection error: {exc}",
             "code": "comfyui_connection_failed",
-            "suggestion": "Не удалось связаться с ComfyUI. Проверьте подключение и повторите.",
+            "suggestion": "Could not reach ComfyUI. Check the connection and try again.",
         }), 503
 
     run = wf_store.create_run(
@@ -791,7 +791,8 @@ def simple_assistant_chat():
             f"Selected user model: {profile.name} ({profile.technical_name}).\n"
             f"Prompt family: {profile.prompt_family.value}.\n"
             "Help refine composition, lighting, subject details and clarity. "
-            "Do not add generic quality buzzwords unless they are technically required by the model."
+            "Do not add generic quality buzzwords unless they are technically required by the model. "
+            "Return only the final positive image prompt, without explanations, labels, markdown, or a negative prompt."
         )
         messages = [{"role": "system", "content": system_prompt}]
         if current_prompt:

@@ -1,49 +1,72 @@
 # Scenario: product_object
 
-Use for one primary product, packaged item, prop, collectible, food item, device, bottle, or other object when its shape, material, branding, and presentation are the main visual subject.
+Use for one primary product, packaged item, prop, collectible, food item, electronic device, perfume bottle, or hero object when shape, material physics, branding, scale anchors, and commercial presentation are the main visual subjects.
 
-## Analysis
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — SCALE ANCHORS & DEVICE ALLOWLISTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Determine:
+1.1  PHYSICAL SCALE & DIMENSION ANCHORING
+     • Categorically avoid unanchored abstract scale adjectives (“huge”, “tiny”).
+     • State explicit physical dimensions or anchor scale against human anatomy:
+       - “a 100ml cylindrical amber glass perfume bottle, measuring 12cm in height, resting centered on a stone plinth”;
+       - “a tiny 3-inch lighter held lightly between thumb and forefinger”;
+       - “a colossal 85-inch ultra-thin display mounted flat against the dark wall”.
 
-- the primary object, its category, silhouette, proportions, orientation, and visible functional parts;
-- materials, surface finish, transparency, liquid, texture, wear, reflections, refractions, and edge highlights;
-- branding, label, typography, symbols, and other visible text that must remain legible;
-- camera height, angle, crop, lens look, and amount of negative space;
-- product placement, support surface, contact shadow, and physical grounding;
-- key, fill, rim, gradient, practical, and background light, including their visible effects on each material;
-- background, set pieces, colour relationships, and whether they support or distract from the product;
-- intended medium and commercial direction: catalogue, advertising, editorial still life, technical render, illustration, or another style.
+1.2  SMARTPHONE ALLOWLIST (RESTRICTED — USE ONLY THESE 6)
+     • When a smartphone is legibly identifiable, restrict brand naming strictly to:
+       `iPhone 15 Pro Max`, `iPhone 14 Pro`, `iPhone 13`, `Samsung Galaxy S23 Ultra`,
+       `Samsung Galaxy S22`, `Google Pixel 7 / Pixel 8`.
+     • Generic Fallback: If not legibly branded or covered by a case/hand, do NOT invent:
+       “modern black smartphone with triple-camera bump, flat metallic edges, 6.1-inch screen”.
 
-## Construction rules
+1.3  CAMERA POINTER ALLOWLIST
+     • When a professional camera is identifiable, prefer recognized priors:
+       `Canon EOS R5`, `Sony A7 IV`, `Nikon Z9`, `Leica M11`, `Fujifilm X-T4` (with “similar to…”);
+       otherwise describe physically: “compact mirrorless camera with large prime lens, matte black body”.
 
-1. Keep one unmistakable hero product unless the user explicitly requests a set or collection.
-2. Describe product identity, silhouette, orientation, and readable face before decorative set details.
-3. Translate abstract intent such as premium, clean, playful, technical, warm, or clinical into visible choices of materials, palette, light, surface, and composition.
-4. Describe reflections and highlights as controlled material behaviour. Do not hide the silhouette or label behind glare.
-5. Keep the object physically grounded with a support surface, believable contact shadow, suspension method, or another explicit spatial relationship.
-6. Preserve requested branding and text exactly. Do not invent brand names, label copy, claims, or packaging text.
-7. Use camera and lens language only when it improves scale, proportion, or commercial presentation.
-8. Keep background objects subordinate. Props must support the product story rather than compete with the hero object.
-9. For transparent or reflective products, distinguish the container, contents, cap, fittings, label, and background seen through the material.
-10. Avoid generic praise. Define what makes the presentation premium, clean, warm, dramatic, minimal, or technical.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — MATERIAL PHYSICS & COMMERCIAL LIGHTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## Good pattern
+2.1  REFLECTIONS, REFRACTIONS & LIQUIDS
+     • Describe reflections and highlights as controlled material behaviour.
+     • For glass, cosmetics, and liquids: distinguish container geometry, liquid meniscus,
+       opacity/translucency, metallic cap, and background seen through the transparent material.
+     • Do not obscure the readable product face or label behind excessive glare.
 
+2.2  COMMERCIAL STUDIO ART DIRECTION
+     • Studio Lighting: balanced softbox key light, subtle edge rim light, gradient fill,
+       grounded ambient occlusion contact shadows on the supporting plinth or tabletop.
+     • Clean separation: distinct negative space, pristine seamless studio sweep or architectural stone plinth.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — CONSTRUCTION RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Keep one unmistakable hero product unless a collection is explicitly requested.
+2. Describe product identity, silhouette, orientation, and readable product face before set details.
+3. Translate abstract intent (premium, clinical, organic, minimal) into visible choices of materials,
+   palette, light, and studio composition.
+4. Maintain controlled material behaviour: specular highlights, matte textures, glass refractions.
+5. Keep the object physically grounded with a support surface, believable contact shadow, or suspension.
+6. Preserve requested branding and text exactly without inventing unrequested marketing copy.
+7. Keep background objects and props strictly subordinate to the hero product.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — PATTERNS & SELF-CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GOOD PATTERN:
 `hero product identity + silhouette and orientation + visible branding + materials and contents + placement and grounding + camera strategy + controlled light and reflections + restrained set/background + commercial medium and mood`
 
-## Bad pattern
-
+BAD PATTERN:
 `masterpiece, luxury product, beautiful bottle, perfect reflections, 8k, cinematic, best quality, premium background`
 
-The bad pattern names quality but does not define the product shape, readable face, material response, placement, light behaviour, or advertising composition.
-
-## Self-check
-
-- One primary product is immediately identifiable.
+SELF-CHECK:
+- Scenario: product_object is applied to one primary hero product.
 - Shape, orientation, and readable product face are explicit.
-- Materials, transparency, reflections, and contents are physically coherent.
-- Lighting describes direction and visible material effects.
-- The product is grounded and separated from the background.
-- Branding or visible text is preserved without invented copy.
-- Props and background remain subordinate to the hero product.
+- Materials, transparency, reflections, and contents show controlled material behaviour.
+- Lighting describes direction and visible material highlights with grounded contact shadows.
+- Dimensions and scale anchors prevent proportion distortion.
+- Branding is preserved verbatim without invented claims or text.

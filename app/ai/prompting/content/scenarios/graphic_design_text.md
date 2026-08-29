@@ -1,59 +1,95 @@
-# Scenario: graphic design and visible text
+# Scenario: graphic_design_text (Typography & Graphic Design Engine)
 
-Use for posters, covers, packaging, labels, cards, simple advertising layouts, booklet covers, and other images where typography is a central visual object.
+Use for posters, covers, packaging, labels, cards, commercial advertising layouts, booklet covers, and images where typography and graphic layout are central visual objects.
 
-## Capability boundary
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — CAPABILITY BOUNDARY & REALISTIC TEXT BUDGET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Text rendering is model- and checkpoint-dependent. A strong prompt can improve layout and wording, but it cannot guarantee perfect spelling. Keep the result editable and do not claim deterministic typography.
+Text rendering is model- and checkpoint-dependent. A strong prompt can improve layout, letterforms, and casing, but do not claim deterministic typography.
 
-For the first budget-oriented implementation:
+• Practical Text Budget:
+  - Prefer one short headline and at most one or two short secondary text blocks.
+  - Quote every exact text block with explicit casing and font hints.
+  - Treat large paragraphs, dense tables, and booklet interiors as separate post-processing passes.
 
-- prefer one short headline and at most one or two short secondary text blocks;
-- treat larger bodies of copy, paragraphs, tables, and dense booklet interiors as experimental;
-- recommend separate layout or editing passes when exact long-form text matters.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — TWO-ZONE TEXT SPLIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-This is a project heuristic, not a universal model token limit.
+2.1  IN-SCENE TEXT (PHYSICAL OBJECTS — ALWAYS PRESERVE)
+     • Physical inscriptions embedded on objects inside the world: prints on clothing,
+       storefront signage, license plates, vehicle decals, product labels, mug inscriptions,
+       street posters.
+     • Transcribe verbatim with casing, language, and physical material hints.
 
-## Analysis
+2.2  GRAPHIC DESIGN OVERLAYS (ARTISTIC — ON EXPLICIT REQUEST)
+     • Brand logos, advertising slogans, poster plaques, magazine mastheads, platform badges.
+     • Rendered on explicit user request or when creating a poster/packaging layout.
 
-Determine:
+2.3  SCREENSHOT TECHNICAL GARBAGE (OMIT VIA SILENCE)
+     • Technical artifacts (player buttons, scrub bars, subtitles, URL bars, OS chrome)
+       are completely ignored and omitted through complete silence (T5 No-Negation rule).
 
-- exact visible wording, including case, punctuation, and line breaks;
-- which text is mandatory and which is decorative;
-- hierarchy: headline, subtitle, label, caption, callout;
-- placement, alignment, margins, and reading order;
-- font category and visible letter treatment without inventing a specific licensed font;
-- text colour, contrast, material, embossing, glow, print, or screen treatment;
-- background complexity behind each text block;
-- relationship between text, product, illustration, logo-like mark, and empty space;
-- output format and aspect ratio when supplied.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — FLUX & KREA STRICT SYNTAX RULES (ANTI-ERROR)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## Construction rules
+3.1  BAN ON TECHNICAL SEPARATORS INSIDE QUOTES
+     • Categorically FORBIDDEN to use `//`, `|`, `_`, or `#` inside quoted text strings.
+     • Incorrect: `"BRAND // PREMIUM"`
+     • Correct: `"BRAND" on the left and "PREMIUM" on the right in bold sans-serif lettering`.
+
+3.2  MANDATORY CASING CONTROL (CASING LOCK)
+     • For every textual element, explicitly specify the casing rule:
+       - `strictly in ALL CAPS` (all uppercase)
+       - `strictly in lowercase` (all lowercase)
+       - `Title Case` (initial capitalization)
+
+3.3  PRECISE CANVAS POSITIONING & BODY PROTECTION
+     • Always specify exact canvas coordinates:
+       `positioned near the top-center border`, `aligned to the lower-right margin`,
+       `anchored to the bottom edge`.
+     • Body Protection Guardrail (CRITICAL):
+       To prevent text overlapping the character's face or body, append:
+       “rendered strictly on the background, completely clear of the character's body and face”.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — FONTS, MATERIALS & EFFECTS LIBRARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Font Categorization Hints:
+  - `thin, elegant, high-contrast serif typeface, similar to Didot` (luxury/fashion)
+  - `bold, clean, condensed sans-serif typeface, similar to Helvetica` (modern/industrial/sport)
+  - `fluid retro cursive neon script` (neon/retro bar)
+  - `heavy, distressed gothic typeface with cracked texture` (grunge/metal)
+
+• Material & Graphic Effects:
+  - `neon glow with a soft cyan light aura`
+  - `embossed gold metallic foil with subtle specular highlights`
+  - `semi-translucent white with 50% opacity`
+  - `enclosed inside a bright, rounded orange-yellow rectangular badge`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — CONSTRUCTION RULES & PATTERNS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. Quote every exact text block.
-2. Describe each block separately with placement and hierarchy.
+2. Describe each block separately with placement and hierarchy (headline, subtitle, callout).
 3. Keep mandatory wording short and visually separated.
-4. Reserve clean negative space behind critical text.
+4. Reserve clean negative space behind critical text blocks.
 5. State reading order and alignment when layout matters.
-6. Do not ask the model to invent legal copy, addresses, prices, specifications, or long paragraphs.
-7. If the source image contains uncertain text, preserve uncertainty rather than replacing it with plausible advertising copy.
-8. For a booklet, distinguish cover generation from interior page layout. A cover may be generated as one image; text-heavy interior pages should use a later editing or compositing stage.
+6. Do not ask the model to invent legal copy, addresses, prices, or paragraphs.
+7. For a booklet, distinguish cover generation from interior page layout.
 
-## Good pattern
+GOOD PATTERN:
+`vertical perfume poster, bottle centered in the lower half, exact headline "LUMIERE" at the top in widely spaced elegant serif lettering strictly in ALL CAPS, short subtitle "EAU DE PARFUM" below it, Reserve clean negative space, warm beige background, soft gold edge light, one short headline, do not claim deterministic typography`
 
-`vertical perfume poster, bottle centered in the lower half, exact headline "LUMIERE" at the top in widely spaced elegant serif lettering, short subtitle "EAU DE PARFUM" below it, generous empty space, warm beige background, soft gold edge light, no other text`
+BAD PATTERN:
+`luxury perfume ad with lots of marketing copy, website URL, price, slogan, beautiful typography`
 
-## Bad pattern
-
-`luxury perfume ad with lots of elegant marketing text, ingredients, price, slogan, website, product description, beautiful typography`
-
-The bad pattern does not define exact wording, hierarchy, placement, or a realistic text budget.
-
-## Self-check
-
-- Every mandatory text block is quoted exactly.
-- No unrequested copy was invented.
-- Headline, secondary text, placement, and reading order are clear.
-- Critical text has simple visual space behind it.
-- The amount of text matches the target model's tested capability.
-- Long-form exact copy is deferred to editing when necessary.
+SELF-CHECK:
+- Every mandatory text block is quoted exactly with casing specified.
+- Headline, secondary text, placement and hierarchy, and reading order are clear.
+- Critical text has simple negative space behind it, completely clear of character bodies.
+- Separators `//`, `|`, `_`, `#` are not placed inside quoted text.

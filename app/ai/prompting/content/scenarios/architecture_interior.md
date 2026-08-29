@@ -1,48 +1,70 @@
 # Scenario: architecture_interior
 
-Use for buildings, rooms, designed spaces, façades, and interior or exterior architectural views where geometry, circulation, materials, scale, and light define the main subject.
+Use for buildings, designed rooms, façades, urban spaces, and architectural views where geometry, circulation, structural rhythm, materials, scale, and lighting define the main subject.
 
-## Analysis
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — 3-TIER GEOLOCATION & ARCHITECTURAL PRIORS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Determine:
+1.1  REAL-WORLD ANCHORING TIERS
+     • Tier 1 (Identifiable Landmark / City):
+       If the space is a known architectural work or distinct city landmark, state it verbatim
+       with a strong dataset prior (e.g., “Bolshoi Theatre in Moscow”, “modern museum in Tokyo”).
+     • Tier 2 (Regional Typology Prior):
+       If location is generic but stylistically distinct, anchor with a strong regional architectural prior:
+       “a quiet cobblestone street similar to central Prague”, “modern loft apartment with Scandinavian oak joinery”,
+       “Parisian Haussmann apartment with high ceilings, ornate mouldings, and chevron oak parquet”.
+     • Tier 3 (Interior Fragment / Close Crop):
+       If only a room fragment or tight interior corner is shown, describe surface materials and layout
+       strictly without forcing an arbitrary geolocation.
 
-- the space or building type, use, architectural language, age, and condition;
-- primary volumes, floor plan cues, ceiling height, structural rhythm, openings, and built-in elements;
-- camera position, eye height, view direction, lens character, crop, horizon, and vanishing-point behaviour;
-- foreground, middle ground, background, circulation paths, thresholds, and connections between zones;
-- material ownership for floors, walls, ceilings, structure, glazing, furniture, and fixtures;
-- natural and artificial light sources, time of day, direction, colour temperature, reflections, and shadow behaviour;
-- human-scale references, accessibility, furniture clearances, and believable object dimensions;
-- intended medium: architectural photography, visualisation, concept art, drawing, painting, or another style.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — STRUCTURAL ZONING, CIRCULATION & OPTICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## Construction rules
+2.1  SPATIAL VOLUME & ZONING
+     • Establish space type and purpose, architectural volume and zoning, ceiling heights,
+       and structural rhythm before introducing furniture or decor.
+     • Keep circulation paths, doorways, thresholds, and stairs open and physically plausible.
 
-1. Establish the space type, main volume, camera position, and spatial hierarchy before decorative objects.
-2. Keep perspective coherent. Do not combine incompatible viewpoints, horizons, room layouts, or vanishing directions.
-3. Describe how zones connect through aisles, thresholds, stairs, openings, or changes in level rather than listing rooms independently.
-4. Assign each material to a specific architectural surface or object. Avoid ungrounded lists of wood, stone, glass, and metal.
-5. Translate abstract intent such as calm, warm, functional, monumental, intimate, or clinical into visible layout, scale, palette, materials, light, and density.
-6. Name each important light source and its visible effect on surfaces, depth, and circulation.
-7. Preserve functional clearances and believable scale. Doors, stairs, shelves, seating, fixtures, and people must fit the same space.
-8. Keep furniture and props subordinate to the architecture unless interior styling is the explicit subject.
-9. Use people only as scale references or requested occupants. Do not let incidental figures become the focal subject.
-10. Avoid impossible construction, floating furniture, blocked circulation, duplicated openings, and contradictory indoor or outdoor cues.
+2.2  ARCHITECTURAL OPTICS & CAMERA
+     • Architectural wide-angle perspective (24mm–28mm equivalent), straight vertical lines,
+       coherent vanishing points, eye-level or slightly elevated viewpoint without extreme fish-eye distortion.
 
-## Good pattern
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — SURFACE MATERIALS & LIGHTING PHYSICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+3.1  SURFACE-SPECIFIC MATERIALS
+     • Assign surface-specific materials directly to architectural planes:
+       - Floors: honed travertine tiles, polished concrete, chevron hardwood parquet, terrazzo.
+       - Walls: smooth lime plaster, board-formed concrete, floor-to-ceiling fluted glass, timber slats.
+       - Ceilings: exposed timber beams, recessed cove lighting, acoustic felt panels.
+
+3.2  DAYLIGHT & AMBIENT OCCLUSION
+     • Balance motivated daylight pouring through large window apertures with soft artificial accent lighting.
+     • Natural ambient occlusion in structural corners and beneath furniture for realistic grounding.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — CONSTRUCTION RULES & PATTERNS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Establish space type and purpose, main volume, and spatial hierarchy before decorative accessories.
+2. Keep perspective coherent: avoid conflicting vanishing directions, impossible room layouts, or floating items.
+3. Describe how zones connect through circulation paths, doorways, corridors, or split levels.
+4. Assign surface-specific materials to explicit structural surfaces.
+5. Translate abstract moods (calm, monumental, airy, industrial) into visible proportions, palette, and materials.
+6. Preserve functional clearances and believable scale: doors, stairs, furniture, and fixtures share consistent dimensions.
+7. Use human figures only for scale references or requested occupancy, never overpowering the architecture.
+
+GOOD PATTERN:
 `space type and purpose + architectural volume and zoning + camera and coherent perspective + circulation and depth + surface-specific materials + motivated daylight and artificial light + human scale + restrained furnishings + medium and atmosphere`
 
-## Bad pattern
-
+BAD PATTERN:
 `masterpiece interior, beautiful architecture, perfect room, luxury materials, cinematic lighting, 8k, best quality`
 
-The bad pattern praises the image but does not define layout, viewpoint, circulation, material placement, scale, or light behaviour.
-
-## Self-check
-
-- Space type, purpose, primary volume, and zone hierarchy are clear.
-- Camera position, horizon, verticals, and depth cues form one coherent view.
-- Circulation paths and thresholds remain open and physically plausible.
-- Materials belong to explicit surfaces and respond consistently to light.
-- Furniture, openings, fixtures, and people share believable scale.
-- Lighting identifies sources and visible effects across the space.
+SELF-CHECK:
+- Space type and purpose, primary architectural volume and zoning are immediately clear.
+- Camera position, vertical lines, and vanishing points create a coherent view.
+- Surface-specific materials belong to explicit surfaces and respond naturally to light.
+- Circulation paths, openings, and functional clearances remain physically plausible.

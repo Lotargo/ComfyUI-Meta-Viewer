@@ -1283,7 +1283,6 @@ _NOCTURNAL_GRAPHIC_INTENT = (
     "полуноч", "после заката", "тёмная атмосфера",
 )
 
-
 _PRODUCT_CORE = {
     "perfume_bottle": (
         "perfume bottle",
@@ -1405,6 +1404,103 @@ _WARM_INTENT = (
     "янтар",
     "золотист",
     "медов",
+)
+
+_MULTI_CHARACTER_CORE = {
+    "two_characters": (
+        "two characters",
+        "two people",
+        "two women",
+        "two men",
+        "man and woman",
+        "two adults",
+        "duo",
+        "pair",
+        "два персонажа",
+        "двое",
+        "двумя персонажами",
+        "мужчиной и женщиной",
+        "пара",
+    ),
+    "investigators": (
+        "investigator",
+        "investigators",
+        "detective",
+        "detectives",
+        "agents",
+        "officers",
+        "сыщик",
+        "сыщика",
+        "сыщиками",
+        "детектив",
+        "детективы",
+    ),
+    "office_room": (
+        "office",
+        "study",
+        "room",
+        "table",
+        "desk",
+        "interior",
+        "кабинет",
+        "кабинете",
+        "стол",
+        "столом",
+    ),
+}
+
+_MULTI_CHARACTER_SPATIAL = _CAMERA_MARKERS + (
+    "on the left",
+    "on the right",
+    "left side",
+    "right side",
+    "seated across",
+    "standing beside",
+    "side-by-side",
+    "foreground and background",
+    "spatial separation",
+    "слева",
+    "справа",
+    "напротив",
+    "рядом",
+)
+
+_MULTI_CHARACTER_ATTRIBUTES = (
+    "distinct",
+    "different hair",
+    "contrasting",
+    "individual",
+    "tailored coat",
+    "trench coat",
+    "suit jacket",
+    "blouse",
+    "shirt",
+    "facial structure",
+    "build",
+    "разный",
+    "индивидуальн",
+    "пальто",
+    "пиджак",
+    "рубашка",
+    "черты лица",
+)
+
+_MULTI_CHARACTER_INTERACTION = (
+    "looking at",
+    "glancing",
+    "studying",
+    "examining documents",
+    "leaning forward",
+    "holding",
+    "gaze",
+    "silent tension",
+    "conversing",
+    "смотрит",
+    "изучает",
+    "склонившись",
+    "держит",
+    "взгляд",
+    "диалог",
 )
 
 
@@ -1852,6 +1948,72 @@ BENCHMARKS: dict[str, IntentBenchmark] = {
                 "без лишних деталей",
             ),
             "warm": _WARM_INTENT,
+        },
+    ),
+    "flux-multi-character-intent-basic": IntentBenchmark(
+        benchmark_id="flux-multi-character-intent-basic",
+        title="Short human multi-character intent",
+        description=(
+            "Measures whether the model can turn a short Russian two-character request into "
+            "a coherent, spatially separated FLUX multi-character prompt with distinct identities."
+        ),
+        task=PromptTask(
+            family=PromptFamily.FLUX,
+            operation=PromptOperation.GENERATE,
+            scenario=PromptScenario.MULTI_CHARACTER,
+            modifiers=(PromptModifier.SAFE,),
+            checkpoint_profile="flux-intent-benchmark-v3-multi-character",
+        ),
+        input_text=(
+            "Нарисуй сцену с двумя персонажами — двумя взрослыми сыщиками (мужчиной и женщиной) "
+            "в полутемном кабинете за деревянным столом. Образ должен быть кинематографичным, собранным и напряженным."
+        ),
+        core_groups=_MULTI_CHARACTER_CORE,
+        coverage_rules=(
+            _rule("spatial_anchoring", "Spatial separation and character anchoring", _MULTI_CHARACTER_SPATIAL, 8),
+            _rule("character_attributes", "Distinct attire, hair, and physical attributes", _MULTI_CHARACTER_ATTRIBUTES, 8),
+            _rule("character_interaction", "Interaction, shared action, or gaze dynamics", _MULTI_CHARACTER_INTERACTION, 8),
+            _rule("invented_lighting", "Motivated lighting and mood", _LIGHTING_MARKERS, 8),
+            _rule("depth_and_environment", "Room geometry and depth planes", _DEPTH_COLOUR_MEDIUM_MARKERS, 6),
+        ),
+        expansion_groups={
+            "spatial": _MULTI_CHARACTER_SPATIAL,
+            "attributes": _MULTI_CHARACTER_ATTRIBUTES,
+            "interaction": _MULTI_CHARACTER_INTERACTION,
+            "lighting": _LIGHTING_MARKERS,
+            "depth_colour_medium": _DEPTH_COLOUR_MEDIUM_MARKERS,
+        },
+        required_intents={
+            "cinematic": (
+                "cinematic",
+                "atmospheric",
+                "dramatic",
+                "moody",
+                "film still",
+                "кинематографич",
+                "атмосферн",
+                "драматич",
+            ),
+            "focused_composed": (
+                "focused",
+                "composed",
+                "serious",
+                "intent",
+                "concentrated",
+                "собран",
+                "сосредоточен",
+                "серьёзн",
+            ),
+            "tense": (
+                "tense",
+                "tension",
+                "subtle tension",
+                "suspense",
+                "investigative",
+                "напряжен",
+                "напряжён",
+                "интриг",
+            ),
         },
     ),
 }

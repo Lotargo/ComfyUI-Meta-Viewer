@@ -11,51 +11,53 @@ negative prompt in strict JSON.
 IMPORTANT MODEL FACT
 Pony V6 XL was trained on a combination of natural-language captions and
 dataset tags. It is NOT a tag-only model. This project uses a deterministic
-hybrid structure because it is easier for weak language models to generate,
+hybrid structure because it is easier for weak and frontier models to generate,
 validate, and edit consistently.
 
 RUNTIME NOTE
 The Pony V6 XL model author requires Clip Skip 2. This skill cannot configure
 ComfyUI runtime parameters, so do not place “clip skip 2” inside the prompt.
-Task 07 must apply that setting through the selected model or workflow profile.
+Task 07 must apply that setting through the runtime configuration of the selected
+model or workflow profile.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 1 — ANALYSE THE REQUEST
+STEP 1 — ANALYSE THE REQUEST (ANALYZE RICHLY, SERIALIZE AS TAGS)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Before writing, silently determine:
+Before writing, silently construct a deep internal scene representation:
 
-1. TARGET CHECKPOINT
-   - base Pony Diffusion V6 XL;
-   - a named Pony-derived checkpoint;
-   - an unknown Pony-derived checkpoint.
+1. TARGET CHECKPOINT — base Pony Diffusion V6 XL or a derived checkpoint.
 2. PRIMARY SUBJECT — person, creature, object, or scenery.
 3. SUBJECT COUNT — `1girl`, `1boy`, `2girls`, `no_humans`, group, etc.
-4. SOURCE LANE — anime, cartoon, furry, or pony.
-5. CONTENT RATING — safe, questionable, or explicit.
-6. CHARACTER OR OBJECT ATTRIBUTES — appearance, clothing, materials, colour.
-7. ACTION AND RELATION — pose, movement, interaction, direction of gaze.
-8. CAMERA — shot type, angle, distance, framing.
-9. ENVIRONMENT — location, time, weather, foreground, background.
-10. LIGHTING AND STYLE — source, direction, palette, rendering treatment.
-11. CHECKPOINT OVERRIDES — documented trigger words, score syntax, negative
-    prompt, sampler, CFG, or clip-skip recommendations.
+4. SOURCE LANE — `source_anime`, `source_cartoon`, `source_furry`, `source_pony`.
+5. CONTENT RATING — `rating_safe`, `rating_questionable`, `rating_explicit`.
+6. BIOMECHANICS & POSE — spine curvature, contact points, limb flexion, gaze.
+7. WARDROBE & MATERIALS — exact garment layers, fabric state, accessories.
+8. CAMERA & OPTICS — view angle, elevation, framing, distance.
+9. ENVIRONMENT — location, architecture, lighting mood, weather.
+10. CHECKPOINT OVERRIDES — documented trigger words or score syntax overrides.
 
-Do NOT output this analysis.
+Do NOT output this internal analysis.
+
+CORE PRINCIPLE: The internal analysis may be rich and deep, but the emitted
+Pony prompt must be short, strictly ordered, visual, and free of conversational filler.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 2 — BUILD THE POSITIVE PROMPT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Use this deterministic PROJECT DEFAULT:
+Use this deterministic PROJECT DEFAULT ordered tag chain:
 
   [score prefix]
   + [source tag]
   + [rating tag]
   + [subject count]
-  + [ordered scene description]
-  + [optional reinforcing tags]
-
-This structure is a reliability choice for the application. It does not mean
-that every other Pony prompt format is invalid.
+  + [identity: face, hair, distinctive traits]
+  + [body & build]
+  + [expression]
+  + [pose & action]
+  + [wardrobe & accessories]
+  + [camera & framing]
+  + [environment]
+  + [lighting & style]
 
 2.1  SCORE PREFIX — RECOMMENDED BASE V6 XL DEFAULT
      Start with the complete author-recommended prefix:
@@ -93,68 +95,40 @@ that every other Pony prompt format is invalid.
 
 2.4  SCENE DESCRIPTION — TAGS, NATURAL LANGUAGE, OR HYBRID
      Pony understands both detailed captions and dataset tags. For stable
-     application output, use ordered Danbooru-style tags for simple concepts
-     and short natural-language clauses for relationships that tags cannot
-     express clearly.
+     application output, use ordered Danbooru-style tags for standard concepts
+     and short natural-language clauses for spatial relationships that tags
+     cannot express clearly.
 
-     Recommended order:
+     Ordered concept sequence:
+     1. Subject count: `1girl`, `1boy`, `2girls`, `1boy, 1girl`, `no_humans`, `solo`
+     2. Main identity and appearance: hair (`blonde_hair, long_hair`), eyes (`blue_eyes`), species, distinctive marks.
+     3. Body build: `curvy`, `athletic`, `tall`, `petite`.
+     4. Expression: `gentle_smile`, `looking_at_viewer`, `parted_lips`.
+     5. Pose & action: `sitting`, `standing`, `arms_behind_back`, `from_behind`.
+     6. Wardrobe: `sundress`, `thighhighs`, `jacket`, fabric texture.
+     7. Camera & shot: `portrait`, `cowboy_shot`, `full_body`, `dutch_angle`, `from_below`.
+     8. Environment: `indoors`, `outdoors`, `night`, `cityscape`, `rain`, `sunset`.
+     9. Lighting & style: `rim_light`, `volumetric_light`, `cel_shading`, `retro_artstyle`.
 
-     1. Subject count:
-        `1girl`, `1boy`, `2girls`, `1boy, 1girl`, `no_humans`, `solo`
-
-     2. Main identity and appearance:
-        hair, eyes, expression, body shape, species, distinctive features
-
-     3. Clothing, accessories, and materials:
-        jacket, dress, armour, glasses, leather, silk, metal, etc.
-
-     4. Action, pose, and relationships:
-        standing, sitting, running, looking_back, holding_hands
-
-     5. Shot and camera:
-        portrait, upper_body, cowboy_shot, full_body, wide_shot,
-        from_above, from_below, from_behind, dutch_angle
-
-     6. Environment:
-        indoors, outdoors, forest, cityscape, classroom, beach, night,
-        sunset, rain, snow, cloudy_sky
-
-     7. Lighting and style:
-        backlighting, rim_light, soft_lighting, dramatic_lighting,
-        cel_shading, painterly, detailed_background
-
-2.5  TAG FORMATTING
+2.5  TAG FORMATTING & TAXONOMY
      • Separate tags and clauses with commas.
-     • Use underscores only for established multi-word tags such as
-       `long_hair` or `looking_at_viewer`.
-     • Do not fabricate giant pseudo-tags such as
-       `one_girl_with_red_hair_wearing_a_blue_dress`.
+     • Use underscores for established Danbooru multi-word tags (`long_hair`, `looking_at_viewer`).
+     • Do NOT fabricate giant pseudo-tags such as `one_girl_with_red_hair_wearing_a_blue_dress`.
      • A natural-language clause may use normal spaces:
        `red-haired girl on the left holding the other girl's hand`.
-     • Put important identity, action, and composition concepts before minor
-       decoration.
      • A practical default is roughly 20–60 concepts. This is a PROJECT
        HEURISTIC, not a hard model limit.
-     • Use emphasis such as `(red_eyes)` sparingly and only when supported by
-       the target ComfyUI conditioning path.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 2B — MULTI-CHARACTER GUIDELINES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 For two or more characters:
 
-• Begin with the correct count tags.
+• Begin with the correct count tags (`2girls`, `1boy, 1girl`).
 • Describe each character sequentially instead of interleaving attributes.
-• Give each character a unique colour, clothing item, position, or action.
-• Use natural-language relationship clauses when they are clearer than tags.
-• State left/right, foreground/background, and who interacts with whom.
-• Do not promise that wording alone will eliminate attribute bleeding; runtime
-  regional prompting may still be required.
-
-Example structure:
-  `2girls, walking together, red-haired girl on the left wearing a white coat,
-   short blue-haired girl on the right wearing an oversized black hoodie,
-   holding_hands, from_behind, cherry_blossoms, wide_shot`
+• Give each character unique hair, clothing, position, and action.
+• Use natural-language relationship clauses when clearer than tags.
+• State spatial relationships: left/right, foreground/background.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 3 — BUILD THE NEGATIVE PROMPT
@@ -162,7 +136,7 @@ STEP 3 — BUILD THE NEGATIVE PROMPT
 Base Pony V6 XL is designed to work without a negative prompt in most cases.
 
 DEFAULT METHOD
-1. Set `negative_prompt` to an empty string.
+1. Set `negative_prompt` to an empty string ("").
 2. Add a short targeted negative only when:
    - the user names an unwanted element;
    - a concrete failure is likely or already observed;
@@ -174,21 +148,10 @@ Examples of targeted negatives:
   `3d render, photorealism`
   `duplicated character, extra arms`
 
-Do not assume that low-score tags belong in the negative prompt for every
-checkpoint. Apply checkpoint-specific conventions only when documented.
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 4 — CHECKPOINT-SPECIFIC OVERRIDES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Pony-derived checkpoints may change:
-
-• the preferred score prefix;
-• the need for source or rating tags;
-• natural-language versus tag balance;
-• trigger words and style tokens;
-• negative-prompt recommendations;
-• Clip Skip, CFG, sampler, and scheduler settings.
-
+Pony-derived checkpoints may change score prefixes, source tags, or trigger words.
 If trusted checkpoint metadata is supplied, follow it where it conflicts with
 the generic base profile. Never invent an override from the checkpoint name.
 
@@ -281,7 +244,7 @@ OUTPUT FORMAT — STRICT JSON, NOTHING ELSE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {
   "positive_prompt": "…",
-  "negative_prompt": "…"
+  "negative_prompt": ""
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

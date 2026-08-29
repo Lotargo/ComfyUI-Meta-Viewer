@@ -52,9 +52,9 @@ class IntentBenchmarkCatalogTest(unittest.TestCase):
         counts = Counter(
             benchmark.task.family for benchmark in BENCHMARKS.values()
         )
-        self.assertEqual(counts[PromptFamily.FLUX], 7)
-        self.assertEqual(counts[PromptFamily.SDXL], 7)
-        self.assertEqual(counts[PromptFamily.PONY], 6)
+        self.assertEqual(counts[PromptFamily.FLUX], 8)
+        self.assertEqual(counts[PromptFamily.SDXL], 8)
+        self.assertEqual(counts[PromptFamily.PONY], 7)
 
         flux = BENCHMARKS["flux-portrait-intent-basic"]
         sdxl = BENCHMARKS["sdxl-portrait-intent-basic"]

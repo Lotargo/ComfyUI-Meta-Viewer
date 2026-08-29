@@ -332,7 +332,7 @@ class PromptDraftRoutesTest(unittest.TestCase):
         families = {item["id"]: item for item in response.get_json()["families"]}
         pony = {item["id"]: item["status"] for item in families["pony"]["scenarios"]}
         self.assertNotIn("graphic_design_text", pony)
-        self.assertNotIn("multi_character", pony)
+        self.assertEqual(pony["multi_character"], "supported")
         self.assertEqual(pony["product_object"], "limited")
 
     def test_translate_creates_new_editor_draft_and_preserves_source(self) -> None:

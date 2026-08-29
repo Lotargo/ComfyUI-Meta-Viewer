@@ -60,7 +60,7 @@ FAMILY_PROFILES: dict[PromptFamily, FamilyProfile] = {
             PromptScenario.LANDSCAPE_ENVIRONMENT: CapabilityStatus.SUPPORTED,
             PromptScenario.ILLUSTRATION_ART: CapabilityStatus.SUPPORTED,
             PromptScenario.GRAPHIC_DESIGN_TEXT: CapabilityStatus.SUPPORTED,
-            PromptScenario.MULTI_CHARACTER: CapabilityStatus.CHECKPOINT_ONLY,
+            PromptScenario.MULTI_CHARACTER: CapabilityStatus.SUPPORTED,
         },
     ),
     PromptFamily.SDXL: FamilyProfile(
@@ -76,7 +76,7 @@ FAMILY_PROFILES: dict[PromptFamily, FamilyProfile] = {
             PromptScenario.LANDSCAPE_ENVIRONMENT: CapabilityStatus.SUPPORTED,
             PromptScenario.ILLUSTRATION_ART: CapabilityStatus.SUPPORTED,
             PromptScenario.GRAPHIC_DESIGN_TEXT: CapabilityStatus.LIMITED,
-            PromptScenario.MULTI_CHARACTER: CapabilityStatus.CHECKPOINT_ONLY,
+            PromptScenario.MULTI_CHARACTER: CapabilityStatus.SUPPORTED,
         },
     ),
     PromptFamily.PONY: FamilyProfile(
@@ -92,7 +92,7 @@ FAMILY_PROFILES: dict[PromptFamily, FamilyProfile] = {
             PromptScenario.LANDSCAPE_ENVIRONMENT: CapabilityStatus.SUPPORTED,
             PromptScenario.ILLUSTRATION_ART: CapabilityStatus.SUPPORTED,
             PromptScenario.GRAPHIC_DESIGN_TEXT: CapabilityStatus.UNSUPPORTED,
-            PromptScenario.MULTI_CHARACTER: CapabilityStatus.UNSUPPORTED,
+            PromptScenario.MULTI_CHARACTER: CapabilityStatus.SUPPORTED,
         },
     ),
 }
@@ -151,6 +151,12 @@ SCENARIO_MANIFESTS: dict[PromptScenario, ManifestDefinition] = {
         version="1",
         path=CONTENT_DIR / "scenarios" / "graphic_design_text.md",
         families=frozenset({PromptFamily.FLUX, PromptFamily.SDXL}),
+    ),
+    PromptScenario.MULTI_CHARACTER: ManifestDefinition(
+        manifest_id=PromptScenario.MULTI_CHARACTER.value,
+        version="1",
+        path=CONTENT_DIR / "scenarios" / "multi_character.md",
+        families=_ALL_FAMILIES,
     ),
 }
 

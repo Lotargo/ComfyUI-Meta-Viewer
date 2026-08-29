@@ -10,6 +10,11 @@ const state = {
     quality: 'standard',
     batch: 1,
     improve: true,
+    alwaysImprove: false,
+    canvasWidth: null,
+    aiOriginalPrompt: null,
+    aiExpandedPrompt: null,
+    applyingAiPrompt: false,
     ref: null,
     refUrl: null,
     ambient: [],
@@ -26,7 +31,10 @@ const state = {
     sound: false,
     run: null,
     poll: null,
+    generationProgress: 0,
     last: null,
+    lastOutputs: [],
+    selectedResultIndex: 0,
     history: [],
     downloads: [],
     downloadPoll: null,
@@ -125,6 +133,9 @@ function restore() {
         state.batch = Math.max(1, Math.min(4, Number(localStorage.getItem('cmv_simple_batch')) || 1));
         const ai = localStorage.getItem('cmv_simple_ai_improve');
         if (ai !== null) state.improve = ai === 'true';
+        state.alwaysImprove = localStorage.getItem('cmv_simple_ai_always') === 'true';
+        const savedCanvasWidth = Number(localStorage.getItem('cmv_simple_canvas_width'));
+        if (Number.isFinite(savedCanvasWidth)) state.canvasWidth = savedCanvasWidth;
 
         const rawInterval = localStorage.getItem('cmv_simple_ambient_interval');
         state.interval = rawInterval !== null && !isNaN(Number(rawInterval)) ? Number(rawInterval) : 300000;
@@ -142,13 +153,222 @@ function restore() {
         state.blur = rawBlur !== null && !isNaN(Number(rawBlur)) ? Number(rawBlur) : 10;
         state.fit = localStorage.getItem('cmv_simple_ambient_fit') || 'cover';
         state.sound = localStorage.getItem('cmv_simple_sound_alert') === 'true';
+        const savedPrompt = localStorage.getItem('cmv_simple_prompt');
+        if (savedPrompt !== null && $('prompt')) $('prompt').value = savedPrompt;
+        state.aiOriginalPrompt = localStorage.getItem('cmv_simple_ai_original_prompt');
+        state.aiExpandedPrompt = localStorage.getItem('cmv_simple_ai_expanded_prompt');
     } catch {}
+}
+
+function restoreLastResult() {
+    const cached = getCachedJson('cmv_simple_last_result');
+    const outputs = Array.isArray(cached?.outputs)
+        ? cached.outputs
+        : (cached ? [cached] : []);
+    renderResult(outputs, false);
+}
+
+function clearLastResult() {
+    state.last = null;
+    state.lastOutputs = [];
+    state.selectedResultIndex = 0;
+    try { localStorage.removeItem('cmv_simple_last_result'); } catch {}
+}
+
+function openResultFullscreen(startIndex = 0) {
+    const outputs = (state.lastOutputs || []).filter(item => item?.preview_url || item?.thumbnail_url);
+    if (!outputs.length) return;
+    let currentIndex = typeof startIndex === 'number'
+        ? Math.max(0, Math.min(outputs.length - 1, startIndex))
+        : (state.selectedResultIndex || 0);
+    if (currentIndex < 0 || currentIndex >= outputs.length) currentIndex = 0;
+
+    let scale = 1;
+    const overlay = document.createElement('div');
+    overlay.className = 'result-lightbox';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Full-screen result preview');
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'result-lightbox-close';
+    close.setAttribute('aria-label', 'Close preview');
+    close.textContent = '×';
+
+    const preview = document.createElement('img');
+    preview.className = 'result-lightbox-image';
+    const initialItem = outputs[currentIndex];
+    preview.src = initialItem.preview_url || initialItem.thumbnail_url;
+    preview.alt = `Generated result ${currentIndex + 1}`;
+
+    const controls = document.createElement('div');
+    controls.className = 'result-lightbox-controls';
+    const makeNavButton = (label, direction) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `result-lightbox-nav ${direction}`;
+        button.setAttribute('aria-label', label);
+        button.textContent = direction === 'prev' ? '‹' : '›';
+        return button;
+    };
+    const previous = makeNavButton('Previous result', 'prev');
+    const next = makeNavButton('Next result', 'next');
+    if (outputs.length > 1) controls.append(previous, next);
+
+    const updatePreview = () => {
+        const current = outputs[currentIndex];
+        scale = 1;
+        preview.src = current.preview_url || current.thumbnail_url;
+        preview.alt = `Generated result ${currentIndex + 1}`;
+        preview.style.transform = 'scale(1)';
+        selectResultIndex(currentIndex);
+    };
+    const move = direction => {
+        currentIndex = (currentIndex + direction + outputs.length) % outputs.length;
+        updatePreview();
+    };
+    previous.addEventListener('click', () => move(-1));
+    next.addEventListener('click', () => move(1));
+    preview.addEventListener('wheel', event => {
+        event.preventDefault();
+        scale = Math.max(.5, Math.min(3, scale + (event.deltaY < 0 ? .15 : -.15)));
+        preview.style.transform = `scale(${scale})`;
+    }, { passive: false });
+    preview.addEventListener('dblclick', () => {
+        scale = 1;
+        preview.style.transform = 'scale(1)';
+    });
+
+    overlay.append(close, controls, preview);
+    const dismiss = () => {
+        overlay.remove();
+        document.removeEventListener('keydown', onKeydown);
+    };
+    const onKeydown = event => {
+        if (event.key === 'Escape') dismiss();
+        if (event.key === 'ArrowLeft' && outputs.length > 1) move(-1);
+        if (event.key === 'ArrowRight' && outputs.length > 1) move(1);
+    };
+    close.addEventListener('click', dismiss);
+    overlay.addEventListener('click', event => {
+        if (event.target === overlay) dismiss();
+    });
+    document.addEventListener('keydown', onKeydown);
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('is-open'));
+    close.focus();
+}
+
+function applyAiPrompt(suggestedPrompt, originalPrompt = $('prompt').value.trim()) {
+    const nextPrompt = String(suggestedPrompt || '').trim();
+    if (!nextPrompt) return;
+    state.aiOriginalPrompt = originalPrompt;
+    state.aiExpandedPrompt = nextPrompt;
+    save('cmv_simple_ai_original_prompt', originalPrompt);
+    save('cmv_simple_ai_expanded_prompt', nextPrompt);
+    state.applyingAiPrompt = true;
+    $('prompt').value = nextPrompt;
+    $('prompt').dispatchEvent(new Event('input'));
+    state.applyingAiPrompt = false;
 }
 
 function esc(value) {
     const div = document.createElement('div');
     div.textContent = String(value ?? '');
     return div.innerHTML;
+}
+
+function translateStaticUi() {
+    document.title = 'Create — ComfyUI Meta Viewer';
+    const text = {
+        '.ai-assistant-trigger span': 'AI assistant',
+        '.studio-title': 'What are we creating?',
+        '.studio-subtitle': 'Describe your idea or add an image as a reference.',
+        '.reference-upload-btn span:last-child': 'Add image',
+        '#prompt-clear': 'Clear',
+        '.model-select-kicker': 'Selected model',
+        '#model-install span': 'Download missing',
+        '#model-recheck': 'Check again',
+        '.studio-create-btn .create-btn-content span': 'Create',
+        '#progress-text': 'Starting…',
+        '#generating-text': 'Preparing…',
+        '#result-download': 'Download',
+        '.canvas-actions-left a': 'Library',
+        '#result-edit': 'Edit prompt',
+        '#runtime-settings-title': 'Connect to ComfyUI',
+        '#runtime-browse': 'Browse…',
+        '#runtime-test': 'Test',
+        '#runtime-settings-cancel': 'Cancel',
+        '#runtime-save': 'Save',
+        '.assistant-title-wrap h2': 'Prompt assistant',
+        '#assistant-new': 'New conversation',
+    };
+    Object.entries(text).forEach(([selector, value]) => {
+        const node = document.querySelector(selector);
+        if (node) node.textContent = value;
+    });
+    const prompt = $('prompt');
+    if (prompt) prompt.placeholder = 'For example: a night café by the sea, warm window light, light fog and wet pavement';
+    const labels = document.querySelectorAll('.section-label');
+    ['Model', 'Aspect ratio', 'Quality', 'Images'].forEach((value, index) => {
+        if (labels[index]) labels[index].textContent = value;
+    });
+    const hint = document.querySelector('.section-hint');
+    if (hint) hint.textContent = 'Eight ready-to-use models. Technical names are hidden behind our labels.';
+    const improve = document.querySelector('.ai-improve-pill span');
+    if (improve) improve.textContent = 'Add details';
+    const aiWrap = $('ai-toggle-wrap');
+    if (aiWrap && !$('ai-always-toggle')) {
+        const alwaysWrap = document.createElement('label');
+        alwaysWrap.id = 'ai-always-wrap';
+        alwaysWrap.className = 'ai-improve-toggle';
+        alwaysWrap.innerHTML = '<input id="ai-always-toggle" type="checkbox"><span class="ai-improve-pill">↻ <span>Always add details</span></span>';
+        alwaysWrap.querySelector('input').checked = state.alwaysImprove;
+        const toolbar = aiWrap.parentElement;
+        const group = document.createElement('div');
+        group.className = 'ai-improve-toggle-group';
+        group.append(aiWrap, alwaysWrap);
+        toolbar.appendChild(group);
+    }
+    const qualityLabels = [
+        ['Fast', 'Quick option'],
+        ['Standard', 'Default mode'],
+        ['Detailed', 'More refinement'],
+    ];
+    document.querySelectorAll('.quality-card').forEach((card, index) => {
+        if (qualityLabels[index]) {
+            card.querySelector('strong').textContent = qualityLabels[index][0];
+            card.querySelector('.quality-meta').textContent = qualityLabels[index][1];
+        }
+    });
+    const runtimeFields = document.querySelectorAll('.simple-settings-field > span');
+    ['ComfyUI folder', 'Python', 'Host', 'Port', 'Civitai API token'].forEach((value, index) => {
+        if (runtimeFields[index]) runtimeFields[index].childNodes[0].textContent = value;
+    });
+    const runtimeHelp = document.querySelector('#runtime-settings-dialog .simple-settings-field small');
+    if (runtimeHelp) runtimeHelp.textContent = 'Optional';
+    const runtimeDetection = document.querySelector('#runtime-detection-title');
+    if (runtimeDetection) runtimeDetection.textContent = 'Path not checked yet';
+    const themeLabel = document.querySelector('.header-theme-dropdown .header-menu-label');
+    if (themeLabel) themeLabel.textContent = 'Theme';
+    document.querySelectorAll('.theme-option small').forEach((node, index) => {
+        node.textContent = ['Dark', 'Light', 'Pastel', 'Dark berry', 'System'][index] || node.textContent;
+    });
+    const referenceKicker = document.querySelector('.reference-preview-kicker');
+    if (referenceKicker) referenceKicker.textContent = 'Image reference';
+    const assistantInput = $('assistant-input');
+    if (assistantInput) assistantInput.placeholder = 'Refine the idea, composition or lighting…';
+    const runtimeDescription = document.querySelector('#runtime-settings-dialog header p');
+    if (runtimeDescription) runtimeDescription.textContent = 'Point to an existing installation. Models from Create will be downloaded into its models folder.';
+    const runtimePathHelp = document.querySelector('#runtime-install-path')?.closest('.simple-settings-field')?.querySelector('small');
+    if (runtimePathHelp) runtimePathHelp.textContent = 'Choose a folder containing main.py or a portable root containing ComfyUI.';
+    const pythonInput = $('runtime-python');
+    if (pythonInput) pythonInput.placeholder = 'Path to python.exe, if it is not detected automatically';
+    const civitaiInput = $('runtime-civitai-token');
+    if (civitaiInput) civitaiInput.placeholder = 'Leave empty to keep the saved token';
+    const detectionText = $('runtime-detection-text');
+    if (detectionText) detectionText.textContent = 'Choose a folder or enter a path manually.';
 }
 
 async function json(url, options) {
@@ -166,6 +386,7 @@ async function json(url, options) {
 function init() {
     state.models = catalog();
     restore();
+    translateStaticUi();
     applyVisualSettings();
     if (!state.models.some(item => item.id === state.modelId)) {
         state.modelId = state.models[0]?.id || '';
@@ -173,11 +394,13 @@ function init() {
     hydrateAmbient();
     renderCatalog();
     wire();
+    wireCanvasResize();
     syncModel();
     syncRatio();
     syncQuality();
     syncBatch();
     resizePrompt();
+    restoreLastResult();
     loadHealth();
     loadDownloads();
     loadAmbient();
@@ -199,7 +422,7 @@ function renderCatalog() {
             <span class="model-option-check">✓</span>
         </button>`).join('');
     const current = model();
-    if ($('model-selected-name')) $('model-selected-name').textContent = current?.name || 'Модель';
+    if ($('model-selected-name')) $('model-selected-name').textContent = current?.name || 'Model';
 }
 
 function chooseModel(modelId) {
@@ -233,13 +456,13 @@ function syncModel() {
     $('model-selected-name').textContent = current.name;
     $('model-technical').textContent = current.technical_name || current.name;
     $('model-description').textContent = current.description || '';
-    $('model-vram').textContent = current.vram_rec_gb ? `Рекомендуется ${current.vram_rec_gb} GB VRAM` : '';
+    $('model-vram').textContent = current.vram_rec_gb ? `Recommended ${current.vram_rec_gb} GB VRAM` : '';
     const cachedHealth = getCachedJson('cmv_health_' + current.id, 60 * 1000);
     if (cachedHealth) {
         paintHealth(cachedHealth);
     } else {
         state.health = null;
-        paintHealth({ status: 'checking', message: 'Проверяем локальные компоненты' });
+        paintHealth({ status: 'checking', message: 'Checking local components' });
     }
     syncRatio();
     syncQuality();
@@ -253,11 +476,11 @@ function paintHealth(health) {
     const missing = $('model-missing');
     const install = $('model-install');
     const map = {
-        ready: ['is-ready', 'Готова'],
-        not_installed: ['is-missing', 'Нужна установка'],
-        workflow_pending: ['is-pending', 'Workflow готовится'],
-        unknown: ['is-checking', 'Не проверено'],
-        checking: ['is-checking', 'Проверяем'],
+        ready: ['is-ready', 'Ready'],
+        not_installed: ['is-missing', 'Installation required'],
+        workflow_pending: ['is-pending', 'Workflow pending'],
+        unknown: ['is-checking', 'Not checked'],
+        checking: ['is-checking', 'Checking'],
     };
     const [className, label] = map[health?.status] || map.unknown;
     badge.className = `model-health-badge ${className}`;
@@ -273,7 +496,7 @@ function paintHealth(health) {
     const failedDownloads = state.downloads.some(item => ['failed', 'error'].includes(item.status));
     install.hidden = !(health?.status === 'not_installed' && health?.installable !== false);
     install.disabled = activeDownloads;
-    install.querySelector('span').textContent = activeDownloads ? 'Загрузка…' : 'Скачать недостающее';
+    install.querySelector('span').textContent = activeDownloads ? 'Downloading…' : 'Download missing';
     const isMissing = health?.status === 'not_installed' || rows.length > 0;
     panel.hidden = !isMissing && !activeDownloads && !failedDownloads;
 }
@@ -289,7 +512,7 @@ async function loadHealth(force = false) {
         if (state.modelId === id) paintHealth(health);
     } catch {
         if (state.modelId === id && !state.health) {
-            paintHealth({ status: 'unknown', message: 'Не удалось проверить локальные компоненты' });
+            paintHealth({ status: 'unknown', message: 'Could not check local components' });
         }
     }
 }
@@ -336,12 +559,12 @@ function bytes(value) {
 
 function downloadStatus(item) {
     const labels = {
-        queued: 'В очереди',
-        downloading: item.file_size_bytes ? `${Math.round(item.progress || 0)}%` : 'Загрузка…',
-        paused: 'Пауза',
-        completed: 'Готово',
-        failed: 'Ошибка',
-        cancelled: 'Отменено',
+        queued: 'Queued',
+        downloading: item.file_size_bytes ? `${Math.round(item.progress || 0)}%` : 'Downloading…',
+        paused: 'Paused',
+        completed: 'Complete',
+        failed: 'Failed',
+        cancelled: 'Cancelled',
     };
     return labels[item.status] || item.status;
 }
@@ -367,16 +590,16 @@ function paintDownloads() {
                 </div>
                 <div class="model-download-actions">
                     ${percent !== null && ['queued', 'downloading', 'paused'].includes(item.status) ? `<span class="cmv-download-percent">${percent}%</span>` : ''}
-                    ${canPause ? `<button class="download-mini-btn" type="button" data-download-action="pause" data-download-id="${item.id}">Пауза</button>` : ''}
-                    ${canResume ? `<button class="download-mini-btn" type="button" data-download-action="resume" data-download-id="${item.id}">${item.status === 'failed' ? 'Повторить' : 'Продолжить'}</button>` : ''}
-                    ${canCancel ? `<button class="download-mini-btn cmv-download-cancel" type="button" data-download-action="cancel" data-download-id="${item.id}">Отмена</button>` : ''}
+                    ${canPause ? `<button class="download-mini-btn" type="button" data-download-action="pause" data-download-id="${item.id}">Pause</button>` : ''}
+                    ${canResume ? `<button class="download-mini-btn" type="button" data-download-action="resume" data-download-id="${item.id}">${item.status === 'failed' ? 'Retry' : 'Resume'}</button>` : ''}
+                    ${canCancel ? `<button class="download-mini-btn cmv-download-cancel" type="button" data-download-action="cancel" data-download-id="${item.id}">Cancel</button>` : ''}
                 </div>
             </div>
             <div class="model-download-track${indeterminate ? ' is-indeterminate' : ''}"><div class="model-download-fill" style="width:${Math.max(0, Math.min(100, Number(item.progress || 0)))}%"></div></div>
             ${item.error ? `<p class="model-download-error">${esc(item.error)}</p>` : ''}
         </div>`;
     }).join('');
-    paintHealth(state.health || { status: 'checking', message: 'Проверяем локальные компоненты' });
+    paintHealth(state.health || { status: 'checking', message: 'Checking local components' });
 }
 
 async function loadDownloads() {
@@ -397,7 +620,7 @@ async function installModel() {
     if (!state.modelId) return;
     const button = $('model-install');
     button.disabled = true;
-    button.querySelector('span').textContent = 'Подготовка…';
+    button.querySelector('span').textContent = 'Preparing…';
     try {
         const data = await json(`/api/simple/models/${encodeURIComponent(state.modelId)}/install`, {
             method: 'POST',
@@ -413,11 +636,11 @@ async function installModel() {
             await loadHealth();
         }
         if (data.unavailable?.length) {
-            error('Не все компоненты удалось поставить', data.unavailable.join('\n'));
+            error('Some components could not be installed', data.unavailable.join('\n'));
         }
     } catch (err) {
         if (err.data?.open_settings) openRuntimeSettings();
-        error('Не удалось начать загрузку', err.message);
+            error('Could not start download', err.message);
     } finally {
         button.disabled = false;
         paintHealth(state.health || {});
@@ -430,7 +653,7 @@ async function downloadAction(id, action) {
         await loadDownloads();
         if (action === 'resume') startDownloadPolling();
     } catch (err) {
-        error('Не удалось изменить загрузку', err.message);
+            error('Could not update download', err.message);
     }
 }
 
@@ -625,6 +848,86 @@ async function loadAi() {
     }
 }
 
+function syncCanvasAspect() {
+    const map = { '1:1': '1 / 1', '3:4': '3 / 4', '4:3': '4 / 3', '9:16': '9 / 16', '16:9': '16 / 9' };
+    const aspect = map[state.ratio] || '3 / 4';
+    const [width, height] = state.ratio.split(':').map(Number);
+    const defaultCanvasWidth = Math.round(Math.min(760, Math.max(360, 520 * (width / height) / (3 / 4))));
+    const limits = canvasWidthLimits();
+    const canvasColumnWidth = state.canvasWidth
+        ? Math.round(Math.max(limits.min, Math.min(limits.max, state.canvasWidth)))
+        : defaultCanvasWidth;
+    if (state.canvasWidth) state.canvasWidth = canvasColumnWidth;
+    const layout = $('studio-layout');
+    const card = document.querySelector('.studio-canvas-card');
+    const surface = $('canvas');
+    if (layout) layout.style.setProperty('--canvas-column-width', `${canvasColumnWidth}px`);
+    if (card) card.style.setProperty('--canvas-aspect', aspect);
+    if (surface) surface.style.setProperty('--canvas-aspect', aspect);
+    syncCanvasRowHeight();
+}
+
+function syncCanvasRowHeight() {
+    const layout = $('studio-layout');
+    const controls = document.querySelector('.studio-controls-card');
+    const canvas = document.querySelector('.studio-canvas-card');
+    if (!layout || !controls || !['generating', 'result'].includes(layout.dataset.view)) return;
+    const controlsH = Math.ceil(controls.getBoundingClientRect().height);
+    const canvasH = canvas ? Math.ceil(canvas.getBoundingClientRect().height) : 0;
+    const height = Math.max(controlsH, canvasH);
+    if (height > 0) layout.style.setProperty('--studio-split-height', `${height}px`);
+}
+
+function canvasWidthLimits() {
+    const min = 360;
+    return { min, max: 1100 };
+}
+
+function wireCanvasResize() {
+    const card = document.querySelector('.studio-canvas-card');
+    const layout = $('studio-layout');
+    if (!card || !layout || card.querySelector('.canvas-resize-handle')) return;
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'canvas-resize-handle';
+    handle.setAttribute('aria-label', 'Resize result panel');
+    handle.title = 'Drag to resize';
+    card.appendChild(handle);
+
+    let startX = 0;
+    let startWidth = 0;
+    const onMove = event => {
+        const limits = canvasWidthLimits();
+        const nextWidth = Math.round(Math.max(limits.min, Math.min(limits.max, startWidth + event.clientX - startX)));
+        state.canvasWidth = nextWidth;
+        layout.style.setProperty('--canvas-column-width', `${nextWidth}px`);
+        save('cmv_simple_canvas_width', nextWidth);
+    };
+    const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        handle.classList.remove('is-resizing');
+    };
+    handle.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        startX = event.clientX;
+        startWidth = card.getBoundingClientRect().width;
+        handle.classList.add('is-resizing');
+        handle.setPointerCapture?.(event.pointerId);
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp, { once: true });
+        window.addEventListener('pointercancel', onUp, { once: true });
+    });
+    window.addEventListener('resize', () => {
+        if (!state.canvasWidth) return;
+        const limits = canvasWidthLimits();
+        state.canvasWidth = Math.max(limits.min, Math.min(limits.max, state.canvasWidth));
+        layout.style.setProperty('--canvas-column-width', `${state.canvasWidth}px`);
+        save('cmv_simple_canvas_width', state.canvasWidth);
+    });
+}
+
 function syncRatio() {
     const allowed = new Set((model()?.aspect_ratios || []).map(item => item.ratio));
     if (allowed.size && !allowed.has(state.ratio)) state.ratio = model().aspect_ratios[0].ratio;
@@ -633,6 +936,7 @@ function syncRatio() {
         button.disabled = !enabled;
         button.classList.toggle('active', enabled && button.dataset.ratio === state.ratio);
     });
+    syncCanvasAspect();
 }
 
 function syncQuality() {
@@ -688,6 +992,15 @@ function wire() {
     $('prompt').oninput = () => {
         resizePrompt();
         $('prompt-clear').hidden = !$('prompt').value.trim();
+        save('cmv_simple_prompt', $('prompt').value);
+        if (!state.applyingAiPrompt && state.aiExpandedPrompt && $('prompt').value !== state.aiExpandedPrompt) {
+            state.aiOriginalPrompt = null;
+            state.aiExpandedPrompt = null;
+            try {
+                localStorage.removeItem('cmv_simple_ai_original_prompt');
+                localStorage.removeItem('cmv_simple_ai_expanded_prompt');
+            } catch {}
+        }
     };
     $('prompt-clear').onclick = () => {
         $('prompt').value = '';
@@ -698,6 +1011,10 @@ function wire() {
         state.improve = event.target.checked;
         save('cmv_simple_ai_improve', state.improve);
     };
+    $('ai-always-toggle')?.addEventListener('change', event => {
+        state.alwaysImprove = event.target.checked;
+        save('cmv_simple_ai_always', state.alwaysImprove);
+    });
     $('reference-input').onchange = event => {
         if (event.target.files?.[0]) reference(event.target.files[0]);
     };
@@ -706,18 +1023,18 @@ function wire() {
     $('create').onclick = create;
     $('error-close').onclick = hideError;
     $('result-download').onclick = downloadResult;
-    $('result-edit').onclick = () => { canvas('idle'); $('prompt').focus(); };
+    $('result-edit').onclick = () => { clearLastResult(); canvas('idle'); $('prompt').focus(); };
     $('model-recheck').onclick = async () => {
         const btn = $('model-recheck');
         btn.disabled = true;
-        btn.textContent = 'Проверяем…';
+        btn.textContent = 'Checking…';
         try {
             sessionStorage.removeItem('cmv_health_' + state.modelId);
             await loadHealth(true);
             await loadDownloads();
         } finally {
             btn.disabled = false;
-            btn.textContent = 'Проверить снова';
+            btn.textContent = 'Check again';
         }
     };
     $('model-downloads').addEventListener('click', event => {
@@ -767,9 +1084,12 @@ function wire() {
 function resizePrompt() {
     const textarea = $('prompt');
     if (!textarea) return;
+    const minH = 84;
+    const maxH = 220;
     textarea.style.height = 'auto';
-    textarea.style.height = `${Math.max(112, Math.min(textarea.scrollHeight, 240))}px`;
-    textarea.style.overflowY = textarea.scrollHeight > 240 ? 'auto' : 'hidden';
+    const targetH = Math.max(minH, Math.min(textarea.scrollHeight, maxH));
+    textarea.style.height = `${targetH}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxH ? 'auto' : 'hidden';
 }
 
 function dropZone() {
@@ -789,8 +1109,8 @@ function dropZone() {
 }
 
 function reference(file) {
-    if (!file.type.startsWith('image/')) return error('Не получилось добавить изображение', 'Выберите файл изображения.');
-    if (file.size > MAX_REF) return error('Изображение слишком большое', 'Для референса выберите файл меньше 20 МБ.');
+    if (!file.type.startsWith('image/')) return error('Could not add image', 'Choose an image file.');
+    if (file.size > MAX_REF) return error('Image is too large', 'Choose a reference file smaller than 20 MB.');
     const reader = new FileReader();
     reader.onload = () => {
         clearReference(false);
@@ -800,7 +1120,7 @@ function reference(file) {
         $('reference-img').src = state.refUrl;
         $('reference-preview').hidden = false;
     };
-    reader.onerror = () => error('Не удалось прочитать изображение', 'Попробуйте другой файл.');
+    reader.onerror = () => error('Could not read image', 'Try another file.');
     reader.readAsDataURL(file);
 }
 
@@ -814,20 +1134,26 @@ function clearReference(clearInput = true) {
 }
 
 function blocking() {
-    if (state.health?.status === 'not_installed') return 'Сначала установите отсутствующие компоненты выбранной модели.';
-    if (state.health?.status === 'workflow_pending') return 'Workflow этой модели ещё калибруется.';
+    if (state.health?.status === 'not_installed') return 'Install the missing components for the selected model first.';
+    if (state.health?.status === 'workflow_pending') return 'This model workflow is still being calibrated.';
     return '';
 }
 
 async function create() {
     if (state.run) return;
     const why = blocking();
-    if (why) return error('Модель пока не готова', why);
-    const prompt = $('prompt').value.trim();
-    if (!prompt && !state.ref) return error('Нечего создавать', 'Напишите идею или добавьте изображение-ориентир.');
+    if (why) return error('Model is not ready yet', why);
+    const visiblePrompt = $('prompt').value.trim();
+    const promptIsAiExpanded = state.aiExpandedPrompt && visiblePrompt === state.aiExpandedPrompt;
+    const improveWithAi = state.improve && (state.alwaysImprove || !promptIsAiExpanded);
+    const prompt = state.alwaysImprove && state.aiOriginalPrompt
+        ? state.aiOriginalPrompt.trim()
+        : visiblePrompt;
+    if (!prompt && !state.ref) return error('Nothing to create', 'Describe an idea or add an image reference.');
     hideError();
     canvas('generating');
-    createButton(true, 5, 'Запуск…');
+    state.generationProgress = 5;
+    createButton(true, 5, 'Starting…');
     try {
         const data = await json('/api/simple/generate', {
             method: 'POST',
@@ -835,7 +1161,7 @@ async function create() {
             body: JSON.stringify({
                 profile_id: state.modelId,
                 prompt,
-                improve_with_ai: state.improve,
+                improve_with_ai: improveWithAi,
                 aspect_ratio: state.ratio,
                 quality: state.quality,
                 batch_size: state.batch,
@@ -843,6 +1169,9 @@ async function create() {
             }),
         });
         state.run = data.run_id;
+        if (data.ai_improved && data.positive_prompt) {
+            applyAiPrompt(data.positive_prompt, state.aiOriginalPrompt || visiblePrompt);
+        }
         pollRun();
     } catch (err) {
         createButton(false);
@@ -850,18 +1179,18 @@ async function create() {
         if (err.data?.missing_resources) {
             paintHealth({
                 status: 'not_installed',
-                message: 'Не хватает компонентов',
+                message: 'Missing components',
                 missing_resources: err.data.missing_resources,
                 installable: true,
             });
         }
         if (err.status === 502 || err.status === 503 || err.data?.code === 'comfyui_rejected' || err.data?.code === 'comfyui_connection_failed') {
             error(
-                'ComfyUI недоступен или отклонил задачу',
-                err.data?.suggestion || 'Убедитесь, что ComfyUI запущен на http://127.0.0.1:8188. Если вы используете другой порт или хост, настройте его через значок шестерёнки в шапке.'
+                'ComfyUI is unavailable or rejected the task',
+                err.data?.suggestion || 'Make sure ComfyUI is running at http://127.0.0.1:8188. If you use another host or port, configure it with the gear icon in the header.'
             );
         } else {
-            error('Не удалось начать генерацию', err.message);
+            error('Could not start generation', err.message);
         }
     }
 }
@@ -874,8 +1203,16 @@ function pollRun() {
             const data = await json(`/api/simple/runs/${state.run}`);
             if (['queued', 'running'].includes(data.status)) {
                 percent = Math.min(92, percent + 5);
-                createButton(true, percent, `${percent}%`);
-                $('generating-text').textContent = 'Создаём изображение…';
+                state.generationProgress = percent;
+                const total = Math.max(1, Number(state.batch) || 1);
+                const completed = Math.min(total, Array.isArray(data.outputs) ? data.outputs.length : 0);
+                const current = completed > 0
+                    ? Math.min(total, completed + 1)
+                    : Math.min(total, Math.max(1, Math.ceil((percent / 92) * total)));
+                createButton(true, percent, `${percent}% · ${current}/${total}`);
+                $('generating-text').textContent = total > 1
+                    ? `Creating image ${current} of ${total}…`
+                    : 'Creating image…';
                 return;
             }
             if (data.status === 'completed') {
@@ -893,13 +1230,13 @@ function pollRun() {
                 } else if (rawError && typeof rawError === 'object') {
                     const msg = rawError.message || rawError.error || '';
                     const tech = rawError.technical_message || '';
-                    const node = rawError.class_type ? ` (узел: ${rawError.class_type})` : '';
+                    const node = rawError.class_type ? ` (node: ${rawError.class_type})` : '';
                     runError = tech && tech !== msg ? `${msg}${node}\n${tech}` : `${msg}${node}`;
                     if (!runError) runError = JSON.stringify(rawError);
                 }
-                const statusLabel = data.status === 'failed' ? 'Генерация не удалась' : 'Генерация остановилась';
+                const statusLabel = data.status === 'failed' ? 'Generation failed' : 'Generation stopped';
                 const detail = runError
-                    || (data.status === 'cancelled' ? 'Генерация была отменена.' : 'Процесс завершился без результата. Возможно, ComfyUI не смог обработать задачу — проверьте логи ComfyUI.');
+                    || (data.status === 'cancelled' ? 'Generation was cancelled.' : 'The process finished without a result. ComfyUI may not have processed the task; check its logs.');
                 error(statusLabel, detail);
             }
         } catch {}
@@ -936,27 +1273,116 @@ function playSuccessChime() {
 }
 
 function showResult(outputs) {
-    const output = outputs[0];
-    if (!output) return error('Результат не найден', 'Генерация завершилась без доступного изображения.');
-    state.last = output;
-    $('result-img').src = output.preview_url || output.thumbnail_url;
+    renderResult(outputs, true);
+}
+
+function renderResult(outputs, persist = false) {
+    const validOutputs = (Array.isArray(outputs) ? outputs : []).filter(output => {
+        const url = output?.preview_url || output?.thumbnail_url;
+        return output && typeof url === 'string' && url;
+    });
+    const first = validOutputs[0];
+    if (!first) {
+        if (persist) error('Result not found', 'Generation finished without an available image.');
+        return;
+    }
+
+    state.lastOutputs = validOutputs;
+    state.selectedResultIndex = 0;
+    state.last = validOutputs[0];
+
+    updateResultView();
+
+    if (persist) setCachedJson('cmv_simple_last_result', { outputs: validOutputs, ratio: state.ratio }, true);
     canvas('result');
-    setAmbient(output.preview_url || output.thumbnail_url);
-    if (state.sound) playSuccessChime();
+    setAmbient(first.preview_url || first.thumbnail_url);
+    if (persist && state.sound) playSuccessChime();
+}
+
+function updateResultView() {
+    const validOutputs = state.lastOutputs || [];
+    const index = Math.max(0, Math.min(validOutputs.length - 1, state.selectedResultIndex || 0));
+    state.selectedResultIndex = index;
+    const current = validOutputs[index] || state.last;
+    if (!current) return;
+    state.last = current;
+
+    const artwork = document.querySelector('.canvas-artwork-wrap');
+    const url = current.preview_url || current.thumbnail_url;
+    if (artwork) {
+        artwork.innerHTML = `<img id="result-img" class="canvas-result-img" src="${esc(url)}" alt="Result ${index + 1}" decoding="async">`;
+        artwork.onclick = () => openResultFullscreen(state.selectedResultIndex);
+    }
+
+    const thumbsContainer = $('result-thumbnails');
+    if (thumbsContainer) {
+        if (validOutputs.length > 1) {
+            thumbsContainer.hidden = false;
+            thumbsContainer.innerHTML = validOutputs.map((output, i) => {
+                const thumbUrl = output.thumbnail_url || output.preview_url;
+                const isActive = i === index;
+                return `<button type="button" class="canvas-thumb-btn${isActive ? ' active' : ''}" data-index="${i}" aria-label="Превью ${i + 1}" title="Изображение ${i + 1}"><img src="${esc(thumbUrl)}" alt="Превью ${i + 1}" class="canvas-thumb-img" decoding="async"></button>`;
+            }).join('');
+            thumbsContainer.querySelectorAll('.canvas-thumb-btn').forEach(btn => {
+                btn.onclick = event => {
+                    event.stopPropagation();
+                    const nextIdx = Number(btn.dataset.index);
+                    selectResultIndex(nextIdx);
+                };
+            });
+        } else {
+            thumbsContainer.hidden = true;
+            thumbsContainer.innerHTML = '';
+        }
+    }
+}
+
+function selectResultIndex(index) {
+    if (!state.lastOutputs || !state.lastOutputs[index]) return;
+    state.selectedResultIndex = index;
+    state.last = state.lastOutputs[index];
+    const current = state.last;
+    const url = current.preview_url || current.thumbnail_url;
+
+    const img = document.querySelector('.canvas-artwork-wrap .canvas-result-img');
+    if (img) {
+        img.src = url;
+        img.alt = `Result ${index + 1}`;
+    }
+
+    const thumbsContainer = $('result-thumbnails');
+    if (thumbsContainer) {
+        thumbsContainer.querySelectorAll('.canvas-thumb-btn').forEach((btn, i) => {
+            btn.classList.toggle('active', i === index);
+        });
+    }
+
+    setAmbient(url);
 }
 
 function canvas(view) {
-    $('studio-layout').dataset.view = view;
+    const layout = $('studio-layout');
+    layout.dataset.view = view;
     $('generating').hidden = view !== 'generating';
     $('result').hidden = view !== 'result';
+    resizePrompt();
+    if (view === 'generating' || view === 'result') {
+        syncCanvasAspect();
+        requestAnimationFrame(() => {
+            syncCanvasRowHeight();
+            requestAnimationFrame(syncCanvasRowHeight);
+        });
+    } else {
+        layout.style.removeProperty('--studio-split-height');
+    }
 }
 
-function createButton(running, percent = 0, text = 'Создание…') {
+function createButton(running, percent = 0, text = 'Creating…') {
     const button = $('create');
     button.classList.toggle('running', running);
     button.disabled = running;
     $('progress-fill').style.width = `${running ? percent : 0}%`;
-    $('progress-text').textContent = running ? text : 'Запуск…';
+    $('progress-text').textContent = running ? text : 'Starting…';
 }
 
 function error(title, text) {
@@ -984,11 +1410,11 @@ function runtimeDetection(kind, title, text) {
 }
 
 function runtimeStatusText(status) {
-    if (!status) return 'Статус ComfyUI пока неизвестен.';
-    if (['ready', 'external'].includes(status.status)) return `ComfyUI доступен на ${status.host || '127.0.0.1'}:${status.port || 8188}.`;
-    if (status.status === 'busy') return 'ComfyUI подключён и сейчас занят генерацией.';
+    if (!status) return 'ComfyUI status is unknown.';
+    if (['ready', 'external'].includes(status.status)) return `ComfyUI is available at ${status.host || '127.0.0.1'}:${status.port || 8188}.`;
+    if (status.status === 'busy') return 'ComfyUI is connected and currently generating.';
     if (status.last_error) return status.last_error;
-    return `Текущий статус: ${status.status || 'неизвестно'}.`;
+    return `Current status: ${status.status || 'unknown'}.`;
 }
 
 function paintRuntimeDot() {
@@ -1035,7 +1461,7 @@ async function openRuntimeSettings() {
     if (config.install_path) {
         await detectRuntimePath();
     } else {
-        runtimeDetection('', 'Путь ещё не выбран', runtimeStatusText(state.runtimeStatus));
+        runtimeDetection('', 'No path selected yet', runtimeStatusText(state.runtimeStatus));
     }
 }
 
@@ -1050,7 +1476,7 @@ function closeRuntimeSettings() {
 async function browseRuntimePath() {
     const button = $('runtime-browse');
     button.disabled = true;
-    button.textContent = 'Открываем…';
+    button.textContent = 'Opening…';
     try {
         const data = await json('/api/simple/pick-comfyui-directory', {
             method: 'POST',
@@ -1062,28 +1488,28 @@ async function browseRuntimePath() {
             paintDetectionResult(data.detection);
         }
     } catch (err) {
-        runtimeDetection('error', 'Не удалось открыть выбор папки', err.message);
+        runtimeDetection('error', 'Could not open folder picker', err.message);
     } finally {
         button.disabled = false;
-        button.textContent = 'Обзор…';
+        button.textContent = 'Browse…';
     }
 }
 
 function paintDetectionResult(detection) {
-    if (!detection) return runtimeDetection('error', 'Путь не проверен', 'Не удалось получить результат проверки.');
+    if (!detection) return runtimeDetection('error', 'Path not checked', 'Could not get the check result.');
     if (detection.is_valid) {
-        runtimeDetection('good', 'ComfyUI найден', detection.comfy_dir || detection.root_path || 'Путь распознан.');
+        runtimeDetection('good', 'ComfyUI found', detection.comfy_dir || detection.root_path || 'Path recognized.');
     } else if (detection.comfy_dir) {
-        runtimeDetection('warning', 'Папка ComfyUI найдена', `${detection.comfy_dir}. ${detection.error || 'Python не определён; скачивание моделей всё равно доступно.'}`);
+        runtimeDetection('warning', 'ComfyUI folder found', `${detection.comfy_dir}. ${detection.error || 'Python was not detected; model downloads are still available.'}`);
     } else {
-        runtimeDetection('error', 'ComfyUI не найден', detection.error || 'В этой папке не найден main.py.');
+        runtimeDetection('error', 'ComfyUI not found', detection.error || 'main.py was not found in this folder.');
     }
 }
 
 async function detectRuntimePath() {
     const path = $('runtime-install-path').value.trim();
-    if (!path) return runtimeDetection('', 'Путь не выбран', runtimeStatusText(state.runtimeStatus));
-    runtimeDetection('', 'Проверяем путь…', path);
+    if (!path) return runtimeDetection('', 'No path selected', runtimeStatusText(state.runtimeStatus));
+    runtimeDetection('', 'Checking path…', path);
     try {
         const data = await json('/api/comfyui/detect', {
             method: 'POST',
@@ -1093,7 +1519,7 @@ async function detectRuntimePath() {
         paintDetectionResult(data);
         return data;
     } catch (err) {
-        runtimeDetection('error', 'Ошибка проверки', err.message);
+        runtimeDetection('error', 'Check failed', err.message);
         return null;
     }
 }
@@ -1101,22 +1527,22 @@ async function detectRuntimePath() {
 async function testRuntime() {
     const button = $('runtime-test');
     button.disabled = true;
-    button.textContent = 'Проверяем…';
+    button.textContent = 'Checking…';
     try {
         await detectRuntimePath();
         const status = await json('/api/comfyui/status');
         state.runtimeStatus = status;
         if (['ready', 'external', 'busy'].includes(status.status)) {
-            runtimeDetection('good', 'ComfyUI доступен', runtimeStatusText(status));
+            runtimeDetection('good', 'ComfyUI available', runtimeStatusText(status));
         } else {
-            runtimeDetection('warning', 'Путь сохранится, но сервер не отвечает', runtimeStatusText(status));
+            runtimeDetection('warning', 'Path will be saved, but the server is not responding', runtimeStatusText(status));
         }
         paintRuntimeDot();
     } catch (err) {
-        runtimeDetection('warning', 'ComfyUI сейчас недоступен', err.message);
+        runtimeDetection('warning', 'ComfyUI is currently unavailable', err.message);
     } finally {
         button.disabled = false;
-        button.textContent = 'Проверить';
+    button.textContent = 'Test';
     }
 }
 
@@ -1124,7 +1550,7 @@ async function saveRuntimeSettings(event) {
     event.preventDefault();
     const saveButton = $('runtime-save');
     saveButton.disabled = true;
-    saveButton.textContent = 'Сохраняем…';
+    saveButton.textContent = 'Saving…';
     const payload = {
         install_path: $('runtime-install-path').value.trim(),
         custom_python: $('runtime-python').value.trim(),
@@ -1144,10 +1570,10 @@ async function saveRuntimeSettings(event) {
         await loadHealth();
         await loadDownloads();
     } catch (err) {
-        runtimeDetection('error', 'Не удалось сохранить настройки', err.message);
+        runtimeDetection('error', 'Could not save settings', err.message);
     } finally {
         saveButton.disabled = false;
-        saveButton.textContent = 'Сохранить';
+        saveButton.textContent = 'Save';
     }
 }
 
@@ -1163,7 +1589,7 @@ function closeAssistant() {
 }
 
 function assistantWelcome() {
-    $('assistant-messages').innerHTML = '<div class="assistant-message assistant-message-system"><strong>Помогу уточнить запрос</strong><p>Можно разобрать композицию, свет, настроение или формулировку.</p></div>';
+    $('assistant-messages').innerHTML = '<div class="assistant-message assistant-message-system"><strong>Let’s refine your prompt</strong><p>We can work on composition, lighting, mood or wording.</p></div>';
 }
 
 function addMsg(role, text) {
@@ -1181,7 +1607,7 @@ async function assistantSend(event) {
     if (!text) return;
     $('assistant-input').value = '';
     addMsg('user', text);
-    const pending = addMsg('assistant', 'Думаю…');
+    const pending = addMsg('assistant', 'Thinking…');
     $('assistant-send').disabled = true;
     try {
         const data = await json('/api/simple/assistant/chat', {
@@ -1195,6 +1621,8 @@ async function assistantSend(event) {
             }),
         });
         pending.textContent = data.reply;
+        const suggestedPrompt = String(data.suggested_prompt || data.reply || '').trim();
+        if (suggestedPrompt) applyAiPrompt(suggestedPrompt);
         state.history.push({ role: 'user', content: text }, { role: 'assistant', content: data.reply });
     } catch (err) {
         pending.textContent = err.message;
@@ -1328,12 +1756,12 @@ function openStudioContextMenu(event) {
 
     const title = document.createElement('div');
     title.className = 'image-context-menu__title';
-    title.textContent = 'Настройки студии';
+    title.textContent = 'Studio settings';
     menu.appendChild(title);
 
     menu.appendChild(createMenuItem({
         icon: '<svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>',
-        label: 'Сменить фон',
+        label: 'Change background',
         onClick: () => ambientPick(),
     }));
 
@@ -1343,7 +1771,7 @@ function openStudioContextMenu(event) {
 
     menu.appendChild(createSliderItem({
         icon: '<svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
-        label: 'Прозрачность карточек',
+        label: 'Card opacity',
         min: 10,
         max: 95,
         step: 1,
@@ -1361,12 +1789,12 @@ function openStudioContextMenu(event) {
 
     menu.appendChild(createSliderItem({
         icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/><line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/></svg>',
-        label: 'Размытие фона',
+        label: 'Background blur',
         min: 0,
         max: 40,
         step: 1,
         value: state.blur ?? 10,
-        format: v => (v === 0 ? 'Без размытия' : `${v} px`),
+        format: v => (v === 0 ? 'No blur' : `${v} px`),
         onInput: v => {
             state.blur = v;
             applyVisualSettings();
@@ -1379,17 +1807,17 @@ function openStudioContextMenu(event) {
 
     menu.appendChild(createSliderItem({
         icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-        label: 'Интервал смены',
+        label: 'Change interval',
         min: 0,
         max: 600,
         step: 15,
         value: Math.round((state.interval || 0) / 1000),
         format: v => {
-            if (v === 0) return 'Отключен';
-            if (v < 60) return `${v} сек`;
+            if (v === 0) return 'Disabled';
+            if (v < 60) return `${v} sec`;
             const m = Math.floor(v / 60);
             const s = v % 60;
-            return s ? `${m} мин ${s}с` : `${m} мин`;
+            return s ? `${m} min ${s} sec` : `${m} min`;
         },
         onInput: v => {
             state.interval = v * 1000;
@@ -1406,17 +1834,17 @@ function openStudioContextMenu(event) {
     menu.appendChild(sep2);
 
     const fitLabels = {
-        cover: 'Заполнение',
-        contain: 'Вписать',
+        cover: 'Cover',
+        contain: 'Contain',
         original: '1:1',
     };
     menu.appendChild(createSubmenuItem({
         icon: '<svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>',
-        label: 'Масштаб фона',
-        badge: fitLabels[state.fit] || 'Заполнение',
+        label: 'Background fit',
+        badge: fitLabels[state.fit] || 'Cover',
         items: [
             {
-                label: 'Заполнение (Cover)',
+                label: 'Cover',
                 active: state.fit === 'cover',
                 onClick: () => {
                     state.fit = 'cover';
@@ -1425,7 +1853,7 @@ function openStudioContextMenu(event) {
                 },
             },
             {
-                label: 'Вписать целиком (Contain)',
+                label: 'Contain',
                 active: state.fit === 'contain',
                 onClick: () => {
                     state.fit = 'contain';
@@ -1434,7 +1862,7 @@ function openStudioContextMenu(event) {
                 },
             },
             {
-                label: 'Оригинал (1:1)',
+                label: 'Original (1:1)',
                 active: state.fit === 'original',
                 onClick: () => {
                     state.fit = 'original';
@@ -1447,8 +1875,8 @@ function openStudioContextMenu(event) {
 
     menu.appendChild(createMenuItem({
         icon: '<svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
-        label: 'Звук готовности',
-        badge: state.sound ? 'Вкл' : 'Выкл',
+        label: 'Completion sound',
+        badge: state.sound ? 'On' : 'Off',
         onClick: () => {
             state.sound = !state.sound;
             save('cmv_simple_sound_alert', state.sound);
@@ -1458,7 +1886,7 @@ function openStudioContextMenu(event) {
 
     menu.appendChild(createMenuItem({
         icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 8.5 4.1a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2h4v.4A1.7 1.7 0 0 0 15 4.1a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.5a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.9v4h-.9a1.7 1.7 0 0 0-1.7 1.1Z"/></svg>',
-        label: 'Настройки ComfyUI…',
+        label: 'ComfyUI settings…',
         onClick: () => openRuntimeSettings(),
     }));
 

@@ -102,17 +102,14 @@ class PromptCompilerTest(unittest.TestCase):
                 scenario=PromptScenario.GRAPHIC_DESIGN_TEXT,
             ))
 
-    def test_multi_character_requires_tested_checkpoint_override(self) -> None:
-        with self.assertRaisesRegex(
-            PromptCompilerError,
-            "requires an explicit tested checkpoint capability profile",
-        ):
-            self.compiler.compile(PromptTask(
-                family=PromptFamily.FLUX,
-                operation=PromptOperation.GENERATE,
-                scenario=PromptScenario.MULTI_CHARACTER,
-                checkpoint_profile="z-image-unverified",
-            ))
+    def test_multi_character_is_natively_supported(self) -> None:
+        bundle = self.compiler.compile(PromptTask(
+            family=PromptFamily.FLUX,
+            operation=PromptOperation.GENERATE,
+            scenario=PromptScenario.MULTI_CHARACTER,
+        ))
+        self.assertEqual(bundle.capability_status, CapabilityStatus.SUPPORTED)
+        self.assertEqual(bundle.versions["scenario"], "1")
 
     def test_all_supported_base_scenarios_have_migrated_manifests(self) -> None:
         for scenario in (
@@ -123,6 +120,7 @@ class PromptCompilerTest(unittest.TestCase):
             PromptScenario.LANDSCAPE_ENVIRONMENT,
             PromptScenario.ILLUSTRATION_ART,
             PromptScenario.GRAPHIC_DESIGN_TEXT,
+            PromptScenario.MULTI_CHARACTER,
         ):
             with self.subTest(scenario=scenario.value):
                 bundle = self.compiler.compile(PromptTask(
@@ -140,6 +138,37 @@ class PromptCompilerTest(unittest.TestCase):
                 scenario=PromptScenario.PORTRAIT,
                 modifiers=(PromptModifier.SAFE, PromptModifier.ADULT_ONLY),
             )
+
+    def test_modifiers_compile_for_all_families(self) -> None:
+        for family in (PromptFamily.FLUX, PromptFamily.SDXL, PromptFamily.PONY):
+            with self.subTest(family=family.value, modifier="adult_only"):
+                bundle = self.compiler.compile(PromptTask(
+                    family=family,
+                    operation=PromptOperation.GENERATE,
+                    scenario=PromptScenario.PORTRAIT,
+                    modifiers=(PromptModifier.ADULT_ONLY,),
+                ))
+                modifier_section = next(
+                    s for s in bundle.sections if s.kind == "modifier"
+                )
+                self.assertEqual(modifier_section.section_id, "adult_only")
+                self.assertIn("HARD PROFILE", modifier_section.content)
+                self.assertIn("INTIMACY DIAL", modifier_section.content)
+                self.assertIn("ANTI-GEL", modifier_section.content)
+
+            with self.subTest(family=family.value, modifier="safe"):
+                bundle = self.compiler.compile(PromptTask(
+                    family=family,
+                    operation=PromptOperation.GENERATE,
+                    scenario=PromptScenario.PORTRAIT,
+                    modifiers=(PromptModifier.SAFE,),
+                ))
+                modifier_section = next(
+                    s for s in bundle.sections if s.kind == "modifier"
+                )
+                self.assertEqual(modifier_section.section_id, "safe")
+                self.assertIn("GENERAL AUDIENCE", modifier_section.content)
+                self.assertIn("CROSS-FAMILY SFW ADAPTATION", modifier_section.content)
 
     def test_scene_spec_is_strict_and_serializable(self) -> None:
         spec = SceneSpec(
@@ -169,7 +198,7 @@ class PromptCompilerTest(unittest.TestCase):
         self.assertEqual(payload["uncertain_details"], ["small footer text"])
 
         with self.assertRaises(ValidationError):
-            SceneSpec(unknown_field=True)
+            SceneSpec.model_validate({"unknown_field": True})
 
     def test_prompt_result_rejects_extra_keys_and_strips_prompts(self) -> None:
         result = PromptResult(
@@ -186,11 +215,11 @@ class PromptCompilerTest(unittest.TestCase):
             PromptResult(positive_prompt="   ")
 
         with self.assertRaises(ValidationError):
-            PromptResult(
-                positive_prompt="valid",
-                negative_prompt="",
-                commentary="not allowed",
-            )
+            PromptResult.model_validate({
+                "positive_prompt": "valid",
+                "negative_prompt": "",
+                "commentary": "not allowed",
+            })
 
     def test_parse_prompt_result_uses_one_strict_contract(self) -> None:
         result = parse_prompt_result(

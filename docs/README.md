@@ -14,7 +14,9 @@ This directory contains the public technical and architectural documentation of 
 | Resource | Location | Description |
 |----------|----------|-------------|
 | [Landing Page](../site/index.html) | `site/index.html` | Project overview, showcase gallery, feature highlights, and quick install |
-| [Interactive API Reference (Scalar)](../site/api/index.html) | `site/api/index.html` | Interactive OpenAPI 3.1 portal powered by Scalar with dark mode and live code snippets |
+| [Interactive API Reference (Scalar)](../site/api/index.html) | `site/api/index.html` | Public OpenAPI 3.1 contract for all supported non-legacy `/api/*` routes, rendered by Scalar with live request examples and code snippets |
+
+`site/api/openapi.json` is the machine-readable public API contract. `docs/core/api.md` is the detailed human reference with behavioral notes and examples. The pre-Simple-Mode `/api/editor/*` workflow-editor surface is retained as legacy/internal implementation material and is intentionally excluded from the public OpenAPI contract and its CI coverage gate.
 
 ---
 
@@ -23,7 +25,7 @@ This directory contains the public technical and architectural documentation of 
 | Document | Description |
 |----------|-------------|
 | [Architecture](core/architecture.md) | System overview, data flow, SQLite storage model, and extension points |
-| [API Reference](core/api.md) | Offline REST API reference with request/response schemas and examples |
+| [API Reference](core/api.md) | Detailed REST reference; supported public routes stay synchronized with `site/api/openapi.json`, with legacy editor notes kept separately |
 | [Features](core/features.md) | User-facing capabilities, keyboard shortcuts, and UI interactions |
 | [Configuration](core/configuration.md) | Environment variables, local directories, file support, and CLI flags |
 | [Installation](core/installation.md) | Installation options, requirements, and startup scripts |
@@ -34,7 +36,7 @@ This directory contains the public technical and architectural documentation of 
 
 | Document | Description |
 |----------|-------------|
-| [Development Guide](dev/development.md) | Local setup, project structure, contribution workflow, and testing checklist |
+| [Development Guide](dev/development.md) | Local setup, project structure, contribution workflow, API contract rules, and testing checklist |
 | [JavaScript Architecture](dev/js-architecture.md) | Frontend ES module structure, state management, API client, and feature modules |
 | [CSS Architecture](dev/css-architecture.md) | Styling design system, custom CSS properties, naming conventions, and layout tokens |
 
@@ -88,4 +90,3 @@ Active strategic plans and technical roadmaps are maintained in [`dev_docs/roadm
 | Add or customize styles | [CSS Architecture > Extension Guidelines](dev/css-architecture.md#extension-guidelines) |
 | Inspect AI prompt pipeline | [AI Prompt Architecture](ai/prompt-architecture.md) |
 | Review Simple Mode spec | [Simple Mode Redesign](design/simple-mode-redesign.md) |
-

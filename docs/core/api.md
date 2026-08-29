@@ -6,6 +6,10 @@ Base URL: `http://localhost:7860`
 
 The API is intentionally local-first and single-user oriented. Responses are JSON unless an endpoint explicitly returns media bytes.
 
+`site/api/openapi.json` is the machine-readable public contract rendered by the Scalar portal. It contains every supported non-legacy `/api/*` route. This document is the detailed human reference with behavior, examples, compatibility notes, and retained legacy implementation notes. Public Flask routes and OpenAPI are kept synchronized by `tests/test_openapi_contract.py`.
+
+The pre-Simple-Mode `/api/editor/*` workflow-editor surface is intentionally **legacy/internal**. It remains documented below for implementation history and possible future Advanced Mode reuse, but it is not part of the public OpenAPI contract or its coverage gate.
+
 ---
 
 ## Table of Contents
@@ -19,7 +23,7 @@ The API is intentionally local-first and single-user oriented. Responses are JSO
 - [AI Providers](#ai-providers)
 - [AI Prompt Drafts](#ai-prompt-drafts)
 - [AI Prompt Operations](#ai-prompt-operations)
-- [ComfyUI Runtime and Workflow Editor](#comfyui-runtime-and-workflow-editor)
+- [ComfyUI Runtime and Legacy Workflow Editor](#comfyui-runtime-and-legacy-workflow-editor)
 - [Create (Simple) API](#create-simple-api)
 - [Social API](#social-api)
 - [System](#system)
@@ -778,22 +782,22 @@ Returns local diagnostics and cache statistics.
 ## AI Prompt Drafts
 
 `POST /api/ai/adapt` creates a family-aware prompt adaptation. In addition to `source`, `task`,
-`target_family`, and the optional tested `checkpoint_profile`, the editor sends
+`target_family`, and the optional tested `checkpoint_profile`, the caller can send
 `checkpoint_resource_hash` when the selected checkpoint exists in the local model catalog. Trusted
 catalog trigger words that are already present in the source prompt are protected across normalized
 execution and recorded in the adaptation as `protected_triggers`; catalog triggers absent from the
 source are not injected.
 
-`GET /api/ai/jobs/<job_id>` returns the durable job snapshot, including the current `SceneSpec`,
+`GET /api/ai/jobs/{job_id}` returns the durable job snapshot, including the current `SceneSpec`,
 all prompt draft revisions, the normalized result, and execution metadata.
 
-`GET /api/ai/prompt-drafts/<draft_id>` returns one draft plus its execution context.
+`GET /api/ai/prompt-drafts/{draft_id}` returns one draft plus its execution context.
 
-`PATCH /api/ai/prompt-drafts/<draft_id>` accepts `positive_prompt` and/or `negative_prompt`.
+`PATCH /api/ai/prompt-drafts/{draft_id}` accepts `positive_prompt` and/or `negative_prompt`.
 It creates and returns an append-only manual revision; the original AI output is not overwritten.
 
-`POST /api/ai/jobs/<job_id>/review` promotes the latest draft to the final result. Pass an optional
-`draft_id` to accept a specific revision. `POST /api/ai/jobs/<job_id>/cancel` cancels a queued,
+`POST /api/ai/jobs/{job_id}/review` promotes the latest draft to the final result. Pass an optional
+`draft_id` to accept a specific revision. `POST /api/ai/jobs/{job_id}/cancel` cancels a queued,
 running, or review-waiting job.
 
 ```json
@@ -842,7 +846,7 @@ reference `asset_id` can be attached for provenance. When `?stream=1`, the `Acce
 
 Family-aware adaptation. `target_family` and the optional tested `checkpoint_profile` configure the
 destination; `checkpoint_resource_hash` resolves the local checkpoint from the model catalog when
-present. Trusted catalog trigger words already in the source are preserved as `protected_triggers` —
+present. Trusted catalog trigger words already in the source are preserved as `protected_triggers` -
 catalog triggers absent from the source are not injected. Returns `201`.
 
 ### `POST /api/ai/enhance`
@@ -853,7 +857,7 @@ Enhances a prompt toward stronger composition, lighting, and subject detail. Acc
 ### `POST /api/ai/reconstruct`
 
 Renders a full prompt from a saved `SceneSpec`, supplied either directly in `scene_spec` or via a
-`scene_spec_job_id` returned by vision analysis. A `scene_spec_job_id` keeps the editor consistent:
+`scene_spec_job_id` returned by vision analysis. A `scene_spec_job_id` keeps the operation consistent:
 if both are given at once, `asset_id` must match the asset attached to the saved `SceneSpec`. Returns
 `201` with the job, `scene_spec`, prompt draft, and context.
 
@@ -876,8 +880,8 @@ operation is `reconstruct` accepts edits.
 
 Creates a remix draft from `asset_id` and a chosen `prompt_source`, using direct or CLI execution.
 Additional `execution_backend`, `provider_profile_id`, and `model_id` fields select the runtime. The
-created draft links to its parent asset for provenance. This is the AI variant of
-[`POST /api/editor/remix`](#runs-output-and-remix); the UI currently relies on the editor endpoint.
+created draft links to its parent asset for provenance. The legacy workflow editor exposes a separate
+`POST /api/editor/remix` route; that legacy route is not part of the public OpenAPI contract.
 
 ### `GET /api/ai/resources`
 
@@ -915,10 +919,11 @@ Deletes the stored AI rating and any manual override for the asset.
 
 ---
 
-## ComfyUI Runtime and Workflow Editor
+## ComfyUI Runtime and Legacy Workflow Editor
 
-The Create page is available at `GET /editor`. `GET /settings/comfyui` remains an alias. Runtime
-configuration is stored outside SQLite; workflow drafts and runs are durable SQLite records.
+`GET /create` and `GET /editor` now open the Simple Mode Create workspace. The pre-Simple-Mode workflow editor is retained at `GET /editor/legacy`; `GET /settings/comfyui` also renders that legacy workflow tooling while exposing runtime configuration.
+
+The `/api/comfyui/*` runtime routes below are part of the supported public OpenAPI contract. The `/api/editor/*` endpoints in the legacy subsections are intentionally excluded from `site/api/openapi.json` and from the public route/OpenAPI coverage gate. They remain here for implementation history and possible future Advanced Mode reuse. Runtime configuration is stored outside SQLite; legacy workflow drafts and runs are durable SQLite records.
 
 ### Runtime control
 
@@ -934,7 +939,7 @@ configuration is stored outside SQLite; workflow drafts and runs are durable SQL
 | `GET` | `/api/comfyui/logs` | Return captured managed-process output |
 | `POST` | `/api/comfyui/launcher` | Generate a platform-specific launcher script |
 
-### Templates and drafts
+### Legacy templates and drafts
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -970,7 +975,7 @@ Preview responses keep node and resource failures separate:
 }
 ```
 
-### Runs, output, and Remix
+### Legacy runs, output, and Remix
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -984,7 +989,7 @@ Preview responses keep node and resource failures separate:
 Imported output metadata records the template/draft/run/prompt identity and the executed API
 workflow. If a draft originated from Remix, the new asset also references its source asset.
 
-### Model scanner
+### Legacy model scanner
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1013,7 +1018,7 @@ Returns the creation-model catalog and the default profile ID.
 
 ### `GET /api/simple/ambient`
 
-Returns up to `limit` (1–72, default 36) curated candidate images: favorites and highly rated
+Returns up to `limit` (1-72, default 36) curated candidate images: favorites and highly rated
 assets, recent generations, and random older works. Candidate lists are cached for 45 seconds and
 fall back to recent library images when empty.
 
@@ -1103,7 +1108,7 @@ available the endpoint answers `503` with `code: directory_picker_unavailable`.
 
 ### `POST /api/simple/generate`
 
-Queue a generation for one creation model.
+Queues a generation for one creation model.
 
 ```json
 {
@@ -1207,6 +1212,8 @@ Same payload for one provider. Unknown providers return `404` with `code: unknow
 
 Validate and dispatch a publish request. Payload validation failures return `400` with
 `code: invalid_payload`; unimplemented publishers return `501` with `code: not_implemented`.
+
+The request contract is shared by both routes and includes `provider`, `target`, one to ten `assets`, and optional `text`. The path-selected route additionally verifies that the URL provider matches the payload provider.
 
 ### Telegram auth flow
 

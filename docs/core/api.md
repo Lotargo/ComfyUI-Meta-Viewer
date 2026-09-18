@@ -306,7 +306,7 @@ parameter for both the global Media sidebar and the central folder or album gall
 | `album_id` | int | -- | no | Virtual album ID to load |
 | `page` | int | `1` | no | Page number |
 | `per_page` | int | `50` | no | Assets per page |
-| `sort_by` | string | `date` | no | `name`, `date`, `size`, or `type` |
+| `sort_by` | string | `date` | no | `name`, `date`, `size`, `type`, or `custom` (server-side drag order; `sort_dir` is ignored for it) |
 | `sort_dir` | string | `desc` | no | `asc` or `desc` |
 | `rating` | int | -- | no | Exact rating from `0` (unrated) through `5` |
 | `media_type` | string | `image` | no | Comma-separated `image`, `video`, or both |
@@ -427,7 +427,8 @@ Returns system collection definitions, summary counts, and the current album lis
 Returns paginated library cards. Supported query parameters are `collection`, `album_id`,
 `page`, `per_page`, `sort_by`, `sort_dir`, `q`, `source_id`, and `tag`. `collection` is one
 of `all`, `favorites`, `without_metadata`, `recently_added`, `unavailable`, `images`,
-`videos`, `not_rated`, or `album`.
+`videos`, `not_rated`, or `album`. `sort_by=custom` serves the server-side drag order
+(see Custom order below); `sort_dir` is ignored for it.
 
 Each asset includes source/availability fields, `has_local_file`, favorite/rating/note/tags,
 all album IDs, thumbnail/original URLs, `media_type`, MIME type, video technical fields, and
@@ -507,6 +508,29 @@ system's Recycle Bin or Trash.
 | `POST /api/albums/{album_id}/assets` | Add `asset_ids` without copying files |
 | `DELETE /api/albums/{album_id}/assets` | Remove `asset_ids` from the album only |
 | `POST /api/albums/{album_id}/reorder` | Persist a custom manual order from `{ "asset_ids": [...] }` |
+
+### Custom order
+
+Drag-and-drop positions for folder and collection views persist server-side in the
+`item_positions` table, one scope per view: `folder:<id>`, `media:all`, or
+`collection:<id>`. Albums keep their own `album_images.position` mechanism and never
+use these scopes.
+
+- Positions are fractional: one drag writes a single row with the midpoint between
+  the visible neighbors, so paginated views never need a full rewrite. Scopes
+  rebalance themselves on float exhaustion.
+- Images without a row are "new" and sort first, newest first — new arrivals land
+  on top with no client bookkeeping.
+- Deleting an image cascades its rows; moving images between folders (metadata
+  split, source consolidation) or deleting a folder prunes the affected
+  folder scopes. Collection and `media:all` scopes are membership-based and survive
+  folder moves.
+
+| Method and path | Behavior |
+|-----------------|----------|
+| `GET /api/custom-order?scope=...` | Inspect a scope: positioned ids in view order plus positioned/unpositioned counts |
+| `PUT /api/custom-order` | Bulk-replace a scope from `{ "scope": ..., "ordered_ids": [...] }`; ids outside the scope are dropped and reported |
+| `POST /api/custom-order/move` | Persist one drag from `{ "scope": ..., "image_id": ..., "before_id": ..., "after_id": ... }` (`before_id`/`after_id` are the visible neighbors, `null` at a view edge) |
 
 ---
 

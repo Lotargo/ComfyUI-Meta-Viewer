@@ -9,8 +9,8 @@ import {
 import {
     getCustomOrderKey,
     loadCustomOrder,
-    saveCustomOrder,
-    applyCustomOrder,
+    serverScopeForCollection,
+    ensureServerCustomOrder,
     CUSTOM_ORDER_STORAGE_KEY,
 } from '../app/static/js/custom-order.js';
 
@@ -54,30 +54,54 @@ test('getCustomOrderKey normalizes folder, album, and media collections identica
     assert.equal(getCustomOrderKey('favorites'), 'collection:favorites');
 });
 
-test('saveCustomOrder and loadCustomOrder synchronize across collection descriptors', () => {
-    localStorage.clear();
-    const folderCollection = { type: 'folder', id: 5 };
-    saveCustomOrder(folderCollection, [103, 101, 102]);
-
-    assert.deepEqual(loadCustomOrder(folderCollection), [103, 101, 102]);
-    assert.deepEqual(loadCustomOrder({ type: 'folder', id: 5 }), [103, 101, 102]);
-
-    // Check media / all synchronization
-    saveCustomOrder({ type: 'media', id: null }, [500, 400, 300]);
-    assert.deepEqual(loadCustomOrder('all'), [500, 400, 300]);
-    assert.deepEqual(loadCustomOrder({ type: 'collection', collection: 'all' }), [500, 400, 300]);
+test('serverScopeForCollection maps descriptors to server scopes', () => {
+    assert.equal(serverScopeForCollection({ type: 'folder', id: 5 }), 'folder:5');
+    assert.equal(serverScopeForCollection({ type: 'media', id: null }), 'media:all');
+    assert.equal(serverScopeForCollection({ type: 'collection', collection: 'all' }), 'media:all');
+    assert.equal(serverScopeForCollection({ type: 'collection', collection: 'favorites' }), 'collection:favorites');
+    // Albums persist via the album reorder endpoint, never via scopes.
+    assert.equal(serverScopeForCollection({ type: 'album', id: 42 }), null);
 });
 
-test('applyCustomOrder reorders items and prepends new incoming items to the top', () => {
+test('ensureServerCustomOrder migrates a local snapshot once, then retires it', async () => {
     localStorage.clear();
-    const collection = { type: 'folder', id: 1 };
-    saveCustomOrder(collection, [20, 10, 30]);
+    localStorage.setItem(CUSTOM_ORDER_STORAGE_KEY, JSON.stringify({ 'folder:5': [103, 101, 102] }));
 
-    // Suppose newly generated image 40 arrives from server at the front: [40, 10, 20, 30]
-    const items = [{ id: 40 }, { id: 10 }, { id: 20 }, { id: 30 }];
-    const result = applyCustomOrder(items, collection);
+    const calls = [];
+    globalThis.fetch = async (url, options) => {
+        calls.push({ url, method: options?.method || 'GET', body: options?.body });
+        if (url.startsWith('/api/custom-order?')) {
+            return { ok: true, json: async () => ({ scope: 'folder:5', image_ids: [], positioned: 0, unpositioned: 3 }) };
+        }
+        return { ok: true, json: async () => ({ ok: true }) };
+    };
 
-    assert.equal(result.active, true);
-    // 40 should be at the top, followed by the custom ordered [20, 10, 30]
-    assert.deepEqual(items.map(i => i.id), [40, 20, 10, 30]);
+    const migrated = await ensureServerCustomOrder({ type: 'folder', id: 5 });
+    assert.equal(migrated, true);
+    const put = calls.find(call => call.method === 'PUT');
+    assert.ok(put, 'expected a bulk PUT migration');
+    assert.deepEqual(JSON.parse(put.body), { scope: 'folder:5', ordered_ids: [103, 101, 102] });
+    // Local snapshot retired after migration.
+    assert.equal(loadCustomOrder({ type: 'folder', id: 5 }), null);
+
+    const second = await ensureServerCustomOrder({ type: 'folder', id: 5 });
+    assert.equal(second, false);
+    assert.equal(calls.filter(call => call.method === 'PUT').length, 1);
+});
+
+test('ensureServerCustomOrder defers to existing server data', async () => {
+    localStorage.clear();
+    localStorage.setItem(CUSTOM_ORDER_STORAGE_KEY, JSON.stringify({ 'folder:7': [201, 202] }));
+
+    const calls = [];
+    globalThis.fetch = async url => {
+        calls.push(url);
+        return { ok: true, json: async () => ({ scope: 'folder:7', image_ids: [202, 201], positioned: 2, unpositioned: 0 }) };
+    };
+
+    const migrated = await ensureServerCustomOrder({ type: 'folder', id: 7 });
+    assert.equal(migrated, false);
+    assert.ok(calls.every(url => !url.startsWith('/api/custom-order') || url.includes('?')), 'no PUT expected');
+    // Stale local snapshot retired in favor of the server.
+    assert.equal(loadCustomOrder({ type: 'folder', id: 7 }), null);
 });

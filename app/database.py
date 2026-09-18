@@ -194,6 +194,20 @@ _INITIAL_SCHEMA_SQL = """
         PRIMARY KEY (image_id, tag_id)
     );
 
+    -- Server-side custom (drag-reordered) positions, one scope per view:
+    -- 'folder:<id>' (Viewer folder / library source), 'media:all' (whole
+    -- library), 'collection:<id>' (system collections). Albums keep their own
+    -- album_images.position mechanism and never use this table.
+    -- Smaller position = earlier (top). Images without a row are unpositioned
+    -- ("new") and always sort before positioned ones (NULLS-first), newest
+    -- first — this preserves the "new items on top" behavior for free.
+    CREATE TABLE IF NOT EXISTS item_positions (
+        scope TEXT NOT NULL,
+        image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+        position REAL NOT NULL,
+        PRIMARY KEY (scope, image_id)
+    );
+
     CREATE TABLE IF NOT EXISTS ai_jobs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         asset_id INTEGER REFERENCES images(id) ON DELETE SET NULL,
@@ -469,6 +483,7 @@ _LATE_INDEXES_SQL = """
     CREATE INDEX IF NOT EXISTS idx_images_indexed_at ON images(indexed_at DESC);
     CREATE INDEX IF NOT EXISTS idx_images_pending_processing ON images(folder_id, id) WHERE metadata_json IS NULL AND error IS NULL;
     CREATE INDEX IF NOT EXISTS idx_album_images_album_pos ON album_images(album_id, position ASC, image_id ASC);
+    CREATE INDEX IF NOT EXISTS idx_item_positions_scope ON item_positions(scope, position ASC, image_id ASC);
     CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
 """
@@ -1083,6 +1098,13 @@ def consolidate_legacy_source(path: str) -> None:
             (source_id, derived_id),
         )
         conn.execute("DELETE FROM folders WHERE id = ?", (derived_id,))
+        # The derived folder view is gone: drop its whole custom-order scope.
+        # (Deleted duplicate images clean up via ON DELETE CASCADE; moved
+        # images re-enter the source folder view as "new".)
+        conn.execute(
+            "DELETE FROM item_positions WHERE scope = ?",
+            (f"folder:{derived_id}",),
+        )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -1171,10 +1193,25 @@ def split_folder_by_metadata(folder_id: int) -> None:
         no_meta_folder_id = cur.fetchone()["id"]
 
         # Move no-metadata images to the sibling folder
+        moved_rows = conn.execute(
+            f"SELECT id FROM images WHERE folder_id = ? AND {no_meta_cond}",
+            (folder_id,),
+        ).fetchall()
+        moved_ids = [int(row["id"]) for row in moved_rows]
         conn.execute(
             f"UPDATE images SET folder_id = ? WHERE folder_id = ? AND {no_meta_cond}",
             (no_meta_folder_id, folder_id),
         )
+        if moved_ids:
+            # Folder-scoped custom positions belong to the old folder view;
+            # drop them so the moved images re-enter as "new" (top).
+            # 'media:all' / collection scopes are membership-based and stay.
+            placeholders = ",".join("?" for _ in moved_ids)
+            conn.execute(
+                "DELETE FROM item_positions "
+                f"WHERE scope LIKE 'folder:%' AND image_id IN ({placeholders})",
+                moved_ids,
+            )
         conn.commit()
     finally:
         conn.close()
@@ -1401,19 +1438,22 @@ def get_images_page(
 
         total = total_row["c"] if total_row else 0
 
-        # Map sorting key to column names safely
+        # Map sorting key to column names safely.
+        # "custom" (server-side drag order from item_positions) is resolved
+        # after the album check below; sort_dir is ignored for it — a custom
+        # order has exactly one direction.
         sort_by_map = {
             "name": "i.file_name COLLATE NOCASE",
             "date": "i.file_mtime",
             "size": "i.file_size",
             "type": "i.format",
         }
-        if sort_by not in sort_by_map:
+        if sort_by != "custom" and sort_by not in sort_by_map:
             raise ValueError(f"Invalid sort_by parameter: {sort_by}")
         if sort_dir.lower() not in {"asc", "desc"}:
             raise ValueError(f"Invalid sort_dir parameter: {sort_dir}")
 
-        sort_column = sort_by_map[sort_by]
+        sort_column = sort_by_map.get(sort_by)
         direction = "DESC" if sort_dir.lower() == "desc" else "ASC"
 
         # Enforce strict whitelist of columns and directions to prevent SQL Injection
@@ -1425,7 +1465,7 @@ def get_images_page(
         }
         allowed_directions = {"ASC", "DESC"}
 
-        if sort_column not in allowed_sort_columns:
+        if sort_column is not None and sort_column not in allowed_sort_columns:
             raise ValueError(f"Invalid sort column: {sort_column}")
         if direction not in allowed_directions:
             raise ValueError(f"Invalid sort direction: {direction}")
@@ -1451,10 +1491,33 @@ def get_images_page(
             ).fetchone()
             album_custom_order = bool(row and row["custom_order"])
 
+        # Resolve the server-side drag-order scope. Albums keep their own
+        # album_images.position mechanism; an album without the custom_order
+        # flag falls back to date (previous behavior when the route remapped
+        # sort_by=custom to date).
+        custom_scope: str | None = None
+        if sort_by == "custom" and not album_custom_order:
+            if album_id is not None:
+                sort_column = sort_by_map["date"]
+            elif folder_id is not None:
+                custom_scope = f"folder:{folder_id}"
+            else:
+                custom_scope = "media:all"
+
         # Determine sort order
         if album_custom_order:
             subquery_order = "ORDER BY ai2.position ASC, i2.id ASC"
             main_order = "ORDER BY ai.position ASC, i.id ASC"
+        elif custom_scope is not None:
+            # Unpositioned ("new") rows sort first, newest first — this keeps
+            # the "new items on top" behavior without any client overlay.
+            # (SQLite sorts NULLS first in ASC order.)
+            subquery_order = (
+                "ORDER BY ip2.position IS NOT NULL, ip2.position ASC, i2.id DESC"
+            )
+            main_order = (
+                "ORDER BY ip.position IS NOT NULL, ip.position ASC, i.id DESC"
+            )
         elif sort_by == "name":
             subquery_order = f"ORDER BY i2.file_name COLLATE NOCASE {direction}, i2.id {direction}"
             main_order = f"ORDER BY i.file_name COLLATE NOCASE {direction}, i.id {direction}"
@@ -1470,6 +1533,15 @@ def get_images_page(
         media_clause_sub = media_clause.replace("i.", "i2.")
         rating_clause_sub = rating_clause.replace("i.", "i2.")
         cursor_clause_sub = cursor_clause.replace("i.", "i2.")
+
+        custom_join_sub = ""
+        custom_join_params: tuple[Any, ...] = ()
+        if custom_scope is not None:
+            custom_join_sub = (
+                " LEFT JOIN item_positions ip2"
+                " ON ip2.scope = ? AND ip2.image_id = i2.id"
+            )
+            custom_join_params = (custom_scope,)
 
         if album_id is not None:
             subquery = f"""SELECT i2.id FROM images i2
@@ -1488,11 +1560,14 @@ def get_images_page(
             )
         elif folder_id is not None:
             subquery = f"""SELECT i2.id FROM images i2
-                JOIN folders f2 ON f2.id = i2.folder_id
+                JOIN folders f2 ON f2.id = i2.folder_id{custom_join_sub}
                 WHERE i2.folder_id = ? AND f2.enabled = 1
                   {media_clause_sub}{rating_clause_sub}{cursor_clause_sub}
                 {subquery_order} LIMIT ? OFFSET ?"""
+            # NOTE: the custom JOIN's placeholder comes textually before the
+            # WHERE placeholder, so its param goes first.
             query_params = (
+                *custom_join_params,
                 folder_id,
                 *normalized_media_types,
                 *rating_params,
@@ -1502,10 +1577,11 @@ def get_images_page(
             )
         else:
             subquery = f"""SELECT i2.id FROM images i2
-                JOIN folders f2 ON f2.id = i2.folder_id
+                JOIN folders f2 ON f2.id = i2.folder_id{custom_join_sub}
                 WHERE f2.enabled = 1{media_clause_sub}{rating_clause_sub}{cursor_clause_sub}
                 {subquery_order} LIMIT ? OFFSET ?"""
             query_params = (
+                *custom_join_params,
                 *normalized_media_types,
                 *rating_params,
                 *cursor_params,
@@ -1517,6 +1593,12 @@ def get_images_page(
         if album_custom_order:
             album_join = " JOIN album_images ai ON ai.image_id = i.id AND ai.album_id = ?"
 
+        custom_join_main = ""
+        if custom_scope is not None:
+            custom_join_main = (
+                " LEFT JOIN item_positions ip ON ip.scope = ? AND ip.image_id = i.id"
+            )
+
         main_query = f"""SELECT i.id, i.file_name, i.media_type, i.mime_type,
             i.format, i.width, i.height, i.mode,
             i.duration, i.frame_rate, i.codec, i.preview_status,
@@ -1524,11 +1606,13 @@ def get_images_page(
             i.original_data IS NULL AS has_local_file,
             i.file_mtime
         FROM ({subquery}) page_ids
-        JOIN images i ON i.id = page_ids.id{album_join}
+        JOIN images i ON i.id = page_ids.id{album_join}{custom_join_main}
         {main_order}"""
 
         if album_custom_order:
             query_params = (*query_params, album_id)
+        if custom_scope is not None:
+            query_params = (*query_params, custom_scope)
 
         rows = conn.execute(main_query, query_params).fetchall()
 
@@ -1822,6 +1906,11 @@ def delete_folder(folder_id: int) -> None:
     try:
         conn.execute("DELETE FROM images WHERE folder_id = ?", (folder_id,))
         conn.execute("DELETE FROM folders WHERE id = ?", (folder_id,))
+        # Image rows clean up via ON DELETE CASCADE; drop the folder scope itself.
+        conn.execute(
+            "DELETE FROM item_positions WHERE scope = ?",
+            (f"folder:{folder_id}",),
+        )
         conn.commit()
     except Exception:
         conn.rollback()

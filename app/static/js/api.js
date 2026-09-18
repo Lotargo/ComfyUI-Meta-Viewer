@@ -100,14 +100,12 @@ function selectedMediaTypes() {
 function collectionImagesUrl(collection, page, perPage) {
     const filter = collectionFilter(collection);
     const rating = ratingFilter === null ? '' : `&rating=${ratingFilter}`;
-    const backendSortBy = sortKey === 'custom' ? 'date' : sortKey;
-    return `/api/images?${filter}&page=${page}&per_page=${perPage}&sort_by=${backendSortBy}&sort_dir=${sortDir}&media_type=${selectedMediaTypes()}${rating}`;
+    return `/api/images?${filter}&page=${page}&per_page=${perPage}&sort_by=${sortKey}&sort_dir=${sortDir}&media_type=${selectedMediaTypes()}${rating}`;
 }
 
 function sidebarImagesUrl(page, perPage) {
     const rating = ratingFilter === null ? '' : `&rating=${ratingFilter}`;
-    const backendSortBy = sidebarSortKey === 'custom' ? 'date' : sidebarSortKey;
-    return `/api/images?page=${page}&per_page=${perPage}&sort_by=${backendSortBy}&sort_dir=${sidebarSortDir}&media_type=${selectedMediaTypes()}${rating}`;
+    return `/api/images?page=${page}&per_page=${perPage}&sort_by=${sidebarSortKey}&sort_dir=${sidebarSortDir}&media_type=${selectedMediaTypes()}${rating}`;
 }
 
 async function renderCurrentContent({ reconcileGallery = false } = {}) {
@@ -327,10 +325,7 @@ export async function loadMore() {
             page_size: PAGE_SIZE,
         }, () => fetchJson(collectionImagesUrl(currentCollection, nextPage, PAGE_SIZE)));
         if (data.images?.length) {
-            const newIds = data.images.map(img => img.id);
             images.push(...data.images);
-            const { mergeCustomOrderOnPageLoad } = await import('./gallery.js');
-            mergeCustomOrderOnPageLoad(newIds);
             setCurrentPage(nextPage);
             setTotalImages(data.total || totalImages);
             setAllLoaded(images.length >= (data.total || 0));
@@ -640,6 +635,12 @@ export async function loadCollectionImages(collection, { force = false, render =
         : (collection.type === 'media' ? 'all' : 'folder');
     if (render && !preserveCount) showLoading(`Loading ${collectionLabel} media...`);
     try {
+        // One-time migration of pre-server localStorage orders for this
+        // scope; afterwards the list below already comes back in custom order.
+        if (sortKey === 'custom' && collection?.type !== 'album') {
+            const { ensureServerCustomOrder } = await import('./custom-order.js');
+            await ensureServerCustomOrder(collection);
+        }
         const limit = preserveCount ? Math.max(PAGE_SIZE, currentPage * PAGE_SIZE) : PAGE_SIZE;
         const data = await fetchJson(collectionImagesUrl(collection, 1, limit), { force });
         const nextImages = data.images || [];

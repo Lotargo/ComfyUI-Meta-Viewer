@@ -1,11 +1,18 @@
 /**
- * Shared custom sort order module for ComfyUI Meta Viewer.
- * Keeps consistent ordering across Gallery, Sidebar, and Library views.
+ * Server-side custom sort order for ComfyUI Meta Viewer.
+ *
+ * Drag-and-drop positions live in the `item_positions` table (one scope per
+ * view: 'folder:<id>', 'media:all', 'collection:<id>') and are served via
+ * sort_by=custom. Albums keep their own album_images.position mechanism.
+ *
+ * The localStorage snapshot format below exists only to migrate orders that
+ * were saved by older client versions (one PUT per scope, then retired).
  */
 
 export const CUSTOM_ORDER_STORAGE_KEY = 'cmv_custom_order';
 const LEGACY_GALLERY_ORDER_KEY = 'cmv_gallery_order';
 const LEGACY_LIBRARY_ORDER_KEY = 'cmv_library_order';
+const MIGRATED_SCOPES_KEY = 'cmv_custom_order_migrated';
 
 /**
  * Normalizes a collection descriptor to a unified storage key.
@@ -54,78 +61,138 @@ export function loadAllCustomOrders() {
     }
 }
 
-export function saveAllCustomOrders(orders) {
-    try {
-        localStorage.setItem(CUSTOM_ORDER_STORAGE_KEY, JSON.stringify(orders));
-        // Keep legacy keys in sync for backward compatibility
-        localStorage.setItem(LEGACY_GALLERY_ORDER_KEY, JSON.stringify(orders));
-        localStorage.setItem(LEGACY_LIBRARY_ORDER_KEY, JSON.stringify(orders));
-    } catch (_error) {
-        // storage quota exceeded or storage unavailable
-    }
-}
-
 export function loadCustomOrder(collection) {
     const orders = loadAllCustomOrders();
     const key = getCustomOrderKey(collection);
     return orders[key] || null;
 }
 
-export function saveCustomOrder(collection, orderIds) {
-    const orders = loadAllCustomOrders();
-    const key = getCustomOrderKey(collection);
-    orders[key] = [...orderIds].map(Number).filter(id => Number.isInteger(id) && id > 0);
-    saveAllCustomOrders(orders);
+function dropLocalOrder(key) {
+    try {
+        const orders = loadAllCustomOrders();
+        if (!(key in orders)) return;
+        delete orders[key];
+        const payload = JSON.stringify(orders);
+        localStorage.setItem(CUSTOM_ORDER_STORAGE_KEY, payload);
+        localStorage.setItem(LEGACY_GALLERY_ORDER_KEY, payload);
+        localStorage.setItem(LEGACY_LIBRARY_ORDER_KEY, payload);
+    } catch (_error) {
+        // storage quota exceeded or storage unavailable
+    }
 }
 
 /**
- * Reorders an array of items in place according to the saved custom order.
- * - Any newly generated or scanned items not in `saved` are placed at the TOP.
- * - Paginated older items are placed at the BOTTOM.
- * - Items in `saved` follow their exact saved order.
+ * Maps a collection descriptor to a server item_positions scope.
+ * Returns null for albums (they persist via POST /api/albums/{id}/reorder).
  */
-export function applyCustomOrder(items, collection, { idField = 'id' } = {}) {
-    if (!Array.isArray(items) || items.length < 2) {
-        return { active: false, count: items ? items.length : 0 };
+export function serverScopeForCollection(collection) {
+    const key = getCustomOrderKey(collection);
+    if (key.startsWith('album:')) return null;
+    if (key === 'collection:all') return 'media:all';
+    return key;
+}
+
+function loadMigratedScopes() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(MIGRATED_SCOPES_KEY));
+        if (stored && typeof stored === 'object') return stored;
+    } catch (_error) {
+        // storage unreadable or unavailable
     }
-    const saved = loadCustomOrder(collection);
-    if (!saved || saved.length < 2) {
-        return { active: false, count: items.length };
+    return {};
+}
+
+function markScopeMigrated(scope) {
+    try {
+        const migrated = loadMigratedScopes();
+        migrated[scope] = true;
+        localStorage.setItem(MIGRATED_SCOPES_KEY, JSON.stringify(migrated));
+    } catch (_error) {
+        // storage quota exceeded or storage unavailable
+    }
+}
+
+async function readJsonSafe(response) {
+    try {
+        return await response.json();
+    } catch (_error) {
+        return {};
+    }
+}
+
+/**
+ * One-time migration of a pre-server localStorage order into item_positions.
+ * Returns true when the caller should (re)load the list afterwards.
+ * Server data always wins over the local snapshot on conflict.
+ */
+export async function ensureServerCustomOrder(collection) {
+    const scope = serverScopeForCollection(collection);
+    if (!scope) return false;
+    if (loadMigratedScopes()[scope]) return false;
+
+    const key = getCustomOrderKey(collection);
+    let local = loadCustomOrder(collection);
+    if (scope === 'media:all' && (!local || local.length < 2)) {
+        // The Viewer ('media:all') and the Library ('collection:all') used
+        // separate keys for the same view in some client versions.
+        const twin = loadAllCustomOrders()['collection:all'];
+        if (twin && twin.length >= 2) local = twin;
     }
 
-    const itemMap = new Map();
-    for (const item of items) {
-        const id = Number(item?.[idField]);
-        if (id) itemMap.set(id, item);
+    let serverState = null;
+    try {
+        const response = await fetch(`/api/custom-order?scope=${encodeURIComponent(scope)}`);
+        if (response.ok) serverState = await readJsonSafe(response);
+    } catch (_error) {
+        return false; // offline or unreachable — retry on the next load
     }
+    if (!serverState) return false;
 
-    const savedSet = new Set(saved.map(Number));
-    const newItemsAtTop = [];
-    const newItemsAtBottom = [];
+    if ((serverState.positioned || 0) > 0) {
+        // Server already owns this scope: retire the local snapshot.
+        dropLocalOrder(key);
+        if (scope === 'media:all') dropLocalOrder('collection:all');
+        markScopeMigrated(scope);
+        return false;
+    }
+    if (!local || local.length < 2) {
+        markScopeMigrated(scope);
+        return false;
+    }
+    try {
+        const response = await fetch('/api/custom-order', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scope, ordered_ids: local }),
+        });
+        if (!response.ok) return false; // retry on the next load
+    } catch (_error) {
+        return false;
+    }
+    dropLocalOrder(key);
+    if (scope === 'media:all') dropLocalOrder('collection:all');
+    markScopeMigrated(scope);
+    return true;
+}
 
-    const firstSavedIdx = items.findIndex(item => savedSet.has(Number(item?.[idField])));
-    items.forEach((item, idx) => {
-        const id = Number(item?.[idField]);
-        if (!savedSet.has(id)) {
-            if (firstSavedIdx === -1 || idx < firstSavedIdx) {
-                newItemsAtTop.push(item);
-            } else {
-                newItemsAtBottom.push(item);
-            }
-        }
+/**
+ * Persists one drag-and-drop: places imageId between the visible neighbors
+ * (null = view edge). Throws on failure so the caller can toast + resync.
+ */
+export async function persistCustomOrderMove(scope, imageId, beforeId, afterId) {
+    const response = await fetch('/api/custom-order/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            scope,
+            image_id: imageId,
+            before_id: beforeId ?? null,
+            after_id: afterId ?? null,
+        }),
     });
-
-    const reordered = [];
-    for (const id of saved) {
-        const numId = Number(id);
-        if (itemMap.has(numId)) {
-            reordered.push(itemMap.get(numId));
-            itemMap.delete(numId);
-        }
+    const data = await readJsonSafe(response);
+    if (!response.ok || data.error) {
+        throw new Error(data.error || `${response.status} ${response.statusText}`);
     }
-
-    items.length = 0;
-    items.push(...newItemsAtTop, ...reordered, ...newItemsAtBottom);
-
-    return { active: true, count: items.length };
+    return data;
 }

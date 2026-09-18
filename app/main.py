@@ -66,6 +66,8 @@ from .reset_service import ResetOperationError, reset_application_index
 from .schemas import (
     AlbumCreateRequest,
     AlbumUpdateRequest,
+    CustomOrderBulkRequest,
+    CustomOrderMoveRequest,
     ExtractRequest,
     LibraryAssetIdsRequest,
     LibraryAssetUpdateRequest,
@@ -219,8 +221,6 @@ def api_library_assets():
         },
     ):
         sort_by = request.args.get("sort_by", "date")
-        if sort_by == "custom":
-            sort_by = "date"
         result = media_library.get_assets(
             collection=request.args.get("collection", "all"),
             album_id=request.args.get("album_id", type=int),
@@ -361,6 +361,54 @@ def api_album_reorder(album_id: int):
         except media_library.LibraryNotFoundError as exc:
             return jsonify({"error": str(exc)}), 404
     return jsonify({"ok": True})
+
+
+@app.route("/api/custom-order", methods=["GET"])
+def api_custom_order_get():
+    scope = request.args.get("scope", "")
+    return jsonify(media_library.get_custom_order(scope))
+
+
+@app.route("/api/custom-order", methods=["PUT"])
+def api_custom_order_put():
+    try:
+        payload = CustomOrderBulkRequest.model_validate(
+            request.get_json(silent=True) or {}
+        )
+    except ValidationError as exc:
+        return jsonify({"error": exc.errors()[0]["msg"]}), 400
+    with tracer.start_as_current_span(
+        "custom_order.bulk",
+        attributes={"scope": payload.scope, "asset_count": len(payload.ordered_ids)},
+    ):
+        result = media_library.set_custom_order(payload.scope, payload.ordered_ids)
+    return jsonify({"ok": True, "scope": payload.scope, **result})
+
+
+@app.route("/api/custom-order/move", methods=["POST"])
+def api_custom_order_move():
+    try:
+        payload = CustomOrderMoveRequest.model_validate(
+            request.get_json(silent=True) or {}
+        )
+    except ValidationError as exc:
+        return jsonify({"error": exc.errors()[0]["msg"]}), 400
+    with tracer.start_as_current_span(
+        "custom_order.move",
+        attributes={"scope": payload.scope, "image.id": payload.image_id},
+    ):
+        position = media_library.move_custom_order_item(
+            payload.scope,
+            payload.image_id,
+            before_id=payload.before_id,
+            after_id=payload.after_id,
+        )
+    return jsonify({
+        "ok": True,
+        "scope": payload.scope,
+        "image_id": payload.image_id,
+        "position": position,
+    })
 
 
 @app.route("/api/albums/<int:album_id>/assets", methods=["POST", "DELETE"])
@@ -595,8 +643,6 @@ def api_images():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 50, type=int)
     sort_by = request.args.get("sort_by", "date")
-    if sort_by == "custom":
-        sort_by = "date"
     sort_dir = request.args.get("sort_dir", "desc")
     rating_value = request.args.get("rating")
     media_type_value = request.args.get("media_type", "image")

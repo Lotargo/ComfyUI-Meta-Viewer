@@ -127,6 +127,32 @@ class LibraryAssetIdsRequest(BaseModel):
     asset_ids: list[int] = Field(..., min_length=1, max_length=1000)
 
 
+class CustomOrderMoveRequest(BaseModel):
+    """Persist one drag-and-drop inside a custom-order scope."""
+
+    scope: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=r"^(folder:\d+|media:all|collection:[a-z_]+|album:\d+)$",
+    )
+    image_id: int = Field(..., ge=1)
+    before_id: int | None = Field(default=None, ge=1)
+    after_id: int | None = Field(default=None, ge=1)
+
+
+class CustomOrderBulkRequest(BaseModel):
+    """Bulk-replace a scope order (localStorage migration, full-view sync)."""
+
+    scope: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=r"^(folder:\d+|media:all|collection:[a-z_]+|album:\d+)$",
+    )
+    ordered_ids: list[int] = Field(..., min_length=1, max_length=5000)
+
+
 class ExtractRequest(BaseModel):
     paths: list[str] = Field(..., min_length=1)
 

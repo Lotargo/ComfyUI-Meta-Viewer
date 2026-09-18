@@ -1,6 +1,5 @@
 import { showImageContextMenu } from './components/image-context-menu.js';
 import { isSupportedMediaFile } from './media-files.js';
-import { saveCustomOrder, applyCustomOrder } from './custom-order.js';
 
 const dom = {
     systemCollections: document.getElementById('system-collections'),
@@ -97,14 +96,23 @@ function currentLibraryCollectionDescriptor() {
     return { type: 'collection', collection: state.collection || 'all' };
 }
 
-function saveLibraryOrder(newOrderIds) {
-    saveCustomOrder(currentLibraryCollectionDescriptor(), newOrderIds);
-}
-
-function applySavedLibraryOrder() {
-    const [sortBy] = dom.sort.value.split(':');
-    if (sortBy !== 'custom') return;
-    applyCustomOrder(state.assets, currentLibraryCollectionDescriptor());
+async function persistLibraryReorder(newOrderIds, draggedIds) {
+    const { serverScopeForCollection, persistCustomOrderMove } = await import('./custom-order.js');
+    const scope = serverScopeForCollection(currentLibraryCollectionDescriptor());
+    if (!scope) throw new Error('Custom order is not supported for this view');
+    const queue = draggedIds.filter(id => newOrderIds.includes(id));
+    // Place in final-DOM order so sequential midpoints converge exactly.
+    queue.sort((left, right) => newOrderIds.indexOf(left) - newOrderIds.indexOf(right));
+    for (const id of queue) {
+        const idx = newOrderIds.indexOf(id);
+        // eslint-disable-next-line no-await-in-loop -- sequential midpoints must converge in final-DOM order
+        await persistCustomOrderMove(
+            scope,
+            id,
+            idx > 0 ? newOrderIds[idx - 1] : null,
+            idx < newOrderIds.length - 1 ? newOrderIds[idx + 1] : null,
+        );
+    }
 }
 
 function readStoredBoolean(key, fallback) {
@@ -694,14 +702,12 @@ function applyCurrentFilters(params) {
 
 function buildAssetsUrl() {
     const [sortBy, sortDir] = dom.sort.value.split(':');
-    const apiSortBy = sortBy === 'custom' ? 'date' : sortBy;
-    const apiSortDir = sortBy === 'custom' ? 'desc' : (sortDir || 'desc');
     const params = applyCurrentFilters(new URLSearchParams({
         collection: state.collection,
         page: String(state.page),
         per_page: String(state.perPage),
-        sort_by: apiSortBy,
-        sort_dir: apiSortDir,
+        sort_by: sortBy,
+        sort_dir: sortDir || 'desc',
     }));
     return `/api/library/assets?${params}`;
 }
@@ -724,20 +730,23 @@ async function refreshAssets({ reconcile = false, preserveScroll = false } = {})
     state.loading = true;
     try {
         const [sortBy, sortDir] = dom.sort.value.split(':');
-        const apiSortBy = sortBy === 'custom' ? 'date' : sortBy;
-        const apiSortDir = sortBy === 'custom' ? 'desc' : (sortDir || 'desc');
+        // One-time migration of pre-server localStorage orders for this
+        // scope; afterwards the fetch below already comes back in order.
+        if (sortBy === 'custom' && !state.albumId) {
+            const { ensureServerCustomOrder } = await import('./custom-order.js');
+            await ensureServerCustomOrder(currentLibraryCollectionDescriptor());
+        }
         const params = applyCurrentFilters(new URLSearchParams({
             collection: state.collection,
             page: '1',
             per_page: String(state.page * state.perPage),
-            sort_by: apiSortBy,
-            sort_dir: apiSortDir,
+            sort_by: sortBy,
+            sort_dir: sortDir || 'desc',
         }));
 
         const data = await fetchJson(`/api/library/assets?${params}`, { signal: controller.signal });
         state.assets = data.assets || [];
         state.total = data.total || 0;
-        applySavedLibraryOrder();
         if (!state.assets.some(asset => asset.id === state.activeAssetId)) {
             state.activeAssetId = state.assets[0]?.id ?? null;
         }
@@ -828,10 +837,14 @@ async function loadAssets({ append = false } = {}) {
     }
     let succeeded = false;
     try {
+        const [sortBy] = dom.sort.value.split(':');
+        if (sortBy === 'custom' && !state.albumId) {
+            const { ensureServerCustomOrder } = await import('./custom-order.js');
+            await ensureServerCustomOrder(currentLibraryCollectionDescriptor());
+        }
         const data = await fetchJson(buildAssetsUrl(), { signal: controller.signal });
         state.assets = append ? [...state.assets, ...(data.assets || [])] : (data.assets || []);
         state.total = data.total || 0;
-        applySavedLibraryOrder();
         succeeded = true;
     } catch (error) {
         if (error.name !== 'AbortError') {
@@ -1795,7 +1808,6 @@ async function finishPointerAssetDrag(event, cancelled = false) {
             window.setTimeout(() => { state.suppressNextGridClick = false; }, 100);
         }
         cleanupPointerAssetDrag(session);
-        saveLibraryOrder(newOrderIds);
         if (dom.sort.value !== 'custom:desc') {
             dom.sort.value = 'custom:desc';
             writeStoredPreference(storageKeys.sort, dom.sort.value);
@@ -1809,6 +1821,16 @@ async function finishPointerAssetDrag(event, cancelled = false) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ asset_ids: newOrderIds }),
             }).catch(err => showToast(err.message, true));
+        } else if (!state.albumId) {
+            // Server-side custom order: persist one fractional move per
+            // dragged card, in final-DOM order. On failure toast + reload
+            // so the UI never diverges from the backend.
+            try {
+                await persistLibraryReorder(newOrderIds, assetIds);
+            } catch (err) {
+                showToast(err.message, true);
+                await refreshAssets();
+            }
         }
         return;
     }

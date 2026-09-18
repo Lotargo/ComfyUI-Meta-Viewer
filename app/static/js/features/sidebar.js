@@ -41,10 +41,7 @@ import {
     sidebarCollapsed,
     sidebarWidth,
     refreshCacheBuster,
-    sortKey,
-    sidebarSortKey,
 } from '../state.js';
-import { applyCustomOrder } from '../custom-order.js';
 import { escapeHtml, customConfirm, formatMediaCountLabel, imageRenderSignature, originalUrl } from '../utils.js';
 import { createSidebarItem } from '../components/sidebar-item.js';
 import { showImageContextMenu } from '../components/image-context-menu.js';
@@ -137,9 +134,8 @@ export function updateSidebarImageCount() {
 }
 
 export function renderSidebar({ reconcile = false } = {}) {
-    if (sidebarSortKey === 'custom') {
-        applyCustomOrder(sidebarImages, { type: 'media', id: null });
-    }
+    // Custom order is served by the backend (sort_by=custom):
+    // no client-side overlay is applied anymore.
     updateSidebarImageCount();
 
     if (reconcile) {

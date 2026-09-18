@@ -12,7 +12,6 @@ import {
     showToast,
     setGalleryScrollObserver,
     isBrowsableCollection,
-    sortKey,
     setSortKey,
     saveState,
 } from './state.js';
@@ -30,61 +29,6 @@ async function fetchJson(url, options) {
         throw new Error(data.error || `${response.status} ${response.statusText}`);
     }
     return data;
-}
-
-import { loadCustomOrder, saveCustomOrder, applyCustomOrder } from './custom-order.js';
-
-let hasCustomOrder = false;
-
-export function applySavedCustomOrder() {
-    if (sortKey !== 'custom') {
-        hasCustomOrder = false;
-        return;
-    }
-    const span = traceSpan("gallery.applySavedCustomOrder", {
-        collection: currentCollection.type,
-        collection_id: currentCollection.id ?? "all",
-        image_count: images.length,
-    });
-    try {
-        const result = applyCustomOrder(images, currentCollection);
-        hasCustomOrder = result.active;
-        span.setAttribute("custom_order.active", hasCustomOrder);
-        span.setAttribute("reordered_count", images.length);
-    } finally {
-        span.end();
-    }
-}
-
-export function mergeCustomOrderOnPageLoad(newImageIds) {
-    const span = traceSpan("gallery.mergeCustomOrderOnPageLoad", {
-        new_count: newImageIds.length,
-        has_custom_order: hasCustomOrder,
-    });
-    try {
-        if (!hasCustomOrder) {
-            span.setAttribute("reason", "no_custom_order");
-            return;
-        }
-        const saved = loadCustomOrder(currentCollection);
-        if (!saved) {
-            span.setAttribute("reason", "no_saved_order");
-            return;
-        }
-        const merged = [...saved.map(Number)];
-        for (const id of newImageIds) {
-            const numId = Number(id);
-            if (!merged.includes(numId)) merged.push(numId);
-        }
-        saveCustomOrder(currentCollection, merged);
-        span.setAttribute("merged_length", merged.length);
-    } finally {
-        span.end();
-    }
-}
-
-export function isCustomOrderActive() {
-    return hasCustomOrder;
 }
 
 let resizeTimeout = null;
@@ -307,10 +251,8 @@ export function renderGallery({ appendOnly = false, startIndex = 0, reconcile = 
     try {
         if (galleryScrollObserver) galleryScrollObserver.disconnect();
 
-        if (!appendOnly && startIndex === 0) {
-            applySavedCustomOrder();
-        }
-
+        // NOTE: custom order is served by the backend (sort_by=custom);
+        // no client-side overlay is applied anymore.
         if (images.length === 0) {
             if (!allLoaded && isBrowsableCollection(currentCollection)) {
                 renderGallerySkeleton();
@@ -653,8 +595,6 @@ document.addEventListener('pointerup', async event => {
             images.length = 0;
             images.push(...reordered);
 
-            saveCustomOrder(currentCollection, newOrderIds);
-            hasCustomOrder = true;
             setSortKey('custom');
             saveState();
 
@@ -668,6 +608,30 @@ document.addEventListener('pointerup', async event => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ asset_ids: newOrderIds }),
                 }).catch(err => showToast(err.message, true));
+            } else {
+                // Server-side custom order: persist one fractional move. The
+                // DOM already shows the new order; on failure toast + resync
+                // from the backend so the UI never diverges from it.
+                const draggedId = Number(session.card?.dataset?.imageId);
+                const dropIdx = newOrderIds.indexOf(draggedId);
+                try {
+                    const { serverScopeForCollection, persistCustomOrderMove } = await import('./custom-order.js');
+                    const scope = serverScopeForCollection(currentCollection);
+                    if (!scope) throw new Error('Custom order is not supported for this view');
+                    if (!draggedId || dropIdx === -1) throw new Error('Dragged card is not in the visible order');
+                    await persistCustomOrderMove(
+                        scope,
+                        draggedId,
+                        dropIdx > 0 ? newOrderIds[dropIdx - 1] : null,
+                        dropIdx < newOrderIds.length - 1 ? newOrderIds[dropIdx + 1] : null,
+                    );
+                    const { invalidateApiCache } = await import('./api.js');
+                    invalidateApiCache();
+                } catch (err) {
+                    showToast(err.message, true);
+                    const { loadCollectionImages } = await import('./api.js');
+                    await loadCollectionImages(currentCollection, { force: true }).catch(() => {});
+                }
             }
 
             resizeAllGridItems([session.card]);

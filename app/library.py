@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -416,6 +417,366 @@ def remove_assets_from_album(album_id: int, asset_ids: Iterable[int]) -> int:
         conn.close()
 
 
+# ── Server-side custom (drag-reordered) positions ─────────────────────
+#
+# One position scope per view: 'folder:<id>', 'media:all',
+# 'collection:<id>'. Albums keep their own album_images.position mechanism
+# (see reorder_album_assets) and never use these scopes.
+#
+# Positions are fractional (REAL): a drag writes a single row with the
+# midpoint between the visible neighbors, so paginated views never need a
+# full rewrite. Images without a row are "new" and sort first, newest
+# first — the "new items on top" behavior falls out of the NULLS-first
+# ordering with no client overlay.
+
+_CUSTOM_SCOPE_RE = re.compile(r"^(folder:\d+|media:all|collection:[a-z_]+|album:\d+)$")
+CUSTOM_ORDER_STEP = 1024.0
+
+
+def normalize_custom_scope(scope: str) -> str:
+    """Validate a custom-order scope string and normalize known aliases."""
+    cleaned = (scope or "").strip()
+    match = _CUSTOM_SCOPE_RE.match(cleaned)
+    if not match:
+        raise LibraryError(f"Invalid custom order scope: {scope!r}")
+    if cleaned == "collection:all":
+        # The Viewer ("media:all") and the Library ("collection:all") used to
+        # keep separate localStorage orders for the same "everything" view.
+        # Server-side there is exactly one scope for it.
+        return "media:all"
+    kind, _, key = cleaned.partition(":")
+    if kind == "album":
+        raise LibraryError(
+            "Album order is managed via POST /api/albums/{id}/reorder"
+        )
+    if kind == "collection" and key in ("album", "albums"):
+        raise LibraryError(f"Custom order is not supported for collection {key!r}")
+    if kind == "folder":
+        conn = db.get_conn()
+        try:
+            exists = (
+                conn.execute(
+                    "SELECT 1 FROM folders WHERE id = ?", (int(key),)
+                ).fetchone()
+                is not None
+            )
+        finally:
+            conn.close()
+        if not exists:
+            raise LibraryNotFoundError(f"Folder {key} not found")
+    return cleaned
+
+
+def _custom_collection_condition(collection: str) -> tuple[str, list[Any]]:
+    """Collection-level membership for a custom-order scope.
+
+    Mirrors get_assets but without transient filters (search text, tag,
+    rating value): filters narrow the view, they never change scope
+    membership, so positions stay valid across them.
+    """
+    if collection == "favorites":
+        return "i.is_favorite = 1", []
+    if collection == "without_metadata":
+        return (
+            """i.media_type = 'image' AND (i.error IS NOT NULL OR (
+                i.metadata_json IS NOT NULL
+                AND json_extract(i.metadata_json, '$.prompt_parameters') IS NULL
+                AND json_extract(i.metadata_json, '$.workflow') IS NULL
+            ))""",
+            [],
+        )
+    if collection == "recently_added":
+        return ("datetime(i.indexed_at) >= datetime('now', '-30 days')", [])
+    if collection == "unavailable":
+        return (
+            """i.original_data IS NULL AND (
+                f.enabled = 0 OR f.source_status IN ('disabled', 'unavailable', 'reconnecting', 'error')
+            )""",
+            [],
+        )
+    if collection == "videos":
+        return "i.media_type = 'video'", []
+    if collection == "images":
+        return "i.media_type = 'image'", []
+    if collection == "not_rated":
+        return "COALESCE(i.rating, 0) = 0", []
+    raise LibraryError(f"Unknown collection: {collection}")
+
+
+def _custom_scope_members(conn: sqlite3.Connection, scope: str) -> list[int]:
+    """Image ids belonging to a scope, newest first (matches the fresh view)."""
+    kind, _, key = scope.partition(":")
+    if kind == "folder":
+        rows = conn.execute(
+            "SELECT i.id FROM images i WHERE i.folder_id = ? ORDER BY i.id DESC",
+            (int(key),),
+        ).fetchall()
+        return [int(row["id"]) for row in rows]
+    if kind == "media":
+        where, params = "f.enabled = 1", []
+    else:
+        where, params = _custom_collection_condition(key)
+    rows = conn.execute(
+        "SELECT i.id FROM images i "
+        "JOIN folders f ON f.id = i.folder_id "
+        f"WHERE {where} ORDER BY i.id DESC",
+        params,
+    ).fetchall()
+    return [int(row["id"]) for row in rows]
+
+
+def _materialize_scope_prefix(conn: sqlite3.Connection, scope: str) -> None:
+    """Give every unpositioned scope member an explicit position.
+
+    Fresh members sort above positioned ones (NULLS-first); materialization
+    preserves that by anchoring the whole fresh prefix below the current
+    minimum (or below zero when the scope is brand new), keeping the
+    newest-first relative order. After this call every member is positioned
+    and midpoint moves are always exact. Runs inside the caller's
+    transaction; uses INSERT OR IGNORE so concurrent drags cannot fail.
+    """
+    positioned = {
+        int(row["image_id"])
+        for row in conn.execute(
+            "SELECT image_id FROM item_positions WHERE scope = ?", (scope,)
+        ).fetchall()
+    }
+    members = _custom_scope_members(conn, scope)
+    fresh = [image_id for image_id in members if image_id not in positioned]
+    if not fresh:
+        return
+    row = conn.execute(
+        "SELECT MIN(position) AS floor FROM item_positions WHERE scope = ?",
+        (scope,),
+    ).fetchone()
+    base = (
+        float(row["floor"]) - CUSTOM_ORDER_STEP
+        if row and row["floor"] is not None
+        else 0.0
+    )
+    total = len(fresh)
+    conn.executemany(
+        "INSERT OR IGNORE INTO item_positions (scope, image_id, position)"
+        " VALUES (?, ?, ?)",
+        [
+            (scope, image_id, base - CUSTOM_ORDER_STEP * (total - 1 - index))
+            for index, image_id in enumerate(fresh)
+        ],
+    )
+
+
+def _rebalance_scope_conn(conn: sqlite3.Connection, scope: str) -> None:
+    """Renumber a scope with evenly spaced positions, preserving view order."""
+    conn.execute(
+        """UPDATE item_positions SET position = ranked.slot * ?
+        FROM (
+            SELECT image_id,
+                ROW_NUMBER() OVER (ORDER BY position ASC, image_id DESC) AS slot
+            FROM item_positions WHERE scope = ?
+        ) AS ranked
+        WHERE item_positions.scope = ?
+          AND item_positions.image_id = ranked.image_id""",
+        (CUSTOM_ORDER_STEP, scope, scope),
+    )
+
+
+def rebalance_custom_scope(scope: str) -> int:
+    """Public rebalance (maintenance/debug); the move path rebalances itself."""
+    scope = normalize_custom_scope(scope)
+    conn = db.get_conn()
+    try:
+        before = conn.total_changes
+        _rebalance_scope_conn(conn, scope)
+        conn.commit()
+        return conn.total_changes - before
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_custom_order(scope: str) -> dict[str, Any]:
+    """Debug/inspection view of a scope: positioned ids in order + counts."""
+    scope = normalize_custom_scope(scope)
+    conn = db.get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT image_id FROM item_positions WHERE scope = ?"
+            " ORDER BY position ASC, image_id DESC",
+            (scope,),
+        ).fetchall()
+        positioned = {int(row["image_id"]) for row in rows}
+        members = _custom_scope_members(conn, scope)
+        return {
+            "scope": scope,
+            "image_ids": [int(row["image_id"]) for row in rows],
+            "positioned": len(rows),
+            "unpositioned": sum(1 for mid in members if mid not in positioned),
+        }
+    finally:
+        conn.close()
+
+
+def set_custom_order(scope: str, ordered_ids: Iterable[int]) -> dict[str, int]:
+    """Bulk-replace a scope order (localStorage migration, full-view sync).
+
+    Ids that no longer belong to the scope (deleted, or moved to another
+    folder) are dropped and reported instead of failing the whole import.
+    """
+    scope = normalize_custom_scope(scope)
+    ids = _unique_asset_ids(ordered_ids)
+    if not ids:
+        raise LibraryError("ordered_ids must not be empty")
+    conn = db.get_conn()
+    try:
+        existing = set(_existing_asset_ids(conn, ids))
+        missing = [image_id for image_id in ids if image_id not in existing]
+        if missing:
+            raise LibraryNotFoundError(
+                f"One or more assets were not found: {missing[:5]}"
+            )
+        members = set(_custom_scope_members(conn, scope))
+        kept = [image_id for image_id in ids if image_id in members]
+        conn.execute("DELETE FROM item_positions WHERE scope = ?", (scope,))
+        conn.executemany(
+            "INSERT INTO item_positions (scope, image_id, position)"
+            " VALUES (?, ?, ?)",
+            [
+                (scope, image_id, (index + 1) * CUSTOM_ORDER_STEP)
+                for index, image_id in enumerate(kept)
+            ],
+        )
+        conn.commit()
+        return {"applied": len(kept), "dropped": len(ids) - len(kept)}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def move_custom_order_item(
+    scope: str,
+    image_id: int,
+    before_id: int | None = None,
+    after_id: int | None = None,
+) -> float:
+    """Persist one drag-and-drop: place image between visible neighbors.
+
+    before_id/after_id are the neighbor image ids in the current custom view
+    (None = view edge: drop at the very top / bottom). A single row is
+    written with the fractional midpoint; the scope rebalances itself on
+    float exhaustion. Returns the assigned position.
+    """
+    scope = normalize_custom_scope(scope)
+    image_id = int(image_id)
+    if before_id is not None:
+        before_id = int(before_id)
+    if after_id is not None:
+        after_id = int(after_id)
+    if before_id == image_id or after_id == image_id:
+        raise LibraryError("before_id/after_id must differ from image_id")
+    if before_id is not None and before_id == after_id:
+        raise LibraryError("before_id and after_id must differ")
+
+    conn = db.get_conn()
+    try:
+        wanted = [image_id]
+        if before_id is not None:
+            wanted.append(before_id)
+        if after_id is not None:
+            wanted.append(after_id)
+        existing = set(_existing_asset_ids(conn, wanted))
+        if image_id not in existing:
+            raise LibraryNotFoundError(f"Asset {image_id} not found")
+        for neighbor_id, name in ((before_id, "before_id"), (after_id, "after_id")):
+            if neighbor_id is not None and neighbor_id not in existing:
+                raise LibraryNotFoundError(f"{name} asset {neighbor_id} not found")
+
+        members = set(_custom_scope_members(conn, scope))
+        if image_id not in members:
+            raise LibraryError("Asset is not part of this custom order scope")
+        for neighbor_id, name in ((before_id, "before_id"), (after_id, "after_id")):
+            if neighbor_id is not None and neighbor_id not in members:
+                raise LibraryError(f"{name} asset is not part of this scope")
+
+        # Fast path: everyone involved is already positioned — one row write.
+        positions = {
+            int(row["image_id"]): float(row["position"])
+            for row in conn.execute(
+                "SELECT image_id, position FROM item_positions WHERE scope = ?",
+                (scope,),
+            ).fetchall()
+        }
+        if (
+            image_id in positions
+            and (before_id is None or before_id in positions)
+            and (after_id is None or after_id in positions)
+        ):
+            pass  # fast path: single row write below
+        else:
+            _materialize_scope_prefix(conn, scope)
+            positions = {
+                int(row["image_id"]): float(row["position"])
+                for row in conn.execute(
+                    "SELECT image_id, position FROM item_positions WHERE scope = ?",
+                    (scope,),
+                ).fetchall()
+            }
+
+        pos_before = positions.get(before_id) if before_id is not None else None
+        pos_after = positions.get(after_id) if after_id is not None else None
+
+        if pos_before is not None and pos_after is not None:
+            if pos_before >= pos_after:
+                _rebalance_scope_conn(conn, scope)
+                positions = {
+                    int(row["image_id"]): float(row["position"])
+                    for row in conn.execute(
+                        "SELECT image_id, position FROM item_positions WHERE scope = ?",
+                        (scope,),
+                    ).fetchall()
+                }
+                pos_before = positions[before_id]
+                pos_after = positions[after_id]
+                if pos_before >= pos_after:  # pragma: no cover — PK prevents this
+                    raise LibraryConflictError("Unable to order assets in this scope")
+            new_position = (pos_before + pos_after) / 2.0
+            if new_position == pos_before or new_position == pos_after:
+                _rebalance_scope_conn(conn, scope)
+                positions = {
+                    int(row["image_id"]): float(row["position"])
+                    for row in conn.execute(
+                        "SELECT image_id, position FROM item_positions WHERE scope = ?",
+                        (scope,),
+                    ).fetchall()
+                }
+                new_position = (positions[before_id] + positions[after_id]) / 2.0
+        elif pos_after is not None:
+            new_position = pos_after - CUSTOM_ORDER_STEP
+        elif pos_before is not None:
+            new_position = pos_before + CUSTOM_ORDER_STEP
+        else:
+            # No neighbors given: keep the current position (no-op move).
+            # (Single-member scopes land here with the materialized 0.0.)
+            new_position = positions.get(image_id, 0.0)
+
+        conn.execute(
+            "INSERT INTO item_positions (scope, image_id, position)"
+            " VALUES (?, ?, ?)"
+            " ON CONFLICT(scope, image_id) DO UPDATE SET position = excluded.position",
+            (scope, image_id, new_position),
+        )
+        conn.commit()
+        return new_position
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def update_asset(
     asset_id: int,
     *,
@@ -777,14 +1138,16 @@ def get_assets(
         "size": "i.file_size",
         "rating": "COALESCE(i.rating, 0)",
     }
-    if sort_by not in sort_columns:
+    if sort_by != "custom" and sort_by not in sort_columns:
         raise LibraryError(f"Invalid sort_by column: {sort_by}")
 
     normalized_dir = sort_dir.upper()
     if normalized_dir not in ("ASC", "DESC"):
         raise LibraryError(f"Invalid sort direction: {sort_dir}")
 
-    sort_column = sort_columns[sort_by]
+    # sort_by=custom is served from item_positions; sort_dir is ignored for
+    # it — a drag order has exactly one direction.
+    sort_column = sort_columns.get(sort_by)
     direction = normalized_dir
     offset = (page - 1) * per_page
 
@@ -802,9 +1165,41 @@ def get_assets(
             if album_custom_order:
                 album_join = " JOIN album_images ai ON ai.image_id = i.id AND ai.album_id = ?"
 
+        custom_scope: str | None = None
+        custom_join = ""
+        custom_params: list[Any] = []
+        if sort_by == "custom" and not album_custom_order:
+            if collection == "album":
+                # Album without the custom_order flag: keep the previous
+                # behavior (date order); drags set the flag via the reorder
+                # endpoint and take the album path above.
+                sort_column = sort_columns["date"]
+            else:
+                # Mirrors the old localStorage keys (getCustomOrderKey): a
+                # named collection owns its scope; the bare "all" view with a
+                # source filter is just that source's folder scope.
+                if collection != "all":
+                    custom_scope = f"collection:{collection}"
+                elif source_id is not None:
+                    custom_scope = f"folder:{source_id}"
+                else:
+                    custom_scope = "media:all"
+                custom_scope = normalize_custom_scope(custom_scope)
+                custom_join = (
+                    " LEFT JOIN item_positions ip"
+                    " ON ip.scope = ? AND ip.image_id = i.id"
+                )
+                custom_params = [custom_scope]
+
         if album_custom_order:
             order_clause = "ORDER BY ai.position ASC, i.id ASC"
             order_params = [album_id]
+        elif custom_scope is not None:
+            # Unpositioned ("new") rows first, newest first — no client overlay.
+            order_clause = (
+                "ORDER BY ip.position IS NOT NULL, ip.position ASC, i.id DESC"
+            )
+            order_params = []
         else:
             order_clause = f"ORDER BY {sort_column} {direction}, i.id {direction}"
             order_params = []
@@ -812,8 +1207,8 @@ def get_assets(
         total = int(
             conn.execute(
                 f"""SELECT COUNT(*) AS count FROM images i
-                JOIN folders f ON f.id = i.folder_id{album_join}{where}""",
-                [*order_params, *params],
+                JOIN folders f ON f.id = i.folder_id{album_join}{custom_join}{where}""",
+                [*order_params, *custom_params, *params],
             ).fetchone()["count"]
         )
         rows = conn.execute(
@@ -827,11 +1222,11 @@ def get_assets(
                 f.name AS source_name, f.path AS source_path, f.enabled AS source_enabled,
                 f.source_status,
                 r.rank AS ai_rank, r.rank_override AS ai_rank_override, r.status AS ai_rank_status
-            FROM images i JOIN folders f ON f.id = i.folder_id{album_join}
+            FROM images i JOIN folders f ON f.id = i.folder_id{album_join}{custom_join}
             LEFT JOIN ai_ratings r ON r.image_id = i.id{where}
             {order_clause}
             LIMIT ? OFFSET ?""",
-            [*order_params, *params, per_page, offset],
+            [*order_params, *custom_params, *params, per_page, offset],
         ).fetchall()
         assets = [dict(row) for row in rows]
         ids = [int(asset["id"]) for asset in assets]

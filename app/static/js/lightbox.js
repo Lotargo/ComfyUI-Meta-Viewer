@@ -38,6 +38,7 @@ import {
 } from './utils.js';
 import { initCutoutEvents, openCutoutPanel, resetCutoutPanel } from './features/cutout.js';
 import { showImageContextMenu } from './components/image-context-menu.js';
+import { createTrailingThrottle } from './throttle.js';
 
 let zoomLevel = 1;
 let rotation = 0;
@@ -62,6 +63,13 @@ const ZOOM_MAX = 10;
 const ZOOM_STEP = 0.15;
 const PREVIEW_RETRY_DELAY = 500;
 const THUMBNAIL_FALLBACK_DELAY = 250;
+// Held-down navigation keys repeat every ~30-40ms while a full preview
+// fetch + decode takes an order of magnitude longer. Without coalescing,
+// every step cancels the previous load before it can paint and the visible
+// frame starves (metadata still updates — it is a tiny unguarded fetch).
+// The trailing call always carries the latest asset, so rapid navigation
+// settles on the current item ~one window after the keys stop.
+const PREVIEW_SOURCE_THROTTLE_MS = 120;
 const GALLERY_PREFETCH_THRESHOLD = 5;
 
 function canLoadNextGalleryPage() {
@@ -300,13 +308,8 @@ function syncMediaControls(isVideo) {
     }
 }
 
-function loadLightboxMedia(asset) {
-    const isVideo = asset.media_type === 'video';
-    syncMediaControls(isVideo);
-    if (isVideo) {
-        cancelImageLoad({ clearSource: true });
-        stopPanning();
-        if (dom.lbImg) dom.lbImg.hidden = true;
+function commitLightboxSource(asset) {
+    if (asset.media_type === 'video') {
         if (dom.lbVideo) {
             dom.lbVideo.hidden = false;
             dom.lbVideo.src = originalUrl(asset);
@@ -318,6 +321,28 @@ function loadLightboxMedia(asset) {
     if (dom.lbVideo) dom.lbVideo.hidden = true;
     if (dom.lbImg) dom.lbImg.hidden = false;
     loadLightboxImage(asset);
+}
+
+const scheduleLightboxSource = createTrailingThrottle(
+    commitLightboxSource,
+    PREVIEW_SOURCE_THROTTLE_MS,
+);
+
+function loadLightboxMedia(asset) {
+    const isVideo = asset.media_type === 'video';
+    syncMediaControls(isVideo);
+    // Cheap synchronous UI stays immediate; the expensive source fetch +
+    // decode is coalesced so held-down navigation cannot starve the painter.
+    if (isVideo) {
+        cancelImageLoad({ clearSource: true });
+        stopPanning();
+        if (dom.lbImg) dom.lbImg.hidden = true;
+    } else {
+        stopLightboxVideo({ clearSource: true });
+        if (dom.lbVideo) dom.lbVideo.hidden = true;
+        if (dom.lbImg) dom.lbImg.hidden = false;
+    }
+    scheduleLightboxSource(asset);
 }
 
 export function resetZoom() {
@@ -378,6 +403,7 @@ export async function openLightbox(index, imagesArray = null) {
 
 export function closeLightbox() {
     stopPanning();
+    scheduleLightboxSource.cancel();
     cancelImageLoad({ clearSource: true });
     stopLightboxVideo({ clearSource: true });
     dom.lightbox.classList.remove('open');

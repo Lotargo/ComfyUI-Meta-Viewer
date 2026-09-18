@@ -5,6 +5,7 @@
     "test:metadata": "node --test tests/test_metadata_format.mjs",
     "test:preferences": "node --test tests/test_preferences.mjs",
     "test:custom-order": "node --test tests/test_custom_order.mjs",
+    "test:throttle": "node --test tests/test_preview_throttle.mjs",
     "test": "node --test tests/test_*.mjs"
   },
   "devDependencies": {

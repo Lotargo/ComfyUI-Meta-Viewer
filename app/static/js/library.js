@@ -1,5 +1,6 @@
 import { showImageContextMenu } from './components/image-context-menu.js';
 import { isSupportedMediaFile } from './media-files.js';
+import { createTrailingThrottle } from './throttle.js';
 
 const dom = {
     systemCollections: document.getElementById('system-collections'),
@@ -530,6 +531,12 @@ function updateSelectionToolbar() {
 
 let previewPanelTimer = null;
 const previewCopyFeedbackTimers = new WeakMap();
+// Held-down navigation keys repeat every ~30-40ms while a full original
+// fetch + decode takes an order of magnitude longer. The swap below is
+// coalesced so rapid navigation settles on the current asset instead of
+// piling up superseded full-file downloads; the trailing call always
+// carries the latest asset.
+const PREVIEW_SWAP_THROTTLE_MS = 120;
 
 function previewCopyButtons() {
     return [dom.previewCopyWorkflow, dom.previewCopyPosPrompt, dom.previewCopyNegPrompt];
@@ -592,6 +599,43 @@ function setPreviewVisibility(visible) {
     updatePreviewPanel();
 }
 
+function swapPreviewMedia(activeAsset) {
+    const originalUrl = `/api/original/${activeAsset.id}`;
+    const isVideo = activeAsset.media_type === 'video';
+
+    if (isVideo) {
+        dom.previewPanelImg.hidden = true;
+        dom.previewPanelImg.src = '';
+        dom.previewPanelImg.removeAttribute('data-loaded-id');
+        dom.previewPanelVideo.hidden = false;
+        if (dom.previewPanelVideo.getAttribute('data-loaded-id') !== String(activeAsset.id)) {
+            dom.previewPanelVideo.setAttribute('data-loaded-id', String(activeAsset.id));
+            dom.previewPanelVideo.src = originalUrl;
+            dom.previewPanelVideo.load();
+        }
+        dom.previewBackdrop.style.backgroundImage = `url("${activeAsset.thumbnail_url}")`;
+    } else {
+        if (!dom.previewPanelVideo.hidden) dom.previewPanelVideo.pause();
+        dom.previewPanelVideo.hidden = true;
+        dom.previewPanelVideo.removeAttribute('src');
+        dom.previewPanelVideo.removeAttribute('data-loaded-id');
+        dom.previewPanelVideo.load();
+        dom.previewPanelImg.hidden = false;
+        if (dom.previewPanelImg.getAttribute('data-loaded-id') !== String(activeAsset.id)) {
+            dom.previewPanelImg.setAttribute('data-loaded-id', String(activeAsset.id));
+            dom.previewPanelImg.src = originalUrl;
+        }
+        // The backdrop is a blurred background: the cached thumbnail is
+        // plenty (previously this downloaded the full original twice).
+        dom.previewBackdrop.style.backgroundImage = `url("${activeAsset.thumbnail_url}")`;
+    }
+}
+
+const schedulePreviewSwap = createTrailingThrottle(
+    swapPreviewMedia,
+    PREVIEW_SWAP_THROTTLE_MS,
+);
+
 function updatePreviewPanel() {
     if (previewPanelTimer) {
         clearTimeout(previewPanelTimer);
@@ -603,33 +647,7 @@ function updatePreviewPanel() {
     const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
     if (state.showPreview && activeAsset) {
         setPreviewActionsAvailability({ rating: activeAsset.media_type === 'image' });
-        const originalUrl = `/api/original/${activeAsset.id}`;
-        const isVideo = activeAsset.media_type === 'video';
-
-        if (isVideo) {
-            dom.previewPanelImg.hidden = true;
-            dom.previewPanelImg.src = '';
-            dom.previewPanelImg.removeAttribute('data-loaded-id');
-            dom.previewPanelVideo.hidden = false;
-            if (dom.previewPanelVideo.getAttribute('data-loaded-id') !== String(activeAsset.id)) {
-                dom.previewPanelVideo.setAttribute('data-loaded-id', String(activeAsset.id));
-                dom.previewPanelVideo.src = originalUrl;
-                dom.previewPanelVideo.load();
-            }
-            dom.previewBackdrop.style.backgroundImage = `url("${activeAsset.thumbnail_url}")`;
-        } else {
-            if (!dom.previewPanelVideo.hidden) dom.previewPanelVideo.pause();
-            dom.previewPanelVideo.hidden = true;
-            dom.previewPanelVideo.removeAttribute('src');
-            dom.previewPanelVideo.removeAttribute('data-loaded-id');
-            dom.previewPanelVideo.load();
-            dom.previewPanelImg.hidden = false;
-            if (dom.previewPanelImg.getAttribute('data-loaded-id') !== String(activeAsset.id)) {
-                dom.previewPanelImg.setAttribute('data-loaded-id', String(activeAsset.id));
-                dom.previewPanelImg.src = originalUrl;
-            }
-            dom.previewBackdrop.style.backgroundImage = `url("${originalUrl}")`;
-        }
+        schedulePreviewSwap(activeAsset);
         
         if (state.selectMode && state.selected.size > 1) {
             const selectedAssets = state.assets.filter(asset => state.selected.has(asset.id));

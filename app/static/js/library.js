@@ -529,7 +529,6 @@ function updateSelectionToolbar() {
     }
 }
 
-let previewPanelTimer = null;
 const previewCopyFeedbackTimers = new WeakMap();
 // Held-down navigation keys repeat every ~30-40ms while a full original
 // fetch + decode takes an order of magnitude longer. The swap below is
@@ -631,23 +630,46 @@ function swapPreviewMedia(activeAsset) {
     }
 }
 
-const schedulePreviewSwap = createTrailingThrottle(
-    swapPreviewMedia,
+const schedulePreviewRefresh = createTrailingThrottle(
+    asset => {
+        swapPreviewMedia(asset);
+        refreshPreviewDetail(asset);
+    },
     PREVIEW_SWAP_THROTTLE_MS,
 );
 
-function updatePreviewPanel() {
-    if (previewPanelTimer) {
-        clearTimeout(previewPanelTimer);
-        previewPanelTimer = null;
+async function refreshPreviewDetail(activeAsset) {
+    try {
+        const detail = await fetchJson(`/api/assets/${activeAsset.id}`);
+        if (state.activeAssetId === activeAsset.id && state.showPreview) {
+            currentSelectedDetail = detail;
+            const hasWorkflow = !!(detail.workflow_ui_json || detail.workflow);
+            const hasPos = !!detail.prompt_parameters?.positive_prompt;
+            const hasNeg = !!detail.prompt_parameters?.negative_prompt;
+
+            setPreviewActionsAvailability({
+                workflow: hasWorkflow,
+                positive: hasPos,
+                negative: hasNeg,
+                rating: activeAsset.media_type === 'image',
+            });
+        }
+    } catch (error) {
+        console.error('Failed to load asset details for preview options:', error);
+        setPreviewActionsAvailability({ rating: activeAsset.media_type === 'image' });
     }
+}
+
+function updatePreviewPanel() {
     clearPreviewCopyFeedback();
     setPreviewActionsAvailability();
 
     const activeAsset = state.assets.find(item => item.id === state.activeAssetId);
     if (state.showPreview && activeAsset) {
         setPreviewActionsAvailability({ rating: activeAsset.media_type === 'image' });
-        schedulePreviewSwap(activeAsset);
+        // Image swap and detail fetch step in lockstep: a single trailing
+        // throttle drives both, so metadata always matches the shown asset.
+        schedulePreviewRefresh(activeAsset);
         
         if (state.selectMode && state.selected.size > 1) {
             const selectedAssets = state.assets.filter(asset => state.selected.has(asset.id));
@@ -667,28 +689,6 @@ function updatePreviewPanel() {
 
         dom.shell.classList.add('show-preview');
         updateLayoutColumns();
-
-        previewPanelTimer = setTimeout(async () => {
-            try {
-                const detail = await fetchJson(`/api/assets/${activeAsset.id}`);
-                if (state.activeAssetId === activeAsset.id && state.showPreview) {
-                    currentSelectedDetail = detail;
-                    const hasWorkflow = !!(detail.workflow_ui_json || detail.workflow);
-                    const hasPos = !!detail.prompt_parameters?.positive_prompt;
-                    const hasNeg = !!detail.prompt_parameters?.negative_prompt;
-
-                    setPreviewActionsAvailability({
-                        workflow: hasWorkflow,
-                        positive: hasPos,
-                        negative: hasNeg,
-                        rating: activeAsset.media_type === 'image',
-                    });
-                }
-            } catch (error) {
-                console.error('Failed to load asset details for preview options:', error);
-                setPreviewActionsAvailability({ rating: activeAsset.media_type === 'image' });
-            }
-        }, 100);
     } else {
         dom.shell.classList.remove('show-preview');
         updateLayoutColumns();

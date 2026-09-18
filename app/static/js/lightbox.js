@@ -323,16 +323,11 @@ function commitLightboxSource(asset) {
     loadLightboxImage(asset);
 }
 
-const scheduleLightboxSource = createTrailingThrottle(
-    commitLightboxSource,
-    PREVIEW_SOURCE_THROTTLE_MS,
-);
-
 function loadLightboxMedia(asset) {
+    // Cheap synchronous UI only; the expensive source fetch + meta render
+    // ride scheduleLightboxFrame so they step in lockstep.
     const isVideo = asset.media_type === 'video';
     syncMediaControls(isVideo);
-    // Cheap synchronous UI stays immediate; the expensive source fetch +
-    // decode is coalesced so held-down navigation cannot starve the painter.
     if (isVideo) {
         cancelImageLoad({ clearSource: true });
         stopPanning();
@@ -342,7 +337,6 @@ function loadLightboxMedia(asset) {
         if (dom.lbVideo) dom.lbVideo.hidden = true;
         if (dom.lbImg) dom.lbImg.hidden = false;
     }
-    scheduleLightboxSource(asset);
 }
 
 export function resetZoom() {
@@ -403,7 +397,7 @@ export async function openLightbox(index, imagesArray = null) {
 
 export function closeLightbox() {
     stopPanning();
-    scheduleLightboxSource.cancel();
+    scheduleLightboxFrame.cancel();
     cancelImageLoad({ clearSource: true });
     stopLightboxVideo({ clearSource: true });
     dom.lightbox.classList.remove('open');
@@ -420,38 +414,7 @@ function getDetailForLightbox() {
     return img;
 }
 
-export function updateLightbox() {
-    const img = getDetailForLightbox();
-    if (!img) { closeLightbox(); return; }
-
-    const nextImageId = img.id ?? null;
-
-    setActiveIndex(lightboxIndex);
-
-    if (currentImagesArray === sidebarImages) {
-        setSidebarActiveImageId(nextImageId);
-        import('./features/sidebar.js').then(module => module.renderSidebar());
-    } else if (currentImagesArray === images) {
-        if (galleryActive) {
-            import('./gallery.js').then(m => m.updateActiveGalleryCard(lightboxIndex));
-        } else {
-            import('./features/sidebar.js').then(m => m.renderSidebar());
-        }
-    }
-
-    const fileName = img.file_name || img.file || '';
-    dom.lbTitle.textContent = fileName;
-    dom.lbCounter.textContent = `${lightboxIndex + 1} / ${visibleCollectionTotal() || currentImagesArray.length}`;
-    loadLightboxMedia(img);
-    displayedImageId = nextImageId;
-    if (dom.lbViewOriginal) dom.lbViewOriginal.disabled = !img.id;
-    syncLightboxDeleteButton(img);
-
-    // Update meta panel visibility
-    if (dom.lbMeta) {
-        dom.lbMeta.classList.toggle('open', lightboxMetaOpen);
-    }
-
+function renderLightboxMeta(img) {
     // Build metadata HTML
     let html = '';
 
@@ -617,6 +580,46 @@ export function updateLightbox() {
             document.addEventListener('mouseup', onMouseUp);
         });
     });
+}
+
+const scheduleLightboxFrame = createTrailingThrottle((asset) => {
+    if (!dom.lightbox.classList.contains('open')) return;
+    commitLightboxSource(asset);
+    renderLightboxMeta(asset);
+}, PREVIEW_SOURCE_THROTTLE_MS);
+
+export function updateLightbox() {
+    const img = getDetailForLightbox();
+    if (!img) { closeLightbox(); return; }
+
+    const nextImageId = img.id ?? null;
+
+    setActiveIndex(lightboxIndex);
+
+    if (currentImagesArray === sidebarImages) {
+        setSidebarActiveImageId(nextImageId);
+        import('./features/sidebar.js').then(module => module.renderSidebar());
+    } else if (currentImagesArray === images) {
+        if (galleryActive) {
+            import('./gallery.js').then(m => m.updateActiveGalleryCard(lightboxIndex));
+        } else {
+            import('./features/sidebar.js').then(m => m.renderSidebar());
+        }
+    }
+
+    const fileName = img.file_name || img.file || '';
+    dom.lbTitle.textContent = fileName;
+    dom.lbCounter.textContent = `${lightboxIndex + 1} / ${visibleCollectionTotal() || currentImagesArray.length}`;
+    loadLightboxMedia(img);
+    scheduleLightboxFrame(img);
+    displayedImageId = nextImageId;
+    if (dom.lbViewOriginal) dom.lbViewOriginal.disabled = !img.id;
+    syncLightboxDeleteButton(img);
+
+    // Update meta panel visibility
+    if (dom.lbMeta) {
+        dom.lbMeta.classList.toggle('open', lightboxMetaOpen);
+    }
 }
 
 export function syncLightboxAfterCollectionChange({ changedImageIds = new Set() } = {}) {

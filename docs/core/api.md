@@ -483,10 +483,16 @@ a later reconciliation.
 
 ### `POST /api/library/assets/trash`
 
-Moves the physical files for up to 1,000 indexed assets to the operating system's Recycle
-Bin or Trash, then removes successfully moved assets and generated caches from the index.
-Uploaded originals stored inside the app and unavailable local files are not removed. A
-mixed request can therefore return both `removed_ids` and per-asset `failures`.
+Accepts up to 1,000 indexed assets and returns instantly: one atomic commit
+removes the index rows, records a tombstone per asset, and enqueues a
+`trash_assets` background job. The slow work — moving physical files to the
+operating system's Recycle Bin or Trash and purging generated caches — runs
+in the job worker within seconds. Reconciliation skips tombstoned paths, so
+trashed files are never resurrected before the worker reaches them; a missing
+file is treated as already-gone (success), not an error. Uploaded originals
+stored inside the app have no local file and only clear their rows and caches.
+A mixed request can therefore return both `removed_ids` and per-asset `failures`
+(unknown ids are reported with code `image_not_found`).
 
 ```json
 {

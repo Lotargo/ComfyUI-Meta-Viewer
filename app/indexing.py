@@ -146,9 +146,14 @@ def index_source_directory(
     )
     old_records = db.get_folder_file_records(folder_id)
     forced = force_rel_paths or set()
+    # Tombstoned paths are mid-trash: don't hash them, don't rename-match
+    # them, don't re-insert them (see below).
+    tombstoned = db.get_tombstoned_rel_paths(folder_id)
 
     fingerprints: dict[str, str] = {}
     for rel_path, file in current.files.items():
+        if rel_path in tombstoned:
+            continue
         previous = old_records.get(rel_path)
         unchanged = (
             previous is not None
@@ -183,7 +188,9 @@ def index_source_directory(
         rel_path for rel_path in old_records if rel_path not in current.files
     ]
     new_files = [
-        rel_path for rel_path in current.files if rel_path not in old_records
+        rel_path
+        for rel_path in current.files
+        if rel_path not in old_records and rel_path not in tombstoned
     ]
 
     # A unique content match is treated as a rename and updates the existing row.
@@ -249,6 +256,9 @@ def index_source_directory(
     for rel_path, file in current.files.items():
         if rel_path in renamed_new:
             cached_count += 1
+            continue
+        if rel_path in tombstoned:
+            # Mid-trash: no row, no work — neither re-insert nor count.
             continue
         previous = old_records.get(rel_path)
         unchanged = (

@@ -987,6 +987,78 @@ def bulk_action(
         conn.close()
 
 
+def enqueue_trash(asset_ids: Iterable[int]) -> dict[str, Any]:
+    """Accept assets for OS-trash deletion and return instantly.
+
+    A single transaction deletes the image rows (cascading positions, album
+    links and ratings exactly like a synchronous delete), records a
+    tombstone per asset (so reconciliation cannot "resurrect" the files
+    while the slow file operations are still queued) and enqueues one
+    ``trash_assets`` job. The job worker moves the files to the OS trash
+    and purges generated caches in the background.
+
+    Response shape mirrors the old synchronous endpoint: ``removed_ids``
+    are accepted, ``failures`` carry ``{id, error, code}``.
+    """
+    ids = _unique_asset_ids(asset_ids)
+    if not ids:
+        return {"removed_ids": [], "failures": []}
+    conn = db.get_conn()
+    try:
+        found: dict[int, dict[str, Any]] = {}
+        for start in range(0, len(ids), 500):
+            chunk = ids[start : start + 500]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = conn.execute(
+                "SELECT i.id, i.folder_id, i.rel_path, i.file_name,"
+                " i.original_data IS NOT NULL AS has_original_data,"
+                " f.path AS folder_path FROM images i"
+                " LEFT JOIN folders f ON f.id = i.folder_id"
+                f" WHERE i.id IN ({placeholders})",
+                chunk,
+            ).fetchall()
+            for row in rows:
+                found[int(row["id"])] = dict(row)
+
+        failures = [
+            {"id": image_id, "error": "Asset not found", "code": "image_not_found"}
+            for image_id in ids
+            if image_id not in found
+        ]
+        accepted = [image_id for image_id in ids if image_id in found]
+        if accepted:
+            placeholders = ",".join("?" for _ in accepted)
+            conn.execute(
+                f"DELETE FROM images WHERE id IN ({placeholders})", accepted
+            )
+            conn.executemany(
+                "INSERT INTO trash_tombstones (image_id, folder_id, folder_path,"
+                " rel_path, file_name, has_local_file)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                    (
+                        image_id,
+                        int(found[image_id]["folder_id"] or 0),
+                        str(found[image_id]["folder_path"] or ""),
+                        str(found[image_id]["rel_path"]),
+                        str(found[image_id]["file_name"]),
+                        0 if found[image_id]["has_original_data"] else 1,
+                    )
+                    for image_id in accepted
+                ],
+            )
+            db.enqueue_job_conn(conn, "trash_assets", {"image_ids": accepted})
+            # Rows, tombstones and the job commit atomically: a crash leaves
+            # either everything untouched or a complete, resumable unit.
+            conn.commit()
+        return {"removed_ids": accepted, "failures": failures}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def get_assets(
     *,
     collection: str = "all",

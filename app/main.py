@@ -288,31 +288,17 @@ def api_trash_library_assets():
     except ValidationError as exc:
         return jsonify({"error": exc.errors()[0]["msg"]}), 400
 
-    removed_ids: list[int] = []
-    failures: list[dict[str, str | int]] = []
-    for image_id in dict.fromkeys(payload.asset_ids):
-        try:
-            file_actions.move_image_file_to_trash(image_id)
-        except file_actions.ImageHasNoLocalFileError:
-            pass
-        except file_actions.ImageFileActionError as exc:
-            failures.append({
-                "id": image_id,
-                "error": str(exc),
-                "code": exc.code,
-            })
-            continue
-
-        # The source watcher may remove the row before this request reaches it.
-        db.delete_image(image_id)
-        clear_image_caches(image_id)
-        removed_ids.append(image_id)
+    # Instant path: rows + tombstones + job commit atomically and the UI
+    # hides the assets immediately. The slow OS-trash moves and cache purges
+    # run in the background job worker; reconcile skips tombstoned paths so
+    # trashed files are never resurrected before the worker reaches them.
+    result = media_library.enqueue_trash(payload.asset_ids)
 
     return jsonify({
-        "ok": not failures,
-        "affected": len(removed_ids),
-        "removed_ids": removed_ids,
-        "failures": failures,
+        "ok": not result["failures"],
+        "affected": len(result["removed_ids"]),
+        "removed_ids": result["removed_ids"],
+        "failures": result["failures"],
     })
 
 
@@ -1226,6 +1212,8 @@ def main():
     # Start queue background worker
     from .worker import start_worker
     start_worker(storage_path("THUMBNAIL_FOLDER"))
+    from .job_worker import start_job_worker
+    start_job_worker()
     from .comfyui.civitai_downloader import start_download_worker, stop_download_worker
 
     start_download_worker(app.config.get("CONFIG_STORE"))
@@ -1263,6 +1251,9 @@ def main():
         from .worker import stop_worker
 
         stop_worker(wait=True)
+        from .job_worker import stop_job_worker
+
+        stop_job_worker(wait=True)
         stop_download_worker(wait=True)
         comfy_manager.stop_managed()
 

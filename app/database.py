@@ -6,6 +6,7 @@ import sqlite3
 import threading
 import time
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -206,6 +207,39 @@ _INITIAL_SCHEMA_SQL = """
         image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
         position REAL NOT NULL,
         PRIMARY KEY (scope, image_id)
+    );
+
+    -- Durable background job queue (no broker: single local instance).
+    -- A crashed worker never corrupts anything: rows stay 'pending' (or are
+    -- reset from 'running' on startup) and are picked up again. Jobs must be
+    -- idempotent — a retry after a crash replays file operations whose
+    -- effects (trashed/missing files, unlinked caches) are all safe to repeat.
+    CREATE TABLE IF NOT EXISTS job_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        op TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'pending',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        run_after TEXT NOT NULL DEFAULT (datetime('now')),
+        last_error TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Tombstones for assets whose DB rows are already gone while their slow
+    -- file operations (OS trash, cache purge) are still queued. They serve
+    -- two purposes: the worker locates files without the images row, and
+    -- reconciliation skips these paths instead of "resurrecting" them.
+    -- image_id is deliberately NOT a foreign key: the row is deleted first.
+    CREATE TABLE IF NOT EXISTS trash_tombstones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        image_id INTEGER NOT NULL,
+        folder_id INTEGER NOT NULL,
+        folder_path TEXT NOT NULL DEFAULT '',
+        rel_path TEXT NOT NULL,
+        file_name TEXT NOT NULL DEFAULT '',
+        has_local_file INTEGER NOT NULL DEFAULT 1,
+        trashed_at TEXT DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS ai_jobs (
@@ -484,6 +518,9 @@ _LATE_INDEXES_SQL = """
     CREATE INDEX IF NOT EXISTS idx_images_pending_processing ON images(folder_id, id) WHERE metadata_json IS NULL AND error IS NULL;
     CREATE INDEX IF NOT EXISTS idx_album_images_album_pos ON album_images(album_id, position ASC, image_id ASC);
     CREATE INDEX IF NOT EXISTS idx_item_positions_scope ON item_positions(scope, position ASC, image_id ASC);
+    CREATE INDEX IF NOT EXISTS idx_job_queue_status ON job_queue(status, run_after, id);
+    CREATE INDEX IF NOT EXISTS idx_trash_tombstones_folder ON trash_tombstones(folder_id, rel_path);
+    CREATE INDEX IF NOT EXISTS idx_trash_tombstones_image ON trash_tombstones(image_id);
     CREATE INDEX IF NOT EXISTS idx_ai_jobs_asset ON ai_jobs(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
 """
@@ -1925,6 +1962,190 @@ def delete_image(image_id: int) -> bool:
         cur = conn.execute("DELETE FROM images WHERE id = ?", (image_id,))
         conn.commit()
         return cur.rowcount > 0
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+# ── Durable background job queue ─────────────────────────────────────
+
+JOB_MAX_ATTEMPTS = 5
+
+
+def enqueue_job_conn(
+    conn: sqlite3.Connection, op: str, payload: dict[str, Any]
+) -> int:
+    """Enqueue on an existing connection (joins the caller's transaction)."""
+    cur = conn.execute(
+        "INSERT INTO job_queue (op, payload_json, status)"
+        " VALUES (?, ?, 'pending')",
+        (op, json.dumps(payload)),
+    )
+    return int(cur.lastrowid)
+
+
+def enqueue_job(op: str, payload: dict[str, Any]) -> int:
+    conn = get_conn()
+    try:
+        job_id = enqueue_job_conn(conn, op, payload)
+        conn.commit()
+        return job_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def claim_next_job() -> dict[str, Any] | None:
+    """Atomically claim the oldest due pending job (single statement)."""
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            """UPDATE job_queue SET status = 'running',
+                attempts = attempts + 1, updated_at = datetime('now')
+            WHERE id = (
+                SELECT id FROM job_queue
+                WHERE status = 'pending' AND run_after <= datetime('now')
+                ORDER BY id LIMIT 1
+            )
+            RETURNING id, op, payload_json, attempts""",
+        ).fetchone()
+        conn.commit()
+        if row is None:
+            return None
+        return {
+            "id": int(row["id"]),
+            "op": str(row["op"]),
+            "payload": json.loads(row["payload_json"] or "{}"),
+            "attempts": int(row["attempts"]),
+        }
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def complete_job(job_id: int) -> None:
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM job_queue WHERE id = ?", (job_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def fail_job(job_id: int, error: str, *, max_attempts: int = JOB_MAX_ATTEMPTS) -> str:
+    """Return a job for retry (exponential backoff) or park it as dead."""
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT attempts FROM job_queue WHERE id = ?", (job_id,)
+        ).fetchone()
+        if row is None:
+            return "gone"
+        attempts = int(row["attempts"])
+        if attempts >= max_attempts:
+            conn.execute(
+                "UPDATE job_queue SET status = 'dead', last_error = ?,"
+                " updated_at = datetime('now') WHERE id = ?",
+                (error[:2000], job_id),
+            )
+            status = "dead"
+        else:
+            backoff = min(300, 5 * (2**attempts))
+            run_after_sql = (
+                datetime.now(timezone.utc) + timedelta(seconds=backoff)
+            ).strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute(
+                "UPDATE job_queue SET status = 'pending', run_after = ?,"
+                " last_error = ?, updated_at = datetime('now') WHERE id = ?",
+                (run_after_sql, error[:2000], job_id),
+            )
+            status = "pending"
+        conn.commit()
+        return status
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def reset_stuck_jobs() -> int:
+    """Crash recovery: jobs left 'running' by a dead worker become pending."""
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            "UPDATE job_queue SET status = 'pending',"
+            " run_after = datetime('now'), updated_at = datetime('now')"
+            " WHERE status = 'running'"
+        )
+        count = cur.rowcount
+        conn.commit()
+        return count
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_tombstoned_rel_paths(folder_id: int) -> set[str]:
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT rel_path FROM trash_tombstones WHERE folder_id = ?",
+            (folder_id,),
+        ).fetchall()
+        return {str(row["rel_path"]) for row in rows}
+    finally:
+        conn.close()
+
+
+def get_tombstones_by_image_ids(image_ids: list[int]) -> list[dict[str, Any]]:
+    if not image_ids:
+        return []
+    conn = get_conn()
+    try:
+        found: list[dict[str, Any]] = []
+        for start in range(0, len(image_ids), 500):
+            chunk = image_ids[start : start + 500]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = conn.execute(
+                "SELECT id, image_id, folder_id, folder_path, rel_path,"
+                " file_name, has_local_file FROM trash_tombstones"
+                f" WHERE image_id IN ({placeholders})",
+                chunk,
+            ).fetchall()
+            found.extend(dict(row) for row in rows)
+        return found
+    finally:
+        conn.close()
+
+
+def delete_tombstones(tombstone_ids: list[int]) -> int:
+    if not tombstone_ids:
+        return 0
+    conn = get_conn()
+    try:
+        removed = 0
+        for start in range(0, len(tombstone_ids), 500):
+            chunk = tombstone_ids[start : start + 500]
+            placeholders = ",".join("?" for _ in chunk)
+            cur = conn.execute(
+                f"DELETE FROM trash_tombstones WHERE id IN ({placeholders})",
+                chunk,
+            )
+            removed += cur.rowcount
+        conn.commit()
+        return removed
     except Exception:
         conn.rollback()
         raise

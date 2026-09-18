@@ -11,6 +11,7 @@ from PIL import Image
 
 from app import database as db
 from app import library
+from app import job_worker
 from app.ai.ranking import AIRank, AIRatingResult, AIRatingStatus, AIRatingStore
 from app.indexing import index_source_directory
 from app.main import app
@@ -366,7 +367,7 @@ class LibraryApiTest(LibraryTestCase):
         self.assertIsNone(db.get_image_path(image_id))
         self.assertTrue(physical.is_file())
 
-    @patch("app.file_actions.send2trash")
+    @patch("app.job_worker.send2trash")
     def test_physical_file_deletion_uses_system_trash_and_skips_uploads(
         self, send_to_trash
     ) -> None:
@@ -385,21 +386,30 @@ class LibraryApiTest(LibraryTestCase):
             json={"asset_ids": [image_id, uploaded_id]},
         )
 
+        # Instant accept: rows hidden, files still on disk, nothing trashed yet.
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["affected"], 2)
         self.assertEqual(sorted(payload["removed_ids"]), sorted([image_id, uploaded_id]))
         self.assertEqual(len(payload["failures"]), 0)
-        send_to_trash.assert_called_once_with(str(physical.resolve()))
         self.assertIsNone(db.get_image_path(image_id))
         self.assertIsNone(db.get_image_source_info(uploaded_id))
+        self.assertTrue(physical.is_file())
+        send_to_trash.assert_not_called()
+
+        # Background worker finishes the slow file operations.
+        with patch.object(
+            job_worker, "build_runtime_paths", return_value=self.paths
+        ):
+            self.assertTrue(job_worker.process_pending_job())
+        send_to_trash.assert_called_once_with(str(physical.resolve()))
         self.assertFalse(self.paths.thumbnails.joinpath(f"{image_id}.jpg").exists())
         self.assertFalse(
             self.paths.previews.joinpath(f"{image_id}-preview.jpg").exists()
         )
 
-    @patch("app.file_actions.send2trash", side_effect=OSError("Trash unavailable"))
-    def test_physical_file_deletion_failure_keeps_the_index(
+    @patch("app.job_worker.send2trash", side_effect=OSError("Trash unavailable"))
+    def test_physical_file_deletion_failure_retries_in_background(
         self, _send_to_trash
     ) -> None:
         physical = self.make_image("keep-after-trash-error.png")
@@ -410,11 +420,30 @@ class LibraryApiTest(LibraryTestCase):
             "/api/library/assets/trash", json={"asset_ids": [image_id]}
         )
 
+        # New semantics: the row hides instantly even though the file
+        # operation will fail — the job retries with backoff instead of
+        # failing the request.
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertEqual(payload["affected"], 0)
-        self.assertEqual(payload["failures"][0]["code"], "image_trash_failed")
-        self.assertIsNotNone(db.get_image_path(image_id))
+        self.assertEqual(payload["affected"], 1)
+        self.assertEqual(payload["failures"], [])
+        self.assertIsNone(db.get_image_path(image_id))
+        self.assertTrue(physical.is_file())
+
+        with patch.object(
+            job_worker, "build_runtime_paths", return_value=self.paths
+        ):
+            self.assertTrue(job_worker.process_pending_job())
+        conn = db.get_conn()
+        try:
+            row = conn.execute(
+                "SELECT status, attempts FROM job_queue"
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["status"], "pending")
+        self.assertEqual(int(row["attempts"]), 1)
         self.assertTrue(physical.is_file())
 
     def test_library_ui_explains_virtual_and_physical_deletion(self) -> None:

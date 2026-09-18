@@ -12,6 +12,7 @@ from PIL import Image
 
 from app import database as db
 from app import library
+from app import job_worker
 from app import worker
 from app.indexing import index_source_directory
 from app.main import app
@@ -257,7 +258,7 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         finally:
             original.close()
 
-    @patch("app.file_actions.send2trash")
+    @patch("app.job_worker.send2trash")
     def test_video_can_be_removed_from_index_or_moved_to_trash(
         self, send_to_trash
     ) -> None:
@@ -280,8 +281,15 @@ class UnifiedMediaAssetTest(unittest.TestCase):
         )
         self.assertEqual(trashed.status_code, 200)
         self.assertEqual(trashed.get_json()["removed_ids"], [trashed_id])
-        send_to_trash.assert_called_once_with(str(trashed_file.resolve()))
         self.assertEqual(client.get(f"/api/assets/{trashed_id}").status_code, 404)
+        # Files move in the background, not inside the request.
+        self.assertTrue(trashed_file.is_file())
+        send_to_trash.assert_not_called()
+        with patch.object(
+            job_worker, "build_runtime_paths", return_value=self.paths
+        ):
+            self.assertTrue(job_worker.process_pending_job())
+        send_to_trash.assert_called_once_with(str(trashed_file.resolve()))
 
     def test_missing_video_tools_do_not_break_image_thumbnails(self) -> None:
         self.make_video()
